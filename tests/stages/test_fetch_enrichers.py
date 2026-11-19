@@ -40,6 +40,10 @@ def _bamboo_case():
     {"name": "ML Engineer", "company": "Acme"},
     {"name": "ML Engineer", "jobAd": ["unexpected"]},
     {"name": "ML Engineer", "jobAd": {"sections": ["unexpected"]}},
+    {"name": "Senior ML Engineer", "jobAd": []},
+    {"name": "Senior ML Engineer", "jobAd": {"sections": []}},
+    {"name": "Senior ML Engineer", "company": []},
+    {"name": "Senior ML Engineer", "company": ""},
 ])
 def test_smartrecruiters_malformed_payload_leaves_job_unchanged(payload):
     candidate, job = _sr_case()
@@ -62,6 +66,9 @@ def test_smartrecruiters_well_formed_payload_still_enriches():
 def test_smartrecruiters_missing_optional_objects_still_enriches():
     candidate, job = _sr_case()
     enriched, used = _smartrecruiters_api_enrich(candidate, job, FakeClient({"name": "Senior ML Engineer"}))
+    assert used and enriched.title == "Senior ML Engineer" and enriched.company == "Acme"
+    payload = {"name": "Senior ML Engineer", "jobAd": {"sections": None}, "company": None}
+    enriched, used = _smartrecruiters_api_enrich(candidate, job, FakeClient(payload))
     assert used and enriched.title == "Senior ML Engineer" and enriched.company == "Acme"
 
 

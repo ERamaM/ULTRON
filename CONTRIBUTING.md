@@ -38,6 +38,8 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 
 ## Pull Request Guidelines
 
+- Use a [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) title in the form `type(scope)!: summary`. Scope and `!` are optional. Use `feat` for a new capability, `fix` for a bug fix, and `!` for an incompatible change. Other accepted types are `build`, `chore`, `ci`, `docs`, `perf`, `refactor`, `revert`, `style`, and `test`.
+- Keep package version changes in a dedicated release PR. Use a title such as `chore(release): prepare v0.1.1`.
 - Use the [pull request template](.github/pull_request_template.md) to describe the change, link related issues, and record validation.
 - Keep PRs focused and include regression tests for bug fixes or new ATS/feed behaviors.
 - Never commit `.env` files, personal profiles/CVs, `~/.ultron` exports, or hardcoded local filesystem paths.

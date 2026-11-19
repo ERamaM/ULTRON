@@ -19,7 +19,7 @@ from ultron.core.rules.hard_filters import (
     classify_remote_policy,
     has_region_red_flags,
 )
-from ultron.core.rules.term_matching import normalize_text
+from ultron.core.rules.term_matching import find_terms, normalize_text
 
 __all__ = [
     "EUROPEAN_SCOPE_TOKENS",
@@ -56,6 +56,7 @@ def location_scope(profile: Mapping[str, Any] | None) -> dict[str, tuple[str, ..
 
 
 GENERIC_REGION_TOKENS = frozenset({"remote", "worldwide", "anywhere", "global"})
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])(?<!\b[A-Z]\.)(?<!\b(?:[Ss]t|[Mm]t|[Ff]t)\.) +(?=[A-Z])")
 
 
 def scoped_eligibility_terms(profile: Mapping[str, Any] | None) -> tuple[str, ...]:
@@ -71,6 +72,20 @@ def scoped_eligibility_terms(profile: Mapping[str, Any] | None) -> tuple[str, ..
         if words:
             terms.append(" ".join(words))
     return tuple(dict.fromkeys(term for term in terms if term))
+
+
+def scoped_posting_eligibility(location: str, remote_text: str, body_text: str, terms: Iterable[str]) -> Eligibility | None:
+    """Use structured location or geographic context for non-European profiles."""
+    terms = tuple(terms)
+    prose_terms = tuple(term for term in terms if term != "us")
+    if find_terms(location, terms) or find_terms(remote_text, prose_terms):
+        return "high"
+    # Limit the context to the sentence that carries the geography signal.
+    body_excerpt = build_geo_body_excerpt(_SENTENCE_BOUNDARY.sub("\n", body_text))
+    # In prose, the lowercase pronoun "us" is not a country abbreviation.
+    if "us" in terms and re.search(r"(?<!\w)US(?!\w)", f"{remote_text}\n{body_excerpt}"):
+        return "high"
+    return "high" if find_terms(body_excerpt, prose_terms) else None
 
 
 def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:

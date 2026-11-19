@@ -50,6 +50,8 @@ def test_heuristic_does_not_infer_europe_from_partial_region_name(region):
     from types import SimpleNamespace
 
     from ultron.core.decision.heuristics import HeuristicEvaluator
+    from ultron.core.models import ExtractedJob
 
     evaluator = HeuristicEvaluator(SimpleNamespace(evaluation_profile=SimpleNamespace(target_regions=(region,))))
-    assert evaluator._eligibility("Remote US only", None) == "medium"
+    job = ExtractedJob(apply_url="https://example.test/job/1", domain="example.test", remote_text="Remote US only")
+    assert evaluator._eligibility(job, None) == "medium"

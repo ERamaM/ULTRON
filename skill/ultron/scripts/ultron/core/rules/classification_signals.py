@@ -4,6 +4,7 @@ import re
 from collections.abc import Iterable
 
 from ultron.core.models import ClassificationSignals, ExtractedJob, ExtractionMeta, GeoScope
+from ultron.core.rules.geography import scoped_posting_eligibility
 from ultron.core.rules.hard_filters import build_geo_body_excerpt, classify_eligibility, classify_remote_policy
 from ultron.core.rules.hard_filters_data import DISALLOWED_REMOTE_TERMS, STRONG_REMOTE_POSITIVE_TERMS
 from ultron.core.rules.role_matching import (
@@ -95,7 +96,11 @@ def build_classification_signals(
             low_geo_text, geo, remote_text=job.remote_text, body_text=job.body_text
         ),
         remote_conflict=remote_conflict,
-        eligibility_hint=classify_eligibility(low_geo_text, geo, eligibility_terms),
+        eligibility_hint=(
+            classify_eligibility(low_geo_text)
+            if geo == "eu"
+            else scoped_posting_eligibility(job.location, job.remote_text, job.body_text, eligibility_terms)
+        ),
         seniority_ambiguous=seniority_ambiguous,
         signal_sources=sources[:4],
     )

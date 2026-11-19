@@ -38,13 +38,17 @@ def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
         if not title or not apply_url:
             continue
         categories = job.get("categories") if isinstance(job.get("categories"), dict) else {}
-        location = str(categories.get("location", "")).strip() if isinstance(categories, dict) else ""
+        locations = [str(categories.get("location") or "").strip()]
+        all_locations = categories.get("allLocations")
+        if isinstance(all_locations, list):
+            locations.extend(item.strip() for item in all_locations if isinstance(item, str))
         posted_at = str(job.get("createdAt") or "").strip() or None
         output.append(
             AtsPosting(
                 title=title,
                 apply_url=apply_url,
-                location=location,
+                location="; ".join(dict.fromkeys(filter(None, locations))),
+                remote_hint=str(job.get("workplaceType") or "").strip(),
                 posted_at=posted_at,
                 raw_payload=job,
             )

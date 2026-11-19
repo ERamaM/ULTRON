@@ -23,10 +23,15 @@ from ultron.core.models import (
 from ultron.core.ranker.match_score import compute_match_score
 from ultron.core.ranker.profile_terms import collect_profile_term_hits
 from ultron.core.rules.geo_eu import SPAIN_LOCALITY_TERMS
-from ultron.core.rules.geography import GeoAssessment, assess_geography, location_scope, scoped_eligibility_terms
+from ultron.core.rules.geography import (
+    GeoAssessment,
+    assess_geography,
+    location_scope,
+    scoped_eligibility_terms,
+    scoped_posting_eligibility,
+)
 from ultron.core.rules.hard_filters import (
     build_geo_body_excerpt,
-    classify_eligibility,
     classify_remote_policy,
     location_excluded,
 )
@@ -211,7 +216,9 @@ def _scoped_geography(
         remote_policy=classify_remote_policy(
             geo_text, geo, remote_text=extracted.remote_text, body_text=extracted.body_text
         ),
-        eligibility=classify_eligibility(geo_text, geo, scoped_eligibility_terms({"criteria": criteria})),
+        eligibility=scoped_posting_eligibility(
+            extracted.location, extracted.remote_text, extracted.body_text, scoped_eligibility_terms({"criteria": criteria})
+        ),
         conflict=False,
     )
     full_text = f"{extracted.location}\n{extracted.remote_text}\n{extracted.body_text}"

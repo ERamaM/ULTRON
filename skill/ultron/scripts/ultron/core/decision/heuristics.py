@@ -6,7 +6,12 @@ from dataclasses import dataclass
 
 from ultron.core.decision.evaluation_profile import EvaluationProfile
 from ultron.core.models import ClassificationSignals, ExtractedJob, ExtractionMeta, GeoScope, JobEvaluation
-from ultron.core.rules.geography import is_european_scope, location_scope, scoped_eligibility_terms
+from ultron.core.rules.geography import (
+    is_european_scope,
+    location_scope,
+    scoped_eligibility_terms,
+    scoped_posting_eligibility,
+)
 from ultron.core.rules.hard_filters import (
     classify_eligibility,
     is_full_remote_only,
@@ -86,7 +91,7 @@ class HeuristicEvaluator:
         if classification_signals and classification_signals.remote_conflict is True:
             full_remote = False
         open_status = is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint)
-        eligibility = self._eligibility(text, classification_signals)
+        eligibility = self._eligibility(job, classification_signals)
         fit_signals = self._fit_signals(text)
         verdict, reason, category = self._decision(
             allowed_family, is_senior, full_remote, open_status, classification_signals
@@ -177,12 +182,13 @@ class HeuristicEvaluator:
         excluded = location_scope(self.cfg.search_profile_snapshot)["excluded_terms"]
         return location_excluded(f"{job.location}\n{job.remote_text}\n{job.body_text}", excluded)
 
-    def _eligibility(self, text: str, signals: ClassificationSignals | None) -> str | None:
+    def _eligibility(self, job: ExtractedJob, signals: ClassificationSignals | None) -> str | None:
         if self._scoped():
-            if signals and signals.eligibility_hint is not None:
+            if signals is not None:
                 return signals.eligibility_hint
             terms = scoped_eligibility_terms(self.cfg.search_profile_snapshot)
-            return classify_eligibility(text, self.cfg.geo, terms)
+            return scoped_posting_eligibility(job.location, job.remote_text, job.body_text, terms)
+        text = f"{job.remote_text}\n{job.body_text}"
         profile = getattr(self.cfg, "evaluation_profile", None)
         regions = tuple(getattr(profile, "target_regions", ()) or ())
         if not regions:

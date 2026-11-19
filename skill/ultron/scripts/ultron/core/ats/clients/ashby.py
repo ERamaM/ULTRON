@@ -20,10 +20,16 @@ def fetch_ashby_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
         job_url = str(job.get("jobUrl") or "").strip()
         if not title or not job_url or not job.get("isListed", True):
             continue
+        locations = [str(job.get("location") or "").strip()]
+        secondary_locations = job.get("secondaryLocations")
+        if isinstance(secondary_locations, list):
+            locations.extend(
+                str(item.get("location") or "").strip() for item in secondary_locations if isinstance(item, dict)
+            )
         output.append(AtsPosting(
             title=title,
             apply_url=job_url,
-            location=str(job.get("location") or "").strip(),
+            location="; ".join(dict.fromkeys(filter(None, locations))),
             remote_hint=str(job.get("workplaceType") or "").strip(),
             posted_at=str(job.get("publishedAt") or "").strip() or None,
             raw_payload={key: value for key, value in job.items() if key not in {"descriptionHtml", "descriptionPlain"}},

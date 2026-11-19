@@ -193,7 +193,9 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
 
 _CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
 # The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
-_APPLICATIONS_BEFORE_RE = re.compile(r"\bapplications?\s+$")
+_APPLICATIONS_BEFORE_RE = re.compile(
+    r"\bapplications?\s+(?:(?:are|is|were|was|have|has|been|now|currently)\s+)*$"
+)
 
 
 def _has_closed_status_phrase(low: str) -> bool:

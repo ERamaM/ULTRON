@@ -11,10 +11,14 @@ members = ["skill/ultron/scripts"]
 ultron = { workspace = true }
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = ["diff-cover", "pytest", "pytest-cov", "ruff"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["skill/ultron/scripts/ultron"]
+relative_files = true
 
 [tool.ruff]
 line-length = 120

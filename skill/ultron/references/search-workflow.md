@@ -229,7 +229,7 @@ Rules:
 ## 9. Finalize
 
 ```
-ultron finalize --run <run_id>
+ultron finalize --run <run_id> [--xlsx] [--html]
 ```
 
 Output:
@@ -247,6 +247,8 @@ Output:
 - `unsure` rows stay in the results, flagged as unsure.
 - A role you kept can still be dropped here (location conflict, duplicate, cap); those are listed in
   `finalize_discards.jsonl` with a `stage` field.
+- `--xlsx` and `--html` also write `results.xlsx` / `results.html` and add `results_xlsx` / `results_html` to
+  `outputs`. If that export fails, finalize still succeeds and reports `xlsx_error` / `html_error`.
 - `results.json` rows carry `is_new` (never seen in an earlier run). Running finalize twice gives
   the same result and does not double-count history.
 

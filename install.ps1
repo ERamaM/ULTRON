@@ -136,7 +136,10 @@ try {
     }
 
     $installPy = Join-Path $sourceDir 'install.py'
-    $argsToPass = if ($InstallerArgs) { $InstallerArgs } else { @() }
+    # Wrap in @() so a single argument stays an array; otherwise PowerShell
+    # unrolls it to a string and splatting passes it one character at a time.
+    # The if keeps zero arguments as an empty array instead of @($null).
+    $argsToPass = @(if ($InstallerArgs) { $InstallerArgs })
 
     $uvCmd = Find-UvExecutable
     if ($uvCmd) {

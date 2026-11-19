@@ -109,6 +109,7 @@ jobs:
             --cov-report=xml:coverage-report/coverage.xml \
             --cov-report=json:coverage-report/coverage.json
       - name: Summarize coverage
+        if: ${{ !cancelled() && hashFiles('coverage-report/coverage.json') != '' }}
         run: |
           uv run python - <<'PY'
           import json
@@ -132,7 +133,7 @@ jobs:
           (report_dir / "badge.json").write_text(json.dumps(badge) + "\n", encoding="utf-8")
           PY
       - name: Report coverage of changed Python lines
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && hashFiles('coverage-report/coverage.xml') != '' }}
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -140,6 +141,7 @@ jobs:
             --format markdown:coverage-report/changed-lines.md
           cat coverage-report/changed-lines.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && hashFiles('coverage-report/**/*') != '' }}
         with:
           name: coverage-report
           path: coverage-report/

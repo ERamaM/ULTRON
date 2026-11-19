@@ -50,3 +50,25 @@ def test_find_terms_normalizes_the_input_only_once(monkeypatch):
     monkeypatch.setattr(term_matching, "normalize_text", record)
     assert find_terms(text, ["espana", "missing", "espana"]) == ["espana"]
     assert calls.count(text) == 1
+
+
+def _fit_signals(specialties, text):
+    from types import SimpleNamespace
+
+    from ultron.core.decision.heuristics import HeuristicEvaluator
+
+    evaluator = HeuristicEvaluator(SimpleNamespace(evaluation_profile=SimpleNamespace(specialties=specialties)))
+    return evaluator._fit_signals(text)
+
+
+def test_fit_signals_match_whole_terms_only():
+    assert _fit_signals(["AWS", "iOS", "CSS", "Go", "R"], "process and good practices") == []
+
+
+def test_fit_signals_allow_one_plural_s():
+    assert _fit_signals(["LLMs", "Agent", "CSS", "Go"], "Build LLM agents with CSS in Go.") == ["LLMs", "Agent", "CSS"]
+
+
+def test_fit_signals_long_stems_match_word_starts_only():
+    assert _fit_signals(["eval", "agents"], "Own model evaluation with agentes.") == ["eval", "agents"]
+    assert _fit_signals(["eval", "RAG"], "Retrieval and model storage.") == []

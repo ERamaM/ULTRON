@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from ultron import ledger, runs
+from ultron.core.ats.identity import seed_identity
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
 from ultron.core.final_row import _assemble_final_row, fallback_fit_signals, prepare_geography
@@ -18,6 +19,7 @@ from ultron.core.models import CandidateUrl, DiscardRecord, ExtractedJob, FinalR
 from ultron.core.ranker import dedupe_final_rows, rank_final_rows
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope
+from ultron.stages.discover import SEED_ATTEMPTS_FILE
 
 TOP_N = 5
 
@@ -40,6 +42,23 @@ def _discard(job: ExtractedJob, reason: str, detail: str = "") -> DiscardRecord:
 
 def _row_key(row: FinalRow) -> str:
     return canonical_job_identity(row.apply_url, source_type=row.source_type, source_key=row.source_key).identity_key
+
+
+def _seed_kept(out_dir: Path, rows: list[FinalRow]) -> dict[str, int] | None:
+    """Kept postings per seed this run queried (``None`` when ``discover ats`` recorded no attempts)."""
+    path = out_dir / SEED_ATTEMPTS_FILE
+    if not path.exists():
+        return None
+    kept = {str(r.get("seed_key") or ""): 0 for r in runs.read_jsonl(path) if isinstance(r, dict)}
+    kept.pop("", None)
+    for row in rows:
+        vendor, sep, board = str(row.source_key or "").partition(":")
+        if row.source_type != "ats_api" or not sep:
+            continue
+        key = ":".join(seed_identity(vendor, board))
+        if key in kept:
+            kept[key] += 1
+    return kept
 
 
 def finalize(run_id: str) -> dict:
@@ -151,7 +170,10 @@ def finalize(run_id: str) -> dict:
     )
 
     with closing(ledger.connect()) as conn:
-        is_new = ledger.record_finalized_run(conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"])
+        is_new = ledger.record_finalized_run(
+            conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"],
+            seed_kept=_seed_kept(out_dir, ranked),
+        )
 
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
     # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.

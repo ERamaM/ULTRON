@@ -168,6 +168,11 @@ _GENERIC_PORTAL_TITLES = frozenset({"join us", "careers", "jobs", "career", "ope
 _WD_LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
 
 
+def _dict_or_empty(value: object) -> object:
+    """``{}`` for a missing (``None``) JSON object; every other value is returned for validation."""
+    return {} if value is None else value
+
+
 def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
     src = str(candidate.source_key or "").strip()
     is_sr_domain = job.domain == "smartrecruiters.com" or job.domain.endswith(".smartrecruiters.com")
@@ -195,7 +200,12 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         return job, False
     if not isinstance(payload, dict) or not payload.get("name"):
         return job, False
-    sections_dict = (payload.get("jobAd") or {}).get("sections") or {}
+    # Only a missing (null) object defaults to {}; any other non-dict, even an empty list, is malformed.
+    job_ad = _dict_or_empty(payload.get("jobAd"))
+    sections_dict = _dict_or_empty(job_ad.get("sections")) if isinstance(job_ad, dict) else None
+    company_obj = _dict_or_empty(payload.get("company"))
+    if not isinstance(sections_dict, dict) or not isinstance(company_obj, dict):
+        return job, False
     ordered = ("jobDescription", "qualifications", "additionalInformation", "companyDescription")
     parts = [
         _html_to_text(str((sections_dict.get(k) or {}).get("text") or ""))
@@ -205,7 +215,7 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
     body_text = "\n\n".join(p for p in parts if p)
     loc_obj = payload.get("location")
     loc_str = smartrecruiters_location(loc_obj)
-    company_name = str((payload.get("company") or {}).get("name") or candidate.ats_company or job.company).strip()
+    company_name = str(company_obj.get("name") or candidate.ats_company or job.company).strip()
     workplace = smartrecruiters_workplace(loc_obj)
     if not workplace and "remote" in str(payload.get("workplace") or "").lower():
         workplace = "Remote"
@@ -293,7 +303,8 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
             payload = client.request_json(detail_url, allowed_domains=("bamboohr.com",))
         except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
             return job, False
-        opening = (payload.get("result") or {}).get("jobOpening") if isinstance(payload, dict) else None
+        result = payload.get("result") if isinstance(payload, dict) else None
+        opening = result.get("jobOpening") if isinstance(result, dict) else None
         if not isinstance(opening, dict):
             return job, False
         desc = _html_to_text(str(opening.get("description") or ""))

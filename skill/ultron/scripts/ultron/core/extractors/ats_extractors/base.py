@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
@@ -10,6 +9,7 @@ from bs4 import BeautifulSoup
 
 from ultron.core.ats.vendors import canonical_domain_for_vendor, match_vendor_by_fingerprint
 from ultron.core.extractors.ats_extractors.posting_date import posting_date_from_text
+from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.models import ExtractedJob, JobRawPage
 from ultron.core.rules.geo_eu import EXTRACTOR_COMPENSATION_OVERRIDE_TERMS, EXTRACTOR_LOCATION_MARKERS
 from ultron.core.rules.hard_filters_data import STRONG_REMOTE_POSITIVE_TERMS
@@ -305,20 +305,11 @@ def _json_load_loose(raw: str) -> object | None:
     text = str(raw or "").strip()
     if not text:
         return None
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return None
+    return load_json_or_none(text)
 
 
 def _iter_json_nodes(node: object) -> Iterable[dict]:
-    if isinstance(node, dict):
-        yield node
-        for value in node.values():
-            yield from _iter_json_nodes(value)
-    elif isinstance(node, list):
-        for item in node:
-            yield from _iter_json_nodes(item)
+    return iter_json_dicts(node)
 
 
 def _schema_type_leaf(value: object) -> str:
@@ -346,7 +337,7 @@ def _iter_jobposting_nodes(soup: BeautifulSoup) -> Iterable[dict]:
 def _extract_company_from_jobposting(job: dict) -> str:
     hiring_org = job.get("hiringOrganization")
     if isinstance(hiring_org, dict):
-        return _clean_text(str(hiring_org.get("name", "")))
+        return _clean_text(str(hiring_org.get("name") or ""))
     return _clean_text(str(hiring_org or ""))
 
 
@@ -356,10 +347,14 @@ def _extract_location_parts(value: object) -> list[str]:
         address = value.get("address") if isinstance(value.get("address"), dict) else value
         if isinstance(address, dict):
             for key in ("addressLocality", "addressRegion", "addressCountry", "streetAddress"):
-                data = _clean_text(str(address.get(key, "")))
+                raw = address.get(key)
+                # schema.org allows typed values such as {"@type": "Country", "name": "ES"}.
+                if isinstance(raw, dict):
+                    raw = raw.get("name")
+                data = _clean_text(str(raw or ""))
                 if data:
                     parts.append(data)
-        name = _clean_text(str(value.get("name", "")))
+        name = _clean_text(str(value.get("name") or ""))
         if name:
             parts.append(name)
     elif isinstance(value, list):
@@ -371,7 +366,7 @@ def _extract_location_parts(value: object) -> list[str]:
 
 
 def _structured_fields_from_node(job: dict) -> dict[str, str]:
-    title = _clean_text(str(job.get("title", "")))
+    title = _clean_text(str(job.get("title") or ""))
     company = _extract_company_from_jobposting(job)
     location_parts: list[str] = []
     location_parts.extend(_extract_location_parts(job.get("jobLocation")))
@@ -379,7 +374,7 @@ def _structured_fields_from_node(job: dict) -> dict[str, str]:
     location = _dedupe_join(location_parts, limit=3)
 
     remote_bits: list[str] = []
-    location_type = _clean_text(str(job.get("jobLocationType", "")))
+    location_type = _clean_text(str(job.get("jobLocationType") or ""))
     if "telecommute" in location_type.lower():
         remote_bits.append("Remote")
     if _looks_remote_workplace(location):

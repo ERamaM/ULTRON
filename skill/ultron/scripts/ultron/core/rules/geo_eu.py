@@ -25,7 +25,12 @@ from ultron.core.rules.hard_filters_data import (
     REMOTE_HINT_TERMS,
 )
 from ultron.core.rules.term_matching import normalize_text
-from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary, word_boundary_pattern
+from ultron.core.rules.text_patterns import (
+    contains_any_substring,
+    contains_any_term_boundary,
+    contains_any_word_boundary,
+    word_boundary_pattern,
+)
 
 # --- scope tokens (was rules/geography.py) ---------------------------------------------------
 
@@ -228,6 +233,7 @@ US_EXPLICIT_TERMS = {
     "u.s. (remote)",
     "u.s. remote",
     "location: u.s.",
+    "location: u.s.a",
     "location: usa",
     "us-based",
     "us based",
@@ -405,7 +411,7 @@ def _has_pattern_match(text: str, patterns: Iterable[str]) -> bool:
 
 
 def _window_has_us_disqualifier(window: str) -> bool:
-    if contains_any_substring(window, US_EXPLICIT_TERMS):
+    if contains_any_term_boundary(window, US_EXPLICIT_TERMS):
         return True
     if contains_any_substring(window, US_CITY_TERMS):
         return True
@@ -520,7 +526,7 @@ def _has_us_state_code_signal(raw_text: str) -> bool:
 
 
 def _has_us_location_signal(text: str, *, raw_text: str = "") -> bool:
-    if contains_any_substring(text, US_EXPLICIT_TERMS):
+    if contains_any_term_boundary(text, US_EXPLICIT_TERMS):
         return True
     if _has_us_city_in_context(text):
         return True

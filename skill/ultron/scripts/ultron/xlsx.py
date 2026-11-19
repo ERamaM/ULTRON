@@ -240,7 +240,7 @@ def _build_summary_sheet(ws, run: dict, summary: dict, counts: dict[str, int], s
             rc = ws.cell(row=row, column=1, value=_neutralize_formula(str(reason)))
             rc.border = styles["border"]
             rc.alignment = styles["cell_align_nowrap"]
-            cc = ws.cell(row=row, column=2, value=count)
+            cc = ws.cell(row=row, column=2, value=_cell_value(count))
             cc.border = styles["border"]
             row += 1
     ws.freeze_panes = "A4"

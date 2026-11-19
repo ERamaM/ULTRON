@@ -31,9 +31,9 @@ from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
 
-# Vendors probed by slug, in order. The rest (workday, icims, taleo, jobvite, bamboohr, jazzhr,
-# factorial, comeet) need a host or a vendor-specific locator, so they are only reached via an
-# explicit ats/board pair or a careers_url.
+# Vendors probed by slug, in order. The bare-slug vendors added last (jobvite, bamboohr, jazzhr, factorial) cost
+# about 2, 2, 1 and 2 requests per missed slug. The rest (workday, icims, taleo need a host; comeet needs a
+# company UID next to the slug) are only reached via an explicit ats/board pair or a careers_url.
 PROBE_VENDORS = (
     "greenhouse",
     "lever",
@@ -46,6 +46,10 @@ PROBE_VENDORS = (
     "pinpoint",
     "homerun",
     "breezy",
+    "jobvite",
+    "bamboohr",
+    "jazzhr",
+    "factorial",
 )
 _TRUE = {"1", "true", "yes", "y", "on", "si", "sí"}
 _FALSE = {"0", "false", "no", "n", "off"}

@@ -68,9 +68,9 @@ board's public API answers (even with zero open postings).
 
 - **Probed by slug** (the CLI guesses boards from the company name/domain, in this order):
   greenhouse, lever, ashby, workable, recruitee, teamtailor, smartrecruiters, personio, pinpoint,
-  homerun, breezy.
+  homerun, breezy, jobvite, bamboohr, jazzhr, factorial.
 - **Only via `careers_url` or an explicit `ats` + `board`** (the board needs a host or a vendor-specific
-  locator that cannot be guessed): jobvite, bamboohr, jazzhr, factorial, comeet, workday, icims, taleo.
+  locator that cannot be guessed): comeet, workday, icims, taleo.
   For these, search the web for the company's careers page, then propose it with its URL, e.g.
   `{"company": "Big Bank", "careers_url": "https://bigbank.wd3.myworkdayjobs.com/en-US/External"}`.
 
@@ -83,7 +83,7 @@ still contribute postings through web search in step 4.
 Put all of this run's proposals in one file and call `seeds verify` once. Each call has an overall
 request budget (`max_pages` + 2 x `max_seeds_per_run` of the preset; about 300 requests with `fast`).
 A proposal with a known `ats` + `board` (or a `careers_url` on the ATS) costs about 1 request; one
-without costs up to 3 guesses on each of the 11 probed ATSs. If the budget runs out, the remaining companies
+without costs up to 5 guesses on each of the 15 probed ATSs (about 22 requests per guess). If the budget runs out, the remaining companies
 come back as `budget_exhausted`; verify those again in a new call, which starts with a fresh budget.
 
 Give `ats` + `board` or `careers_url` whenever you know them; it is cheaper and more reliable.

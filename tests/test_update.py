@@ -227,7 +227,7 @@ def test_update_prepares_command_and_never_runs_it(monkeypatch, capsys, tmp_path
     seen = _serve(monkeypatch, _zip(_source_zip("0.2.0")))
     ran = []
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: ran.append(a))
-    monkeypatch.setattr(update.shutil, "which", lambda name: None)
+    monkeypatch.setattr(update, "find_on_path", lambda name: None)
 
     code, out = _run(capsys)
     assert code == 0 and not ran
@@ -251,10 +251,10 @@ def test_without_uv_the_base_interpreter_runs_the_installer(monkeypatch, capsys)
     _install(Path.home() / ".claude" / "skills" / "ultron")
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     _serve(monkeypatch, _zip(_source_zip("0.2.0")))
-    monkeypatch.setattr(update.shutil, "which", lambda name: None)
-    monkeypatch.setattr(update.sys, "_base_executable", "/opt/base python/bin/python3", raising=False)
+    monkeypatch.setattr(update, "find_on_path", lambda name: None)
+    monkeypatch.setattr(update.sys, "_base_executable", str(Path.home() / "base python" / "python3"), raising=False)
     _, out = _run(capsys)
-    assert out["commands"][0]["argv"][0] == "/opt/base python/bin/python3"
+    assert out["commands"][0]["argv"][0] == str(Path.home() / "base python" / "python3")
 
 
 def test_release_tag_without_v_prefix_is_kept(monkeypatch, capsys):
@@ -270,7 +270,7 @@ def test_installer_runs_outside_the_ultron_venv(monkeypatch, capsys):
     _install(Path.home() / ".claude" / "skills" / "ultron")
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     _serve(monkeypatch, _zip(_source_zip("0.2.0")))
-    monkeypatch.setattr(update.shutil, "which", lambda name: "/opt/tools/uv" if name == "uv" else None)
+    monkeypatch.setattr(update, "find_on_path", lambda name: "/opt/tools/uv" if name == "uv" else None)
     _, out = _run(capsys)
     argv = out["commands"][0]["argv"]
     assert argv[:5] == ["/opt/tools/uv", "run", "--python", ">=3.12", "--no-project"]

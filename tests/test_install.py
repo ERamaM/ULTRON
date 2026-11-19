@@ -89,7 +89,7 @@ def test_venv_tool_output_goes_to_stderr(installer, tmp_path, monkeypatch):
     calls = []
     monkeypatch.setattr(installer.subprocess, "Popen", _fake_popen(lambda cmd, kwargs: calls.append(kwargs)))
     for uv in ("uv", None):
-        monkeypatch.setattr(installer.shutil, "which", lambda name, uv=uv: uv)
+        monkeypatch.setattr(installer, "find_on_path", lambda name, uv=uv: uv)
         installer.create_venv(tmp_path / "venv", tmp_path / "scripts")
     assert len(calls) == 4
     assert all(kw.get("stdout") is sys.stderr for kw in calls)
@@ -490,7 +490,7 @@ def test_non_editable_venv_install_commands(inst, tmp_path, monkeypatch):
     monkeypatch.setattr(inst.subprocess, "Popen", _fake_popen(lambda cmd, kwargs: calls.append(cmd)))
     scripts = tmp_path / "José Pérez" / "scripts"
     for uv in ("uv", None):
-        monkeypatch.setattr(inst.shutil, "which", lambda name, uv=uv: uv)
+        monkeypatch.setattr(inst, "find_on_path", lambda name, uv=uv: uv)
         calls.clear()
         inst.create_venv(tmp_path / "venv", scripts, editable=False)
         install = calls[-1]

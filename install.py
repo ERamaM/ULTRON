@@ -22,7 +22,8 @@ behaviour: project install into ``--target`` (default ``.``).
 ``--purge-data`` is given, and even then only if it holds ``.ultron-home`` (written by every install) or
 ``ultron.sqlite3`` (with only the database, generic entries such as ``venv`` or ``cv`` are kept). Nothing outside the ``ultron`` folders this installer created is ever deleted: destinations
 inside the source tree are refused, a marker only counts when its ``path`` is the folder itself, ``--dev`` links
-are tracked in ``$ULTRON_HOME/installs.json`` (no marker is written through them), unmarked phase-1 folders are
+are tracked in ``$ULTRON_HOME/installs.json`` (no marker is written through them; the same file records every
+install's scope, path, platforms, version and mode for ``ultron update``), unmarked phase-1 folders are
 moved to ``$ULTRON_HOME/backups/legacy-skill-<platform>-<timestamp>``, and links are unlinked, never followed.
 """
 
@@ -228,10 +229,42 @@ def _handle_termination_signals() -> None:
             signal.signal(getattr(signal, name), _on_termination_signal)
 
 
+def find_on_path(name: str) -> str | None:
+    """``name`` on PATH, never from the current directory (unlike ``shutil.which`` on Windows).
+
+    Only absolute PATH entries are searched; empty, relative and current-directory entries are skipped, so an
+    untrusted checkout holding ``uv.exe`` cannot become the installer's executable. On Windows the ``PATHEXT``
+    extensions are tried. The same resolver lives in ``install.py`` and ``ultron.update`` (tested together).
+    """
+    try:
+        cwd = os.path.normcase(os.path.realpath(os.getcwd()))
+    except OSError:
+        cwd = None
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e.strip()]
+        if os.path.splitext(name)[1]:
+            exts.insert(0, "")
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        entry = entry.strip().strip('"')
+        if not entry or not os.path.isabs(entry):
+            continue
+        try:
+            if os.path.normcase(os.path.realpath(entry)) == cwd:
+                continue
+        except OSError:
+            continue
+        for ext in exts:
+            candidate = os.path.join(entry, name + ext)
+            if os.path.isfile(candidate) and (os.name == "nt" or os.access(candidate, os.X_OK)):
+                return candidate
+    return None
+
+
 def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
     """Create/update the venv and install ``scripts[cv,xlsx]`` (editable or regular); return the tool used."""
     spec = f"{scripts}{EXTRAS}"
-    uv = shutil.which("uv")
+    uv = find_on_path("uv")
     if uv:
         _run([uv, "venv", "--allow-existing", "--python", ">=3.12", str(venv)])
         if editable:
@@ -340,19 +373,84 @@ def _registry_path() -> Path:
     return ultron_home() / REGISTRY
 
 
-def _read_registry() -> dict:
+def _read_registry_file() -> dict:
+    """``installs.json``: ``links`` (``--dev`` link -> source) and ``installs`` (target path -> install record).
+
+    Older files hold only ``links``; a missing or unreadable file reads as empty.
+    """
     try:
         data = json.loads(_registry_path().read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
         return {}
-    links = data.get("links") if isinstance(data, dict) else None
-    return links if isinstance(links, dict) else {}
+    if not isinstance(data, dict):
+        return {}
+    return {key: value for key in ("links", "installs") if isinstance(value := data.get(key), dict)}
+
+
+def _read_registry() -> dict:
+    return _read_registry_file().get("links", {})
+
+
+def _record_target_exists(record: object) -> bool:
+    path = record.get("path") if isinstance(record, dict) else None
+    if not isinstance(path, str):
+        return False
+    # os.lstat, not Path.exists(): on Python 3.14 exists()/is_symlink() turn any OSError into False, and a
+    # folder that is only unreadable right now (permissions, an offline drive) must keep its record.
+    try:
+        os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except (OSError, ValueError):
+        return True
+    return True
+
+
+def _save_registry_file(data: dict) -> None:
+    """Write ``installs.json`` atomically (temp file in the same folder, then ``os.replace``).
+
+    Install records whose folder no longer exists (deleted by hand) are dropped on every write.
+    """
+    path = _registry_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    installs = {key: record for key, record in data.get("installs", {}).items() if _record_target_exists(record)}
+    payload = {"links": data.get("links", {}), "installs": installs}
+    tmp = path.with_name(f".{REGISTRY}.{secrets.token_hex(6)}.tmp")
+    try:
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _write_registry(links: dict) -> None:
-    path = _registry_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"links": links}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    data = _read_registry_file()
+    data["links"] = links
+    _save_registry_file(data)
+
+
+def _record_install(dst: Path, *, scope: str, project: Path | None, platforms: list[str], version: str) -> None:
+    """Record an install (scope, path, platforms, version, mode, time) so ``ultron update`` can find it."""
+    data = _read_registry_file()
+    installs = data.setdefault("installs", {})
+    key = str(_real_location(dst))
+    installs[key] = {
+        "scope": scope,
+        "project": str(project) if scope == "project" and project is not None else None,
+        "path": key,
+        "platforms": list(platforms),
+        "version": version,
+        "mode": "link" if _is_link(dst) else "copy",
+        "installed_at": datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat(),
+    }
+    _save_registry_file(data)
+
+
+def _forget_install(dst: Path) -> None:
+    data = _read_registry_file()
+    if data.get("installs", {}).pop(str(_real_location(dst)), None) is not None:
+        _save_registry_file(data)
 
 
 def _register_link(dst: Path, target: Path) -> None:
@@ -675,7 +773,11 @@ def install_dev(*, target: Path, source: Path | None = None, force_copy: bool = 
         dest = Path(target) / rel / "ultron"
         _exit_if_terminated()
         install_copy(source, dest, runtime, label=rel.parts[0].lstrip("."))
-        targets.append({"path": str(dest), "mode": "symlink" if _is_link(dest) else "copy"})
+        entry = {"path": str(dest), "mode": "symlink" if _is_link(dest) else "copy"}
+        platforms = ["claude"] if rel.parts[0] == ".claude" else [p for p in PLATFORMS if p != "claude"]
+        _try_record({**entry, "platforms": platforms}, dest, scope="project", project=Path(target).resolve(),
+                    version=runtime["version"])
+        targets.append(entry)
     return {"venv": str(venv), "venv_tool": tool, "ultron": str(runtime["executable"]), "targets": targets}
 
 
@@ -721,6 +823,10 @@ def run_install(*, scope: str, project: Path | None, platforms: list[str], dev: 
             entry["mode"] = "symlink" if _is_link(dest) else "copy"
         except (InstallError, OSError) as exc:
             entry.update(status="skipped", reason=str(exc))
+            continue
+        # Recorded right after its copy (the write is atomic), so a termination at the next checkpoint never
+        # leaves a finished install unrecorded or installs.json half-written.
+        _try_record(entry, dest, scope=scope, project=project, version=runtime["version"])
     _exit_if_terminated()
     report = {"action": "update" if update else "install", "scope": scope, "dry_run": dry_run,
               "version": runtime["version"], "venv": str(venv), "venv_tool": tool,
@@ -728,6 +834,14 @@ def run_install(*, scope: str, project: Path | None, platforms: list[str], dev: 
     if not dry_run:
         report["ok"] = not any(e["status"] == "skipped" and e.get("reason") != "not installed" for e in entries)
     return report
+
+
+def _try_record(entry: dict, dest: Path, *, scope: str, project: Path | None, version: str) -> None:
+    """Record a finished install; a registry failure is a warning, never a failed install."""
+    try:
+        _record_install(dest, scope=scope, project=project, platforms=entry["platforms"], version=version)
+    except OSError as exc:
+        entry["warning"] = f"could not record the install in {REGISTRY}: {exc}"
 
 
 def _home_refusal(home: Path) -> str | None:
@@ -803,6 +917,11 @@ def run_uninstall(*, scope: str, project: Path | None, platforms: list[str], pur
                 entry["status"] = "removed" if uninstall_copy(path) else "skipped"
             except OSError as exc:
                 entry.update(status="failed", reason=str(exc))
+            if entry["status"] == "removed":
+                try:
+                    _forget_install(path)
+                except OSError as exc:
+                    entry["warning"] = f"could not update {REGISTRY}: {exc}"
         entries.append(entry)
     home = ultron_home()
     data: dict = {"path": str(home)}

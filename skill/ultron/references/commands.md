@@ -32,6 +32,7 @@ ultron runs                           list past runs (default)
        runs excel [run]
 ultron system                         installation and network check (default)
        system data [status|check|backup|restore|cleanup|delete-run|purge]
+       system update [version]        update ULTRON to the latest (or given) stable release
 ```
 
 ## What each command does
@@ -84,6 +85,33 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 - `system`: `ultron doctor`; list failed checks with their `fix`.
 - `system report [bug|issue]`: prepare a public GitHub issue using `references/issue-reporting.md`.
   Show the draft before submitting it.
+- `system update [version]`: follow "Updating ULTRON" below.
 - `system data [action]`: `ultron data <action>`, `status` by default; see `references/data-maintenance.md`.
   Destructive actions (`cleanup`, `delete-run`, `purge`, `restore`) always run as a preview first and only execute
   after the user confirms the preview.
+
+## Updating ULTRON
+
+`ultron update --check` compares the installed version with the latest stable GitHub release
+(`installed`, `latest`, `update_available`, `release_url`) and never changes anything. Drafts and prereleases
+are ignored; offline it returns the error `update_check_failed`.
+
+To update, ask the user first. If they agree:
+
+1. Run `ultron update` (or `ultron update --to vX.Y.Z` for a specific stable release; never `main`). Add
+   `--project DIR` only for an older project installation outside the current folder (newer ones are recorded in
+   `installs.json`). It downloads and verifies that release's source into a new temporary folder and returns
+   `commands`: one `install.py --update` per installed scope that needs it (global and/or project, with their
+   platforms). `reason` is `cli_outdated`, or `stale_skill_copies` when the CLI is current but some skill copies
+   are older. It never runs them, because the running installation cannot replace itself.
+2. If `status` is `up_to_date`, `no_release`, `no_installs` or `source_checkout`, tell the user (`detail`) and stop. With
+   `dev_links`, those linked folders follow their git checkout and are not updated. `pruned_records` lists recorded
+   folders that were deleted by hand; the next installer run drops them from `installs.json`. Tell the user about
+   each `manual` entry (a copy that cannot be updated safely, for example next to a `--dev` link).
+   If `downgrade` is true, the requested version is older than the installed one: confirm with the user again.
+3. Otherwise run each entry of `commands` as its own separate process, one after another, exactly as given.
+   `argv` is authoritative; `display` is the same command quoted for PowerShell on Windows and for sh elsewhere.
+   Set the variables in `env` if present. Check that each installer prints `"ok": true`.
+4. Run `ultron doctor` and report any failed check.
+5. Tell the user to restart the agent session so the updated skill is loaded. The folder in `cleanup` may be
+   deleted afterwards.

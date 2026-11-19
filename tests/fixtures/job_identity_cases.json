@@ -40,6 +40,150 @@
         "https://acme.jobs.personio.com/job/987654",
         "https://acme.jobs.personio.com/job/987654/?display=en&ref=feed"
       ]
+    },
+    {
+      "name": "smartrecruiters_jobs_and_careers_hosts",
+      "expected_identity_key": "smartrecruiters:acmegroup:744000012345678",
+      "source_type": "ats_api",
+      "source_key": "smartrecruiters:AcmeGroup",
+      "urls": [
+        "https://jobs.smartrecruiters.com/AcmeGroup/744000012345678-senior-data-engineer",
+        "https://careers.smartrecruiters.com/AcmeGroup/744000012345678?utm_source=feed",
+        "https://jobs.smartrecruiters.com/acmegroup/744000012345678-senior-data-engineer/"
+      ]
+    },
+    {
+      "name": "teamtailor_slug_and_locale",
+      "expected_identity_key": "teamtailor:acme:123456",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.teamtailor.com/jobs/123456-senior-ml-engineer",
+        "https://acme.teamtailor.com/jobs/123456",
+        "https://acme.teamtailor.com/en/jobs/123456-senior-ml-engineer?ref=feed"
+      ]
+    },
+    {
+      "name": "recruitee_offer_slug",
+      "expected_identity_key": "recruitee:acme:senior-ml-engineer",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.recruitee.com/o/senior-ml-engineer",
+        "https://acme.recruitee.com/o/senior-ml-engineer/c/new?utm_medium=email"
+      ]
+    },
+    {
+      "name": "breezy_position_id",
+      "expected_identity_key": "breezy:acme:5f2c9a1b3d4e",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.breezy.hr/p/5f2c9a1b3d4e-senior-ml-engineer",
+        "https://acme.breezy.hr/p/5f2c9a1b3d4e-senior-ml-engineer/apply"
+      ]
+    },
+    {
+      "name": "pinpoint_posting_uuid",
+      "expected_identity_key": "pinpoint:acme:0b1c2d3e-4f50-6789-abcd-ef0123456789",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.pinpointhq.com/postings/0b1c2d3e-4f50-6789-abcd-ef0123456789",
+        "https://acme.pinpointhq.com/en/postings/0b1c2d3e-4f50-6789-abcd-ef0123456789/applications/new"
+      ]
+    },
+    {
+      "name": "bamboohr_careers_id",
+      "expected_identity_key": "bamboohr:acme:42",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.bamboohr.com/careers/42",
+        "https://acme.bamboohr.com/careers/42/detail",
+        "https://acme.bamboohr.com/jobs/view.php?id=42"
+      ]
+    },
+    {
+      "name": "jobvite_job_id_keeps_case",
+      "expected_identity_key": "jobvite:acme:oAbC1fwX",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://jobs.jobvite.com/acme/job/oAbC1fwX",
+        "https://jobs.eu.jobvite.com/Acme/job/oAbC1fwX/apply?utm_source=x"
+      ]
+    },
+    {
+      "name": "icims_job_id",
+      "expected_identity_key": "icims:careers-acme:1234",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://careers-acme.icims.com/jobs/1234/senior-ml-engineer/job",
+        "https://careers-acme.icims.com/jobs/1234/job?mode=job&iis=Indeed"
+      ]
+    },
+    {
+      "name": "taleo_jobdetail",
+      "expected_identity_key": "taleo:acme:2400123",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.taleo.net/careersection/2/jobdetail.ftl?job=2400123&lang=en",
+        "https://acme.taleo.net/careersection/ex/jobdetail.ftl?job=2400123"
+      ]
+    },
+    {
+      "name": "comeet_position_uid",
+      "expected_identity_key": "comeet:41.001:c7.e11",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://www.comeet.com/jobs/acme/41.001/data-scientist/C7.E11",
+        "https://www.comeet.co/jobs/acme/41.001/C7.E11/data-scientist"
+      ]
+    },
+    {
+      "name": "jazzhr_job_id_keeps_case",
+      "expected_identity_key": "jazzhr:acme:aBcD1234Xy",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.applytojob.com/apply/aBcD1234Xy/Senior-ML-Engineer",
+        "https://acme.applytojob.com/apply/aBcD1234Xy?source=board"
+      ]
+    },
+    {
+      "name": "greenhouse_embed_job_app",
+      "expected_identity_key": "greenhouse:acme:4012345",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://boards.greenhouse.io/embed/job_app?for=acme&token=4012345",
+        "https://job-boards.greenhouse.io/embed/job_app?token=4012345&for=acme&utm_source=x",
+        "https://boards.greenhouse.io/acme/jobs/4012345"
+      ]
+    },
+    {
+      "name": "ashby_custom_domain_jid",
+      "expected_identity_key": "ashby:acme:0b1c2d3e-4f50-6789-abcd-ef0123456789",
+      "source_type": "ats_api",
+      "source_key": "ashby:acme",
+      "urls": [
+        "https://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789",
+        "https://jobs.ashbyhq.com/acme/0b1c2d3e-4f50-6789-abcd-ef0123456789"
+      ]
+    },
+    {
+      "name": "workday_repost_suffix",
+      "expected_identity_key": "workday:acme.wd3.myworkdayjobs.com:r-2048-1",
+      "source_type": "ats_api",
+      "source_key": "",
+      "urls": [
+        "https://acme.wd3.myworkdayjobs.com/External/job/Madrid/ML-Engineer_R-2048-1",
+        "https://acme.wd3.myworkdayjobs.com/en-US/External/job/Madrid/ML-Engineer_R-2048-1?utm_source=x"
+      ]
     }
   ],
   "generic_cases": [
@@ -53,5 +197,94 @@
       "expected_canonical_url": "https://careers.example.test/jobs/42?jobId=42",
       "expected_identity_key": "url://careers.example.test/jobs/42?jobId=42"
     }
+  ],
+  "distinct_pairs": [
+    [
+      "https://jobs.smartrecruiters.com/AcmeGroup/744000012345678",
+      "https://jobs.smartrecruiters.com/AcmeGroup/744000012345679"
+    ],
+    [
+      "https://jobs.smartrecruiters.com/AcmeGroup/744000012345678",
+      "https://jobs.smartrecruiters.com/OtherCo/744000012345678"
+    ],
+    [
+      "https://acme.teamtailor.com/jobs/123456-a",
+      "https://acme.teamtailor.com/jobs/123457-a"
+    ],
+    [
+      "https://acme.teamtailor.com/jobs/123456",
+      "https://other.teamtailor.com/jobs/123456"
+    ],
+    [
+      "https://acme.recruitee.com/o/ml-engineer",
+      "https://acme.recruitee.com/o/ml-engineer-2"
+    ],
+    [
+      "https://acme.breezy.hr/p/5f2c9a1b3d4e",
+      "https://acme.breezy.hr/p/5f2c9a1b3d4f"
+    ],
+    [
+      "https://acme.pinpointhq.com/postings/0b1c2d3e-4f50-6789-abcd-ef0123456789",
+      "https://acme.pinpointhq.com/postings/0b1c2d3e-4f50-6789-abcd-ef0123456780"
+    ],
+    [
+      "https://acme.bamboohr.com/careers/42",
+      "https://acme.bamboohr.com/careers/43"
+    ],
+    [
+      "https://jobs.jobvite.com/acme/job/oAbC1fwX",
+      "https://jobs.jobvite.com/acme/job/oabc1fwx"
+    ],
+    [
+      "https://careers-acme.icims.com/jobs/1234/job",
+      "https://careers-acme.icims.com/jobs/1235/job"
+    ],
+    [
+      "https://acme.taleo.net/careersection/2/jobdetail.ftl?job=2400123",
+      "https://acme.taleo.net/careersection/2/jobdetail.ftl?job=2400124"
+    ],
+    [
+      "https://www.comeet.co/jobs/acme/41.001/C7.E11/a",
+      "https://www.comeet.co/jobs/acme/41.001/C7.E12/a"
+    ],
+    [
+      "https://acme.applytojob.com/apply/aBcD1234Xy/a",
+      "https://acme.applytojob.com/apply/aBcD1234Xz/a"
+    ],
+    [
+      "https://boards.greenhouse.io/embed/job_app?for=acme&token=4012345",
+      "https://boards.greenhouse.io/embed/job_app?for=acme&token=4012346"
+    ],
+    [
+      "https://boards.greenhouse.io/embed/job_app?for=acme&token=4012345",
+      "https://boards.greenhouse.io/embed/job_app?for=other&token=4012345"
+    ],
+    [
+      "https://acme.wd3.myworkdayjobs.com/External/job/Madrid/X_JR-2024-1",
+      "https://acme.wd3.myworkdayjobs.com/External/job/Madrid/X_JR-2024-2"
+    ],
+    [
+      "https://acme.wd3.myworkdayjobs.com/External/job/Madrid/X_JR-2024-1",
+      "https://acme.wd3.myworkdayjobs.com/External/job/Madrid/X_JR-2024"
+    ]
+  ],
+  "url_fallback_cases": [
+    "https://jobs.smartrecruiters.com/AcmeGroup",
+    "https://careers.smartrecruiters.com/AcmeGroup/company/acme",
+    "https://api.smartrecruiters.com/v1/companies/acme/postings/744000012345678",
+    "https://acme.teamtailor.com/jobs",
+    "https://acme.recruitee.com/",
+    "https://acme.breezy.hr/",
+    "https://acme.pinpointhq.com/",
+    "https://acme.bamboohr.com/careers",
+    "https://jobs.jobvite.com/acme/jobs",
+    "https://careers-acme.icims.com/jobs/search?pr=1",
+    "https://acme.taleo.net/careersection/2/jobsearch.ftl",
+    "https://www.comeet.com/jobs/acme/41.001",
+    "https://acme.applytojob.com/apply",
+    "https://acme.factorialhr.com/job_posting/senior-engineer-2024",
+    "https://acme.homerun.co/senior-engineer",
+    "https://boards.greenhouse.io/embed/job_board?for=acme",
+    "https://www.icims.com/products"
   ]
 }

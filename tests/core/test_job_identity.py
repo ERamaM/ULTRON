@@ -176,3 +176,26 @@ def test_common_tracking_keys_are_ignored(key):
 @pytest.mark.parametrize("key", ["token", "gh_jid", "ashby_jid", "req", "jobid", "id", "page", "pk_jobid"])
 def test_job_keys_are_not_tracking(key):
     assert not job_identity._is_tracking_key(key)
+
+
+def _cases() -> dict:
+    return json.loads(FIXTURE.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("pair", _cases()["distinct_pairs"], ids=lambda pair: pair[1])
+def test_distinct_vendor_jobs_keep_distinct_identities(pair):
+    first, second = (canonical_job_identity(url).identity_key for url in pair)
+    assert first != second
+
+
+@pytest.mark.parametrize("url", _cases()["url_fallback_cases"])
+def test_vendor_pages_without_a_job_id_keep_the_url_identity(url):
+    assert canonical_job_identity(url).identity_key.startswith("url:")
+
+
+@pytest.mark.parametrize("group", [g for g in _cases()["equivalent_groups"] if not g["source_key"]],
+                         ids=lambda group: group["name"])
+def test_vendor_identity_does_not_depend_on_source_info(group):
+    # diagnose and web-search candidates compute identities without a source key.
+    for url in group["urls"]:
+        assert canonical_job_identity(url).identity_key == group["expected_identity_key"]

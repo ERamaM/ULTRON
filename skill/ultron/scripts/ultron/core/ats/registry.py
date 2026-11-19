@@ -101,6 +101,8 @@ GREENHOUSE_BOARD_HOSTS = (
     "job-boards.eu.greenhouse.io",
 )
 BOARD_IDENTIFIER_RE = re.compile(r"[^a-zA-Z0-9_.:/-]+")
+# Vendors whose hosted boards live on the vendor's www host (www.comeet.com/jobs/<slug>/...).
+_WWW_BOARD_VENDORS = frozenset({"comeet"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -530,6 +532,12 @@ def extract_seed_from_url(url: str, company_hint: str) -> AtsBoardSeed | None:
     parsed = urlparse(normalized_url)
     host = parsed.netloc.lower()
     spec = match_vendor_spec_by_domain(host)
+    if spec is not None and spec.name not in _WWW_BOARD_VENDORS and any(
+        _is_marketing_vendor_host(host, domain) for domain in spec.domains if domain.count(".") == 1
+    ):
+        # The vendor's own apex/www site (www.icims.com/products, smartrecruiters.com/hr-software) is marketing,
+        # never a tenant board, whatever its path looks like.
+        return None
 
     board_identifier = ""
     if spec and spec.seed_extractor is not None:

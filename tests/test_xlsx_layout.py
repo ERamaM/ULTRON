@@ -98,7 +98,8 @@ def test_data_rows_wrap_with_consistent_height(run_id):
     evidence = _col(ws, "Eligibility Evidence")
     assert ws[f"{evidence}2"].alignment.wrap_text
     heights = {ws.row_dimensions[r].height for r in range(2, ws.max_row + 1)}
-    assert len(heights) == 1 and heights.pop()
+    assert len(heights) == 1
+    assert all(heights)
 
 
 def test_conditional_formatting_cues(run_id):

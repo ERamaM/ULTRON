@@ -7,8 +7,7 @@ import ssl
 import httpcore
 import httpx
 import pytest
-from httpcore._backends.mock import MockStream
-from httpcore._backends.sync import SyncBackend
+from httpcore import MockStream, SyncBackend
 
 from ultron.net import HttpClient, URLRejected
 from ultron.pinned_transport import PINNED_ADDRESSES, PinnedTransport
@@ -106,6 +105,23 @@ def test_plain_http_is_pinned_too(monkeypatch):
         assert client.get_text("http://jobs.example.org/")[0] == 200
     assert wire.connects == [(PUBLIC_A, 80)] and wire.tls == []
     assert b"Host: jobs.example.org\r\n" in bytes(wire.sent)
+
+
+def test_per_hostname_pools_are_bounded_and_evicted_pools_closed():
+    class Recording(httpx.MockTransport):
+        closed = 0
+
+        def close(self) -> None:
+            Recording.closed += 1
+
+    transport = PinnedTransport(wire_factory=lambda: Recording(lambda r: httpx.Response(200)), max_pools=4)
+    for i in range(10):
+        request = httpx.Request("GET", f"https://h{i}.example.org/", extensions={PINNED_ADDRESSES: (PUBLIC_A,)})
+        assert transport.handle_request(request).status_code == 200
+    assert len(transport._wires) == 4 and Recording.closed == 6
+    assert list(transport._wires) == [f"h{i}.example.org" for i in range(6, 10)]
+    transport.close()
+    assert Recording.closed == 10 and not transport._wires
 
 
 def test_unpinned_request_fails_closed():

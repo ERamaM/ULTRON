@@ -3,34 +3,13 @@ from __future__ import annotations
 import re
 from collections import defaultdict, deque
 from collections.abc import Callable
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
 from ultron.core.ats import extract_seed_from_url, infer_vendor_from_host
 from ultron.core.ats.vendors import greenhouse_job_url
+from ultron.core.job_identity import _is_tracking_key
 from ultron.core.models import CandidateUrl, SearchHit
 from ultron.core.urlpolicy import URLRejected, admit_url, safe_url_label
-
-# Query parameter keys that identify specific job postings in ATS platforms.
-# These must be preserved during URL normalization to avoid false deduplication.
-_ATS_SIGNIFICANT_PARAMS = frozenset(
-    {
-        "gh_jid",
-        "jobid",
-        "job_id",
-        "id",
-        "requisitionid",
-        "jid",
-        "wdi",
-        "mode",
-        "iis",
-        "pid",
-        "positionid",
-        # Taleo-family job identifiers: classic Taleo uses .../jobdetail.ftl?job=12345;
-        # Taleo Business Edition uses .../requisition.jsp?...&rid=123.
-        "job",
-        "rid",
-    }
-)
 
 
 def normalize_url(raw_url: str) -> str:
@@ -42,10 +21,11 @@ def normalize_url(raw_url: str) -> str:
     scheme = parsed.scheme or "https"
     netloc = parsed.netloc.lower()
     path = parsed.path.rstrip("/")
-    # Preserve ATS-significant query params, strip tracking/UTM params.
-    qs = parse_qs(parsed.query, keep_blank_values=False)
-    significant = {k: v for k, v in qs.items() if k.lower() in _ATS_SIGNIFICANT_PARAMS}
-    query = urlencode(sorted(significant.items()), doseq=True) if significant else ""
+    # Strip only known tracking/UTM params. Every other key may identify the posting (Greenhouse
+    # embed ``token``, ``ashby_jid``, custom ``req`` ids...), so dropping it would fetch the wrong
+    # page and collapse distinct jobs into one URL.
+    pairs = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=False) if not _is_tracking_key(k)]
+    query = urlencode(sorted(pairs, key=lambda item: item[0])) if pairs else ""
     clean = parsed._replace(scheme=scheme, netloc=netloc, path=path, params="", query=query, fragment="")
     return urlunparse(clean)
 

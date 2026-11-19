@@ -26,8 +26,9 @@ def term_boundary_pattern(term: str) -> re.Pattern:
     """Match ``term`` only when it is not glued to letters or digits on either side.
 
     Unlike a word-boundary regex, this also works for terms that start or end with punctuation, such as ``u.s. (remote)``.
+    Underscores count as separators, so ``_us-based_`` still matches.
     """
-    return re.compile(r"(?<!\w)" + re.escape(term) + r"(?!\w)", re.IGNORECASE)
+    return re.compile(r"(?<![^\W_])" + re.escape(term) + r"(?![^\W_])", re.IGNORECASE)
 
 
 def contains_any_term_boundary(text: str, terms: Iterable[str]) -> bool:

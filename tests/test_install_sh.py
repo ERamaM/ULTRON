@@ -57,7 +57,8 @@ def test_piped_install_removes_downloaded_source_and_keeps_exit_code(tmp_path, r
     assert list(tmp_root.iterdir()) == []  # the trap removed the mktemp folder
 
 
-def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
+@pytest.mark.parametrize(("signal_name", "installer_rc"), [("TERM", 7), ("TERM", 127), ("HUP", 7)])
+def test_signal_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path, signal_name, installer_rc):
     src = tmp_path / "src"
     (src / "skill" / "ultron").mkdir(parents=True)
     (src / "install.py").write_text("# synthetic\n", encoding="utf-8")
@@ -68,9 +69,10 @@ def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
     out = tmp_path / "out"
     out.mkdir()
     o = out.as_posix()
-    # The fake installer records its stdin, then runs ~10 s unless TERM stops it; it then exits 7, so the
-    # launcher must return the installer's own status, not the 143 of its interrupted wait.
-    _fake_tool(bin_dir, "uv", f'trap \'echo term > "{o}/term"; exit 7\' TERM\n'
+    # The fake installer records its stdin, then runs ~10 s unless TERM stops it. Its TERM handler finishes
+    # after a short delay and exits with its own code (127 included), which the launcher must return instead
+    # of the status of its interrupted wait. HUP reaches the installer as TERM.
+    _fake_tool(bin_dir, "uv", f'trap \'echo term > "{o}/term"; sleep 0.3; exit {installer_rc}\' TERM\n'
                               f'read line || line=none; echo "$line" > "{o}/stdin"; touch "{o}/started"\n'
                               f'i=0; while [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; touch "{o}/finished"')
     # The signal goes to the launcher PID only (not the process group), from inside sh so it also works with
@@ -78,12 +80,12 @@ def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
     driver = (
         'echo hello | sh ./install.sh & pid=$!\n'
         f'i=0; while [ ! -f "{o}/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done\n'
-        'kill -TERM "$pid"; wait "$pid"; echo "rc=$?"\n'
+        f'kill -{signal_name} "$pid"; wait "$pid"; echo "rc=$?"\n'
     )
     env = {**os.environ, "HOME": str(tmp_path / "home"),
            "PATH": os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])}
     proc = subprocess.run([SH, "-c", driver], cwd=src, env=env, capture_output=True, timeout=60, check=False)
-    assert b"rc=7" in proc.stdout, (proc.stdout, proc.stderr)
+    assert f"rc={installer_rc}".encode() in proc.stdout, (proc.stdout, proc.stderr)
     assert (out / "term").is_file()
     assert not (out / "finished").exists()
     assert (out / "stdin").read_text(encoding="utf-8").strip() == "hello"

@@ -34,7 +34,7 @@ from ultron.core.rules.role_matching import (
     is_allowed_family,
     is_senior_title,
 )
-from ultron.core.rules.term_matching import extract_matching_evidence, find_terms
+from ultron.core.rules.term_matching import extract_matching_evidence, find_terms, normalize_text
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,19 @@ _EMPLOYMENT_LEVEL_FIELD = re.compile(
     r"^[ \t]*(?:employment type|experience level)[ \t]*:[ \t]*(?:\r?\n[ \t]*)?([^\r\n]+)",
     re.IGNORECASE | re.MULTILINE,
 )
+
+
+def _specialty_pattern(term: str) -> re.Pattern[str]:
+    """Match a specialty at a word start, dropping at most one plural "s".
+
+    Stems of three characters or fewer ("Go", "R", "CSS", "AWS") must be whole words with an optional "s";
+    longer stems may also prefix a word ("agents" matches "agentes", "eval" matches "evaluation").
+    """
+    stem = normalize_text(term)
+    if len(stem) > 3 and stem.endswith("s"):
+        stem = stem[:-1]
+    tail = r"s?(?!\w)" if len(stem) <= 3 else ""
+    return re.compile(r"(?<!\w)" + re.escape(stem) + tail)
 
 
 @dataclass(slots=True)
@@ -213,13 +226,12 @@ class HeuristicEvaluator:
 
     def _fit_signals(self, text: str) -> list[str]:
         found: list[str] = []
-        low = text.casefold()
+        low = normalize_text(text)
         profile = getattr(self.cfg, "evaluation_profile", None)
         specialties = tuple(getattr(profile, "specialties", ()) or ())
         for specialty in specialties:
             normalized = str(specialty).strip()
-            key = normalized.casefold().rstrip("s")
-            if key and key in low and normalized not in found:
+            if normalized and normalized not in found and _specialty_pattern(normalized).search(low):
                 found.append(normalized)
             if len(found) == 3:
                 break

@@ -36,9 +36,11 @@ class AtsHTTPClient(Protocol):
         method: str = "GET",
         json_body: dict | None = None,
         timeout: float | None = None,
-    ) -> dict | list: ...
+    ) -> dict | list:
+        """Send a request to ``url`` and return the decoded JSON body."""
 
-    def request_text(self, url: str, timeout: float | None = None) -> str: ...
+    def request_text(self, url: str, timeout: float | None = None) -> str:
+        """GET ``url`` and return the response body as text."""
 
 
 def refuse_browser_fallback() -> NoReturn:

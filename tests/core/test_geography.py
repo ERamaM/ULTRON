@@ -1,5 +1,6 @@
 import pytest
 
+from ultron.core.rules.geo_eu import _has_us_location_signal, has_region_red_flags
 from ultron.core.rules.geography import assess_geography, is_european_scope
 
 
@@ -55,3 +56,38 @@ def test_heuristic_does_not_infer_europe_from_partial_region_name(region):
     evaluator = HeuristicEvaluator(SimpleNamespace(evaluation_profile=SimpleNamespace(target_regions=(region,))))
     job = ExtractedJob(apply_url="https://example.test/job/1", domain="example.test", remote_text="Remote US only")
     assert evaluator._eligibility(job, None) == "medium"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Previous remote experience is a plus.",
+        "We hold numerous remote offsites every year.",
+        "Bonus based on performance.",
+    ],
+)
+def test_us_explicit_terms_do_not_match_inside_words(body):
+    assert has_region_red_flags(f"Remote\n{body}") is False
+    assessment = assess_geography(location="", remote_text="Remote", body_text=body, target_regions=["Remote Europe"])
+    assert assessment.red_flags is False
+    assert assessment.conflict is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "US remote only.",
+        "This is a US-based role.",
+        "This role is U.S. (Remote).",
+        "This is a _US-based_ role.",
+        "Location: U.S.A.",
+        "Location: U.S.A",
+    ],
+)
+def test_us_explicit_terms_still_flag_whole_phrases(body):
+    assert has_region_red_flags(f"Remote\n{body}") is True
+
+
+@pytest.mark.parametrize("text", ["Location: U.S.A.", "location: u.s.a", "Location: U.S."])
+def test_dotted_us_location_label_sets_us_location_signal(text):
+    assert _has_us_location_signal(text.lower()) is True

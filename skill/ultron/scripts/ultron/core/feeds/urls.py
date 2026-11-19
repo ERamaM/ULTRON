@@ -198,6 +198,7 @@ def fetch_page_links(url: str, timeout: int, *, client: AtsHTTPClient) -> list[s
             for extracted in extract_urls_from_text(content):
                 add(extracted)
     except Exception:
+        # Malformed markup only skips the HTML pass; the plain-text URL scan below still runs.
         pass
 
     for extracted in extract_urls_from_text(text[:180000]):

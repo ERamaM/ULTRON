@@ -41,8 +41,10 @@ def test_create_list_delete():
     rows = saved.list_all()
     assert [r["name"] for r in rows] == ["daily"]
     assert rows[0]["overrides"] == {"max_roles": 2}
-    assert saved.delete("daily") is True
-    assert saved.delete("daily") is False
+    deleted = saved.delete("daily")
+    assert deleted is True
+    deleted_again = saved.delete("daily")
+    assert deleted_again is False
 
 
 def test_overrides_applied():

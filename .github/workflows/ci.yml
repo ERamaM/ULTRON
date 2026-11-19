@@ -107,7 +107,7 @@ jobs:
             --cov-report=term \
             --cov-report=html:coverage-report/html \
             --cov-report=xml:coverage-report/coverage.xml \
-            --cov-report=json:coverage-report/coverage.json
+            --cov-report=json:coverage-report/coverage.json             --junitxml=coverage-report/pytest-report.xml
       - name: Summarize coverage
         if: ${{ !cancelled() && hashFiles('coverage-report/coverage.json') != '' }}
         run: |
@@ -146,6 +146,32 @@ jobs:
           name: coverage-report
           path: coverage-report/
           if-no-files-found: error
+
+  sonarcloud:
+    name: SonarCloud analysis
+    needs: [coverage]
+    if: ${{ !cancelled() && needs.coverage.result == 'success' }}
+    runs-on: ubuntu-latest
+    env:
+      # Secrets are unavailable on fork pull requests; the scan is skipped there.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        if: env.SONAR_TOKEN != ''
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        if: env.SONAR_TOKEN != ''
+        with:
+          name: coverage-report
+          path: coverage-report
+      - name: Scan with SonarCloud
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+      - name: Note skipped scan
+        if: env.SONAR_TOKEN == ''
+        run: echo "::notice::SONAR_TOKEN is not available; SonarCloud analysis skipped."
 
   coverage-badge:
     name: Publish coverage badge

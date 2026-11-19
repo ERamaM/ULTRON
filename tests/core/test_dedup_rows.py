@@ -106,3 +106,32 @@ def test_identity_count_matches_dedup_at_each_prefix():
         index.add(row)
         assert index.unique_count == len(dedupe_final_rows(rows[:position])[0])
     assert index.unique_count == 4
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Senior ML Engineer (Remote - EU)",
+        "Senior ML Engineer [Hybrid]",
+        "Senior ML Engineer (m/f/d)",
+        "Senior ML Engineer (Remote, Spain)",
+        "Senior ML Engineer (Remoto / Madrid)",
+    ],
+)
+def test_normalize_title_strips_work_mode_and_location_parentheticals(title):
+    assert normalize_title_for_dedup(title) == "senior ml engineer"
+
+
+def test_normalize_title_keeps_specialty_parenthetical():
+    assert normalize_title_for_dedup("Senior Engineer (Payments)") == "senior engineer payments"
+    assert normalize_title_for_dedup("Senior Engineer (Payments, Remote)") == "senior engineer payments"
+
+
+def test_distinct_specialty_parentheticals_are_kept():
+    rows = [
+        _row(title="Senior Engineer (Payments)", apply_url="https://x.com/j/1"),
+        _row(title="Senior Engineer (Search)", apply_url="https://x.com/j/2"),
+    ]
+    kept, dupes = dedupe_final_rows(rows)
+    assert len(kept) == 2
+    assert dupes == []

@@ -11,9 +11,12 @@ thread is unresolved, but resolving a thread is a statement that the concern was
 so never resolve a thread you have not addressed.
 
 1. **Wait for the review.** After opening the PR or pushing new commits, wait until
-   CodeRabbit posts a review (`coderabbitai[bot]` in the PR reviews). Its first comment is
-   only a walkthrough or an in-progress notice, not the review. Do not merge or report
-   the PR as done before the review arrives.
+   CodeRabbit finishes. It first posts a summary comment with an in-progress notice and
+   edits that same comment when it is done. When it has concerns it also submits a review
+   (`coderabbitai[bot]` in the PR reviews). When it has none, it submits no review and the
+   summary comment says "No actionable comments were generated". The summary also shows
+   which commit it reviewed ("up to `<SHA>`"); make sure that is your latest push. Do not
+   merge or report the PR as done before the review for your latest commit is finished.
 2. **Collect every concern.** Read all three places where CodeRabbit leaves feedback:
    - Inline review threads (listed by the GraphQL query below).
    - Review bodies, which hold "Outside diff range" and "Nitpick" comments in collapsed

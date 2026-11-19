@@ -261,8 +261,12 @@ def _add_role_cues(ws, columns, row_count: int) -> None:
                 CellIsRule(operator="equal", formula=[f'"{value}"'], fill=solid(fill), font=Font(color=font, bold=True)),
             )
     new_col = _column_letter_for(columns, "is_new")
+    # Skip the Verdict column: a conditional fill would hide its direct blue/orange fill.
+    verdict_idx = next(i for i, (key, *_rest) in enumerate(columns, start=1) if key == "evaluation_verdict")
+    spans = [(1, verdict_idx - 1), (verdict_idx + 1, len(columns))]
+    ranges = " ".join(f"{_col_letter(a)}2:{_col_letter(b)}{last}" for a, b in spans if a <= b)
     ws.conditional_formatting.add(
-        f"A2:{_col_letter(len(columns))}{last}",
+        ranges,
         FormulaRule(formula=[f'${new_col}2="{_NEW_LABEL}"'], fill=solid(_NEW_ROW_FILL), font=Font(bold=True)),
     )
 

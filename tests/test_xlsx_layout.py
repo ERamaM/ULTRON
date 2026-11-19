@@ -167,3 +167,15 @@ def test_new_column_uses_a_locale_independent_label(run_id):
     new_col = _col(ws, "New")
     assert [ws[f"{new_col}{r}"].value for r in (2, 3, 4)] == ["New", None, "New"]
     assert ws.column_dimensions[new_col].width >= 10
+
+
+def test_new_row_highlight_skips_the_verdict_column(run_id):
+    ws = _wb(run_id)["Roles (3)"]
+    verdict = _col(ws, "Verdict")
+    new_refs = [ref for ref, rule in _rules(ws) if rule.type == "expression" and '="New"' in rule.formula[0]]
+    assert new_refs
+    for ref in new_refs:
+        for part in ref.split():
+            start, end = part.split(":")
+            first, last = start.rstrip("0123456789"), end.rstrip("0123456789")
+            assert not (first <= verdict <= last and len(first) == len(verdict) == len(last))

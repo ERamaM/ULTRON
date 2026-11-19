@@ -81,6 +81,10 @@ def test_verify_probes_suffix_stripped_slug():
         return httpx.Response(404)
 
     res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
+    # A one-word name without a domain slug is never proof of ownership; the probed board is reported.
+    assert res.reason == "ownership_unknown" and res.candidate == {"ats": "lever", "board": "acme", "postings": 1}
+    res = verify_proposal(Proposal("Acme GmbH", domain="acme.de"), client=make_client(handler, max_requests=200),
+                          timeout=5)
     assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acme"
 
 
@@ -93,7 +97,9 @@ def test_verify_probes_literal_slugs_on_every_vendor_before_normalized_guesses()
         return httpx.Response(404)
 
     res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
-    assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acmegmbh"
+    # The literal "acmegmbh" board on a later vendor is found before the normalized "acme" guess.
+    assert res.reason == "ownership_unknown"
+    assert res.candidate == {"ats": "lever", "board": "acmegmbh", "postings": 1}
 
 
 def test_verify_explicit_pair():
@@ -313,7 +319,7 @@ def test_per_host_budget_skips_vendor_but_tries_others():
         return httpx.Response(404)
 
     client = make_client(handler, max_requests_per_host=1)
-    first = verify_proposal(Proposal("Acme Corp", domain="acme.io"), client=client, timeout=5)
+    first = verify_proposal(Proposal("Acme", domain="acme.io"), client=client, timeout=5)
     assert first.status == "verified" and first.seed.ats == "lever"
     second = verify_proposal(Proposal("Other"), client=client, timeout=5)
     assert second.reason != "budget_exhausted"
@@ -379,7 +385,8 @@ def test_seeds_verify_cli_not_limited_by_preset_per_host_cap(capsys, tmp_path):
     ])
     assert main(["seeds", "verify", "--run", run_id, "--from", src]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out == {"verified": 35, "new": 35, "unresolved": 0, "unresolved_sample": []}
+    assert out == {"verified": 35, "new": 35, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
 
 def test_seeds_verify_cli_global_budget_still_exhausts(capsys, tmp_path):
@@ -424,12 +431,14 @@ def test_seeds_verify_reports_new_count_and_respects_limit(capsys, tmp_path):
     # Default limit for seed_proposals_from_feeds.jsonl is the run's new_companies_per_run (10).
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file)]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out == {"verified": 10, "new": 10, "unresolved": 0, "unresolved_sample": []}
+    assert out == {"verified": 10, "new": 10, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
     # Re-verifying with explicit --limit 3 processes 3 rows and reports new=0 for already-stored boards.
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file), "--limit", "3"]) == 0
     out2 = json.loads(capsys.readouterr().out)
-    assert out2 == {"verified": 3, "new": 0, "unresolved": 0, "unresolved_sample": []}
+    assert out2 == {"verified": 3, "new": 0, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
     # Negative --limit is rejected as usage error.
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file), "--limit", "-1"]) == 2

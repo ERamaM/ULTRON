@@ -256,6 +256,8 @@ class VerifyResult:
     postings: int
     reason: str
     jobs: tuple = field(default=(), repr=False, compare=False)
+    # For ``ownership_unknown`` / ``wrong_tenant``: the guessed board that answered ({ats, board, postings}).
+    candidate: dict | None = None
 
 
 # Trailing legal-form words that never belong in an ATS board slug ("Acme GmbH" -> "acme").
@@ -413,6 +415,56 @@ def slug_candidates(company: str, domain: str) -> list[str]:
     return primary + normalized
 
 
+def company_key(company: str) -> str:
+    """Normalized company identity: ASCII-folded core words joined ("Ñaña Labs S.L." -> "nanalabs")."""
+    return "".join(_core_company_words(company))
+
+
+def _vendor_company_names(jobs) -> set[str]:
+    """Company names the vendor reports in its postings (Greenhouse/Recruitee ``company_name``,
+    SmartRecruiters ``company.name``, ``companyName``), as company keys. Empty when it reports none."""
+    names: set[str] = set()
+    for job in list(jobs)[:20]:
+        raw = getattr(job, "raw_payload", None)
+        if not isinstance(raw, dict):
+            continue
+        company = raw.get("company")
+        values = (
+            raw.get("company_name"),
+            raw.get("companyName"),
+            company.get("name") if isinstance(company, dict) else company,
+        )
+        names.update(company_key(v) for v in values if isinstance(v, str) and v.strip())
+    names.discard("")
+    return names
+
+
+# A name with one core word or a short key ("Acme", "Acme GmbH", "Nova") is shared by many companies: only a
+# slug taken from the company's own domain ties such a board to it.
+_SHORT_COMPANY_KEY = 6
+
+
+def guessed_board_ownership(p: Proposal, board: str, jobs) -> Literal["owned", "wrong_tenant", "ownership_unknown"]:
+    """Whether a board found by guessing ``board`` from the proposal belongs to the proposed company.
+
+    ``owned`` when the slug is the proposal domain's registrable label, or when the name has two or more core
+    words and the vendor reports the same company key. ``wrong_tenant`` when the vendor reports another company.
+    ``ownership_unknown`` otherwise (a short or one-word name without a domain slug, or no vendor name).
+    """
+    slug = board.lower().replace("-", "")
+    domain_label = domain_slug(p.domain).replace("-", "")
+    if domain_label and slug == domain_label:
+        return "owned"
+    words = _core_company_words(p.company)
+    keys = {"".join(words), "".join(re.findall(r"[a-z0-9]+", ascii_fold(p.company)))} - {""}
+    vendor_names = _vendor_company_names(jobs)
+    if vendor_names and not vendor_names & keys:
+        return "wrong_tenant"
+    if len(words) < 2 or len("".join(words)) < _SHORT_COMPANY_KEY:
+        return "ownership_unknown"
+    return "owned" if vendor_names else "ownership_unknown"
+
+
 def _build_seed(p: Proposal, ats: str, board: str, postings: int) -> AtsBoardSeed:
     return AtsBoardSeed(
         seed_id=make_seed_id(ats, board),
@@ -457,6 +509,7 @@ def verify_proposal(
             pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
 
     unsupported = invalid = host_budget = False
+    doubtful: tuple[str, dict] | None = None  # (reason, candidate) of the best guessed board not proven owned
     skipped_vendors: set[str] = set()
     seen: set[tuple[str, str]] = set()
     for ats, board in pairs:
@@ -487,11 +540,20 @@ def verify_proposal(
             # MARK II verification_probe rule: when probing guessed slugs, an empty
             # jobs array alone is never proof that the company owns that board.
             continue
+        if not has_explicit:
+            verdict = guessed_board_ownership(p, board, jobs)
+            if verdict != "owned":
+                # Keep probing: a later vendor or slug may hold the company's own board.
+                if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
+                    doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
+                continue
         try:
             seed = _build_seed(p, ats, board, len(jobs))
         except ValueError:  # vendor outside the supported Literal
             continue
         return VerifyResult(p, "verified", seed, len(jobs), "", tuple(jobs))
+    if doubtful is not None:
+        return VerifyResult(p, "unresolved", None, 0, doubtful[0], candidate=doubtful[1])
     if invalid:
         return unresolved("invalid_board")
     if unsupported:

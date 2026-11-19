@@ -6,6 +6,21 @@ _PAGE_LIMIT = 100
 _MAX_PAGES = 10  # Safety cap: max 1000 jobs per board
 
 
+def smartrecruiters_location(value: object) -> str:
+    if isinstance(value, dict):
+        return str(value.get("fullLocation") or "").strip() or location_text(value)
+    return location_text(value)
+
+
+def smartrecruiters_workplace(location: object) -> str:
+    if isinstance(location, dict):
+        if location.get("hybrid") is True:
+            return "Hybrid"
+        if location.get("remote") is True:
+            return "Remote"
+    return ""
+
+
 def fetch_smartrecruiters_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
@@ -36,12 +51,13 @@ def fetch_smartrecruiters_jobs(
                 apply_url = f"https://careers.smartrecruiters.com/{board_identifier}/{job_id}"
             else:
                 apply_url = str(raw_job_ad or job.get("applyUrl") or job.get("ref") or "").strip()
-            location = location_text(job.get("location") or job.get("locationName") or job.get("department"))
+            location = job.get("location") or job.get("locationName")
             posted_at = str(job.get("releasedDate") or job.get("createdOn") or "").strip() or None
             if title and apply_url:
                 out.append(
                     AtsPosting(
-                        title=title, apply_url=apply_url, location=location, posted_at=posted_at, raw_payload=job
+                        title=title, apply_url=apply_url, location=smartrecruiters_location(location),
+                        remote_hint=smartrecruiters_workplace(location), posted_at=posted_at, raw_payload=job,
                     )
                 )
         if len(jobs) < _PAGE_LIMIT:

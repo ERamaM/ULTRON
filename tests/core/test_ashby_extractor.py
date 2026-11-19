@@ -117,3 +117,17 @@ def test_parse_reads_jsonld_description_when_page_requires_javascript():
     """
     job = ashby.parse(_page(html))
     assert job.body_text == "Build ML systems.\nWork remotely from Spain & Portugal."
+
+
+def test_explicit_ashby_workplace_overrides_generic_telecommute():
+    html = """
+    <html><head><script type="application/ld+json">
+    {"@type":"JobPosting", "title":"Data Engineer", "jobLocationType":"TELECOMMUTE"}
+    </script></head><body><h1>Data Engineer</h1>
+    <script>window.__appData = {"posting":{
+      "id":"senior-ml-engineer", "title":"Data Engineer", "workplaceType":"Hybrid"
+    }};</script>
+    </body></html>
+    """
+    assert ashby.parse(_page(html)).remote_text == "Hybrid"
+    assert ashby.parse(_page(html), {"remote_hint": "Hybrid"}).remote_text == "Hybrid"

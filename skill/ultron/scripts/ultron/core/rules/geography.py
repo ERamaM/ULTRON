@@ -19,7 +19,7 @@ from ultron.core.rules.hard_filters import (
     classify_remote_policy,
     has_region_red_flags,
 )
-from ultron.core.rules.term_matching import normalize_text
+from ultron.core.rules.term_matching import find_terms, normalize_text
 
 __all__ = [
     "EUROPEAN_SCOPE_TOKENS",
@@ -71,6 +71,19 @@ def scoped_eligibility_terms(profile: Mapping[str, Any] | None) -> tuple[str, ..
         if words:
             terms.append(" ".join(words))
     return tuple(dict.fromkeys(term for term in terms if term))
+
+
+def scoped_posting_eligibility(location: str, remote_text: str, body_text: str, terms: Iterable[str]) -> Eligibility | None:
+    """Use structured location or geographic context for non-European profiles."""
+    terms = tuple(terms)
+    if find_terms(f"{location}\n{remote_text}", terms):
+        return "high"
+    # Limit the context to the sentence that carries the geography signal.
+    body_excerpt = build_geo_body_excerpt(re.sub(r"(?<=[.!?]) +(?=[A-Z])", "\n", body_text))
+    # In prose, the lowercase pronoun "us" is not a country abbreviation.
+    if "us" in terms and re.search(r"(?<!\w)US(?!\w)", body_excerpt):
+        return "high"
+    return "high" if find_terms(body_excerpt, (term for term in terms if term != "us")) else None
 
 
 def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:

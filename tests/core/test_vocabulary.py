@@ -200,6 +200,20 @@ def test_optional_seniority_admits_graduate_unless_profile_excludes_it():
     assert _passes(profile, "Graduate Process Engineer") is False
 
 
+@pytest.mark.parametrize("separator", [" - ", " \u2013 ", " \u2014 "])
+def test_graduate_role_matches_with_a_dash_separator(separator):
+    profile = {
+        "criteria": {
+            "role_focus_terms": ["occupational therapist graduate program"],
+            "seniority": {"required": False},
+        },
+    }
+    title = f"Occupational Therapist{separator}Graduate Program 2027"
+    assert _passes(profile, title) is True
+    result = characterize_job(_job(title, "Occupational therapy graduate program."), profile, load_allowed_domains())
+    assert result["heuristic_evaluator"]["is_allowed_family"] is True
+
+
 @pytest.mark.parametrize(("title", "body", "discard_reason"), [
     ("Graduate Process Engineer", "Optimize production.", "seniority_not_senior"),
     (

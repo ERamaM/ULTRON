@@ -60,7 +60,7 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
         location_payload = job.get("location")
         if isinstance(location_payload, dict):
             location = str(location_payload.get("name", "")).strip()
-        posted_at = str(job.get("updated_at") or job.get("created_at") or "").strip() or None
+        posted_at = str(job.get("first_published") or job.get("created_at") or job.get("updated_at") or "").strip() or None
         output.append(
             AtsPosting(
                 title=title,

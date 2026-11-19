@@ -59,6 +59,12 @@ def test_greenhouse_non_dict_payload_is_empty():
     assert fetch_greenhouse_jobs("acme", client=FakeClient([[]])) == []
 
 
+def test_greenhouse_uses_first_publication_over_last_edit():
+    payload = {"jobs": [{"title": "Engineer", "id": 123, "first_published": "2026-09-10",
+                         "updated_at": "2026-11-13"}]}
+    assert fetch_greenhouse_jobs("acme", client=FakeClient([payload]))[0].posted_at == "2026-09-10"
+
+
 def test_greenhouse_falls_back_to_eu_host():
     client = FakeClient([HttpError("HTTP 404", status_code=404), load("greenhouse_board.json")])
     out = fetch_greenhouse_jobs("acme", client=client)
@@ -76,6 +82,21 @@ def test_lever_parses_board():
         ("Data Analyst", "https://jobs.lever.co/acme/a2", "Remote - EU", "1759000000000"),
         ("Product Designer", "https://jobs.lever.co/acme/a3", "", None),
     ]
+
+
+def test_lever_keeps_all_locations_and_workplace_from_a_large_board():
+    payload = [{
+        "text": "Support Engineer", "hostedUrl": "https://jobs.lever.co/acme/1234",
+        "categories": {"location": "Toronto", "allLocations": ["Toronto", "London"]},
+        "workplaceType": "hybrid", "description": "x" * 2048,
+    }]
+    with HttpClient(
+        max_requests=2, max_requests_per_host=2, max_bytes=1024, min_interval_per_host=0,
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload)),
+        resolver=lambda host, port: ["93.184.216.34"],
+    ) as client:
+        posting, = fetch_vendor_jobs("lever", "acme", client=client, timeout=5)
+    assert (posting.location, posting.remote_hint) == ("Toronto; London", "hybrid")
 
 
 def test_lever_empty_board_returns_empty_not_error():
@@ -133,6 +154,12 @@ def test_ashby_reports_unexpected_payload(payload):
 
 def test_ashby_empty_jobs_list_is_valid_empty_board():
     assert fetch_ashby_jobs("acme", client=FakeClient([{"jobs": []}])) == []
+
+
+def test_ashby_includes_distinct_secondary_locations():
+    payload = load("ashby_board.json")
+    payload["jobs"][1]["secondaryLocations"] = [{"location": "Madrid"}, {"location": "Lisbon"}, {}, None]
+    assert fetch_ashby_jobs("acme", client=FakeClient([payload]))[1].location == "Madrid; Lisbon"
 
 
 def test_ashby_board_has_a_larger_response_limit():

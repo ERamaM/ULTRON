@@ -20,3 +20,6 @@ def test_iter_json_dicts_respects_depth_and_node_caps():
         nested = {"child": nested}
     assert all("id" not in node for node in iter_json_dicts(nested, max_depth=5))
     assert len(list(iter_json_dicts([{} for _ in range(100)], max_nodes=11))) == 10
+    # Scalars do not consume the node budget.
+    assert len(list(iter_json_dicts([{"i": i, "s": "x"} for i in range(100)], max_nodes=11))) == 10
+    assert list(iter_json_dicts("scalar")) == []

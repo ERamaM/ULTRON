@@ -19,8 +19,11 @@ def load_json_or_none(text: str) -> object | None:
 
 
 def iter_json_dicts(node: object, *, max_depth: int = MAX_JSON_DEPTH, max_nodes: int = MAX_JSON_NODES) -> Iterator[dict]:
-    """Yield every dict in ``node`` in pre-order, iteratively, within depth and node caps."""
-    stack: list[tuple[object, int]] = [(node, 0)]
+    """Yield every dict in ``node`` in pre-order, iteratively, within depth and node caps.
+
+    Only dicts and lists count toward ``max_nodes``; scalar values are never visited.
+    """
+    stack: list[tuple[object, int]] = [(node, 0)] if isinstance(node, (dict, list)) else []
     visited = 0
     while stack and visited < max_nodes:
         current, depth = stack.pop()
@@ -28,9 +31,7 @@ def iter_json_dicts(node: object, *, max_depth: int = MAX_JSON_DEPTH, max_nodes:
         if isinstance(current, dict):
             yield current
             children = list(current.values())
-        elif isinstance(current, list):
-            children = current
         else:
-            continue
+            children = current
         if depth < max_depth:
-            stack.extend((child, depth + 1) for child in reversed(children))
+            stack.extend((child, depth + 1) for child in reversed(children) if isinstance(child, (dict, list)))

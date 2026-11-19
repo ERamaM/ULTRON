@@ -247,9 +247,13 @@ def test_next_data_extractor_survives_hostile_deeply_nested_json():
     assert workday._extract_from_next_data(html, "acme.wd5.myworkdayjobs.com") == []
 
 
-def test_next_data_extractor_handles_nesting_deeper_than_the_recursion_limit():
-    depth = 1500  # json.loads accepts this depth, a recursive walk does not.
-    payload = json.dumps({"props": {"jobs": [_job(1)]}})[:-1] + ', "deep": ' + "[" * depth + "]" * depth + "}"
-    html = f'<script id="__NEXT_DATA__" type="application/json">{payload}</script>'
+def test_next_data_extractor_handles_nesting_deeper_than_the_recursion_limit(monkeypatch):
+    # Build the structure directly: how deep json.loads itself can go varies by Python build.
+    deep: list = []
+    for _ in range(5000):
+        deep = [deep]
+    payload = {"props": {"jobs": [_job(1)]}, "deep": deep}
+    monkeypatch.setattr(workday, "load_json_or_none", lambda text: payload)
+    html = '<script id="__NEXT_DATA__" type="application/json">{}</script>'
     postings = workday._extract_from_next_data(html, "acme.wd5.myworkdayjobs.com")
     assert [p.title for p in postings] == ["Role 1"]

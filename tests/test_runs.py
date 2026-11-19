@@ -172,3 +172,5 @@ def test_larger_query_plans_use_supplementary_profile_titles():
     assert build_query_plan(profile, 4) == [
         *short, "Applied Scientist Remote EU", "site:jobs.ashbyhq.com Applied Scientist Remote EU",
     ]
+    profile["query_templates"]["titles"] = "Applied Scientist"
+    assert build_query_plan(profile, 4) == short

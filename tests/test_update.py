@@ -425,6 +425,18 @@ def test_missing_recorded_install_falls_back_to_markers(monkeypatch, capsys, tmp
     assert [(i["scope"], i["platforms"]) for i in installs] == [("global", ["opencode"])]
 
 
+def test_records_of_deleted_folders_are_reported_as_pruned(monkeypatch, capsys, tmp_path):
+    _install(Path.home() / ".claude" / "skills" / "ultron")
+    gone = tmp_path / "deleted project" / ".claude" / "skills" / "ultron"
+    _record([{"scope": "project", "project": str(gone.parents[2]), "path": str(gone), "platforms": ["claude"],
+              "version": "0.1.0"}])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    _serve(monkeypatch, _zip(_source_zip("0.2.0")))
+    code, out = _run(capsys)
+    assert code == 0 and out["pruned_records"] == [str(gone)]
+    assert [c["scope"] for c in out["commands"]] == ["global"]
+
+
 def test_old_format_registry_falls_back_to_markers(tmp_path):
     home = Path.home()
     _install(home / ".claude" / "skills" / "ultron")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Iterable
 from urllib.parse import urlparse
@@ -9,6 +8,7 @@ from bs4 import BeautifulSoup
 
 from ultron.core.ats.vendors import canonical_domain_for_vendor, match_vendor_by_fingerprint
 from ultron.core.extractors.ats_extractors.posting_date import posting_date_from_text
+from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.models import ExtractedJob, JobRawPage
 from ultron.core.rules.geo_eu import EXTRACTOR_COMPENSATION_OVERRIDE_TERMS, EXTRACTOR_LOCATION_MARKERS
 from ultron.core.rules.hard_filters_data import STRONG_REMOTE_POSITIVE_TERMS
@@ -304,20 +304,11 @@ def _json_load_loose(raw: str) -> object | None:
     text = str(raw or "").strip()
     if not text:
         return None
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return None
+    return load_json_or_none(text)
 
 
 def _iter_json_nodes(node: object) -> Iterable[dict]:
-    if isinstance(node, dict):
-        yield node
-        for value in node.values():
-            yield from _iter_json_nodes(value)
-    elif isinstance(node, list):
-        for item in node:
-            yield from _iter_json_nodes(item)
+    return iter_json_dicts(node)
 
 
 def _schema_type_leaf(value: object) -> str:

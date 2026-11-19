@@ -40,7 +40,8 @@ CLOSED_STATUS_PHRASES = {
 }
 # An application-acceptance phrase followed by this is agency boilerplate, not a closed posting
 # ("not accepting applications from recruitment agencies"). Filled or closed postings
-# ("position filled by recruitment agency") stay closed.
+# ("position filled by recruitment agency") stay closed. The suffix names an application channel
+# ("from", "via", "through", "de"), never "by": "applications closed by the agency" is a real closure.
 AGENCY_EXEMPTABLE_CLOSED_PHRASES = frozenset({
     "no longer accepting",
     "not accepting applications",
@@ -48,7 +49,7 @@ AGENCY_EXEMPTABLE_CLOSED_PHRASES = frozenset({
     "ya no aceptamos solicitudes",
 })
 CLOSED_STATUS_AGENCY_SUFFIX_PATTERN = (
-    r"\s+(?:[\w-]+\s+){0,2}?(?:from|via|through|by|de)\s+(?:(?:external|third[- ]party|recruitment|staffing|"
+    r"\s+(?:[\w-]+\s+){0,2}?(?:from|via|through|de)\s+(?:(?:external|third[- ]party|recruitment|staffing|"
     r"unsolicited|recruiting|search)\s+)*(?:recruit\w*|agenc\w*|headhunt\w*|search firms?|seleccion\w*)\b"
 )
 

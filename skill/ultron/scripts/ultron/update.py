@@ -155,7 +155,8 @@ def _recorded_copies() -> list[dict]:
         path = Path(record["path"])
         if not _is_copy_install(path):  # removed or replaced since it was recorded
             continue
-        version = record.get("version") if isinstance(record.get("version"), str) else _marker_version(path)
+        # The marker is rewritten with every copy; the record may lag if its write failed (only a warning).
+        version = _marker_version(path) or (record.get("version") if isinstance(record.get("version"), str) else None)
         copies.append({"scope": scope, "project": project if scope == "project" else None, "path": str(path),
                        "platforms": platforms, "version": version, "found_by": "record"})
     return copies
@@ -409,13 +410,17 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         return result
     target = release["version"]
     result.update(target=format_version(target), tag=release["tag"], release_url=release["url"])
-    cli_current = installed is not None and (target == installed or (to is None and target < installed))
-    if installed is not None and target < installed and to is not None:
+    if installed is not None and to is None and target < installed:
+        # The CLI is ahead of the latest release: any installer run would move the shared venv back.
+        result.update(status="up_to_date", detail=f"ULTRON {__version__} is newer than the latest release")
+        return result
+    reason = "cli_outdated"
+    if installed is not None and target < installed:
         result["downgrade"] = True
+        reason = "requested_version"
     home, cwd = Path.home(), Path.cwd()
     copies = find_copies(home=home, cwd=cwd, projects=projects)
-    reason = "cli_outdated"
-    if cli_current:
+    if installed == target:
         # The CLI is current; skill copies that an older installer left behind still need the update.
         copies = [c for c in copies if (v := parse_version(c["version"])) is not None and v < target]
         if not copies:

@@ -287,6 +287,7 @@ def discover_feeds(run_id: str) -> dict:
     found: list[tuple[int, CandidateUrl]] = []
     new_seeds: dict[tuple[str, str], AtsBoardSeed] = {}
     proposals: dict[str, Proposal] = {}
+    relevant_boards: set[tuple[str, str]] = set()  # new boards with at least one row that counts
     counts = {"ok": 0, "failed": 0, "skipped": 0}
     budget_spent = False
 
@@ -316,7 +317,13 @@ def discover_feeds(run_id: str) -> dict:
                         continue
                     ats_hit = True
                     key = seed_identity(seed.ats, seed.board_identifier)
-                    if key not in known_boards and key not in new_seeds:
+                    if key in known_boards:
+                        continue
+                    # A posting row counts for its board only when it passes the profile's prefilter; a
+                    # company list names boards, not postings, so its rows always count.
+                    if company_list or relevant:
+                        relevant_boards.add(key)
+                    if key not in new_seeds:
                         new_seeds[key] = seed.model_copy(update={
                             "source_type": "feed_discovered",
                             "source_label": f"Feed {source['id']}",
@@ -350,10 +357,13 @@ def discover_feeds(run_id: str) -> dict:
                     source_url = url if urlparse(url).scheme in {"http", "https"} else ""
                     proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
 
+    # Boards seen only in postings this profile would discard are not saved: they would fill the inventory
+    # with other professions' boards (seed_yield ranks the saved ones by later keeps).
+    to_save = [seed for key, seed in new_seeds.items() if key in relevant_boards]
     seeds_added = 0
-    if new_seeds:
+    if to_save:
         try:
-            seeds_added = add_seeds(list(new_seeds.values()), profile_slug=profile_slug)
+            seeds_added = add_seeds(to_save, profile_slug=profile_slug)
         except SeedFileError as exc:
             errors.append({"source": "seeds", "error": f"seed_file_corrupt: {exc}"})
 
@@ -379,6 +389,7 @@ def discover_feeds(run_id: str) -> dict:
         "sources_skipped": counts["skipped"],
         "candidates": len(candidates),
         "seeds_added": seeds_added,
+        "feed_boards_irrelevant": len(new_seeds) - len(to_save),
         "company_hints": len(proposals),
         "requests": client.requests_made,
     }

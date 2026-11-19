@@ -1,0 +1,35 @@
+[project]
+name = "ultron-workspace"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["ultron[cv,xlsx]"]
+
+[tool.uv.workspace]
+members = ["skill/ultron/scripts"]
+
+[tool.uv.sources]
+ultron = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest", "ruff"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-first-party = ["ultron"]
+
+[tool.ruff.lint.per-file-ignores]
+"skill/ultron/scripts/ultron/core/ats/clients/*.py" = ["BLE001"]  # literal ports: any transport error triggers the vendor fallback
+# Literal ports from MARK III: keep the original logic untouched.
+"skill/ultron/scripts/ultron/core/feeds/*.py" = ["BLE001", "S110", "S112", "PIE810"]  # literal ports: any error fails one source/slug, not the run
+"skill/ultron/scripts/ultron/cv_worker.py" = ["BLE001"]  # literal port: any failure becomes a JSON error for the parent
+"skill/ultron/scripts/ultron/core/rules/hard_filters.py" = ["SIM103"]
+"skill/ultron/scripts/ultron/core/rules/role_matching.py" = ["SIM102"]
+"skill/ultron/scripts/ultron/core/ranker/contradictions.py" = ["ISC004"]
+"skill/ultron/scripts/ultron/core/ranker/match_score.py" = ["FLY002"]
+"skill/ultron/scripts/ultron/core/reporting/export.py" = ["ISC004"]

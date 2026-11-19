@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.30.1"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          sha256sum --ignore-missing -c "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          chmod +x gitleaks
+      - name: Scan git history and workspace
+        shell: bash
+        run: |
+          ./gitleaks git --redact --verbose --config .gitleaks.toml .
+          ./gitleaks dir --redact --verbose --config .gitleaks.toml .
+
+  lint:
+    name: Lint, Shell Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: sh -n install.sh
+      - run: uv build --wheel --out-dir dist skill/ultron/scripts
+      - name: Verify built artifacts
+        shell: bash
+        run: ls -la dist
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - run: uv sync --locked
+      - run: uv run pytest -q
+
+  install-smoke:
+    name: Installer Smoke (${{ matrix.os }})
+    needs: [lint]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run bootstrap installer (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ULTRON_HOME="$RUNNER_TEMP/ultron-home"
+          mkdir -p "$RUNNER_TEMP/smoke-proj"
+          chmod +x ./install.sh
+          ./install.sh --project "$RUNNER_TEMP/smoke-proj" --platforms claude,codex,opencode,antigravity
+          test -f "$RUNNER_TEMP/smoke-proj/.claude/skills/ultron/SKILL.md"
+          test -f "$RUNNER_TEMP/smoke-proj/.claude/skills/ultron/RUNTIME.md"
+          test -f "$RUNNER_TEMP/smoke-proj/.agents/skills/ultron/SKILL.md"
+          test -f "$RUNNER_TEMP/smoke-proj/.agents/skills/ultron/RUNTIME.md"
+          "$ULTRON_HOME/venv/bin/ultron" version
+          "$ULTRON_HOME/venv/bin/ultron" profile list
+          "$ULTRON_HOME/venv/bin/ultron" profile install-example
+      - name: Run bootstrap installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $errors = $null
+          $tokens = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\install.ps1').Path, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.ToString() }
+            exit 1
+          }
+          $env:ULTRON_HOME = Join-Path $env:RUNNER_TEMP 'ultron-home'
+          $proj = Join-Path $env:RUNNER_TEMP 'smoke-proj'
+          New-Item -ItemType Directory -Path $proj -Force | Out-Null
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --project $proj --platforms "claude,codex,opencode,antigravity"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          foreach ($dir in @('.claude\skills\ultron', '.agents\skills\ultron')) {
+            if (-not (Test-Path (Join-Path $proj "$dir\SKILL.md"))) { throw "Missing $dir\SKILL.md" }
+            if (-not (Test-Path (Join-Path $proj "$dir\RUNTIME.md"))) { throw "Missing $dir\RUNTIME.md" }
+          }
+          $exe = Join-Path $env:ULTRON_HOME 'venv\Scripts\ultron.exe'
+          & $exe version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe profile list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe profile install-example
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

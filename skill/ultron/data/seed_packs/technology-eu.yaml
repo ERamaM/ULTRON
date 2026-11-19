@@ -1,0 +1,2790 @@
+pack:
+  id: technology-eu
+  usage: active
+  sector: technology
+  region: EU
+  max_size: 60
+  legacy_oversize: true
+seeds:
+- company: Flix
+  ats: greenhouse
+  board_identifier: flix
+  enabled: true
+  priority: 10
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: SumUp
+  ats: greenhouse
+  board_identifier: sumup
+  enabled: true
+  priority: 12
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Klaviyo
+  ats: greenhouse
+  board_identifier: klaviyo
+  enabled: true
+  priority: 14
+  tags:
+  - ml
+  - data
+  country_scope: EU
+  sectors:
+  - technology
+- company: Varicent
+  ats: greenhouse
+  board_identifier: varicent
+  enabled: true
+  priority: 16
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Celonis
+  ats: greenhouse
+  board_identifier: celonis
+  enabled: true
+  priority: 18
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sendcloud
+  ats: greenhouse
+  board_identifier: sendcloud
+  enabled: true
+  priority: 20
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Apaleo
+  ats: greenhouse
+  board_identifier: apaleo
+  enabled: true
+  priority: 22
+  tags:
+  - ai
+  - ml
+  country_scope: EU
+  sectors:
+  - technology
+- company: Atolls
+  ats: greenhouse
+  board_identifier: atolls
+  enabled: true
+  priority: 24
+  tags:
+  - ml
+  country_scope: EU
+  sectors:
+  - technology
+- company: AcuityMD
+  ats: greenhouse
+  board_identifier: acuitymd
+  enabled: true
+  priority: 26
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Alpaca
+  ats: greenhouse
+  board_identifier: alpaca
+  enabled: true
+  priority: 28
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Figma
+  ats: greenhouse
+  board_identifier: figma
+  enabled: true
+  priority: 30
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Make
+  ats: greenhouse
+  board_identifier: make
+  enabled: true
+  priority: 32
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Upbound
+  ats: greenhouse
+  board_identifier: upbound
+  enabled: true
+  priority: 34
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Versaterm
+  ats: greenhouse
+  board_identifier: versaterm
+  enabled: true
+  priority: 36
+  tags:
+  - ml
+  country_scope: EU
+  sectors:
+  - technology
+- company: Workwize
+  ats: greenhouse
+  board_identifier: workwize
+  enabled: true
+  priority: 38
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Clariness
+  ats: greenhouse
+  board_identifier: clariness
+  enabled: true
+  priority: 40
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Babbel
+  ats: greenhouse
+  board_identifier: babbel
+  enabled: true
+  priority: 42
+  tags:
+  - ml
+  - nlp
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Binance
+  ats: lever
+  board_identifier: binance
+  enabled: true
+  priority: 44
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Hostinger
+  ats: ashby
+  board_identifier: hostinger
+  enabled: true
+  priority: 46
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: BenchSci
+  ats: lever
+  board_identifier: benchsci
+  enabled: true
+  priority: 48
+  tags:
+  - ml
+  - nlp
+  country_scope: EU
+  sectors:
+  - technology
+- company: Prima
+  ats: lever
+  board_identifier: prima
+  enabled: true
+  priority: 50
+  tags:
+  - ml
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Yassir
+  ats: lever
+  board_identifier: Yassir
+  enabled: true
+  priority: 52
+  tags:
+  - ml
+  - ai
+  - emea
+  country_scope: EU
+  sectors:
+  - technology
+- company: Clipboard Health
+  ats: ashby
+  board_identifier: app
+  enabled: true
+  priority: 54
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Enode
+  ats: ashby
+  board_identifier: enode
+  enabled: true
+  priority: 56
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: ClickUp
+  ats: ashby
+  board_identifier: clickup
+  enabled: true
+  priority: 58
+  tags:
+  - llm
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Ruby Labs
+  ats: ashby
+  board_identifier: ruby-labs
+  enabled: true
+  priority: 60
+  tags:
+  - ai
+  - ml
+  country_scope: EU
+  sectors:
+  - technology
+- company: Float
+  ats: workable
+  board_identifier: floatjobs
+  enabled: true
+  priority: 62
+  tags:
+  - ml
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mistral AI
+  ats: greenhouse
+  board_identifier: mistralai
+  enabled: true
+  priority: 100
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Hugging Face
+  ats: greenhouse
+  board_identifier: huggingface
+  enabled: true
+  priority: 101
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Stability AI
+  ats: greenhouse
+  board_identifier: stabilityai
+  enabled: true
+  priority: 102
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: DeepMind
+  ats: greenhouse
+  board_identifier: deepmind
+  enabled: true
+  priority: 103
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Helsing
+  ats: greenhouse
+  board_identifier: helsing
+  enabled: true
+  priority: 104
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Dataiku
+  ats: greenhouse
+  board_identifier: dataiku
+  enabled: true
+  priority: 105
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Criteo
+  ats: greenhouse
+  board_identifier: criteo
+  enabled: true
+  priority: 106
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: ContentSquare
+  ats: greenhouse
+  board_identifier: contentsquare
+  enabled: true
+  priority: 107
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Algolia
+  ats: greenhouse
+  board_identifier: algolia
+  enabled: true
+  priority: 108
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Delivery Hero
+  ats: greenhouse
+  board_identifier: deliveryhero
+  enabled: true
+  priority: 109
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: GetYourGuide
+  ats: greenhouse
+  board_identifier: getyourguide
+  enabled: true
+  priority: 110
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Zalando
+  ats: greenhouse
+  board_identifier: zalando
+  enabled: true
+  priority: 111
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Trade Republic
+  ats: greenhouse
+  board_identifier: traderepublic
+  enabled: true
+  priority: 112
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: N26
+  ats: greenhouse
+  board_identifier: n26
+  enabled: true
+  priority: 113
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Revolut
+  ats: greenhouse
+  board_identifier: revolut
+  enabled: true
+  priority: 114
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Wise
+  ats: greenhouse
+  board_identifier: wise
+  enabled: true
+  priority: 115
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Spotify
+  ats: greenhouse
+  board_identifier: spotify
+  enabled: true
+  priority: 116
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Booking.com
+  ats: greenhouse
+  board_identifier: bookingcom
+  enabled: true
+  priority: 117
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Adyen
+  ats: greenhouse
+  board_identifier: adyen
+  enabled: true
+  priority: 118
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mollie
+  ats: greenhouse
+  board_identifier: mollie
+  enabled: true
+  priority: 119
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Stripe
+  ats: greenhouse
+  board_identifier: stripe
+  enabled: true
+  priority: 120
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Elastic
+  ats: greenhouse
+  board_identifier: elastic
+  enabled: true
+  priority: 121
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Grafana Labs
+  ats: greenhouse
+  board_identifier: grafanalabs
+  enabled: true
+  priority: 122
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Cloudflare
+  ats: greenhouse
+  board_identifier: cloudflare
+  enabled: true
+  priority: 123
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: MongoDB
+  ats: greenhouse
+  board_identifier: mongodb
+  enabled: true
+  priority: 124
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Datadog
+  ats: greenhouse
+  board_identifier: datadog
+  enabled: true
+  priority: 125
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Canva
+  ats: greenhouse
+  board_identifier: canva
+  enabled: true
+  priority: 126
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Notion
+  ats: greenhouse
+  board_identifier: notion
+  enabled: true
+  priority: 127
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Linear
+  ats: greenhouse
+  board_identifier: linear
+  enabled: true
+  priority: 128
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Shopify
+  ats: greenhouse
+  board_identifier: shopify
+  enabled: true
+  priority: 129
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Automattic
+  ats: greenhouse
+  board_identifier: automattic
+  enabled: true
+  priority: 130
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Zapier
+  ats: greenhouse
+  board_identifier: zapier
+  enabled: true
+  priority: 131
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Typeform
+  ats: greenhouse
+  board_identifier: typeform
+  enabled: true
+  priority: 132
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Hotjar
+  ats: greenhouse
+  board_identifier: hotjar
+  enabled: true
+  priority: 133
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Vinted
+  ats: greenhouse
+  board_identifier: vinted
+  enabled: true
+  priority: 134
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Bolt
+  ats: greenhouse
+  board_identifier: bolt
+  enabled: true
+  priority: 135
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Doctolib
+  ats: greenhouse
+  board_identifier: doctolib
+  enabled: true
+  priority: 136
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: BlaBlaCar
+  ats: greenhouse
+  board_identifier: blablacar
+  enabled: true
+  priority: 137
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Darktrace
+  ats: greenhouse
+  board_identifier: darktrace
+  enabled: true
+  priority: 138
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Wayve
+  ats: greenhouse
+  board_identifier: wayve
+  enabled: true
+  priority: 139
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: GitLab
+  ats: greenhouse
+  board_identifier: gitlab
+  enabled: true
+  priority: 140
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Miro
+  ats: greenhouse
+  board_identifier: miro
+  enabled: true
+  priority: 141
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Snyk
+  ats: greenhouse
+  board_identifier: snyk
+  enabled: true
+  priority: 142
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Weights and Biases
+  ats: greenhouse
+  board_identifier: weightsandbiases
+  enabled: true
+  priority: 143
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Vercel
+  ats: greenhouse
+  board_identifier: vercel
+  enabled: true
+  priority: 144
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Fly.io
+  ats: greenhouse
+  board_identifier: flyio
+  enabled: true
+  priority: 145
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Plaid
+  ats: greenhouse
+  board_identifier: plaid
+  enabled: true
+  priority: 146
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Rippling
+  ats: greenhouse
+  board_identifier: rippling
+  enabled: true
+  priority: 147
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Personio
+  ats: greenhouse
+  board_identifier: personio
+  enabled: true
+  priority: 148
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Pleo
+  ats: greenhouse
+  board_identifier: pleo
+  enabled: true
+  priority: 149
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Klarna
+  ats: greenhouse
+  board_identifier: klarna
+  enabled: true
+  priority: 150
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Monzo
+  ats: greenhouse
+  board_identifier: monzo
+  enabled: true
+  priority: 151
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Checkout.com
+  ats: greenhouse
+  board_identifier: checkoutcom
+  enabled: true
+  priority: 152
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Ocado Technology
+  ats: greenhouse
+  board_identifier: ocadotechnology
+  enabled: true
+  priority: 153
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Skyscanner
+  ats: greenhouse
+  board_identifier: skyscanner
+  enabled: true
+  priority: 154
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: King
+  ats: greenhouse
+  board_identifier: king
+  enabled: true
+  priority: 155
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: DeepL
+  ats: greenhouse
+  board_identifier: deepl
+  enabled: true
+  priority: 156
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Aiven
+  ats: greenhouse
+  board_identifier: aiven
+  enabled: true
+  priority: 157
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Confluent
+  ats: greenhouse
+  board_identifier: confluent
+  enabled: true
+  priority: 158
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Snowflake
+  ats: greenhouse
+  board_identifier: snowflake
+  enabled: true
+  priority: 159
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Airbyte
+  ats: greenhouse
+  board_identifier: airbyte
+  enabled: true
+  priority: 160
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: DataRobot
+  ats: greenhouse
+  board_identifier: datarobot
+  enabled: true
+  priority: 161
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Glean
+  ats: greenhouse
+  board_identifier: glean
+  enabled: true
+  priority: 162
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Scale AI
+  ats: greenhouse
+  board_identifier: scaleai
+  enabled: true
+  priority: 163
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Perplexity
+  ats: greenhouse
+  board_identifier: perplexity
+  enabled: true
+  priority: 164
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Anthropic
+  ats: greenhouse
+  board_identifier: anthropic
+  enabled: true
+  priority: 165
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: OpenAI
+  ats: greenhouse
+  board_identifier: openai
+  enabled: true
+  priority: 166
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Cohere
+  ats: greenhouse
+  board_identifier: cohere
+  enabled: true
+  priority: 167
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: GitGuardian
+  ats: greenhouse
+  board_identifier: gitguardian
+  enabled: true
+  priority: 168
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: CircleCI
+  ats: greenhouse
+  board_identifier: circleci
+  enabled: true
+  priority: 169
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: HashiCorp
+  ats: greenhouse
+  board_identifier: hashicorp
+  enabled: true
+  priority: 170
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Reddit
+  ats: greenhouse
+  board_identifier: reddit
+  enabled: true
+  priority: 171
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: DoorDash
+  ats: greenhouse
+  board_identifier: doordash
+  enabled: true
+  priority: 172
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Instacart
+  ats: greenhouse
+  board_identifier: instacart
+  enabled: true
+  priority: 173
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Discord
+  ats: greenhouse
+  board_identifier: discord
+  enabled: true
+  priority: 174
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Asana
+  ats: greenhouse
+  board_identifier: asana
+  enabled: true
+  priority: 175
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Fivetran
+  ats: greenhouse
+  board_identifier: fivetran
+  enabled: true
+  priority: 176
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sentry
+  ats: greenhouse
+  board_identifier: sentry
+  enabled: true
+  priority: 177
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: New Relic
+  ats: greenhouse
+  board_identifier: newrelic
+  enabled: true
+  priority: 178
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Expedia Group
+  ats: greenhouse
+  board_identifier: expediagroup
+  enabled: true
+  priority: 179
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Deel
+  ats: lever
+  board_identifier: deel
+  enabled: false
+  priority: 181
+  tags:
+  - ml
+  - ai
+  - remote
+  country_scope: EU
+  sectors:
+  - technology
+- company: Chainalysis
+  ats: lever
+  board_identifier: chainalysis
+  enabled: false
+  priority: 182
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Postman
+  ats: lever
+  board_identifier: postman
+  enabled: false
+  priority: 183
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Brex
+  ats: greenhouse
+  board_identifier: brex
+  enabled: true
+  priority: 184
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Ramp
+  ats: greenhouse
+  board_identifier: ramp
+  enabled: true
+  priority: 185
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Airtable
+  ats: greenhouse
+  board_identifier: airtable
+  enabled: true
+  priority: 186
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Lattice
+  ats: greenhouse
+  board_identifier: lattice
+  enabled: true
+  priority: 187
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Tripadvisor
+  ats: greenhouse
+  board_identifier: tripadvisor
+  enabled: true
+  priority: 188
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Patreon
+  ats: ashby
+  board_identifier: patreon
+  enabled: true
+  priority: 189
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Nylas
+  ats: ashby
+  board_identifier: nylas
+  enabled: true
+  priority: 190
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mux
+  ats: ashby
+  board_identifier: mux
+  enabled: true
+  priority: 191
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Circle
+  ats: ashby
+  board_identifier: circle
+  enabled: true
+  priority: 192
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mercury
+  ats: greenhouse
+  board_identifier: mercury
+  enabled: true
+  priority: 193
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: PandaDoc
+  ats: greenhouse
+  board_identifier: pandadoc
+  enabled: true
+  priority: 194
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: dbt Labs
+  ats: lever
+  board_identifier: dbtlabs
+  enabled: false
+  priority: 195
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Temporal
+  ats: ashby
+  board_identifier: temporal
+  enabled: true
+  priority: 196
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Retool
+  ats: lever
+  board_identifier: retool
+  enabled: false
+  priority: 197
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: ClickHouse
+  ats: ashby
+  board_identifier: clickhouse
+  enabled: true
+  priority: 198
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Supabase
+  ats: ashby
+  board_identifier: supabase
+  enabled: true
+  priority: 199
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Render
+  ats: ashby
+  board_identifier: render
+  enabled: true
+  priority: 200
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: PlanetScale
+  ats: lever
+  board_identifier: planetscale
+  enabled: true
+  priority: 201
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Segment
+  ats: lever
+  board_identifier: segment
+  enabled: true
+  priority: 202
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Amplitude
+  ats: lever
+  board_identifier: amplitude
+  enabled: true
+  priority: 203
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mixpanel
+  ats: lever
+  board_identifier: mixpanel
+  enabled: true
+  priority: 204
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: LaunchDarkly
+  ats: lever
+  board_identifier: launchdarkly
+  enabled: true
+  priority: 205
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Intercom
+  ats: lever
+  board_identifier: intercom
+  enabled: true
+  priority: 206
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Procore
+  ats: lever
+  board_identifier: procore
+  enabled: true
+  priority: 207
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Thumbtack
+  ats: lever
+  board_identifier: thumbtack
+  enabled: true
+  priority: 209
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Canary
+  ats: lever
+  board_identifier: canary
+  enabled: true
+  priority: 210
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sonar
+  ats: lever
+  board_identifier: sonar
+  enabled: true
+  priority: 211
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Immutable
+  ats: lever
+  board_identifier: immutable
+  enabled: true
+  priority: 212
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sila
+  ats: lever
+  board_identifier: sila
+  enabled: true
+  priority: 213
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: OpenPhone
+  ats: lever
+  board_identifier: openphone
+  enabled: true
+  priority: 214
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Tines
+  ats: lever
+  board_identifier: tines
+  enabled: true
+  priority: 215
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Constructor
+  ats: lever
+  board_identifier: constructor
+  enabled: true
+  priority: 216
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Olo
+  ats: lever
+  board_identifier: olo
+  enabled: true
+  priority: 217
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Checkr
+  ats: lever
+  board_identifier: checkr
+  enabled: true
+  priority: 218
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Benchling
+  ats: lever
+  board_identifier: benchling
+  enabled: true
+  priority: 219
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: ElevenLabs
+  ats: ashby
+  board_identifier: elevenlabs
+  enabled: true
+  priority: 220
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Runway
+  ats: ashby
+  board_identifier: runway
+  enabled: true
+  priority: 221
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Harvey
+  ats: ashby
+  board_identifier: harvey
+  enabled: true
+  priority: 222
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Cognition
+  ats: ashby
+  board_identifier: cognition
+  enabled: true
+  priority: 223
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Poolside
+  ats: ashby
+  board_identifier: poolside
+  enabled: true
+  priority: 224
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Adept
+  ats: ashby
+  board_identifier: adept
+  enabled: true
+  priority: 225
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Pinecone
+  ats: ashby
+  board_identifier: pinecone
+  enabled: true
+  priority: 226
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Modal
+  ats: ashby
+  board_identifier: modal
+  enabled: true
+  priority: 227
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Replit
+  ats: ashby
+  board_identifier: replit
+  enabled: true
+  priority: 228
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Nebius
+  ats: ashby
+  board_identifier: nebius
+  enabled: true
+  priority: 229
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Builder.ai
+  ats: ashby
+  board_identifier: builderai
+  enabled: true
+  priority: 230
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Synthesia
+  ats: ashby
+  board_identifier: synthesia
+  enabled: true
+  priority: 231
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sanas
+  ats: ashby
+  board_identifier: sanas
+  enabled: true
+  priority: 232
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: HeyGen
+  ats: ashby
+  board_identifier: heygen
+  enabled: true
+  priority: 233
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Aircall
+  ats: ashby
+  board_identifier: aircall
+  enabled: true
+  priority: 234
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Alan
+  ats: ashby
+  board_identifier: alan
+  enabled: true
+  priority: 236
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Pennylane
+  ats: ashby
+  board_identifier: pennylane
+  enabled: true
+  priority: 237
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Pigment
+  ats: ashby
+  board_identifier: pigment
+  enabled: true
+  priority: 238
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Spendesk
+  ats: ashby
+  board_identifier: spendesk
+  enabled: true
+  priority: 239
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Finary
+  ats: ashby
+  board_identifier: finary
+  enabled: true
+  priority: 240
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Dust
+  ats: ashby
+  board_identifier: dust
+  enabled: true
+  priority: 241
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Gradio
+  ats: ashby
+  board_identifier: gradio
+  enabled: true
+  priority: 242
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Photoroom
+  ats: ashby
+  board_identifier: photoroom
+  enabled: true
+  priority: 243
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Mistral Ops
+  ats: ashby
+  board_identifier: mistralops
+  enabled: true
+  priority: 244
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Preply
+  ats: workable
+  board_identifier: preply
+  enabled: true
+  priority: 245
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Cabify
+  ats: workable
+  board_identifier: cabify
+  enabled: true
+  priority: 246
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: TravelPerk
+  ats: workable
+  board_identifier: travelperk
+  enabled: true
+  priority: 248
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Glovo
+  ats: workable
+  board_identifier: glovo
+  enabled: true
+  priority: 249
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Bitpanda
+  ats: workable
+  board_identifier: bitpanda
+  enabled: true
+  priority: 251
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Bending Spoons
+  ats: workable
+  board_identifier: bendingspoons
+  enabled: false
+  priority: 252
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Malt
+  ats: workable
+  board_identifier: malt
+  enabled: false
+  priority: 253
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Adevinta
+  ats: workable
+  board_identifier: adevinta
+  enabled: true
+  priority: 254
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Domestika
+  ats: workable
+  board_identifier: domestika
+  enabled: true
+  priority: 255
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Packhelp
+  ats: workable
+  board_identifier: packhelp
+  enabled: true
+  priority: 256
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Raisin
+  ats: workable
+  board_identifier: raisin
+  enabled: false
+  priority: 257
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Guesty
+  ats: workable
+  board_identifier: guesty
+  enabled: false
+  priority: 258
+  tags:
+  - ml
+  - ai
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sastrify
+  ats: workable
+  board_identifier: sastrify
+  enabled: true
+  priority: 259
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Typeform Ops
+  ats: workable
+  board_identifier: typeformops
+  enabled: false
+  priority: 260
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: DeepL
+  ats: personio
+  board_identifier: deepl
+  enabled: false
+  priority: 261
+  tags:
+  - ml
+  - ai
+  - nlp
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Celonis
+  ats: personio
+  board_identifier: celonis
+  enabled: false
+  priority: 263
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Adjust
+  ats: personio
+  board_identifier: adjust
+  enabled: false
+  priority: 264
+  tags:
+  - ml
+  - ai
+  - adtech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Klarna
+  ats: teamtailor
+  board_identifier: klarna
+  enabled: false
+  priority: 265
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: King
+  ats: teamtailor
+  board_identifier: king
+  enabled: false
+  priority: 266
+  tags:
+  - ml
+  - ai
+  - gaming
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Voi Technology
+  ats: teamtailor
+  board_identifier: voi-technology
+  enabled: false
+  priority: 267
+  tags:
+  - ml
+  - ai
+  - mobility
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Peltarion
+  ats: teamtailor
+  board_identifier: peltarion
+  enabled: false
+  priority: 268
+  tags:
+  - ml
+  - ai
+  - mlops
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Bosch
+  ats: smartrecruiters
+  board_identifier: BoschGroup
+  enabled: true
+  priority: 269
+  tags:
+  - ml
+  - ai
+  - autonomous
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: ASML
+  ats: smartrecruiters
+  board_identifier: ASML
+  enabled: true
+  priority: 270
+  tags:
+  - ml
+  - ai
+  - semiconductor
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Visa
+  ats: smartrecruiters
+  board_identifier: Visa
+  enabled: true
+  priority: 271
+  tags:
+  - ml
+  - ai
+  - fintech
+  country_scope: EU
+  sectors:
+  - technology
+- company: Sanofi
+  ats: smartrecruiters
+  board_identifier: Sanofi
+  enabled: true
+  priority: 272
+  tags:
+  - ml
+  - ai
+  - healthtech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Merantix
+  ats: recruitee
+  board_identifier: merantix
+  enabled: false
+  priority: 273
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Luminovo
+  ats: recruitee
+  board_identifier: luminovo
+  enabled: false
+  priority: 274
+  tags:
+  - ml
+  - ai
+  - manufacturing
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Wandelbots
+  ats: recruitee
+  board_identifier: wandelbots
+  enabled: false
+  priority: 275
+  tags:
+  - ml
+  - ai
+  - robotics
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Plumerai
+  ats: homerun
+  board_identifier: plumerai
+  enabled: false
+  priority: 276
+  tags:
+  - ml
+  - ai
+  - edge-ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Aidence
+  ats: homerun
+  board_identifier: aidence
+  enabled: false
+  priority: 277
+  tags:
+  - ml
+  - ai
+  - healthtech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Ellogon
+  ats: homerun
+  board_identifier: ellogon-ai
+  enabled: false
+  priority: 278
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Infineon
+  ats: jobvite
+  board_identifier: infineon
+  enabled: true
+  priority: 279
+  tags:
+  - ml
+  - ai
+  - semiconductor
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Zalando
+  ats: jobvite
+  board_identifier: zalando
+  enabled: true
+  priority: 280
+  tags:
+  - ml
+  - ai
+  - ecommerce
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Trivago
+  ats: jobvite
+  board_identifier: trivago
+  enabled: true
+  priority: 281
+  tags:
+  - ml
+  - ai
+  - travel
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Synthesia
+  ats: bamboohr
+  board_identifier: synthesia
+  enabled: true
+  priority: 282
+  tags:
+  - ml
+  - ai
+  - generative
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Photoroom
+  ats: bamboohr
+  board_identifier: photoroom
+  enabled: true
+  priority: 283
+  tags:
+  - ml
+  - ai
+  - computer-vision
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Tractable
+  ats: bamboohr
+  board_identifier: tractable
+  enabled: true
+  priority: 284
+  tags:
+  - ml
+  - ai
+  - computer-vision
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Speech Graphics
+  ats: breezy
+  board_identifier: speechgraphics
+  enabled: false
+  priority: 285
+  tags:
+  - ml
+  - ai
+  - nlp
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Neurolabs
+  ats: breezy
+  board_identifier: neurolabs
+  enabled: false
+  priority: 286
+  tags:
+  - ml
+  - ai
+  - computer-vision
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: QuantPi
+  ats: breezy
+  board_identifier: quantpi
+  enabled: false
+  priority: 287
+  tags:
+  - ml
+  - ai
+  - mlops
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: InstaDeep
+  ats: jazzhr
+  board_identifier: instadeep
+  enabled: true
+  priority: 288
+  tags:
+  - ml
+  - ai
+  - research
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Aignostics
+  ats: jazzhr
+  board_identifier: aignostics
+  enabled: true
+  priority: 289
+  tags:
+  - ml
+  - ai
+  - healthtech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Helsing
+  ats: jazzhr
+  board_identifier: helsing
+  enabled: true
+  priority: 290
+  tags:
+  - ml
+  - ai
+  - defense
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Typeform
+  ats: factorial
+  board_identifier: typeform
+  enabled: false
+  priority: 291
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Glovo
+  ats: factorial
+  board_identifier: glovo
+  enabled: false
+  priority: 292
+  tags:
+  - ml
+  - ai
+  - logistics
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Wallapop
+  ats: factorial
+  board_identifier: wallapop
+  enabled: false
+  priority: 293
+  tags:
+  - ml
+  - ai
+  - ecommerce
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: PolyAI
+  ats: pinpoint
+  board_identifier: polyai
+  enabled: false
+  priority: 294
+  tags:
+  - ml
+  - ai
+  - nlp
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Faculty AI
+  ats: pinpoint
+  board_identifier: faculty
+  enabled: false
+  priority: 295
+  tags:
+  - ml
+  - ai
+  - consulting
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Vortexa
+  ats: pinpoint
+  board_identifier: vortexa
+  enabled: false
+  priority: 296
+  tags:
+  - ml
+  - ai
+  - energy
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Hailo
+  ats: comeet
+  board_identifier: hailo
+  enabled: false
+  priority: 297
+  tags:
+  - ml
+  - ai
+  - edge-ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Run:ai
+  ats: comeet
+  board_identifier: runai
+  enabled: false
+  priority: 298
+  tags:
+  - ml
+  - ai
+  - mlops
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Orca AI
+  ats: comeet
+  board_identifier: orcaai
+  enabled: false
+  priority: 299
+  tags:
+  - ml
+  - ai
+  - autonomous
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: SAP
+  ats: workday
+  board_identifier: sap
+  enabled: false
+  priority: 300
+  tags:
+  - ml
+  - ai
+  - enterprise
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Siemens
+  ats: workday
+  board_identifier: siemens
+  enabled: false
+  priority: 301
+  tags:
+  - ml
+  - ai
+  - industrial
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: BMW Group
+  ats: workday
+  board_identifier: bmw
+  enabled: false
+  priority: 302
+  tags:
+  - ml
+  - ai
+  - autonomous
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Philips
+  ats: workday
+  board_identifier: philips
+  enabled: false
+  priority: 303
+  tags:
+  - ml
+  - ai
+  - healthtech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Booking.com
+  ats: icims
+  board_identifier: booking
+  enabled: false
+  priority: 304
+  tags:
+  - ml
+  - ai
+  - travel
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: ING
+  ats: icims
+  board_identifier: ing
+  enabled: false
+  priority: 305
+  tags:
+  - ml
+  - ai
+  - fintech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: NXP Semiconductors
+  ats: icims
+  board_identifier: nxp
+  enabled: false
+  priority: 306
+  tags:
+  - ml
+  - ai
+  - semiconductor
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Airbus
+  ats: taleo
+  board_identifier: airbus
+  enabled: false
+  priority: 307
+  tags:
+  - ml
+  - ai
+  - aerospace
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Nokia
+  ats: taleo
+  board_identifier: nokia
+  enabled: false
+  priority: 308
+  tags:
+  - ml
+  - ai
+  - telecom
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Ericsson
+  ats: taleo
+  board_identifier: ericsson
+  enabled: false
+  priority: 309
+  tags:
+  - ml
+  - ai
+  - telecom
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: InPost
+  ats: smartrecruiters
+  board_identifier: InPost
+  enabled: true
+  priority: 370
+  tags:
+  - ml
+  - ai
+  - nlp
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Deepset
+  ats: personio
+  board_identifier: deepset
+  enabled: true
+  priority: 371
+  tags:
+  - ml
+  - ai
+  - llm
+  - rag
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: 1KOMMA5
+  ats: personio
+  board_identifier: 1komma5grad
+  enabled: true
+  priority: 372
+  tags:
+  - ml
+  - ai
+  - cleantech
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: Merantix
+  ats: personio
+  board_identifier: merantix
+  enabled: true
+  priority: 373
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology
+- company: DeliveryHero
+  ats: smartrecruiters
+  board_identifier: DeliveryHero
+  enabled: true
+  priority: 374
+  tags:
+  - ml
+  - ai
+  - eu
+  country_scope: EU
+  sectors:
+  - technology

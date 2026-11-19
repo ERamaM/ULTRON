@@ -1,0 +1,12 @@
+{
+ "data": [
+  {
+   "title": "Machine Learning Engineer",
+   "company_name": "Acme",
+   "url": "https://boards.greenhouse.io/acme/jobs/1",
+   "location": "Berlin",
+   "remote": true
+  }
+ ],
+ "links": {}
+}

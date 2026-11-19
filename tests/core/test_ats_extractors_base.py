@@ -1,0 +1,433 @@
+from __future__ import annotations
+
+from ultron.core.extractors.ats_extractors import base
+from ultron.core.models import JobRawPage
+
+
+def _page(html: str, *, final_url: str = "https://boards.greenhouse.io/acme/jobs/123") -> JobRawPage:
+    return JobRawPage(url=final_url, final_url=final_url, status_code=200, html=html)
+
+
+def test_parse_generic_prefers_jsonld_over_meta_and_h1():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "JobPosting", "title": "Senior ML Engineer", "hiringOrganization": {"name": "Acme Corp"},
+     "jobLocation": {"address": {"addressLocality": "Madrid", "addressCountry": "ES"}},
+     "jobLocationType": "TELECOMMUTE", "datePosted": "2026-01-05"}
+    </script>
+    <meta property="og:title" content="Wrong Title"/>
+    <meta property="og:site_name" content="Wrong Co"/>
+    </head><body><h1>Also Wrong</h1></body></html>
+    """
+    job = base.parse_generic(_page(html))
+    assert job.title == "Senior ML Engineer"
+    assert job.company == "Acme Corp"
+    assert "Madrid" in job.location
+    assert job.posting_date == "2026-01-05"
+    assert "Remote" in job.remote_text or job.remote_text
+
+
+def test_parse_generic_falls_back_through_meta_og_twitter_h1_title_tag():
+    html = """
+    <html><head><title>Fallback Title Tag</title></head>
+    <body><h1>H1 Title</h1></body></html>
+    """
+    job = base.parse_generic(_page(html))
+    assert job.title == "H1 Title"
+
+    html_meta_og = '<html><head><meta property="og:title" content="OG Title"/></head><body></body></html>'
+    job2 = base.parse_generic(_page(html_meta_og))
+    assert job2.title == "OG Title"
+
+    html_twitter = '<html><head><meta name="twitter:title" content="Twitter Title"/></head><body></body></html>'
+    job3 = base.parse_generic(_page(html_twitter))
+    assert job3.title == "Twitter Title"
+
+    html_title_tag_only = "<html><head><title>Just Title Tag</title></head><body></body></html>"
+    job4 = base.parse_generic(_page(html_title_tag_only))
+    assert job4.title == "Just Title Tag"
+
+
+def test_parse_generic_detects_apply_and_closed_hints():
+    open_html = "<html><body><p>Click apply now to join us.</p></body></html>"
+    job = base.parse_generic(_page(open_html))
+    assert job.apply_available is True
+    assert job.is_open_hint is True
+
+    closed_html = "<html><body><p>This position is closed. No longer accepting applications.</p></body></html>"
+    closed = base.parse_generic(_page(closed_html))
+    assert closed.is_open_hint is False
+
+
+def test_parse_generic_finds_date_via_regex_when_no_structured_date():
+    html = "<html><body><p>Posted on 2026-03-14. Great opportunity.</p></body></html>"
+    job = base.parse_generic(_page(html))
+    assert job.posting_date == "2026-03-14"
+
+
+def test_parse_generic_prefers_posted_date_over_earlier_updated_date():
+    html = "<html><body><p>Last updated: 1 January 2023</p><p>Posted on 14 March 2026</p></body></html>"
+    job = base.parse_generic(_page(html))
+    assert job.posting_date == "14 March 2026"
+
+
+def test_parse_generic_uses_posted_date_and_returns_none_without_dates():
+    posted = base.parse_generic(_page("<html><body><p>Posted on 14 March 2026</p></body></html>"))
+    assert posted.posting_date == "14 March 2026"
+    empty = base.parse_generic(_page("<html><body><p>No calendar here.</p></body></html>"))
+    assert empty.posting_date is None
+
+
+def test_parse_generic_domain_fallback_company_when_no_other_signal():
+    html = "<html><head><title>Careers</title></head><body></body></html>"
+    job = base.parse_generic(_page(html, final_url="https://acme-corp.example.com/careers/123"))
+    # No jsonld/og/h1 signal for company; falls back to the domain label.
+    assert job.company == "Acme Corp"
+
+
+def test_extract_location_from_lines_prefers_labeled_lines():
+    text_lines = [
+        "We build cool things.",
+        "Location: Remote, EU",
+        "Salary range $100k-$150k",
+    ]
+    location = base._extract_location_from_lines(text_lines)
+    assert "Remote" in location or "EU" in location
+
+
+def test_extract_location_from_lines_returns_empty_when_nothing_matches():
+    assert base._extract_location_from_lines(["We build cool things.", "You will design systems."]) == ""
+
+
+def test_is_location_like_line_rejects_verb_heavy_and_multi_sentence_lines():
+    assert base._is_location_like_line("You will build and design the future. Also this.") is False
+    assert base._is_location_like_line("") is False
+    assert base._is_location_like_line("x" * 90) is False
+
+
+def test_is_location_like_line_accepts_short_comma_location():
+    assert base._is_location_like_line("Madrid, Spain") is True
+
+
+def test_is_location_like_line_rejects_compensation_without_location_signal():
+    assert base._is_location_like_line("Base pay range $120,000 - $150,000") is False
+
+
+def test_is_location_like_line_accepts_compensation_line_with_remote_override():
+    assert base._is_location_like_line("Remote (EU) - Base pay range $120,000") is True
+
+
+def test_is_location_like_line_requires_word_boundaries_for_markers():
+    assert base._is_location_like_line("Carbon neutral benefits") is False
+    assert base._is_location_like_line("Cost allocation specialist team") is False
+    assert base._is_location_like_line("Location: Madrid") is True
+    assert base._is_location_like_line("Madrid, Spain") is True
+    assert base._is_location_like_line("EU-based role") is True
+
+
+def test_looks_remote_and_workplace_conflict_detection():
+    assert base._looks_remote("This is a remote position") is True
+    assert base._looks_remote("Remote monitoring of servers required") is False
+    assert base._looks_remote_workplace("Hybrid role, 2 days onsite") is True
+    assert base._looks_remote_workplace("Fully in-office") is True
+    assert base._looks_remote_workplace("Optional office in Berlin") is False
+
+
+def test_looks_remote_workplace_strong_phrase_overrides_tech_context():
+    assert base._looks_remote_workplace("Fully remote, distributed systems team") is True
+    assert base._looks_remote_workplace("Fully remote") is True
+    assert base._looks_remote_workplace("100% remote, distributed systems") is True
+    assert base._looks_remote_workplace("remote-first distributed systems team") is True
+    assert base._looks_remote_workplace("Remote position, distributed computing") is True
+    assert base._looks_remote_workplace("Work from home, distributed systems") is True
+    assert base._looks_remote_workplace("Teletrabajo completo, distributed systems") is True
+    assert base._looks_remote_workplace("We work on distributed systems") is False
+
+
+def test_extract_remote_lines_joins_multiple_short_hits():
+    lines = ["Remote friendly team", "Hybrid options available", "x" * 150 + " remote"]
+    joined = base._extract_remote_lines(lines)
+    assert "Remote friendly team" in joined
+    assert "Hybrid options available" in joined
+
+
+def test_dedupe_join_limits_and_dedupes_case_insensitively():
+    values = ["Remote", "remote", "EU", "eu", "Spain", "Extra"]
+    joined = base._dedupe_join(values, limit=2)
+    assert joined.count("|") <= 1
+
+
+def test_pick_best_candidate_with_source_scores_by_field_rules():
+    candidates = [("Careers", "title_tag"), ("Senior Backend Engineer", "h1")]
+    value, source = base._pick_best_candidate_with_source(candidates, page_url="https://acme.com/j/1", field="title")
+    assert value == "Senior Backend Engineer"
+    assert source == "h1"
+
+
+def test_pick_best_candidate_returns_only_value():
+    value = base._pick_best_candidate([("Acme Corp", "meta_og")], page_url="https://acme.com/j/1", field="company")
+    assert value == "Acme Corp"
+
+
+def test_pick_best_candidate_all_empty_returns_empty_unknown_source():
+    value, source = base._pick_best_candidate_with_source([("", "h1")], page_url="https://acme.com", field="title")
+    assert value == ""
+    assert source == "unknown"
+
+
+def test_node_text_falls_back_to_img_alt():
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup('<div><img alt="Company Logo Acme"/></div>', "html.parser")
+    node = soup.find("div")
+    assert base._node_text(node) == "Company Logo Acme"
+
+    soup2 = BeautifulSoup('<img alt="Standalone Alt"/>', "html.parser")
+    img = soup2.find("img")
+    assert base._node_text(img) == "Standalone Alt"
+
+    soup3 = BeautifulSoup("<div></div>", "html.parser")
+    empty_div = soup3.find("div")
+    assert base._node_text(empty_div) == ""
+
+
+def test_first_text_and_iter_selector_texts():
+    from bs4 import BeautifulSoup
+
+    html = '<div class="a">First</div><div class="a">Second</div><div class="b">Third</div>'
+    soup = BeautifulSoup(html, "html.parser")
+    assert base._first_text(soup, [".missing", ".a"]) == "First"
+    assert base._first_text(soup, [".missing"]) == ""
+    texts = list(base._iter_selector_texts(soup, [".a", ".b"]))
+    assert texts == ["First", "Second", "Third"]
+
+
+def test_meta_content_missing_returns_empty_and_requires_attrs():
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup("<html><head></head></html>", "html.parser")
+    assert base._meta_content(soup, property_name="og:title") == ""
+    assert base._meta_content(soup) == ""
+
+
+def test_json_load_loose_handles_invalid_json():
+    assert base._json_load_loose("") is None
+    assert base._json_load_loose("not json{{{") is None
+    assert base._json_load_loose('{"a": 1}') == {"a": 1}
+
+
+def test_iter_jobposting_nodes_skips_non_jobposting_and_invalid_json():
+    html = """
+    <script type="application/ld+json">not valid json</script>
+    <script type="application/ld+json">{"@type": "Organization", "name": "Acme"}</script>
+    <script type="application/ld+json">{"@type": ["JobPosting"], "title": "Engineer"}</script>
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    nodes = list(base._iter_jobposting_nodes(soup))
+    assert len(nodes) == 1
+    assert nodes[0]["title"] == "Engineer"
+
+
+def test_iter_jobposting_nodes_accepts_schema_org_type_iri():
+    from bs4 import BeautifulSoup
+
+    html = """
+    <script type="application/ld+json">{"@type": "https://schema.org/JobPosting", "title": "Engineer"}</script>
+    <script type="application/ld+json">{"@type": ["http://schema.org/JobPosting"], "title": "Listed"}</script>
+    <script type="application/ld+json">{"@type": "JobPosting", "title": "Plain"}</script>
+    """
+    nodes = list(base._iter_jobposting_nodes(BeautifulSoup(html, "html.parser")))
+    assert [node["title"] for node in nodes] == ["Engineer", "Listed", "Plain"]
+
+
+def test_extract_structured_fields_returns_first_when_none_have_title():
+    from bs4 import BeautifulSoup
+
+    html = """
+    <script type="application/ld+json">{"@type": "JobPosting", "hiringOrganization": {"name": "Acme"}}</script>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    fields = base._extract_structured_fields(soup)
+    assert fields.get("company") == "Acme"
+    assert fields.get("title", "") == ""
+
+
+def test_extract_structured_fields_empty_when_no_jobposting():
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup("<html></html>", "html.parser")
+    assert base._extract_structured_fields(soup) == {}
+
+
+def test_parse_generic_selects_jsonld_whose_url_matches_final_url():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "JobPosting", "title": "Intern", "url": "https://jobs.example/related-1"}
+    </script>
+    <script type="application/ld+json">
+    {"@type": "JobPosting", "title": "Staff ML Engineer", "url": "https://jobs.example/this-one"}
+    </script>
+    </head><body></body></html>
+    """
+    matched = base.parse_generic(_page(html, final_url="https://jobs.example/this-one"))
+    assert matched.title == "Staff ML Engineer"
+    with_query = base.parse_generic(_page(html, final_url="https://jobs.example/this-one/?ref=1#apply"))
+    assert with_query.title == "Staff ML Engineer"
+    elsewhere = base.parse_generic(_page(html, final_url="https://jobs.example/elsewhere"))
+    assert elsewhere.title == "Intern"
+
+
+def test_parse_generic_uses_single_jobposting_without_url():
+    html = """
+    <html><head>
+    <script type="application/ld+json">{"@type": "JobPosting", "title": "Staff ML Engineer"}</script>
+    </head><body></body></html>
+    """
+    job = base.parse_generic(_page(html, final_url="https://jobs.example/this-one"))
+    assert job.title == "Staff ML Engineer"
+
+
+def test_extract_location_parts_handles_dict_list_and_scalar():
+    assert base._extract_location_parts("Remote") == ["Remote"]
+    assert base._extract_location_parts(None) == []
+    assert base._extract_location_parts([{"name": "Madrid"}, "Spain"]) == ["Madrid", "Spain"]
+    assert base._extract_location_parts({"address": {"addressLocality": "Berlin"}}) == ["Berlin"]
+
+
+def test_extract_company_from_jobposting_handles_dict_and_string():
+    assert base._extract_company_from_jobposting({"hiringOrganization": {"name": "Acme"}}) == "Acme"
+    assert base._extract_company_from_jobposting({"hiringOrganization": "Acme Inc"}) == "Acme Inc"
+    assert base._extract_company_from_jobposting({}) == ""
+
+
+def test_looks_domain_placeholder_and_generic_detection():
+    assert base._looks_domain_placeholder("", "https://acme.com") is True
+    assert base._looks_domain_placeholder("Boards", "https://boards.greenhouse.io/acme") is True
+    assert base._looks_generic_company("jobs", "https://acme.com") is True
+    assert base._looks_generic_company("Job Boards", "https://job-boards.greenhouse.io/acme") is True
+    assert base._looks_generic_company("Acme Corp", "https://acme.com") is False
+    assert base._looks_generic_title("careers", "https://acme.com") is True
+    assert base._looks_generic_title("Senior Engineer", "https://acme.com") is False
+
+
+def test_fallback_company_from_domain_skips_generic_labels():
+    assert base._fallback_company_from_domain("https://acme-corp.example.com/jobs/1") == "Acme Corp"
+    assert base._fallback_company_from_domain("https://boards.greenhouse.io/acme-corp/jobs/1") == ""
+    assert base._fallback_company_from_domain("https://jobs.lever.co/") == ""
+
+
+def test_apply_ats_hints_updates_generic_fields_and_merges_remote():
+    from ultron.core.models import ExtractedJob
+
+    page = _page("<html></html>", final_url="https://boards.greenhouse.io/acme/jobs/1")
+    extracted = ExtractedJob(apply_url=page.final_url, domain="boards.greenhouse.io", title="", company="")
+    hints = {"title": "Backend Engineer", "company": "Acme", "location": "Madrid", "remote_hint": "Remote EU"}
+    updated = base._apply_ats_hints(extracted, page, hints)
+    assert updated.title == "Backend Engineer"
+    assert updated.company == "Acme"
+    assert updated.location == "Madrid"
+    assert "Remote EU" in updated.remote_text
+
+
+def test_apply_ats_hints_replaces_multiword_generic_company():
+    from ultron.core.models import ExtractedJob
+
+    page = _page("<html></html>", final_url="https://job-boards.greenhouse.io/grafanalabs/jobs/1")
+    extracted = ExtractedJob(
+        apply_url=page.final_url,
+        domain="job-boards.greenhouse.io",
+        title="Senior ML Engineer",
+        company="Job Boards",
+    )
+
+    updated = base._apply_ats_hints(extracted, page, {"company": "Grafana Labs"})
+
+    assert updated.company == "Grafana Labs"
+
+
+def test_apply_ats_hints_overrides_a_nonempty_heuristic_location():
+    from ultron.core.models import ExtractedJob
+
+    page = _page("<html></html>")
+    extracted = ExtractedJob(apply_url=page.final_url, domain="x", title="Role", location="Engineering, Product")
+    updated = base._apply_ats_hints(extracted, page, {"location": "Madrid, Spain"})
+    assert updated.location == "Madrid, Spain"
+
+
+def test_apply_ats_hints_no_hints_returns_same_object():
+    from ultron.core.models import ExtractedJob
+
+    page = _page("<html></html>")
+    extracted = ExtractedJob(apply_url=page.final_url, domain="x", title="Title")
+    assert base._apply_ats_hints(extracted, page, None) is extracted
+    assert base._apply_ats_hints(extracted, page, {}) is extracted
+
+
+def test_apply_ats_hints_does_not_override_specific_title():
+    from ultron.core.models import ExtractedJob
+
+    page = _page("<html></html>")
+    extracted = ExtractedJob(apply_url=page.final_url, domain="x", title="Very Specific Title")
+    updated = base._apply_ats_hints(extracted, page, {"title": "Generic Hint"})
+    assert updated.title == "Very Specific Title"
+
+
+def test_parse_with_overrides_uses_selectors_over_generic():
+    html = """
+    <html><head><title>Fallback</title></head>
+    <body>
+      <h1 class="job-title">Selector Title</h1>
+      <div class="company-name">Selector Co</div>
+      <div class="job-location">Remote, EU</div>
+    </body></html>
+    """
+    job = base.parse_with_overrides(
+        _page(html),
+        title_selectors=[".job-title"],
+        company_selectors=[".company-name"],
+        location_selectors=[".job-location"],
+        remote_selectors=[".job-location"],
+    )
+    assert job.title == "Selector Title"
+    assert job.company == "Selector Co"
+    assert "Remote" in job.location or "EU" in job.location
+
+
+def test_parse_with_overrides_falls_back_to_base_when_selectors_miss():
+    html = """
+    <html><head>
+    <script type="application/ld+json">{"@type": "JobPosting", "title": "Base Title",
+    "hiringOrganization": {"name": "Base Co"}}</script>
+    </head><body></body></html>
+    """
+    job = base.parse_with_overrides(_page(html), title_selectors=[".missing"], company_selectors=[".missing"])
+    assert job.title == "Base Title"
+    assert job.company == "Base Co"
+
+
+def test_parse_with_overrides_no_updates_still_applies_hints():
+    html = "<html><body></body></html>"
+    job = base.parse_with_overrides(_page(html), ats_hints={"title": "Hinted Title"})
+    assert job.title == "Hinted Title"
+
+
+def test_detect_ats_fingerprint_and_canonical_domain_roundtrip():
+    greenhouse_html = '<html><body><div id="grnhse_app"></div></body></html>'
+    vendor = base.detect_ats_fingerprint(greenhouse_html)
+    if vendor is not None:
+        assert base.ats_canonical_domain(vendor)
+    assert base.detect_ats_fingerprint("<html><body>nothing here</body></html>") in (None, "")
+    assert base.ats_canonical_domain(None) is None
+
+
+def test_extract_text_lines_strips_and_drops_blanks():
+    assert base.extract_text_lines("  a  \n\n b \n   \nc") == ["a", "b", "c"]
+
+
+def test_host_labels_handles_empty_and_multi_part():
+    assert base._host_labels("https://boards.greenhouse.io/acme") == ["boards", "greenhouse", "io"]
+    assert base._host_labels("not-a-url") == []

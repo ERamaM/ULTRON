@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import builtins
+import json
+
+from openpyxl import load_workbook
+from stage_helpers import make_run
+
+from ultron import runs
+from ultron.cli import main
+
+CASES = ["en-positive-shape-01", "en-positive-shape-02", "en-positive-shape-03", "en-ambiguous-shape-01"]
+
+
+def _filtered(capsys):
+    run_id = make_run(CASES)
+    assert main(["filter", "--run", run_id]) == 0
+    capsys.readouterr()
+    return run_id
+
+
+def test_finalize_xlsx_real_path(capsys):
+    run_id = _filtered(capsys)
+    assert main(["finalize", "--run", run_id, "--xlsx"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    d = runs.run_dir(run_id)
+    assert out["outputs"]["results_xlsx"] == str(d / "results.xlsx")
+    results = json.loads((d / "results.json").read_text(encoding="utf-8"))
+    n_disc = len(runs.read_jsonl(d / "discarded.jsonl")) + len(runs.read_jsonl(d / "finalize_discards.jsonl"))
+    wb = load_workbook(d / "results.xlsx")
+    assert wb.sheetnames == ["Summary", f"Roles ({len(results['rows'])})", f"Discards ({n_disc})"]
+    assert len(results["rows"]) >= 1
+    assert wb[wb.sheetnames[1]].max_row == len(results["rows"]) + 1
+
+
+def test_finalize_xlsx_missing_openpyxl_keeps_payload(capsys, monkeypatch):
+    run_id = _filtered(capsys)
+    real = builtins.__import__
+
+    def fake(name, *a, **k):
+        if name.startswith("openpyxl"):
+            raise ImportError(name)
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+    assert main(["finalize", "--run", run_id, "--xlsx"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert "openpyxl not installed" in out["xlsx_error"]
+    assert out["roles"] >= 1 and "results_xlsx" not in out["outputs"]
+    assert (runs.run_dir(run_id) / "results.json").is_file()

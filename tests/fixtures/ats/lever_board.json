@@ -1,0 +1,6 @@
+[
+ {"id": "a1", "text": "Machine Learning Engineer", "hostedUrl": "https://jobs.lever.co/acme/a1", "createdAt": 1760000000000, "categories": {"location": "Madrid", "team": "AI"}},
+ {"id": "a2", "text": "Data Analyst", "hostedUrl": "https://jobs.lever.co/acme/a2", "createdAt": 1759000000000, "categories": {"location": "Remote - EU"}},
+ {"id": "a3", "text": "Product Designer", "hostedUrl": "https://jobs.lever.co/acme/a3", "categories": {}},
+ {"id": "a4", "text": "No url role", "categories": {"location": "Lisbon"}}
+]

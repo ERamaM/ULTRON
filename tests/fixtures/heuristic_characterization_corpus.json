@@ -1,0 +1,559 @@
+{
+  "schema_version": 1,
+  "purpose": "Synthetic coverage corpus for behavior characterization; scenario groups are not quality labels.",
+  "defaults": {
+    "apply_available": true,
+    "company": "Example Technology Company",
+    "domain": "boards.greenhouse.io",
+    "is_open_hint": true,
+    "location": "",
+    "posting_date": "2026-06-15",
+    "remote_text": ""
+  },
+  "cases": [
+    {
+      "id": "en-positive-shape-01",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior Machine Learning Engineer",
+        "location": "Remote - European Union",
+        "remote_text": "Fully remote across the EU",
+        "body_text": "Build production machine learning services and evaluation systems. Applicants based in the European Union may apply. We are accepting applications."
+      }
+    },
+    {
+      "id": "en-positive-shape-02",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Staff AI Engineer",
+        "location": "Europe",
+        "remote_text": "Distributed team; remote Europe",
+        "body_text": "Lead AI platform delivery with LLM and retrieval systems. This role is open throughout Europe and has no office attendance requirement. Apply through the careers page."
+      }
+    },
+    {
+      "id": "en-positive-shape-03",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Principal NLP Engineer",
+        "location": "Spain",
+        "remote_text": "100% remote in Spain",
+        "body_text": "Own multilingual NLP architecture and mentor engineers. Candidates resident in Spain are eligible. Applications are open."
+      }
+    },
+    {
+      "id": "en-positive-shape-04",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Lead MLOps Engineer",
+        "location": "EMEA",
+        "remote_text": "Remote EMEA",
+        "body_text": "Design model deployment, observability, and Kubernetes infrastructure. The position is remote across EMEA with optional coworking space. Apply now."
+      }
+    },
+    {
+      "id": "en-positive-shape-05",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior Applied Scientist",
+        "location": "Remote Europe",
+        "remote_text": "Remote-first in Europe",
+        "body_text": "Develop ranking and generative AI models with the research engineering group. Applicants in Europe can work from home permanently. Accepting applications."
+      }
+    },
+    {
+      "id": "en-positive-shape-06",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior Research Engineer",
+        "location": "EU time zones",
+        "remote_text": "Fully remote, EU time zones",
+        "body_text": "Prototype inference and evaluation tooling for foundation models. Work from anywhere in the EU; office visits are optional. The application form is available."
+      }
+    },
+    {
+      "id": "en-positive-shape-07",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior LLM Engineer",
+        "location": "Worldwide",
+        "remote_text": "Remote worldwide",
+        "body_text": "Build RAG, agent, and LLM evaluation pipelines for a globally distributed company. No geographic restriction or office attendance. Applications remain open."
+      }
+    },
+    {
+      "id": "en-positive-shape-08",
+      "language": "en",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Sr. ML Engineer",
+        "location": "CET or CEST",
+        "remote_text": "Remote within CET/CEST",
+        "body_text": "Operate ML training and serving systems with PyTorch and Kubernetes. Team members work remotely in European time zones. Apply via the open form."
+      }
+    },
+    {
+      "id": "es-positive-shape-01",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Ingeniero Senior de Machine Learning",
+        "location": "Espana",
+        "remote_text": "Teletrabajo 100% desde Espana",
+        "body_text": "Disenar servicios de machine learning y evaluacion de modelos. Pueden solicitar el puesto personas residentes en Espana. La candidatura esta abierta."
+      }
+    },
+    {
+      "id": "es-positive-shape-02",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior AI Engineer",
+        "location": "Union Europea",
+        "remote_text": "Remoto en la Union Europea",
+        "body_text": "Liderar la plataforma de IA generativa, LLM y retrieval. Trabajo distribuido sin asistencia obligatoria a oficina para residentes de la UE. Inscripciones abiertas."
+      }
+    },
+    {
+      "id": "es-positive-shape-03",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Principal NLP Engineer",
+        "location": "Europa",
+        "remote_text": "Puesto completamente remoto en Europa",
+        "body_text": "Definir la arquitectura NLP multilingue y mentorizar al equipo. Se puede trabajar desde cualquier pais europeo. Formulario de solicitud disponible."
+      }
+    },
+    {
+      "id": "es-positive-shape-04",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Lead MLOps Engineer",
+        "location": "EMEA",
+        "remote_text": "Remoto EMEA",
+        "body_text": "Responsable de despliegue, observabilidad e infraestructura Kubernetes para modelos. Sin dias presenciales obligatorios. Oferta abierta."
+      }
+    },
+    {
+      "id": "es-positive-shape-05",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior Applied Scientist",
+        "location": "Remote EU",
+        "remote_text": "Teletrabajo dentro de la UE",
+        "body_text": "Investigar modelos de ranking y sistemas de IA generativa. El equipo acepta candidaturas desde la Union Europea. Oficina opcional."
+      }
+    },
+    {
+      "id": "es-positive-shape-06",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior Research Engineer",
+        "location": "CET",
+        "remote_text": "Trabajo remoto en horario CET",
+        "body_text": "Crear herramientas de inferencia y evaluacion para modelos fundacionales. Residencia permitida en Europa y proceso de solicitud activo."
+      }
+    },
+    {
+      "id": "es-positive-shape-07",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Senior LLM Engineer",
+        "location": "Global",
+        "remote_text": "Remoto global",
+        "body_text": "Construir pipelines de RAG, agentes y evaluacion LLM. Equipo internacional distribuido, sin restriccion geografica. Se aceptan solicitudes."
+      }
+    },
+    {
+      "id": "es-positive-shape-08",
+      "language": "es",
+      "scenario_group": "clear_positive_shape",
+      "job": {
+        "title": "Staff ML Engineer",
+        "location": "Remote Europe",
+        "remote_text": "100% teletrabajo en Europa",
+        "body_text": "Guiar el desarrollo de plataformas de entrenamiento y serving de ML. El puesto esta abierto para candidatos en Europa."
+      }
+    },
+    {
+      "id": "en-negative-shape-01",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Machine Learning Engineer",
+        "location": "United States",
+        "remote_text": "Remote US only",
+        "body_text": "Build ML services. Candidates must reside in the United States and work in US time zones. Applications are open."
+      }
+    },
+    {
+      "id": "en-negative-shape-02",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior AI Engineer",
+        "location": "Berlin",
+        "remote_text": "Hybrid, three office days each week",
+        "body_text": "Develop LLM applications with mandatory attendance in our Berlin office Monday through Wednesday. Apply online."
+      }
+    },
+    {
+      "id": "en-negative-shape-03",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Principal MLOps Engineer",
+        "location": "Paris",
+        "remote_text": "On-site role",
+        "body_text": "Run model infrastructure from the Paris office five days per week. Applications are currently accepted."
+      }
+    },
+    {
+      "id": "en-negative-shape-04",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Junior ML Engineer",
+        "location": "Remote EU",
+        "remote_text": "Fully remote EU",
+        "body_text": "Entry-level role supporting model training and data preparation. Applicants in the EU may apply."
+      }
+    },
+    {
+      "id": "en-negative-shape-05",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Engineering Manager, AI Platform",
+        "location": "Europe",
+        "remote_text": "Remote Europe",
+        "body_text": "Manage hiring, budgets, performance reviews, and delivery for three engineering teams. Applications are open."
+      }
+    },
+    {
+      "id": "en-negative-shape-06",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Frontend Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remote in the EU",
+        "body_text": "Build React interfaces and a TypeScript design system for the analytics product. Apply now."
+      }
+    },
+    {
+      "id": "en-negative-shape-07",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior NLP Engineer",
+        "location": "Remote Europe",
+        "remote_text": "Remote Europe",
+        "body_text": "This vacancy is closed and no longer accepting applications. The archived description covered NLP search relevance."
+      }
+    },
+    {
+      "id": "en-negative-shape-08",
+      "language": "en",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Research Scientist",
+        "location": "Remote EMEA",
+        "remote_text": "Remote EMEA",
+        "apply_available": false,
+        "is_open_hint": false,
+        "body_text": "The previous research role has been filled. There is no application form available."
+      }
+    },
+    {
+      "id": "es-negative-shape-01",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Machine Learning Engineer",
+        "location": "Estados Unidos",
+        "remote_text": "Remoto solo desde Estados Unidos",
+        "body_text": "Desarrollar servicios ML. Es obligatorio residir y tener permiso de trabajo en Estados Unidos. Candidatura abierta."
+      }
+    },
+    {
+      "id": "es-negative-shape-02",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior AI Engineer",
+        "location": "Madrid",
+        "remote_text": "Modalidad hibrida",
+        "body_text": "Crear aplicaciones LLM con asistencia obligatoria tres dias por semana a la oficina de Madrid. Solicitudes abiertas."
+      }
+    },
+    {
+      "id": "es-negative-shape-03",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Principal MLOps Engineer",
+        "location": "Barcelona",
+        "remote_text": "Trabajo presencial",
+        "body_text": "Gestionar infraestructura de modelos desde la oficina todos los dias laborables. Formulario disponible."
+      }
+    },
+    {
+      "id": "es-negative-shape-04",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Ingeniero Junior de Machine Learning",
+        "location": "Remote EU",
+        "remote_text": "Teletrabajo en la UE",
+        "body_text": "Puesto de entrada para preparar datos y apoyar entrenamientos. Se aceptan candidaturas europeas."
+      }
+    },
+    {
+      "id": "es-negative-shape-05",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Director de Plataforma de IA",
+        "location": "Europa",
+        "remote_text": "Remoto Europa",
+        "body_text": "Dirigir presupuestos, contratacion y evaluaciones de rendimiento de varios equipos. Proceso abierto."
+      }
+    },
+    {
+      "id": "es-negative-shape-06",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Frontend Engineer",
+        "location": "Remote Europe",
+        "remote_text": "100% remoto en Europa",
+        "body_text": "Desarrollar interfaces React y un sistema de diseno TypeScript para el producto web. Solicitud abierta."
+      }
+    },
+    {
+      "id": "es-negative-shape-07",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior NLP Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remoto UE",
+        "body_text": "La oferta esta cerrada desde junio y la plaza ya ha sido cubierta. No se admiten mas solicitudes."
+      }
+    },
+    {
+      "id": "es-negative-shape-08",
+      "language": "es",
+      "scenario_group": "clear_negative_shape",
+      "job": {
+        "title": "Senior Research Scientist",
+        "location": "Remote EMEA",
+        "remote_text": "Remoto EMEA",
+        "apply_available": false,
+        "is_open_hint": false,
+        "body_text": "El proceso anterior ha terminado y no existe formulario para presentar candidatura."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-01",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Machine Learning Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remote Europe",
+        "body_text": "Own architecture for training systems, mentor peers, and bring six years of production ML experience. Applications are open."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-02",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior Data Engineer",
+        "location": "Remote Europe",
+        "remote_text": "Remote-first across Europe",
+        "body_text": "Build data pipelines that power model training, feature stores, and ML serving. The role mixes platform and analytics ownership. Apply online."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-03",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior AI Engineer",
+        "location": "Remote",
+        "remote_text": "Remote",
+        "body_text": "Develop agent workflows and evaluation tooling for a distributed team. Geographic eligibility is not stated. Applications are open."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-04",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior ML Engineer",
+        "location": "",
+        "remote_text": "",
+        "body_text": "Build production recommendation models with the platform group. The workplace arrangement is discussed during interviews. Apply now."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-05",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Staff Software Engineer, AI Systems",
+        "location": "Europe preferred",
+        "remote_text": "Flexible distributed work",
+        "body_text": "Create inference APIs and reliability tooling around machine learning services. Some team gatherings may occur during the year. Application form available."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-06",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Research Scientist",
+        "location": "EMEA",
+        "remote_text": "Remote EMEA",
+        "body_text": "Lead experimental design and mentor researchers; seven years of applied NLP experience preferred. Accepting applications."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-07",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior Platform Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remote within the EU",
+        "body_text": "Operate Kubernetes clusters, GPU scheduling, and model inference gateways. Machine learning knowledge is useful but not the sole focus. Apply now."
+      }
+    },
+    {
+      "id": "en-ambiguous-shape-08",
+      "language": "en",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Lead Data Scientist",
+        "location": "London or remote Europe",
+        "remote_text": "Remote-friendly in Europe",
+        "body_text": "Deliver forecasting models and advise product teams. Quarterly planning sessions may be held in London, with attendance policy not specified. Applications open."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-01",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Machine Learning Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remoto Europa",
+        "body_text": "Responsable de arquitectura, mentoria y sistemas ML en produccion; se piden seis anos de experiencia. Solicitudes abiertas."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-02",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior Data Engineer",
+        "location": "Europa",
+        "remote_text": "Trabajo remoto en Europa",
+        "body_text": "Construir pipelines para entrenamiento, feature stores y serving de modelos. El puesto combina plataforma de datos y analitica."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-03",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior AI Engineer",
+        "location": "Remoto",
+        "remote_text": "Teletrabajo",
+        "body_text": "Crear agentes y herramientas de evaluacion para un equipo distribuido. No se indica desde que pais se puede solicitar."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-04",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior ML Engineer",
+        "location": "",
+        "remote_text": "",
+        "body_text": "Desarrollar modelos de recomendacion para produccion. La modalidad de trabajo se acuerda durante el proceso. Candidatura disponible."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-05",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Staff Software Engineer, AI Systems",
+        "location": "Preferencia Europa",
+        "remote_text": "Trabajo distribuido flexible",
+        "body_text": "Crear APIs de inferencia y fiabilidad para servicios de machine learning. Puede haber encuentros ocasionales del equipo."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-06",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Research Scientist",
+        "location": "EMEA",
+        "remote_text": "Remoto EMEA",
+        "body_text": "Liderar experimentos y mentorizar investigadores; se valoran siete anos de NLP aplicado. Proceso abierto."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-07",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Senior Platform Engineer",
+        "location": "Remote EU",
+        "remote_text": "Remoto dentro de la UE",
+        "body_text": "Operar Kubernetes, planificacion de GPU y gateways de inferencia. Conocimientos de ML utiles, pero no son el unico foco."
+      }
+    },
+    {
+      "id": "es-ambiguous-shape-08",
+      "language": "es",
+      "scenario_group": "ambiguous_shape",
+      "job": {
+        "title": "Lead Data Scientist",
+        "location": "Madrid o remoto Europa",
+        "remote_text": "Remote-friendly en Europa",
+        "body_text": "Crear modelos de prediccion y asesorar a producto. Puede haber sesiones trimestrales en Madrid, sin politica de asistencia definida."
+      }
+    },
+    {"id": "q-mid-level", "language": "en", "scenario_group": "clear_negative_shape", "job": {"title": "Mid-level ML Engineer", "location": "EU", "remote_text": "Fully remote EU", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-distinguished", "language": "en", "scenario_group": "ambiguous_shape", "job": {"title": "Distinguished ML Engineer", "location": "EU", "remote_text": "Fully remote EU", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-exclusion-manager-title", "language": "en", "scenario_group": "clear_negative_shape", "job": {"title": "Senior ML Engineering Manager", "location": "EU", "remote_text": "Fully remote EU", "body_text": "Manage engineers and budgets. Applications open."}},
+    {"id": "q-excluded-location", "language": "en", "scenario_group": "clear_negative_shape", "job": {"title": "Senior ML Engineer", "location": "", "remote_text": "Remote, US only", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-seniority-ambiguous", "language": "en", "scenario_group": "ambiguous_shape", "job": {"title": "ML Engineer", "location": "EU", "remote_text": "Fully remote EU", "body_text": "Build machine learning systems; 6+ years experience required. Applications open."}},
+    {"id": "q-no-remote-mention", "language": "en", "scenario_group": "ambiguous_shape", "job": {"title": "Senior ML Engineer", "location": "Madrid", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-hybrid-explicit", "language": "en", "scenario_group": "clear_negative_shape", "job": {"title": "Senior ML Engineer", "location": "Madrid", "remote_text": "Hybrid, 3 days in office", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-emea-only", "language": "en", "scenario_group": "ambiguous_shape", "job": {"title": "Senior ML Engineer", "remote_text": "Remote EMEA", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-cet-substring", "language": "en", "scenario_group": "clear_positive_shape", "job": {"title": "Senior ML Engineer", "location": "EU", "remote_text": "Fully remote EU", "body_text": "Build each facet of model storage. Applications open."}},
+    {"id": "q-leuven-region-name", "language": "en", "scenario_group": "clear_positive_shape", "job": {"title": "Senior ML Engineer", "location": "Leuven, Belgium", "remote_text": "Fully remote", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-neuquen-region-name", "language": "en", "scenario_group": "clear_negative_shape", "job": {"title": "Senior ML Engineer", "location": "Neuquén, Argentina", "remote_text": "Fully remote from Argentina only", "body_text": "Build machine learning systems. Applications open."}},
+    {"id": "q-es-senior-remoto-espana", "language": "es", "scenario_group": "clear_positive_shape", "job": {"title": "Ingeniero/a de Machine Learning Senior", "location": "España", "remote_text": "100% remoto desde España", "body_text": "Desarrollar sistemas de aprendizaje automático. Candidaturas abiertas."}}
+  ]
+}

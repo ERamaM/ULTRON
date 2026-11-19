@@ -1,0 +1,2206 @@
+{
+  "cases": [
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [
+          "eval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-01",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 7,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [
+          "LLM",
+          "eval",
+          "retrieval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-02",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "confirmed",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_spain",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "confirmed",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-03",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_emea",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-04",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 8,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-05",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 8,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [
+          "eval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-06",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 7,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [
+          "LLM",
+          "RAG",
+          "agents"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-positive-shape-07",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "medium",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-positive-shape-08",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "confirmed",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_spain",
+        "role_ambiguous": true,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "confirmed",
+        "fit_signals": [
+          "eval"
+        ],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-positive-shape-01",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 7,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [
+          "LLM",
+          "eval",
+          "retrieval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-02",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-03",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-04",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-05",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "medium",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [
+          "eval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-06",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 7,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [
+          "LLM",
+          "RAG",
+          "agents"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-07",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-positive-shape-08",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-negative-shape-01",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": true,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [
+          "LLM"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-02",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": true,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-03",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 1,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-04",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": -6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-05",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "non_matching_role_family"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-06",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "expired_or_closed"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "closed_or_invalid",
+        "discard_reason": "expired_or_closed",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": false,
+        "verdict": "discard"
+      },
+      "id": "en-negative-shape-07",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "expired_or_closed",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "expired_or_closed"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_emea",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-negative-shape-08",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-negative-shape-01",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": true,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [
+          "LLM"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-negative-shape-02",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": true,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-negative-shape-03",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": -3,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-negative-shape-04",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "non_matching_role_family"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": -6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [
+          "eval"
+        ],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-negative-shape-05",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "non_matching_role_family"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-negative-shape-06",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-negative-shape-07",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_emea",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-negative-shape-08",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": true
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "unsure"
+      },
+      "id": "en-ambiguous-shape-01",
+      "pipeline_characterization": {
+        "outcome": "review",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-ambiguous-shape-02",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [
+          "agents",
+          "eval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "en-ambiguous-shape-03",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": null,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-ambiguous-shape-04",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": true,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-ambiguous-shape-05",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_emea",
+        "role_ambiguous": false,
+        "role_score": 8,
+        "seniority_ambiguous": true
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "unsure"
+      },
+      "id": "en-ambiguous-shape-06",
+      "pipeline_characterization": {
+        "outcome": "review",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": true,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-ambiguous-shape-07",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "en-ambiguous-shape-08",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "seniority",
+        "discard_reason": "seniority_not_senior",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-01",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "seniority_not_senior",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-02",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [
+          "agents",
+          "eval"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "es-ambiguous-shape-03",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": null,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-04",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": true,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-05",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 8,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "seniority",
+        "discard_reason": "seniority_not_senior",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-06",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "seniority_not_senior",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-07",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_europe",
+        "role_ambiguous": false,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "es-ambiguous-shape-08",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "seniority",
+        "discard_reason": "seniority_not_senior",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "q-mid-level",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "seniority_not_senior",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-distinguished",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 4,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "seniority",
+        "discard_reason": "seniority_not_senior",
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "q-exclusion-manager-title",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "seniority_not_senior",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-excluded-location",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": true
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": false,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "unsure"
+      },
+      "id": "q-seniority-ambiguous",
+      "pipeline_characterization": {
+        "outcome": "review",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": null,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "q-no-remote-mention",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": true,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      },
+      "heuristic_evaluator": {
+        "discard_category": "remote_policy",
+        "discard_reason": "hybrid_or_not_explicit_remote",
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": false,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "q-hybrid-explicit",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "hybrid_or_not_explicit_remote",
+        "stage": "pre_filter"
+      },
+      "pre_filter": {
+        "keep": false,
+        "reason": "hybrid_or_not_explicit_remote"
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_emea",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "medium",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-emea-only",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [
+          "RAG"
+        ],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-cet-substring",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "high",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_eu",
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": "high",
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-leuven-region-name",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": null,
+        "remote_conflict": false,
+        "remote_scope_hint": null,
+        "role_ambiguous": false,
+        "role_score": 6,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": null,
+        "discard_reason": null,
+        "eligibility": null,
+        "fit_signals": [],
+        "is_allowed_family": true,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": true,
+        "open_status_ok": true,
+        "verdict": "keep"
+      },
+      "id": "q-neuquen-region-name",
+      "pipeline_characterization": {
+        "outcome": "keep",
+        "reason": null,
+        "stage": "completed"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    },
+    {
+      "classification_signals": {
+        "eligibility_hint": "confirmed",
+        "remote_conflict": false,
+        "remote_scope_hint": "remote_spain",
+        "role_ambiguous": true,
+        "role_score": 0,
+        "seniority_ambiguous": false
+      },
+      "hard_filter": {
+        "keep": true,
+        "reason": null
+      },
+      "heuristic_evaluator": {
+        "discard_category": "role_family",
+        "discard_reason": "non_matching_role_family",
+        "eligibility": "confirmed",
+        "fit_signals": [],
+        "is_allowed_family": false,
+        "is_full_remote": true,
+        "is_senior": true,
+        "keep": false,
+        "open_status_ok": true,
+        "verdict": "discard"
+      },
+      "id": "q-es-senior-remoto-espana",
+      "pipeline_characterization": {
+        "outcome": "discard",
+        "reason": "non_matching_role_family",
+        "stage": "heuristic_evaluator"
+      },
+      "pre_filter": {
+        "keep": true,
+        "reason": null
+      }
+    }
+  ],
+  "corpus_sha256": "119dd0358c977264078095d06c0cd9b5bdbdf474e99ef2f5831470c21428afa3",
+  "profile_slug": "ai-ml-remote-eu",
+  "purpose": "Behavior characterization only; not quality ground truth.",
+  "schema_version": 1
+}

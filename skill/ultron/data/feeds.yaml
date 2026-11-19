@@ -1,0 +1,43 @@
+# Structured job feeds read by `ultron discover feeds`. URLs and endpoints come from MARK III's
+# seed discovery. Fields: id (source label, becomes source_type "feed:<id>"), kind (json | rss | text),
+# url, parser (key of ultron.core.feeds.collectors.COLLECTORS), enabled, and per-parser options
+# (max_pages, max_items, max_comments, max_companies, urls, items_url, exclude_names).
+# company_list: true  -> rows are company names (or board links), not job postings: every named
+#                        company without a recognised ATS board becomes a seed proposal.
+sources:
+  - {id: arbeitnow, kind: json, url: "https://www.arbeitnow.com/api/job-board-api", parser: arbeitnow, enabled: true, max_pages: 3}
+  - {id: himalayas, kind: json, url: "https://himalayas.app/jobs/api", parser: himalayas, enabled: true, max_pages: 3}
+  - {id: remotive, kind: json, url: "https://remotive.com/api/remote-jobs", parser: remotive, enabled: true}
+  - {id: remoteok, kind: json, url: "https://remoteok.com/api", parser: remoteok, enabled: true}
+  # The public jobs endpoint returns HTTP 404 and the provider redirects its developer docs.
+  - {id: themuse, kind: json, url: "https://www.themuse.com/api/public/jobs", parser: themuse, enabled: false, max_pages: 3}
+  - {id: weworkremotely, kind: rss, url: "https://weworkremotely.com/remote-jobs.rss", parser: rss, enabled: true, max_items: 350}
+  - {id: workingnomads, kind: json, url: "https://www.workingnomads.com/api/exposed_jobs/", parser: workingnomads, enabled: true}
+  - {id: jobicy, kind: rss, url: "https://jobicy.com/?feed=job_feed", parser: rss, enabled: true, max_items: 350}
+  - {id: jobicy_api, kind: json, url: "https://jobicy.com/api/v2/remote-jobs", parser: jobicy_api, enabled: true}
+  - id: weworkremotely_top
+    kind: text
+    url: "https://weworkremotely.com/top-remote-companies"
+    urls: ["https://weworkremotely.com/top-remote-companies", "https://weworkremotely.com/top-100-remote-companies"]
+    parser: weworkremotely_top
+    enabled: true
+    company_list: true
+    max_companies: 100
+  - {id: remote_es_remotes, kind: text, url: "https://raw.githubusercontent.com/remote-es/remotes/master/README.md", parser: remote_es_remotes, enabled: true, company_list: true}
+  - id: remotifyeurope
+    kind: text
+    url: "https://remotifyeurope.com/"
+    parser: remotifyeurope
+    enabled: true
+    company_list: true
+    exclude_names: [germany, spain, france, united kingdom, netherlands, portugal, ireland, italy, poland, sweden,
+                    belgium, austria, denmark, finland, norway, switzerland, romania, czech republic, greece,
+                    hungary, croatia, europe, worldwide, emea, usa, united states, remote]
+  - {id: github_awesome, kind: text, url: "https://raw.githubusercontent.com/remoteintech/remote-jobs/master/README.md", parser: github_awesome, enabled: true, company_list: true}
+  - id: hn_who_is_hiring
+    kind: json
+    url: "https://hn.algolia.com/api/v1/search?query=%22Who%20is%20Hiring%22&tags=story&hitsPerPage=1"
+    items_url: "https://hn.algolia.com/api/v1/items"
+    parser: hn_who_is_hiring
+    enabled: true
+    max_comments: 200

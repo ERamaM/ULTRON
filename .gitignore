@@ -1,0 +1,25 @@
+.superpowers/
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Written by install.py --dev when the skill is symlinked
+skill/ultron/RUNTIME.md
+skill/ultron/.ultron-install.json
+
+# Project skill installs made by install.py --dev --target .
+/.claude/skills/
+/.agents/skills/
+/.claude/settings.local.json
+
+# Secrets & local scan/env artifacts
+.env
+.env.*
+*.pem
+*.key
+gitleaks-report.json

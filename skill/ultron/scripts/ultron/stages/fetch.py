@@ -1,0 +1,437 @@
+"""``fetch``: download candidate pages and extract postings."""
+
+from __future__ import annotations
+
+import html as html_lib
+import re
+from urllib.parse import urlsplit
+
+from bs4 import BeautifulSoup
+
+from ultron import runs
+from ultron.core.discovery.url_filter import domain_of, normalize_url
+from ultron.core.extractors.ats_extractors import parse_ats_page
+from ultron.core.extractors.ats_extractors.base import ats_canonical_domain, detect_ats_fingerprint
+from ultron.core.job_identity import canonical_job_identity
+from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
+from ultron.core.text_clean import clean_text
+from ultron.http_factory import client_for_run
+from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+
+_GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
+_WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
+_WORKABLE_SHORT_JOB_RE = re.compile(r"^/j/([A-Za-z0-9]{6,})(?:/|$)")
+_SPA_BODY_MIN_CHARS = 400
+
+
+def _html_to_text(raw: str) -> str:
+    if not raw:
+        return ""
+    unescaped = html_lib.unescape(raw)
+    soup = BeautifulSoup(unescaped, "html.parser")
+    return "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
+
+
+def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[ExtractedJob, str] | None:
+    parsed = urlsplit(candidate.normalized_url)
+    host = (parsed.hostname or "").lower()
+    board, job_id = "", ""
+    if host == "greenhouse.io" or host.endswith(".greenhouse.io"):
+        match = _GH_JOB_RE.match(parsed.path or "")
+        if match:
+            board, job_id = match.group(1), match.group(2)
+    if (not board or not job_id) and str(candidate.source_key or "").lower().startswith("greenhouse:"):
+        board = candidate.source_key.split(":", 1)[1].strip()
+        from urllib.parse import parse_qs
+
+        gh_jids = parse_qs(parsed.query).get("gh_jid") or parse_qs(urlsplit(candidate.source_url).query).get("gh_jid")
+        if gh_jids and gh_jids[0].isdigit():
+            job_id = gh_jids[0]
+    if not board or not job_id:
+        return None
+    api_host = "boards-api.eu.greenhouse.io" if ".eu.greenhouse.io" in host else "boards-api.greenhouse.io"
+    api_url = f"https://{api_host}/v1/boards/{board}/jobs/{job_id}"
+    try:
+        payload = client.request_json(api_url, allowed_domains=("greenhouse.io",))
+    except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
+        return None
+    if not isinstance(payload, dict) or not payload.get("title"):
+        return None
+    loc_obj = payload.get("location")
+    location = str(loc_obj.get("name") or "") if isinstance(loc_obj, dict) else ""
+    body_text = _html_to_text(str(payload.get("content") or ""))
+    apply_url = normalize_url(str(payload.get("absolute_url") or candidate.normalized_url))
+    posted_str = str(payload.get("updated_at") or payload.get("first_published") or "").strip() or None
+    job = ExtractedJob(
+        title=clean_text(payload.get("title") or candidate.ats_title),
+        company=clean_text(payload.get("company_name") or candidate.ats_company or board),
+        location=clean_text(location or candidate.ats_location),
+        remote_text=clean_text(location or candidate.ats_remote_hint),
+        body_text=body_text,
+        apply_url=apply_url,
+        domain=domain_of(apply_url),
+        posting_date=posted_str,
+    )
+    return job, apply_url
+
+
+def _greenhouse_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+    body = (job.body_text or "").strip()
+    low_body = body.lower()
+    is_gh_host = job.domain == "greenhouse.io" or job.domain.endswith(".greenhouse.io")
+    looks_like_form_shell = (
+        is_gh_host
+        and len(body) < 1600
+        and "apply for this job" in low_body
+        and ("first name *" in low_body or "indicates a required field" in low_body)
+    )
+    if not looks_like_form_shell and (len(body) >= _SPA_BODY_MIN_CHARS or (is_gh_host and len(body) >= 80)):
+        return job, False
+    fallback = _greenhouse_api_fallback(candidate, client)
+    if fallback is None:
+        return job, False
+    api_job, _ = fallback
+    api_body = (api_job.body_text or "").strip()
+    if not api_body or (not looks_like_form_shell and len(api_body) <= len(body)):
+        return job, False
+    return job.model_copy(update={
+        "title": api_job.title or job.title,
+        "location": api_job.location or job.location,
+        "remote_text": api_job.remote_text or job.remote_text,
+        "body_text": api_job.body_text,
+        "posting_date": api_job.posting_date or job.posting_date,
+    }), True
+
+
+def _workable_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> ExtractedJob:
+    if len((job.body_text or "").strip()) >= _SPA_BODY_MIN_CHARS:
+        return job
+    parsed = urlsplit(candidate.normalized_url)
+    host = (parsed.hostname or "").lower()
+    if not (host == "workable.com" or host.endswith(".workable.com")):
+        return job
+    board = ""
+    shortcode = ""
+    m = _WORKABLE_BOARD_JOB_RE.match(parsed.path or "")
+    if m:
+        board, shortcode = m.group(1), m.group(2)
+    else:
+        sm = _WORKABLE_SHORT_JOB_RE.match(parsed.path or "")
+        if sm and str(candidate.source_key or "").lower().startswith("workable:"):
+            board = candidate.source_key.split(":", 1)[1].strip()
+            shortcode = sm.group(1)
+    if not board or not shortcode:
+        return job
+    api_url = f"https://apply.workable.com/api/v2/accounts/{board}/jobs/{shortcode}"
+    try:
+        payload = client.request_json(api_url, allowed_domains=("workable.com",))
+    except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
+        return job
+    if not isinstance(payload, dict):
+        return job
+    sections = [
+        _html_to_text(str(payload.get(k) or ""))
+        for k in ("description", "requirements", "benefits")
+    ]
+    body_text = "\n\n".join(s for s in sections if s)
+    if not body_text:
+        return job
+    loc_obj = payload.get("location")
+    loc_parts: list[str] = []
+    if isinstance(loc_obj, dict):
+        loc_parts = [str(loc_obj.get(k) or "").strip() for k in ("city", "region", "country") if loc_obj.get(k)]
+    location = ", ".join(loc_parts)
+    if not location and isinstance(payload.get("locations"), list):
+        first = next((x for x in payload["locations"] if isinstance(x, dict)), None)
+        if first:
+            location = ", ".join(str(first.get(k) or "").strip() for k in ("city", "region", "country") if first.get(k))
+    remote_flag = bool(payload.get("remote")) or str(payload.get("workplace") or "").lower() == "remote"
+    remote_text = "Remote" if remote_flag else (job.remote_text or "")
+    return job.model_copy(update={
+        "title": clean_text(payload.get("title") or job.title),
+        "location": clean_text(location or job.location),
+        "remote_text": clean_text(f"{remote_text} {location}".strip() if remote_flag and location else (remote_text or job.remote_text)),
+        "body_text": body_text,
+        "posting_date": str(payload.get("published") or job.posting_date or "").strip() or None,
+    })
+
+
+_SR_JOB_RE = re.compile(r"^/([^/]+)/([A-Za-z0-9_-]{6,})(?:/|$)")
+_BAMBOO_JOB_RE = re.compile(r"^/careers/([0-9]+)(?:/|$)", re.IGNORECASE)
+_GENERIC_PORTAL_TITLES = frozenset({"join us", "careers", "jobs", "career", "open roles"})
+_WD_LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
+
+
+def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+    src = str(candidate.source_key or "").strip()
+    is_sr_domain = job.domain == "smartrecruiters.com" or job.domain.endswith(".smartrecruiters.com")
+    has_posting_url = is_sr_domain and _SR_JOB_RE.match(urlsplit(job.apply_url).path) is not None
+    low_title = (job.title or "").strip().lower()
+    looks_generic = low_title in _GENERIC_PORTAL_TITLES or low_title.startswith("careers at ")
+    if len((job.body_text or "").strip()) >= _SPA_BODY_MIN_CHARS and has_posting_url and not looks_generic:
+        return job, False
+    if not (src.lower().startswith("smartrecruiters:") or "smartrecruiters.com" in candidate.normalized_url.lower()):
+        return job, False
+    parsed = urlsplit(candidate.normalized_url)
+    board, job_id = "", ""
+    m = _SR_JOB_RE.match(parsed.path or "")
+    if m:
+        board, job_id = m.group(1), m.group(2)
+    if src.lower().startswith("smartrecruiters:"):
+        board = src.split(":", 1)[1].strip() or board
+    job_id = job_id.split("-")[0] if "-" in job_id else job_id
+    if not board or not job_id:
+        return job, False
+    api_url = f"https://api.smartrecruiters.com/v1/companies/{board}/postings/{job_id}"
+    try:
+        payload = client.request_json(api_url, allowed_domains=("smartrecruiters.com",))
+    except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
+        return job, False
+    if not isinstance(payload, dict) or not payload.get("name"):
+        return job, False
+    sections_dict = (payload.get("jobAd") or {}).get("sections") or {}
+    ordered = ("jobDescription", "qualifications", "additionalInformation", "companyDescription")
+    parts = [
+        _html_to_text(str((sections_dict.get(k) or {}).get("text") or ""))
+        for k in ordered
+        if isinstance(sections_dict.get(k), dict)
+    ]
+    body_text = "\n\n".join(p for p in parts if p)
+    loc_obj = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+    loc_str = ", ".join(
+        str(loc_obj.get(k) or "").strip()
+        for k in ("city", "region", "country")
+        if loc_obj.get(k)
+    ).strip(", ")
+    company_name = str((payload.get("company") or {}).get("name") or candidate.ats_company or job.company).strip()
+    remote_flag = bool(loc_obj.get("remote")) or "remote" in str(payload.get("workplace") or "").lower()
+    remote_text = f"Remote {loc_str}".strip() if remote_flag else job.remote_text
+    # The careers subdomain can redirect a posting to the employer's homepage.
+    apply_url = job.apply_url
+    if not has_posting_url or looks_generic:
+        apply_url = f"https://jobs.smartrecruiters.com/{board}/{job_id}"
+    return job.model_copy(update={
+        "apply_url": apply_url,
+        "domain": domain_of(apply_url),
+        "title": clean_text(payload.get("name") or candidate.ats_title or job.title),
+        "company": clean_text(company_name),
+        "location": clean_text(loc_str or candidate.ats_location or job.location),
+        "remote_text": clean_text(remote_text),
+        "body_text": body_text or job.body_text,
+        "posting_date": str(payload.get("releasedDate") or job.posting_date or "").strip() or None,
+    }), True
+
+
+def _workday_cxs_detail_url(url: str) -> str | None:
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    if not host.endswith((".myworkdayjobs.com", ".myworkdaysite.com")):
+        return None
+    segments = [seg for seg in (parsed.path or "").split("/") if seg]
+    if "job" not in segments:
+        return None
+    job_idx = segments.index("job")
+    prefix = segments[:job_idx]
+    if prefix and _WD_LOCALE_RE.match(prefix[0]):
+        prefix = prefix[1:]
+    if not prefix:
+        return None
+    site = prefix[-1]
+    tenant = host.split(".")[0]
+    rest = "/".join(segments[job_idx:])
+    return f"https://{host}/wday/cxs/{tenant}/{site}/{rest}"
+
+
+def _workday_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+    body = (job.body_text or "").strip()
+    if len(body) >= _SPA_BODY_MIN_CHARS:
+        return job, False
+    cxs_url = _workday_cxs_detail_url(candidate.normalized_url) or _workday_cxs_detail_url(job.apply_url)
+    if not cxs_url:
+        return job, False
+    try:
+        payload = client.request_json(cxs_url, allowed_domains=("myworkdayjobs.com", "myworkdaysite.com"))
+    except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
+        return job, False
+    info = payload.get("jobPostingInfo") if isinstance(payload, dict) else None
+    if not isinstance(info, dict):
+        return job, False
+    desc = _html_to_text(str(info.get("jobDescription") or ""))
+    if len(desc) <= len(body):
+        return job, False
+    remote_type = str(info.get("remoteType") or "").strip()
+    location = str(info.get("location") or candidate.ats_location or job.location).strip()
+    company = candidate.ats_company or job.company
+    return job.model_copy(update={
+        "title": clean_text(info.get("title") or candidate.ats_title or job.title),
+        "company": clean_text(company),
+        "location": clean_text(location),
+        "remote_text": clean_text(f"{remote_type} {location}".strip() if remote_type else job.remote_text),
+        "body_text": desc,
+        "posting_date": str(info.get("startDate") or info.get("postedOn") or job.posting_date or "").strip() or None,
+    }), True
+
+
+def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+    body = (job.body_text or "").strip()
+    if len(body) >= _SPA_BODY_MIN_CHARS:
+        return job, False
+    for raw_url in (candidate.normalized_url, job.apply_url):
+        parsed = urlsplit(raw_url)
+        host = (parsed.hostname or "").lower()
+        if not (host == "bamboohr.com" or host.endswith(".bamboohr.com")):
+            continue
+        match = _BAMBOO_JOB_RE.match(parsed.path or "")
+        if not match:
+            continue
+        detail_url = f"https://{host}/careers/{match.group(1)}/detail"
+        try:
+            payload = client.request_json(detail_url, allowed_domains=("bamboohr.com",))
+        except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
+            return job, False
+        opening = (payload.get("result") or {}).get("jobOpening") if isinstance(payload, dict) else None
+        if not isinstance(opening, dict):
+            return job, False
+        desc = _html_to_text(str(opening.get("description") or ""))
+        if len(desc) <= len(body):
+            return job, False
+        loc_obj = opening.get("location") if isinstance(opening.get("location"), dict) else {}
+        loc_str = ", ".join(
+            str(loc_obj.get(k) or "").strip()
+            for k in ("city", "state", "addressCountry")
+            if loc_obj.get(k)
+        ).strip(", ")
+        return job.model_copy(update={
+            "title": clean_text(opening.get("jobOpeningName") or candidate.ats_title or job.title),
+            "location": clean_text(loc_str or candidate.ats_location or job.location),
+            "remote_text": clean_text(job.remote_text or loc_str),
+            "body_text": desc,
+            "posting_date": str(opening.get("datePosted") or job.posting_date or "").strip() or None,
+        }), True
+    return job, False
+
+
+def _round_robin(items: list[tuple[CandidateUrl, str]]) -> list[tuple[CandidateUrl, str]]:
+    """One candidate per source_key in turn (first-seen group order), keeping within-group order."""
+    groups: dict[str, list[tuple[CandidateUrl, str]]] = {}
+    for item in items:
+        groups.setdefault(item[0].source_key or "web_search", []).append(item)
+    queues = list(groups.values())
+    out: list[tuple[CandidateUrl, str]] = []
+    for rank in range(max((len(q) for q in queues), default=0)):
+        out.extend(q[rank] for q in queues if rank < len(q))
+    return out
+
+
+def has_ats_fingerprint(html: str) -> bool:
+    """MARK III ``verification_fetch`` condition: a vendor fingerprint with a known canonical domain."""
+    vendor = detect_ats_fingerprint(html or "")
+    return bool(vendor and ats_canonical_domain(vendor))
+
+
+def fetch(run_id: str) -> dict:
+    runs.require_stage(run_id, "fetch")
+    run = runs.load_run(run_id)
+    out_dir = runs.run_dir(run_id)
+    max_pages = run["settings"]["max_pages"]
+    # Per-host caps limit seeds per API host in discovery, not page fetching: shared ATS hosts are bounded by max_pages.
+    client = client_for_run(run, max_requests_per_host=max_pages)
+
+    unique: list[tuple[CandidateUrl, str]] = []
+    seen: set[str] = set()
+    for row in runs.read_jsonl(out_dir / "candidates.jsonl"):
+        candidate = CandidateUrl.model_validate(row)
+        identity = canonical_job_identity(
+            candidate.source_url, source_type=candidate.source_type, source_key=candidate.source_key
+        ).identity_key
+        if identity in seen:
+            continue
+        seen.add(identity)
+        unique.append((candidate, identity))
+
+    selected = _round_robin(unique)[:max_pages]
+    postings: list[dict] = []
+    errors: list[dict] = []
+    skipped_hosts: set[str] = set()
+    budget_spent = False
+    for candidate, identity in selected:
+        url = candidate.normalized_url
+        if budget_spent:
+            errors.append({"url": url, "error": "skipped_request_budget_exhausted"})
+            continue
+        if candidate.domain in skipped_hosts:
+            errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
+            continue
+        try:
+            status, final_url, html = client.get_text(url)
+        except RequestBudgetExceeded as exc:
+            if exc.scope == "host":
+                skipped_hosts.add(exc.host or candidate.domain)
+                errors.append({"url": url, "error": f"host_budget_exhausted: {exc.host}"})
+            else:
+                budget_spent = True
+                errors.append({"url": url, "error": "request_budget_exhausted"})
+            continue
+        except HttpError as exc:
+            fallback = _greenhouse_api_fallback(candidate, client)
+            if fallback is not None:
+                job, _ = fallback
+                postings.append({
+                    "candidate": candidate.model_dump(mode="json"),
+                    "job": job.model_dump(mode="json"),
+                    "identity_key": identity,
+                    "ats_fingerprint": True,
+                })
+                continue
+            errors.append({"url": url, "error": f"http_error: {exc}", "status": exc.status_code})
+            continue
+        except URLRejected as exc:
+            errors.append({"url": url, "error": f"url_rejected: {exc}"})
+            continue
+        if status >= 400:
+            if status in {403, 429} or status >= 500:
+                fallback = _greenhouse_api_fallback(candidate, client)
+                if fallback is not None:
+                    job, _ = fallback
+                    postings.append({
+                        "candidate": candidate.model_dump(mode="json"),
+                        "job": job.model_dump(mode="json"),
+                        "identity_key": identity,
+                        "ats_fingerprint": True,
+                    })
+                    continue
+            reason = "expired_or_closed" if status in {404, 410} else "inaccessible"
+            errors.append({"url": url, "error": reason, "status": status})
+            continue
+        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html)
+        # Same hint keys and sources as MARK III's verification_fetch.
+        ats_hints = {
+            "title": candidate.ats_title,
+            "company": candidate.ats_company,
+            "location": candidate.ats_location,
+            "remote_hint": candidate.ats_remote_hint,
+        }
+        try:
+            job = parse_ats_page(page, ats_hints=ats_hints)
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            errors.append({"url": url, "error": f"extract_failed: {exc!r}"})
+            continue
+        job.title, job.company, job.location = clean_text(job.title), clean_text(job.company), clean_text(job.location)
+        job.apply_url = normalize_url(final_url)
+        job.domain = domain_of(job.apply_url)
+        job, gh_enriched = _greenhouse_api_enrich(candidate, job, client)
+        job = _workable_api_enrich(candidate, job, client)
+        job, sr_enriched = _smartrecruiters_api_enrich(candidate, job, client)
+        job, wd_enriched = _workday_api_enrich(candidate, job, client)
+        job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
+        postings.append({
+            "candidate": candidate.model_dump(mode="json"),
+            "job": job.model_dump(mode="json"),
+            "identity_key": identity,
+            "ats_fingerprint": gh_enriched or sr_enriched or wd_enriched or bamboo_enriched or has_ats_fingerprint(html),
+        })
+
+    runs.write_jsonl(out_dir / "postings.jsonl", postings)
+    runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
+    runs.mark_stage(run_id, "fetch")
+    return {"fetched": len(postings), "failed": len(errors), "requests": client.requests_made}

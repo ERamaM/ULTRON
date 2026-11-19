@@ -1,0 +1,165 @@
+# Vocabulary pack: AI / machine-learning roles.
+# Enable with `criteria.vocabulary_packs: [ai-ml]` in a search profile.
+# Values moved verbatim from ULTRON core (MARK III port); see ultron/core/vocabulary.py.
+
+# Role-family vocabulary (was core/rules/role_terms.py ROLE_ALLOWED_TERMS). Default allowed
+# role terms when a profile gives none; also decides whether a profile is 'family-aware'.
+role_terms:
+  - "ai engineer"
+  - "machine learning engineer"
+  - "ml engineer"
+  - "llm engineer"
+  - "generative ai"
+  - "applied scientist"
+  - "data scientist"
+  - "nlp engineer"
+  - "mlops engineer"
+  - "ml ops engineer"
+  - "research scientist"
+  - "research engineer"
+  - "deep learning"
+  - "computer vision"
+  - "ml platform"
+  - "ai platform"
+  - "ai researcher"
+  - "ai/ml"
+  - "ml/ai"
+  - "machine learning scientist"
+  - "applied ml"
+  - "natural language processing"
+  - "ai agent"
+  - "agentic ai"
+  - "foundation model"
+  - "prompt engineer"
+  - "ai safety"
+  - "inference engineer"
+  - "multimodal engineer"
+  - "recommendation engineer"
+  - "ranking engineer"
+  - "genai engineer"
+  - "gen ai engineer"
+  - "genai"
+  - "machine learning researcher"
+  - "ml scientist"
+  - "ai scientist"
+  - "ml researcher"
+  - "reinforcement learning"
+  - "rl engineer"
+  - "speech recognition"
+  - "speech engineer"
+  - "speech scientist"
+  - "robotics engineer"
+  - "robotics"
+  - "ingeniero de machine learning"
+  - "ingeniero de aprendizaje automático"
+  - "ingeniero de aprendizaje automatico"
+  - "científico de datos"
+  - "cientifico de datos"
+  - "ingeniero de datos"
+  - "ingeniero de ia"
+  - "ingeniero de inteligencia artificial"
+
+# Default discovery title terms when a profile has no titles (was TARGET_TITLE_TERMS).
+title_terms:
+  - "ai engineer"
+  - "machine learning engineer"
+  - "ml engineer"
+  - "llm engineer"
+  - "generative ai"
+  - "applied scientist"
+  - "data scientist"
+  - "nlp engineer"
+  - "mlops engineer"
+  - "ml ops engineer"
+  - "research scientist"
+  - "research engineer"
+  - "deep learning"
+  - "computer vision"
+  - "ml platform"
+  - "ai platform"
+  - "ai researcher"
+  - "ai/ml"
+  - "ml/ai"
+  - "machine learning scientist"
+  - "applied ml"
+  - "natural language processing"
+  - "ai agent"
+  - "agentic ai"
+  - "foundation model"
+  - "prompt engineer"
+  - "ai safety"
+
+# Default discovery signal terms when a profile has no titles (was TARGET_EXTRA_TERMS).
+extra_title_terms:
+  - "llm"
+  - "rag"
+  - "mlops"
+  - "retrieval"
+  - "evaluation"
+
+# Coarse family signal, whole-word match (was COARSE_AI_SIGNAL_TERMS_WB).
+coarse_signal_wb:
+  - "ai"
+  - "ml"
+  - "llm"
+  - "nlp"
+  - "rag"
+  - "mlops"
+  - "genai"
+
+# Coarse family signal, substring match (was COARSE_AI_SIGNAL_TERMS_SUBSTR).
+coarse_signal_substr:
+  - "machine learning"
+  - "artificial intelligence"
+  - "deep learning"
+  - "computer vision"
+  - "data science"
+  - "language model"
+  - "foundation model"
+  - "agentic ai"
+  - "ai agent"
+  - "prompt engineering"
+  - "ai safety"
+
+# Default role-ambiguity terms (was hard_filters_data.DEFAULT_ROLE_AMBIGUITY_TERMS).
+ambiguity_terms:
+  - "llm"
+  - "machine learning"
+  - "mlops"
+  - "rag"
+  - "retrieval"
+
+# Text signals that raise the ambiguity score of role-family discards (was the
+# `signals` tuple in AmbiguityScorer._text_signal_score).
+ambiguity_text_signals:
+  - "llm"
+  - "machine learning"
+  - "artificial intelligence"
+  - "rag"
+  - "retrieval"
+  - "mlops"
+  - "generative ai"
+
+# Body signals that mark a 'data scientist' title as outside the family (was DS_NON_ML_SIGNALS).
+non_family_signals:
+  - "business intelligence"
+  - "power bi"
+  - "tableau"
+  - "looker"
+  - "dashboard"
+  - "sql reporting"
+
+# Family-specific title synonym groups (were in core/rules/title_synonyms.py).
+title_synonym_groups:
+  - ["machine learning engineer", "ml engineer", "ingeniero de machine learning", "ingeniero ml"]
+  - ["artificial intelligence engineer", "ai engineer", "ingeniero de ia", "ingeniero de inteligencia artificial"]
+  - ["nlp engineer", "natural language processing engineer"]
+  - ["mlops engineer", "ml ops engineer"]
+  - ["llm engineer", "large language model engineer"]
+  - ["genai engineer", "generative ai engineer"]
+  - ["applied scientist", "applied research scientist"]
+
+# Title terms that name the family explicitly (were hardcoded in role_matching.score_role_family).
+title_anchor_terms:
+  - "machine learning"
+  - "llm"

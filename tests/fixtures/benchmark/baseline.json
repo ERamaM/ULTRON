@@ -1,0 +1,3566 @@
+{
+  "case_count": 120,
+  "cases": [
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 5,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-009",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-015",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-021",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-adjacent-027",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "expired_or_closed",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-adjacent-033",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-039",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 1,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-045",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-051",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-057",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-063",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 6,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-adjacent-069",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-075",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-081",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-087",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-093",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-adjacent-099",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 2,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-adjacent-105",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "expired_or_closed",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-111",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-adjacent-117",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-core-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "expired_or_closed",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "en-core-007",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-013",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-019",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-025",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-core-031",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "en-core-037",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 3,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-043",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-049",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-055",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "en-core-061",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 7,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-core-067",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-073",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-core-079",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "expired_or_closed",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-085",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "en-core-091",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "en-core-097",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 4,
+        "reason": null,
+        "status": "keep"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-core-103",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-109",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "en-core-115",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-011",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-017",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-023",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-029",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-035",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-041",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-047",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-053",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "expired_or_closed",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-059",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-065",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-071",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-077",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-083",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-089",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-095",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-101",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-107",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-113",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "en-negative-119",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-004",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-010",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-016",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-022",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-028",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-034",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-040",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-046",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-052",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-058",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-064",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-070",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-076",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-082",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-088",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-094",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-100",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-106",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-adjacent-112",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "adjacent",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": null,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-adjacent-118",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "adjacent",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": null,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "es-core-002",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "pre_filter",
+      "id": "es-core-008",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-core-014",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-020",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-026",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-core-032",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "es-core-038",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-044",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-050",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-056",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "es-core-062",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-core-068",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-074",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-080",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-086",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-core-092",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "keep",
+      "first_loss_stage": "heuristic_evaluator",
+      "id": "es-core-098",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-core-104",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-110",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": false,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "unsure",
+      "first_loss_stage": null,
+      "id": "es-core-116",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": null,
+        "remote_fit": null,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-006",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-012",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-018",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-024",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-030",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-036",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-042",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-048",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-054",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-060",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-066",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": false,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "empty_dynamic"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-072",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-078",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-084",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "lever"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-090",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-096",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "eu",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "unknown",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "ashby"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-102",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "us_only",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-108",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "hybrid_or_not_explicit_remote",
+        "status": "discard"
+      },
+      "remote_mode": "hybrid",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-114",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": false,
+        "role_fit": false,
+        "seniority_fit": false
+      },
+      "vendor": "json_api"
+    },
+    {
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "es-negative-120",
+      "language": "es",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "remote_mode": "unknown",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "medium",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": null,
+        "role_fit": false,
+        "seniority_fit": null
+      },
+      "vendor": "json_api"
+    }
+  ],
+  "corpus_version": "2026-07-09.1",
+  "metrics": {
+    "agent_queue": 7,
+    "classification": {
+      "abstention_rate": 0.0,
+      "confusion_matrix": {
+        "fn": 7,
+        "fp": 1,
+        "tn": 60,
+        "tp": 3
+      },
+      "f1": 0.4285714285714285,
+      "false_negative_rate": 0.7,
+      "false_positive_rate": 0.01639344262295082,
+      "precision": 0.75,
+      "recall": 0.3,
+      "sample_size": 71
+    },
+    "first_loss_counts": {
+      "heuristic_evaluator": 6,
+      "pre_filter": 1
+    },
+    "outcomes": {
+      "discard": 113,
+      "keep": 7
+    },
+    "ranking": {
+      "mrr": 0.3333333333333333,
+      "ndcg_at_10": 0.2781981696179509,
+      "precision_at_10": 0.3,
+      "precision_at_5": 0.4,
+      "recall_at_10": 0.3,
+      "relevant_total": 10,
+      "shortlist_size": 7
+    },
+    "slices": {
+      "language": {
+        "en": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 2,
+            "fp": 1,
+            "tn": 29,
+            "tp": 3
+          },
+          "f1": 0.6666666666666665,
+          "false_negative_rate": 0.4,
+          "false_positive_rate": 0.03333333333333333,
+          "precision": 0.75,
+          "recall": 0.6,
+          "sample_size": 35,
+          "status": "measured"
+        },
+        "es": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 5,
+            "fp": 0,
+            "tn": 31,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 1.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 36,
+          "status": "measured"
+        }
+      },
+      "region": {
+        "eu": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 4,
+            "fp": 1,
+            "tn": 10,
+            "tp": 2
+          },
+          "f1": 0.4444444444444444,
+          "false_negative_rate": 0.6666666666666666,
+          "false_positive_rate": 0.09090909090909091,
+          "precision": 0.6666666666666666,
+          "recall": 0.3333333333333333,
+          "sample_size": 17,
+          "status": "measured"
+        },
+        "hybrid": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 9,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 9,
+          "status": "insufficient_sample"
+        },
+        "onsite": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 8,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 8,
+          "status": "insufficient_sample"
+        },
+        "unknown": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 10,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 10,
+          "status": "measured"
+        },
+        "us_only": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 12,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 12,
+          "status": "measured"
+        },
+        "worldwide": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 3,
+            "fp": 0,
+            "tn": 11,
+            "tp": 1
+          },
+          "f1": 0.4,
+          "false_negative_rate": 0.75,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
+          "recall": 0.25,
+          "sample_size": 15,
+          "status": "measured"
+        }
+      },
+      "role_track": {
+        "adjacent": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 1,
+            "tn": 10,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.09090909090909091,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 11,
+          "status": "measured"
+        },
+        "core": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 7,
+            "fp": 0,
+            "tn": 10,
+            "tp": 3
+          },
+          "f1": 0.4615384615384615,
+          "false_negative_rate": 0.7,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
+          "recall": 0.3,
+          "sample_size": 20,
+          "status": "measured"
+        },
+        "negative": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 40,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 40,
+          "status": "measured"
+        }
+      },
+      "vendor": {
+        "ashby": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 2,
+            "fp": 1,
+            "tn": 13,
+            "tp": 1
+          },
+          "f1": 0.4,
+          "false_negative_rate": 0.6666666666666666,
+          "false_positive_rate": 0.07142857142857142,
+          "precision": 0.5,
+          "recall": 0.3333333333333333,
+          "sample_size": 17,
+          "status": "measured"
+        },
+        "empty_dynamic": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 1,
+            "fp": 0,
+            "tn": 5,
+            "tp": 1
+          },
+          "f1": 0.6666666666666666,
+          "false_negative_rate": 0.5,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
+          "recall": 0.5,
+          "sample_size": 7,
+          "status": "insufficient_sample"
+        },
+        "generic_html": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 1,
+            "fp": 0,
+            "tn": 14,
+            "tp": 1
+          },
+          "f1": 0.6666666666666666,
+          "false_negative_rate": 0.5,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
+          "recall": 0.5,
+          "sample_size": 16,
+          "status": "measured"
+        },
+        "greenhouse": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 3,
+            "fp": 0,
+            "tn": 11,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 1.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 14,
+          "status": "measured"
+        },
+        "json_api": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 9,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 9,
+          "status": "insufficient_sample"
+        },
+        "lever": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 0,
+            "tn": 8,
+            "tp": 0
+          },
+          "f1": 0.0,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "sample_size": 8,
+          "status": "insufficient_sample"
+        }
+      }
+    }
+  },
+  "mode": "replay",
+  "preset": "balanced",
+  "schema_version": 1
+}

@@ -23,11 +23,12 @@ def verify_feed_companies(run_id: str) -> dict:
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     verified = []
     tried = 0
+    page_hops = seeds.PageHops()
     for row in rows:
         tried += 1
         result = seeds.verify_proposal(
             seeds.Proposal(**{k: str(row.get(k) or "").strip() for k in keys}),
-            client=client, timeout=settings["ats_api_timeout"],
+            client=client, timeout=settings["ats_api_timeout"], page_hops=page_hops,
         )
         if result.status == "verified" and result.seed:
             verified.append(seeds.as_feed_company(result.seed))

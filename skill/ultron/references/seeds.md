@@ -34,7 +34,7 @@ more reliable:
 | `domain` | main website domain, e.g. `example.com` |
 | `ats` | ATS name, if known (lowercase; see Supported job boards) |
 | `board` | board identifier on that ATS, if known (see below) |
-| `careers_url` | a URL of the company's ATS board or one of its postings |
+| `careers_url` | a URL of the company's ATS board or one of its postings; or its own careers page (on `domain`), which the CLI opens once to find the ATS board it links |
 
 ```jsonl
 {"company": "Example Labs", "domain": "examplelabs.com", "ats": "greenhouse", "board": "examplelabs"}
@@ -57,8 +57,9 @@ ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 
 Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "...", "reason": "..."}]}`.
 
-When `ats` + `board` or `careers_url` is given, the CLI checks only that board (no slug guessing)
-and reports its failure reason if it does not resolve; a given board is verified when its public API
+When `ats` + `board` or `careers_url` is given, the CLI checks only that board (no slug guessing;
+a `careers_url` that is the company's own careers page is opened once and the ATS boards it links are
+checked) and reports its failure reason if it does not resolve; a given board is verified when its public API
 answers (even with zero open postings). When neither is given, it probes slug guesses built from the
 company name and domain on the probed ATSs (below), and a guessed board must have open postings and
 **provably belong to the company**, because another company may own the same slug:
@@ -109,7 +110,7 @@ next call.
 | `no_board_found` | Search the web for "<company> careers" / "<company> jobs" and look for a link to a supported ATS (including the careers-URL-only vendors); if found, retry with `ats` + `board` or `careers_url`. Otherwise drop it. |
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
-| `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url`; a careers site on the company's own domain is not an ATS board. |
+| `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
 | `ownership_unknown` | A guessed board answered (see `candidate`) but nothing ties it to the company. Open the board URL or search the web: if it is the company's own board (same website, same jobs), retry with that `ats` + `board`; if you only lacked the domain, retry with `domain`. Otherwise drop it. |
 | `wrong_tenant` | The guessed board belongs to another company with a similar name. Look for the company's real careers page and retry with its board, or drop it. Never retry the `candidate` board. |
 | `invalid_proposal` | The line had no `company`. Fix it. |

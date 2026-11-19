@@ -327,7 +327,7 @@ def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys):
     assert "Madrid" in sr["location"] and "polymers extrusion" in sr["body_text"]
     assert sr["apply_url"] == "https://jobs.smartrecruiters.com/BoschGroup/7440001"
     assert sr["domain"] == "jobs.smartrecruiters.com"
-    assert by_company["Bosch Group"]["identity_key"] == "url://careers.smartrecruiters.com/BoschGroup/7440001"
+    assert by_company["Bosch Group"]["identity_key"] == "smartrecruiters:boschgroup:7440001"
     wd = by_company["DuPont"]["job"]
     assert wd["title"] == "Tyvek R&D Product Development Engineer"
     assert "nonwoven Tyvek materials" in wd["body_text"]

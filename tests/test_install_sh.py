@@ -44,7 +44,8 @@ def test_piped_install_removes_downloaded_source_and_keeps_exit_code(tmp_path, r
     # curl copies the prepared archive to the -o target; uv proves it ran from the extracted source.
     _fake_tool(bin_dir, "curl", f'while [ "$#" -gt 1 ]; do [ "$1" = -o ] && cp "{archive.as_posix()}" "$2"; '
                                 'shift; done')
-    _fake_tool(bin_dir, "uv", f'for a in "$@"; do case "$a" in *install.py) [ -f "$a" ] || exit 99;; esac; done; '
+    # The fake installer drains stdin, as a prompt would: the rest of a piped script must not be consumed.
+    _fake_tool(bin_dir, "uv", f'cat >/dev/null; for a in "$@"; do case "$a" in *install.py) [ -f "$a" ] || exit 99;; esac; done; '
                               f'echo ran >&2; exit {rc}')
     env = {**os.environ, "HOME": str(tmp_path / "home"), "TMPDIR": tmp_root.as_posix(),
            "PATH": os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])}

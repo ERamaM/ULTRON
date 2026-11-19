@@ -111,14 +111,18 @@ if [ -z "$SRC_DIR" ]; then
 fi
 
 # No exec: the shell must survive the installer so the EXIT trap removes the downloaded source.
-# `|| rc=$?` keeps `set -e` from exiting before the installer's exit code is captured.
-rc=0
-if command -v uv >/dev/null 2>&1; then
-    uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@" || rc=$?
-elif PY_BIN=$(find_python); then
-    "$PY_BIN" "$SRC_DIR/install.py" "$@" || rc=$?
-else
-    install_uv
-    uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@" || rc=$?
-fi
-exit "$rc"
+# `|| rc=$?` keeps `set -e` from exiting before the installer's exit code is captured. The braces make the
+# shell read the whole tail before running anything, so under `curl | sh` a child that reads stdin cannot
+# swallow the final `exit` and turn a failure into exit 0.
+{
+    rc=0
+    if command -v uv >/dev/null 2>&1; then
+        uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@" || rc=$?
+    elif PY_BIN=$(find_python); then
+        "$PY_BIN" "$SRC_DIR/install.py" "$@" || rc=$?
+    else
+        install_uv
+        uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@" || rc=$?
+    fi
+    exit "$rc"
+}

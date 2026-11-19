@@ -673,7 +673,8 @@ def _purge_home(home: Path, *, dry_run: bool) -> dict:
     foreign = [c.name for c in children if c.name not in deletable]
     extra = {"would_delete": [c.name for c in owned]} if dry_run else {}
     if not dry_run:
-        for child in owned:
+        # The marker goes last: if an earlier deletion fails, a retry still treats the generic entries as ULTRON's
+        for child in sorted(owned, key=lambda c: c.name == HOME_MARKER):
             if _is_link(child):
                 _unlink(child)  # never follow a link out of the home
             elif child.is_dir():

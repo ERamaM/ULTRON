@@ -913,3 +913,25 @@ def test_purge_with_only_database_keeps_generic_folders(inst, fake_home, capsys,
     for rel in ("venv/x", "backups/x", "cv/mine/resume.pdf", "runs/x", "profiles/x", "seeds/x"):
         assert (home / rel).read_bytes() == b"precious", rel
     assert sorted(p.name for p in home.iterdir()) == ["backups", "cv", "profiles", "runs", "seeds", "venv"]
+
+
+def test_purge_removes_home_marker_last_so_a_failed_purge_can_be_retried(inst, fake_home, monkeypatch):
+    home = fake_home / "marked-home"
+    _preexisting_user_folders(home)
+    (home / "ultron.sqlite3").write_bytes(b"db")
+    (home / ".ultron-home").write_text("x", encoding="utf-8")
+    real_rmtree = inst.shutil.rmtree
+
+    def failing_rmtree(path, *args, **kwargs):
+        if Path(path).name == "venv":
+            raise PermissionError("venv is in use")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(inst.shutil, "rmtree", failing_rmtree)
+    with pytest.raises(PermissionError):
+        inst._purge_home(home, dry_run=False)
+    assert (home / ".ultron-home").is_file()
+    assert (home / "venv").is_dir()
+    monkeypatch.setattr(inst.shutil, "rmtree", real_rmtree)
+    assert inst._purge_home(home, dry_run=False) == {"status": "removed"}
+    assert not home.exists()

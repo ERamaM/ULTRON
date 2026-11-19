@@ -79,6 +79,8 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 ### system
 
 - `system`: `ultron doctor`; list failed checks with their `fix`.
+- `system report [bug|issue]`: prepare a public GitHub issue using `references/issue-reporting.md`.
+  Show the draft before submitting it.
 - `system data [action]`: `ultron data <action>`, `status` by default; see `references/data-maintenance.md`.
   Destructive actions (`cleanup`, `delete-run`, `purge`, `restore`) always run as a preview first and only execute
   after the user confirms the preview.

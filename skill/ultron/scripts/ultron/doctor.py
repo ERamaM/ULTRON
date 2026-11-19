@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from ultron import http_factory, ledger
+from ultron import __version__, http_factory, ledger
 from ultron.net import HttpClient
 from ultron.platforms import PLATFORM_LABELS, PLATFORM_NAMES, detect_platforms, global_skill_dirs, project_skill_dirs
 
@@ -23,6 +23,10 @@ NETWORK_HOST = "boards-api.greenhouse.io"
 NETWORK_URL = f"https://{NETWORK_HOST}/v1/boards/greenhouse/jobs?content=false"
 NETWORK_TIMEOUT = 10.0
 PLATFORMS_DOC = "references/platforms.md"
+PUBLIC_CHECK_IDS = frozenset({
+    "python_version", "ultron_home_writable", "db_schema", "optional_extras",
+    "skill_installed", "network_dns", "network_https",
+})
 
 
 @dataclass
@@ -230,3 +234,14 @@ def run_checks(*, network: bool = True) -> list[Check]:
 
 def to_payload(checks: list[Check]) -> dict:
     return {"ok": all(c.ok for c in checks), "checks": [asdict(c) for c in checks]}
+
+
+def to_public_payload(checks: list[Check]) -> dict:
+    """Return only build information and statuses for known checks."""
+    return {
+        "ok": all(c.ok for c in checks),
+        "ultron": __version__,
+        "python": ".".join(str(part) for part in sys.version_info[:3]),
+        "os": {"win32": "Windows", "darwin": "macOS", "linux": "Linux"}.get(sys.platform, "Other"),
+        "checks": [{"id": c.id, "ok": bool(c.ok)} for c in checks if c.id in PUBLIC_CHECK_IDS],
+    }

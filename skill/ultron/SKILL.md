@@ -14,21 +14,18 @@ judge of location eligibility for postings the CLI cannot settle (`references/ev
 
 Always answer the user in **their** language (these instructions are in English).
 
-## Commands
+## Talking with the user
 
-Users may type a short command after the skill name (`/ultron jobs new`, `$ultron jobs new`, or just
-`ultron jobs new`). Five groups, each with a default action:
+Handle requests in ordinary language and run the tools yourself. Show command syntax only when the
+user explicitly asks for terminal usage or automation setup. Accept existing shortcuts if the user
+already knows them. Use `references/commands.md` to map requests to CLI actions.
 
-| Group | Default | Actions |
-|---|---|---|
-| `search` | full search with you (the loop below) | `quick`, `saved` |
-| `profile` | list profiles | `show`, `cv`, `companies` |
-| `jobs` | list saved jobs | `new`, `mark`, `why` |
-| `runs` | list past runs | `show`, `excel` |
-| `system` | `ultron doctor` | `data`, `report` |
-
-Only the skill name, `help` or an unknown command → show the menu. What each command runs, and how to
-present it: `references/commands.md`. Anything else is a normal request (see Other intents).
+When the user asks how ULTRON works, asks for help, or only mentions its name, explain that they
+choose a search profile or create one from preferences or a CV. ULTRON checks career boards and
+other sources, compares postings with their criteria, and returns a shortlist. Give a few examples
+they can say in chat, such as “Show my search profiles”, “Find new roles using my finance profile”,
+or “Export the last search to Excel”. Offer to show their profiles or help create one. Wait for
+a request to search before launching a run. If the intent is unclear, ask what they want to do.
 
 ## Running the CLI
 

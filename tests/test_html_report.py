@@ -61,7 +61,7 @@ def _tags(page: str) -> list[str]:
 
     Escaped untrusted text cannot contain a raw ``<`` or ``"``, so this is an exact parse of the markup.
     """
-    markup = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", "", page, flags=re.DOTALL | re.IGNORECASE)
+    markup = re.sub(r"<(script|style)\b[^>]*>.*?</\1[^>]*>", "", page, flags=re.DOTALL | re.IGNORECASE)
     return [re.sub(r'"[^"]*"', '""', tag) for tag in re.findall(r"<[a-zA-Z][^>]*>", markup)]
 
 
@@ -103,7 +103,8 @@ def test_no_external_resources(run_id, tmp_path, capsys):
     for url in JOB_URLS:
         rest = rest.replace(url.replace("&", "&amp;"), "")
     assert "http:" not in rest and "https:" not in rest
-    assert "//" not in re.sub(r"<script\b[^>]*>.*?</script\s*>", "", rest, flags=re.DOTALL | re.IGNORECASE)  # no protocol-relative URLs
+    without_script = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", "", rest, flags=re.DOTALL | re.IGNORECASE)
+    assert "//" not in without_script  # no protocol-relative URLs
 
 
 def test_csp_is_first_in_head_and_hashes_the_script(run_id, tmp_path, capsys):
@@ -113,7 +114,7 @@ def test_csp_is_first_in_head_and_hashes_the_script(run_id, tmp_path, capsys):
     csp = re.search(r'http-equiv="Content-Security-Policy" content="([^"]+)"', page).group(1)
     for directive in ("default-src 'none'", "style-src 'unsafe-inline'", "base-uri 'none'", "form-action 'none'"):
         assert directive in csp
-    script = re.search(r"<script\b[^>]*>(.*?)</script\s*>", page, re.DOTALL | re.IGNORECASE).group(1)
+    script = re.search(r"<script\b[^>]*>(.*?)</script[^>]*>", page, re.DOTALL | re.IGNORECASE).group(1)
     digest = base64.b64encode(hashlib.sha256(script.encode("utf-8")).digest()).decode()
     assert f"script-src 'sha256-{digest}'" in csp
     assert not re.search(r"\son[a-z]+\s*=", " ".join(_tags(page)))  # no inline event handlers

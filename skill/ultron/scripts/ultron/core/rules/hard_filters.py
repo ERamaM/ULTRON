@@ -150,7 +150,7 @@ def _has_closed_status_with_context(text: str) -> bool:
             if (
                 term == "closed"
                 and _APPLICATIONS_BEFORE_RE.search(low, 0, match.start())
-                and _agency_only_restriction_at(low, match.end())
+                and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())
             ):
                 continue  # "applications closed via recruitment agencies" is agency boilerplate
             start = max(0, match.start() - 45)
@@ -192,15 +192,6 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
 
 
 _CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
-_DIRECT_APPLICANT_CONTINUATION_RE = re.compile(
-    rules_data.CLOSED_STATUS_DIRECT_APPLICANT_CONTINUATION_PATTERN, re.IGNORECASE
-)
-
-
-def _agency_only_restriction_at(low: str, pos: int) -> bool:
-    """True when the text at ``pos`` limits only agency applications ("from recruitment agencies")."""
-    suffix = _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, pos)
-    return suffix is not None and not _DIRECT_APPLICANT_CONTINUATION_RE.match(low, suffix.end())
 # The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
 _APPLICATIONS_BEFORE_RE = re.compile(
     r"\bapplications?\s+(?:(?:are|is|were|was|have|has|been|now|currently)\s+)*$"
@@ -212,7 +203,7 @@ def _has_closed_status_phrase(low: str) -> bool:
     for phrase in rules_data.CLOSED_STATUS_PHRASES:
         exemptable = phrase in rules_data.AGENCY_EXEMPTABLE_CLOSED_PHRASES
         for match in term_boundary_pattern(phrase).finditer(low):
-            if not (exemptable and _agency_only_restriction_at(low, match.end())):
+            if not (exemptable and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
                 return True
     return False
 

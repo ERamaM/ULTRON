@@ -19,6 +19,7 @@ from ultron.core.rules.geo_eu import (
     has_region_red_flags,
 )
 from ultron.core.rules.term_matching import find_terms
+from ultron.core.rules.text_patterns import contains_any_term_boundary
 from ultron.core.rules.title_synonyms import normalize_role_title
 from ultron.core.vocabulary import VocabularyPack
 
@@ -84,7 +85,7 @@ def is_clearly_ineligible_at_discovery(
     low = _fold_accents(scope_text).lower()
     if (
         remote_required
-        and any(term in low for term in _HYBRID_ONSITE_HINTS)
+        and contains_any_term_boundary(low, _HYBRID_ONSITE_HINTS)
         and not any(term in low for term in _STRONG_REMOTE_HINTS)
     ):
         return True
@@ -136,7 +137,7 @@ def posting_rank_score(
     if remote_required:
         if "remote" in scope_text:
             score += 6
-        elif any(term in scope_text for term in _HYBRID_ONSITE_HINTS) and not any(
+        elif contains_any_term_boundary(scope_text, _HYBRID_ONSITE_HINTS) and not any(
             term in scope_text for term in _STRONG_REMOTE_HINTS
         ):
             score -= 8

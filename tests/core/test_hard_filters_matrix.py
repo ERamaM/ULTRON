@@ -462,3 +462,28 @@ def test_us_dotted_remote_and_brazil_trigger_red_flags():
     assert h.has_region_red_flags("Location: U.S. (Remote)") is True
     assert h.has_region_red_flags("Location: São Paulo, São Paulo, Brazil") is True
     assert h.has_region_red_flags("Location: U.S. (Remote) or Remote Europe") is False
+
+
+def test_in_office_matches_whole_phrase_only():
+    from types import SimpleNamespace
+
+    from ultron.core.discovery.prefilter import is_clearly_ineligible_at_discovery
+
+    for body in (
+        "Our team is based in our Berlin office.",
+        "Our main office in Lisbon hosts quarterly meetups.",
+        "Experience in Office 365 administration.",
+        "Support requests are answered within office hours.",
+    ):
+        assert h.is_full_remote_only("Remote", body) is True, body
+        assert h.apply_hard_filters(_job(remote_text="", body_text=body), ["boards.greenhouse.io"]) == (True, None)
+    for body in ("You will work 3 days in office.", "This is an on-site role."):
+        assert h.is_full_remote_only("Remote", body) is False, body
+
+    def ineligible(location):
+        posting = SimpleNamespace(title="Engineer", location=location, remote_hint="")
+        return is_clearly_ineligible_at_discovery(posting, geo="any")
+
+    assert ineligible("Berlin Office") is False
+    assert ineligible("Lisbon Office") is False
+    assert ineligible("Berlin, in office") is True

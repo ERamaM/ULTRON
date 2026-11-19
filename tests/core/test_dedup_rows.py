@@ -135,3 +135,17 @@ def test_distinct_specialty_parentheticals_are_kept():
     kept, dupes = dedupe_final_rows(rows)
     assert len(kept) == 2
     assert dupes == []
+
+
+def test_non_ascii_specialty_parentheticals_are_kept():
+    assert normalize_title_for_dedup("Engineer (決済)") == "engineer 決済"
+    assert normalize_title_for_dedup("Engineer (検索)") == "engineer 検索"
+    assert normalize_title_for_dedup("Engineer (Remote, 決済)") == "engineer 決済"
+    assert normalize_title_for_dedup("Engineer (Remote)") == "engineer"
+    rows = [
+        _row(title="Engineer (決済)", apply_url="https://x.com/j/1"),
+        _row(title="Engineer (検索)", apply_url="https://x.com/j/2"),
+    ]
+    kept, dupes = dedupe_final_rows(rows)
+    assert len(kept) == 2
+    assert dupes == []

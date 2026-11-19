@@ -65,13 +65,35 @@ def test_filter_candidates_discards_non_http_urls():
 
 def test_url_normalization_preserves_job_ids_and_removes_tracking():
     normalized = url_filter.normalize_url("BOARDS.GREENHOUSE.IO/acme/jobs/1/?gh_jid=42&utm_source=x&foo=bar")
-    assert normalized == "https://boards.greenhouse.io/acme/jobs/1?gh_jid=42"
+    assert normalized == "https://boards.greenhouse.io/acme/jobs/1?foo=bar&gh_jid=42"
     assert url_filter.normalize_url("//example.com/jobs/") == "https://example.com/jobs"
     assert url_filter.domain_of(normalized) == "boards.greenhouse.io"
     assert url_filter._extract_ats_board("Acme [greenhouse:acme]") == ("greenhouse", "acme")
     assert url_filter._extract_ats_board("plain query") is None
     assert url_filter._is_domain_allowed("jobs.example.com", ["example.com"])
     assert url_filter._is_domain_blocked("jobs.example.com", {"example.com"})
+
+
+def test_url_normalization_keeps_job_identifying_query_params():
+    assert (
+        url_filter.normalize_url("https://boards.greenhouse.io/embed/job_app?for=acme&token=4567")
+        == "https://boards.greenhouse.io/embed/job_app?for=acme&token=4567"
+    )
+    first = url_filter.normalize_url("acme.example/careers?ashby_jid=A")
+    second = url_filter.normalize_url("acme.example/careers?ashby_jid=B")
+    assert first == "https://acme.example/careers?ashby_jid=A"
+    assert first != second
+    assert url_filter.normalize_url("https://jobs.example.com/view?req=123") == "https://jobs.example.com/view?req=123"
+    assert url_filter.normalize_url("https://jobs.example.com/view?req=123") != url_filter.normalize_url(
+        "https://jobs.example.com/view?req=456"
+    )
+
+
+def test_url_normalization_strips_tracking_query_params():
+    normalized = url_filter.normalize_url(
+        "https://boards.greenhouse.io/embed/job_app?utm_source=x&UTM_Campaign=y&gh_src=abc&ref=feed&token=4567&for=acme"
+    )
+    assert normalized == "https://boards.greenhouse.io/embed/job_app?for=acme&token=4567"
 
 
 def test_custom_greenhouse_urls_and_rebalance_contract():
@@ -129,3 +151,15 @@ def test_filter_candidates_rejects_vendor_marketing_and_documentation_pages():
 
     assert [candidate.normalized_url for candidate in candidates] == ["https://www.comeet.com/jobs/acme/41.001"]
     assert [item["reason"] for item in discards] == ["ats_non_board_url"] * 3
+
+
+def test_filter_candidates_matches_linkedin_by_host_not_substring():
+    hits = [
+        _hit("https://de.linkedin.com/jobs/view/2"),
+        _hit("https://www.linkedin.com:443/jobs/view/4"),
+        _hit("https://www.linkedin.com./jobs/view/5"),
+        _hit("https://linkedin.com.example.net/careers/3"),
+    ]
+    kept, discards = filter_candidates(hits, {"allowed_ats_domains": [], "blocked_final_domains": []})
+    assert [d["reason"] for d in discards] == ["linkedin_forbidden"] * 3
+    assert [c.normalized_url for c in kept] == ["https://linkedin.com.example.net/careers/3"]

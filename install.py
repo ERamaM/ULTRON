@@ -35,6 +35,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -133,6 +134,19 @@ def _group_by_path(targets: dict[str, Path]) -> list[tuple[Path, list[str]]]:
 def _run(cmd: list[str]) -> None:
     """Run an installer step; its output goes to stderr so stdout stays one JSON object."""
     subprocess.run(cmd, check=True, stdout=sys.stderr)
+
+
+def _exit_on_sigterm(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
+def _handle_sigterm() -> None:
+    """Turn SIGTERM into SystemExit, so ``subprocess.run`` kills and reaps a running pip/venv step first.
+
+    With the default handler only this process dies, and ``install.sh`` would then delete a downloaded source
+    that the orphaned step still uses.
+    """
+    signal.signal(signal.SIGTERM, _exit_on_sigterm)
 
 
 def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
@@ -804,4 +818,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    _handle_sigterm()
     sys.exit(main())

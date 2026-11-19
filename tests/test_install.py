@@ -885,3 +885,15 @@ def test_claude_copy_gets_argument_hint_others_keep_portable_frontmatter(inst, f
     assert code == 0
     again = (proj / ".claude" / "skills" / "ultron" / "SKILL.md").read_text(encoding="utf-8")
     assert again.count("argument-hint:") == 1
+
+
+def test_sigterm_handler_exits_so_running_steps_are_killed(installer, monkeypatch):
+    import signal
+
+    registered = {}
+    monkeypatch.setattr(installer.signal, "signal", lambda signum, handler: registered.update({signum: handler}))
+    installer._handle_sigterm()
+    handler = registered[signal.SIGTERM]
+    with pytest.raises(SystemExit) as exc:
+        handler(signal.SIGTERM, None)
+    assert exc.value.code == 128 + signal.SIGTERM

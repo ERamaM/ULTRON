@@ -13,8 +13,10 @@ def build_query_plan(profile: dict, max_queries: int) -> list[str]:
     if max_queries <= 0:
         return []
     templates = profile.get("query_templates") or {}
-    core_titles = templates.get("core_titles") or (profile.get("criteria") or {}).get("target_titles") or []
-    titles = (*core_titles, *(templates.get("titles") or []))
+    titles = list(templates.get("core_titles") or (profile.get("criteria") or {}).get("target_titles") or [])
+    supplementary = templates.get("titles")
+    if isinstance(supplementary, list):
+        titles.extend(title.strip() for title in supplementary if isinstance(title, str) and title.strip())
     regions = list(templates.get("regions") or [])
     combos = [f"{t} {r}" for t in titles for r in regions] if regions else [str(t) for t in titles]
     broad = list(dict.fromkeys(c.strip() for c in combos if str(c).strip()))

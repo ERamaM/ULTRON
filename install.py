@@ -192,14 +192,17 @@ def _run(cmd: list[str]) -> None:
     they start before ``install.sh`` removes a downloaded source those processes still read.
     """
     _exit_if_terminated()  # a pending termination stops before the next step, never inside file moves
+    # A signal while the step is being started is only recorded (in_step is still False), so the Popen object
+    # is never lost; it is acted on right after Popen returns.
+    proc = subprocess.Popen(cmd, stdout=sys.stderr, start_new_session=os.name == "posix")
     _TERMINATION["in_step"] = True
     try:
-        proc = subprocess.Popen(cmd, stdout=sys.stderr, start_new_session=os.name == "posix")
-        try:
-            code = proc.wait()
-        except BaseException:
-            _stop_step(proc)
-            raise
+        _exit_if_terminated()
+        code = proc.wait()
+    except BaseException:
+        _TERMINATION["in_step"] = False  # a second signal during cleanup is recorded, not raised
+        _stop_step(proc)
+        raise
     finally:
         _TERMINATION["in_step"] = False
     if code:

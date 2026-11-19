@@ -88,8 +88,13 @@ def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
         _step(trace, "fetch", False, "not_fetched")
         return "pending", "not_fetched"
     if not ({r.get("identity_key") for r in runs.read_jsonl(out_dir / "postings.jsonl")} & wanted):
-        _step(trace, "fetch", False, "candidate_cap")
-        return "candidate_cap", "candidate_cap"
+        capped_path = out_dir / "fetch_capped.jsonl"
+        # Runs from before fetch recorded capped candidates: not fetched and not failed can only mean the cap.
+        if not capped_path.is_file() or {r.get("identity_key") for r in runs.read_jsonl(capped_path)} & wanted:
+            _step(trace, "fetch", False, "candidate_cap")
+            return "candidate_cap", "candidate_cap"
+        _step(trace, "fetch", False, "not_fetched")
+        return "pending", "not_fetched"
     _step(trace, "fetch", True)
 
     for row in runs.read_jsonl(out_dir / "discarded.jsonl"):

@@ -345,11 +345,19 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
     return job, False
 
 
+def _lane(candidate: CandidateUrl) -> str:
+    """Round-robin lane: the ATS board or feed (``source_key``); web-search hits get one lane per submitted query."""
+    if candidate.source_type == "web_search" or not candidate.source_key:
+        query = " ".join(str(candidate.query or "").split()).casefold()
+        return f"web_search:{query}" if query else "web_search"
+    return candidate.source_key
+
+
 def _round_robin(items: list[tuple[CandidateUrl, str]]) -> list[tuple[CandidateUrl, str]]:
-    """One candidate per source_key in turn (first-seen group order), keeping within-group order."""
+    """One candidate per lane in turn (first-seen lane order), keeping within-lane order."""
     groups: dict[str, list[tuple[CandidateUrl, str]]] = {}
     for item in items:
-        groups.setdefault(item[0].source_key or "web_search", []).append(item)
+        groups.setdefault(_lane(item[0]), []).append(item)
     queues = list(groups.values())
     out: list[tuple[CandidateUrl, str]] = []
     for rank in range(max((len(q) for q in queues), default=0)):
@@ -413,7 +421,14 @@ def fetch(run_id: str) -> dict:
         seen.add(identity)
         unique.append((candidate, identity))
 
-    selected = _round_robin(unique)[:max_pages]
+    ordered = _round_robin(unique)
+    selected, capped = ordered[:max_pages], ordered[max_pages:]
+    # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
+    runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
+        {"url": candidate.normalized_url, "identity_key": identity, "source_key": candidate.source_key,
+         "error": "max_pages_limit"}
+        for candidate, identity in capped
+    ])
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
@@ -514,4 +529,4 @@ def fetch(run_id: str) -> dict:
     runs.write_jsonl(out_dir / "postings.jsonl", postings)
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")
-    return {"fetched": len(postings), "failed": len(errors), "requests": client.requests_made}
+    return {"fetched": len(postings), "failed": len(errors), "capped": len(capped), "requests": client.requests_made}

@@ -15,7 +15,7 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   company and run `ultron seeds verify --run <id> --from <proposals.jsonl>`), make sure relevant feeds are read, or add
   the URL directly with `ultron candidates add --run <id> --from <file>`. Check the replay
   trace: if it would also fail a filter, fix that first.
-- `candidate_cap`: discovered, but never fetched because `max_pages` was reached. Use a larger preset (or
+- `candidate_cap`: discovered, but never fetched because `max_pages` was reached (listed in `fetch_capped.jsonl`). Use a larger preset (or
   `ultron saved-search create --override max_pages=...`; `run new` has no overrides), or narrow seeds so fewer boards compete.
 - `fetch_failed`: the page errored (`expired_or_closed` for 404/410, `inaccessible`, budget exhausted, rejected URL).
   Closed postings are expected; for budget errors use a larger preset (or `ultron saved-search create --override`).

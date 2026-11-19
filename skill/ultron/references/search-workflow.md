@@ -180,7 +180,8 @@ ultron fetch --run <run_id>
 Output: `{"fetched": 210, "failed": 40, "requests": 250}`
 
 Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
-Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`.
+Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
+bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 
 ## 7. Filter
 

@@ -168,7 +168,7 @@ jobs:
           path: coverage-report
       - name: Scan with SonarCloud
         if: env.SONAR_TOKEN != ''
-        uses: SonarSource/sonarqube-scan-action@v8.4.1
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
       - name: Note skipped scan
         if: env.SONAR_TOKEN == ''
         run: echo "::notice::SONAR_TOKEN is not available; SonarCloud analysis skipped."

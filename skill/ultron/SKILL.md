@@ -50,8 +50,25 @@ present it: `references/commands.md`. Anything else is a normal request (see Oth
 
 ## The search loop
 
-Before step 1, pick the profile (`ultron profile list`; none fits → `references/profile.md`) and the
-preset (`balanced` by default; `fast`, `deep`, `seed_boost`).
+For every interactive search, including `search quick` and requests in natural language, resolve
+the profile before creating a run or starting discovery:
+
+1. If the user explicitly selected a saved profile by its slug, unique name, or an earlier
+   choice for this search, use `ultron profile list` to resolve a name to its slug when needed.
+   Load the profile with `ultron profile show <slug>` and proceed when it resolves.
+2. If the selection is missing, ambiguous, or unavailable, run `ultron profile list`. Present
+   the available profiles by name and slug and ask in the user's language which to use. Wait for
+   their answer, even if only one profile is listed. Use any relevant context to suggest an
+   option while asking.
+3. Offer to create a profile if none fits. If the only option is the bundled example, label it
+   as a demo and offer to create the user's own profile. Use their CV if they provide one, or
+   start from their target roles, eligible regions, and preferred work mode. Follow
+   `references/profile.md` to show and confirm the draft before saving it. If the user confirms
+   that draft for this search, use the new profile.
+
+Then use the requested preset or default to `balanced` (`fast`, `deep`, and `seed_boost` are also
+available). A named saved search uses its saved profile. A standalone unattended command uses its
+explicit `--profile` argument.
 
 | # | Who | Action | Load |
 |---|---|---|---|

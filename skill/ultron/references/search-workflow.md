@@ -54,9 +54,8 @@ Output:
 - `profile_seeds`: verified companies already linked to this profile (reused automatically).
 - `new_companies_target`: how many new companies to propose in step 2.
 
-No profile yet? `ultron profile list`; to try the bundled example run `ultron profile install-example`
-(slug `ai-ml-remote-eu`; `profile_exists` means the user already has an edited copy: use it, do not
-`--force` without asking); to build one from a CV see `references/profile.md`.
+If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md
+before calling `run new`. For a named saved search, use its configured profile.
 
 ## 2. Propose and verify companies
 

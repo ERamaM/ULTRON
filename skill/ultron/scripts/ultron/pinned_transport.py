@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ipaddress
 import ssl
+from collections import OrderedDict
 from collections.abc import Callable
 from functools import lru_cache
 
@@ -20,6 +21,7 @@ from ultron.core.urlpolicy import URLRejected
 
 PINNED_ADDRESSES = "ultron.pinned_addresses"
 MAX_PINNED_ATTEMPTS = 3  # bounds connect fallbacks so many unreachable addresses cannot stall a run
+MAX_POOLS = 16  # least recently used per-hostname pools beyond this are closed
 
 WireFactory = Callable[[], httpx.BaseTransport]
 
@@ -35,14 +37,22 @@ def default_wire() -> httpx.BaseTransport:
 
 
 class PinnedTransport(httpx.BaseTransport):
-    def __init__(self, wire_factory: WireFactory = default_wire) -> None:
+    def __init__(self, wire_factory: WireFactory = default_wire, max_pools: int = MAX_POOLS) -> None:
         self._wire_factory = wire_factory
-        self._wires: dict[str, httpx.BaseTransport] = {}
+        self._max_pools = max(1, max_pools)
+        self._wires: OrderedDict[str, httpx.BaseTransport] = OrderedDict()
 
     def _wire(self, hostname: str) -> httpx.BaseTransport:
         wire = self._wires.get(hostname)
-        if wire is None:
-            wire = self._wires[hostname] = self._wire_factory()
+        if wire is not None:
+            self._wires.move_to_end(hostname)
+            return wire
+        # HttpClient reads and closes each response before the next request, so evicting an idle pool is safe and
+        # keeps open keep-alive sockets bounded on runs that touch hundreds of hosts.
+        while len(self._wires) >= self._max_pools:
+            _, evicted = self._wires.popitem(last=False)
+            evicted.close()
+        wire = self._wires[hostname] = self._wire_factory()
         return wire
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
@@ -70,9 +80,9 @@ class PinnedTransport(httpx.BaseTransport):
         raise AssertionError("unreachable")  # pragma: no cover
 
     def close(self) -> None:
-        wires, self._wires = self._wires, {}
+        wires, self._wires = self._wires, OrderedDict()
         for wire in wires.values():
             wire.close()
 
 
-__all__ = ["MAX_PINNED_ATTEMPTS", "PINNED_ADDRESSES", "PinnedTransport", "default_wire"]
+__all__ = ["MAX_PINNED_ATTEMPTS", "MAX_POOLS", "PINNED_ADDRESSES", "PinnedTransport", "default_wire"]

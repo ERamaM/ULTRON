@@ -49,7 +49,7 @@ def test_workbook_sheets(run_id):
     assert wb.sheetnames == ["Summary", "Roles (2)", "Discards (2)"]
     assert wb["Roles (2)"].max_row == 3
     assert wb["Roles (2)"].auto_filter.ref
-    assert wb["Roles (2)"].freeze_panes == "A2"
+    assert wb["Roles (2)"].freeze_panes == "B2"
     assert wb["Roles (2)"]["Q2"].hyperlink is not None
     d = wb["Discards (2)"]
     assert [d.cell(row=r, column=1).value for r in (2, 3)] == ["stale", "final_cap"]
@@ -109,7 +109,7 @@ def test_numbers_native_and_unsafe_urls_not_linked(run_id):
     ws = load_workbook(xlsx.export_run_to_excel(run_id))["Roles (2)"]
     assert ws["L2"].value == -5 and ws["L2"].data_type == "n"
     assert ws["L3"].value == 80
-    assert ws["R2"].value is True
+    assert ws["R2"].value == "New"  # locale-independent label instead of a boolean
     assert ws["Q2"].hyperlink is None and ws["Q3"].hyperlink is None
 
 

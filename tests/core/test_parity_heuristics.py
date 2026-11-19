@@ -20,6 +20,14 @@ GOLDEN = json.loads((FIXTURES / "heuristic_characterization_golden.json").read_t
 PROFILE = yaml.safe_load((FIXTURES / "profiles" / "ai-ml-remote-eu.yaml").read_text(encoding="utf-8"))
 GOLDEN_BY_ID = {case["id"]: case for case in GOLDEN["cases"]}
 COMPARED_KEYS = ("classification_signals", "pre_filter", "heuristic_evaluator", "hard_filter", "pipeline_characterization")
+# Reviewed fixes where ULTRON intentionally differs from the MARK III snapshot. The golden file stays untouched;
+# each entry overrides only the named fields and says why.
+INTENTIONAL_DEVIATIONS = {
+    # Specialties no longer match in the middle of a word: "eval" inside "retrieval", "RAG" inside "storage".
+    "en-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
+    "es-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
+    "q-cet-substring": {"heuristic_evaluator": {"fit_signals": []}},
+}
 
 
 def _job_from_case(case: dict) -> ExtractedJob:
@@ -40,6 +48,8 @@ def test_all_60_cases_match_mark_iii_golden(case):
     result = characterize_job(_job_from_case(case), PROFILE, load_allowed_domains())
     actual = {key: value for key, value in result.items() if not key.startswith("_")}
     expected = {key: GOLDEN_BY_ID[case["id"]][key] for key in COMPARED_KEYS}
+    for key, fields in INTENTIONAL_DEVIATIONS.get(case["id"], {}).items():
+        expected[key] = {**expected[key], **fields}
     assert set(actual) == set(COMPARED_KEYS), case["id"]
     diff = {key: {"expected": expected[key], "actual": actual[key]} for key in COMPARED_KEYS if actual[key] != expected[key]}
     assert not diff, f"{case['id']}: {json.dumps(diff, ensure_ascii=False, indent=2)}"

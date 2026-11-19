@@ -241,6 +241,59 @@ def test_undeclared_non_utf8_falls_back_to_cp1252():
     assert make_client(handler).get_text("https://x.test/")[2] == "Engineer’s"
 
 
+def _flaky(exc_type, failures=1):
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.method)
+        if len(calls) <= failures:
+            raise exc_type("transient", request=request)
+        return httpx.Response(200, json={"ok": True})
+
+    return handler, calls
+
+
+@pytest.mark.parametrize("exc_type", [httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout])
+def test_get_retries_transient_transport_errors(exc_type):
+    handler, calls = _flaky(exc_type)
+    waits: list[float] = []
+    client = make_client(handler, sleep=waits.append)
+    assert client.request_json("https://x.test/api") == {"ok": True}
+    assert len(calls) == 2 and client.requests_made == 2  # every attempt is charged to the budget
+    assert waits == [0.5]
+
+
+def test_transient_errors_stop_after_max_attempts():
+    handler, calls = _flaky(httpx.ConnectError, failures=10)
+    client = make_client(handler)
+    with pytest.raises(HttpError):
+        client.get_text("https://x.test/")
+    assert len(calls) == net.MAX_ATTEMPTS and client.requests_made == net.MAX_ATTEMPTS
+
+
+def test_post_not_retried_after_read_timeout():
+    handler, calls = _flaky(httpx.ReadTimeout)
+    client = make_client(handler)
+    with pytest.raises(HttpError):
+        client.request_json("https://x.test/api", method="POST", json_body={"q": 1})
+    assert calls == ["POST"] and client.requests_made == 1
+
+
+def test_post_retried_after_connect_error():
+    handler, calls = _flaky(httpx.ConnectError)
+    client = make_client(handler)
+    assert client.request_json("https://x.test/api", method="POST", json_body={"q": 1}) == {"ok": True}
+    assert calls == ["POST", "POST"]
+
+
+def test_other_transport_errors_are_not_retried():
+    handler, calls = _flaky(httpx.RemoteProtocolError)
+    client = make_client(handler)
+    with pytest.raises(HttpError):
+        client.get_text("https://x.test/")
+    assert len(calls) == 1
+
+
 def test_invalid_idna_hostname_is_rejected_not_raised():
     # Python's IDNA2003 codec accepts this host, but httpx (IDNA2008) refuses to build the request.
     client = make_client(lambda r: httpx.Response(200, text="x"))
@@ -256,3 +309,17 @@ def test_redirect_to_invalid_idna_hostname_is_rejected():
     # httpx already reports a bad Location as a protocol error; either way it must be a handled error type.
     with pytest.raises((HttpError, URLRejected)):
         make_client(handler).get_text("https://x.test/")
+
+
+def test_unicode_host_resolves_the_ascii_name_httpx_connects_to():
+    asked: list[str] = []
+
+    def resolver(hostname: str, port: int) -> list[str]:
+        asked.append(hostname)
+        # The two IDNA encodings of "faß.de" point at different servers.
+        return ["93.184.216.34"] if hostname == "xn--fa-hia.de" else ["198.51.100.7"]
+
+    client = make_client(lambda r: httpx.Response(200, text="ok"), resolver=resolver)
+    assert client.get_text("https://faß.de/")[0] == 200
+    assert asked == ["xn--fa-hia.de"]
+    assert client._validated["faß.de"] == ("93.184.216.34",)

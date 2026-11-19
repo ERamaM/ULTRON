@@ -12,7 +12,8 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from ultron import __version__
-from ultron.core.urlpolicy import Resolver, URLRejected, admit_url
+from ultron.core.urlpolicy import Resolver, URLRejected, admit_url, resolve_public_addresses
+from ultron.pinned_transport import PINNED_ADDRESSES, PinnedTransport
 
 USER_AGENT = f"ULTRON/{__version__}"
 MAX_REDIRECTS = 5
@@ -38,6 +39,14 @@ class HttpError(RuntimeError):
     def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+def _is_transient(exc: HttpError, method: str) -> bool:
+    """Connect failures never reached the server, so any method may retry; read timeouts only for safe methods."""
+    cause = exc.__cause__
+    if isinstance(cause, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return True
+    return isinstance(cause, httpx.ReadTimeout) and method in {"GET", "HEAD"}
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -95,8 +104,10 @@ class HttpClient:
         self._clock = clock
         self._per_host: dict[str, int] = {}
         self._last_request: dict[str, float] = {}
+        self._validated: dict[str, tuple[str, ...]] = {}  # hostname -> addresses validated for the current hop
         self._client = httpx.Client(
-            transport=transport,
+            # An injected transport (tests) sees the logical URL; the pinned addresses travel in the extension.
+            transport=PinnedTransport() if transport is None else transport,
             follow_redirects=False,
             trust_env=False,
             headers={"User-Agent": USER_AGENT},
@@ -140,7 +151,7 @@ class HttpClient:
     ) -> tuple[int, httpx.Headers, str]:
         self._charge(host)
         self._throttle(host)
-        kwargs: dict[str, Any] = {"timeout": timeout}
+        kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
         try:
@@ -169,14 +180,28 @@ class HttpClient:
         byte_limit = self.max_bytes if max_bytes is None else max_bytes
         current = url
         for _hop in range(MAX_REDIRECTS + 1):
-            admitted = admit_url(
-                current, allowed_domains=allowed_domains, resolve_dns=True, resolver=self._resolver
+            admitted = admit_url(current, allowed_domains=allowed_domains)
+            # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
+            # Resolve the ASCII host HTTPX connects to and sends as SNI/Host (IDNA2008, e.g. "xn--fa-hia.de"),
+            # not the Unicode name, which Python's resolver would encode differently ("fass.de").
+            try:
+                connect_host = httpx.URL(admitted.url).raw_host.decode("ascii")
+            except (httpx.InvalidURL, UnicodeError) as exc:
+                raise URLRejected("invalid_url") from exc
+            self._validated[admitted.hostname] = resolve_public_addresses(
+                connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
             for attempt in range(1, MAX_ATTEMPTS + 1):
-                status, headers, text = self._send_once(
-                    method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
-                )
+                try:
+                    status, headers, text = self._send_once(
+                        method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
+                    )
+                except HttpError as exc:
+                    if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
+                        self._sleep(0.5 * attempt)
+                        continue
+                    raise
                 if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
                     delay = _retry_after(httpx.Response(status, headers=headers))
                     self._sleep(0.5 * attempt if delay is None else delay)

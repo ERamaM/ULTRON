@@ -586,3 +586,27 @@ def test_valid_through_is_bounded_and_only_a_terminal_z_is_utc():
     assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
     assert base._valid_through_expired("2026-06-15TZ1:00:00", now=now) is False  # a Z elsewhere is not UTC
     assert base._valid_through_expired("2020-01-01" + " " * 100, now=now) is False  # over the length cap
+
+
+def test_identity_matching_is_bounded_on_pages_with_many_postings(monkeypatch):
+    calls = []
+    real = base._posting_identity
+
+    def counting(url):
+        calls.append(url)
+        return real(url)
+
+    monkeypatch.setattr(base, "_posting_identity", counting)
+    page_url = "https://boards.greenhouse.io/acme/jobs/123"
+    many = ", ".join(f'{{"@type": "JobPosting", "url": "/acme/jobs/{1000 + i}"}}' for i in range(500))
+    expired = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01"}'
+    html = f'<html><head><script type="application/ld+json">[{expired}, {many}]</script></head><body></body></html>'
+    job = base.parse_generic(_page(html, final_url=page_url))
+    assert len(calls) <= base._MAX_IDENTITY_CHECKS + 1  # the page URL plus the capped node URLs
+    assert job.title == "ML Engineer"
+    assert job.valid_through_expired is False  # too many candidates: the deadline is ignored, never trusted
+
+    # A matching node within the cap still decides, as on normal pages.
+    own = f'{{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01", "url": "{page_url}"}}'
+    html = f'<html><head><script type="application/ld+json">[{own}, {many}]</script></head><body></body></html>'
+    assert base.parse_generic(_page(html, final_url=page_url)).valid_through_expired is True

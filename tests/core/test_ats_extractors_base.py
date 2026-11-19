@@ -529,3 +529,34 @@ def test_structured_fields_null_title_is_empty():
     assert fields["title"] == ""
     assert fields["remote_text"] == ""
     assert base._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""
+
+
+def test_relative_jsonld_url_for_this_posting_keeps_its_deadline():
+    def page(url: str) -> str:
+        return ('<html><head><script type="application/ld+json">'
+                '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01", '
+                f'"url": "{url}"}}</script></head><body></body></html>')
+
+    assert base.parse_generic(_page(page("/acme/jobs/123"))).valid_through_expired is True
+    assert base.parse_generic(_page(page("/acme/jobs/999"))).valid_through_expired is False
+
+
+def test_job_id_query_parameter_decides_which_deadline_applies():
+    page_url = "https://acme.com/careers?gh_jid=4012346"
+    nodes = (
+        '{"@type": "JobPosting", "title": "Other role", "validThrough": "2020-02-01", '
+        '"url": "https://acme.com/careers?gh_jid=4012347"}, '
+        '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2999-01-01", '
+        f'"url": "{page_url}"}}'
+    )
+    html = f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+    job = base.parse_generic(_page(html, final_url=page_url))
+    assert job.valid_through_expired is False
+    assert job.title == "ML Engineer"
+    # Only the other job id's node: its fields may be used, its deadline is not.
+    only_other = (
+        '<html><head><script type="application/ld+json">{"@type": "JobPosting", "title": "Other role", '
+        '"validThrough": "2020-02-01", "url": "https://acme.com/careers?gh_jid=4012347"}</script></head>'
+        "<body></body></html>"
+    )
+    assert base.parse_generic(_page(only_other, final_url=page_url)).valid_through_expired is False

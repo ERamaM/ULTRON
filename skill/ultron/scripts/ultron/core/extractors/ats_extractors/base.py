@@ -3,12 +3,13 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.vendors import canonical_domain_for_vendor, match_vendor_by_fingerprint
 from ultron.core.extractors.ats_extractors.posting_date import posting_date_from_text
+from ultron.core.job_identity import canonical_job_identity
 from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.models import ExtractedJob, JobRawPage
 from ultron.core.rules.geo_eu import EXTRACTOR_COMPENSATION_OVERRIDE_TERMS, EXTRACTOR_LOCATION_MARKERS
@@ -446,19 +447,37 @@ def _comparable_page_url(url: str) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
 
 
+def _posting_identity(url: str) -> str:
+    """Identity of the posting a URL points at; keeps job-identifying query parameters such as ``gh_jid``."""
+    try:
+        return canonical_job_identity(url).identity_key
+    except (ValueError, TypeError):
+        return ""
+
+
 def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None) -> dict[str, str]:
-    """Pick the JobPosting of the evaluated page; fall back to the first titled one."""
+    """Pick the JobPosting of the evaluated page; fall back to the first titled one.
+
+    Only a node that identifies this very posting (same job identity after resolving a relative ``url``), or a
+    node without a ``url``, keeps its ``valid_through``: another posting's deadline (a recommendation, say) is
+    never evidence that this page has expired, even when it is used to fill in other fields.
+    """
     first_fields: dict[str, str] | None = None
+    path_match: dict[str, str] | None = None
     page_key = _comparable_page_url(page_url or "")
+    page_identity = _posting_identity(page_url or "") if page_key else ""
     for job in _iter_jobposting_nodes(soup):
         fields = _structured_fields_from_node(job)
         node_url = job.get("url")
-        if page_key and isinstance(node_url, str) and _comparable_page_url(node_url) == page_key:
-            return fields
         if page_key and isinstance(node_url, str) and node_url.strip():
-            # A node that names another posting (e.g. a recommendation) may still fill in fields, but its
-            # deadline is not evidence that this page has expired.
+            resolved = urljoin(page_url or "", node_url.strip())
+            if page_identity and _posting_identity(resolved) == page_identity:
+                return fields
             fields = {**fields, "valid_through": ""}
+            if _comparable_page_url(resolved) == page_key:
+                if path_match is None:
+                    path_match = fields  # same path, different job id (e.g. ?gh_jid=...): fields only
+                continue
         if fields.get("title"):
             if not page_key:
                 return fields
@@ -467,7 +486,7 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
             continue
         if first_fields is None:
             first_fields = fields
-    return first_fields or {}
+    return path_match or first_fields or {}
 
 
 def extract_text_lines(text: str) -> list[str]:

@@ -6,7 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from ultron.core.models import GeoScope, JobEvaluation
-from ultron.core.rules.hard_filters import classify_eligibility, has_region_red_flags
+from ultron.core.rules.geo_eu import has_region_red_flags
+from ultron.core.rules.hard_filters import classify_eligibility
 
 logger = logging.getLogger(__name__)
 

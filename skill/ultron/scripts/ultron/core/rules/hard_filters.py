@@ -7,29 +7,11 @@ from collections.abc import Iterable, Iterator
 from ultron.core.models import ClassificationSignals, Eligibility, ExtractedJob, ExtractionMeta, GeoScope, RemotePolicy
 from ultron.core.rules import hard_filters_data as rules_data
 from ultron.core.rules import hard_filters_signals as signals
-
-# European geography rules live in ``geo_eu``; they are re-exported here because MARK III
-# callers and tests address them through this module.
-from ultron.core.rules.geo_eu import (  # noqa: F401 - re-exported names
-    _fold_accents,
-    _has_disallowed_region_terms,
-    _has_est_timezone_signal,
-    _has_eu_country_in_location_context,
-    _has_eu_eligibility_signal,
-    _has_non_eu_location_in_context,
-    _has_pattern_match,
-    _has_positive_spain_signal,
-    _has_security_clearance_requirement,
-    _has_term_in_location_context,
-    _has_us_location_signal,
-    _has_us_only_signal,
-    _has_us_state_in_location_context,
-    _iter_term_windows,
-    _window_has_us_disqualifier,
+from ultron.core.rules.geo_eu import (
     classify_eu_eligibility,
     classify_eu_remote_policy,
-    has_region_red_flags,
 )
+from ultron.core.rules.geography import assess_geography
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,
     RoleNegatives,
@@ -46,36 +28,6 @@ from ultron.core.rules.text_patterns import (
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 
 logger = logging.getLogger(__name__)
-
-
-def build_geo_body_excerpt(body_text: str, *, max_chars: int = 1200) -> str:
-    text = (body_text or "").strip()
-    if not text:
-        return ""
-    normalized_max = max(250, int(max_chars))
-    selected_lines: list[str] = []
-    seen: set[str] = set()
-    total = 0
-    for raw_line in re.split(r"[\r\n]+", text or ""):
-        line = " ".join(raw_line.split()).strip()
-        if not line:
-            continue
-        low = line.lower()
-        if not contains_any_substring(low, rules_data.GEO_BODY_CONTEXT_TERMS):
-            continue
-        key = low
-        if key in seen:
-            continue
-        seen.add(key)
-        chunk = line[:400]
-        extra = len(chunk) + (1 if selected_lines else 0)
-        if selected_lines and total + extra > normalized_max:
-            break
-        selected_lines.append(chunk)
-        total += extra
-        if total >= normalized_max:
-            break
-    return "\n".join(selected_lines)
 
 
 def _has_contextual_hybrid_conflict(body_text: str) -> bool:
@@ -303,9 +255,6 @@ def apply_hard_filters(
         else:
             return False, "hybrid_or_not_explicit_remote"
 
-    # Geography composes the classifiers in this module; defer import to avoid a cycle.
-    from ultron.core.rules.geography import assess_geography
-
     geography = (
         assess_geography(
             location=job.location,
@@ -409,9 +358,6 @@ def pre_filter_candidate(
                 (job.title or "")[:100],
             )
             return False, "hybrid_or_not_explicit_remote"
-    # Geography composes the classifiers in this module; defer import to avoid a cycle.
-    from ultron.core.rules.geography import assess_geography
-
     geography = (
         assess_geography(
             location=job.location,

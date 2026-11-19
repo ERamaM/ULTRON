@@ -395,10 +395,15 @@ def _record_target_exists(record: object) -> bool:
     path = record.get("path") if isinstance(record, dict) else None
     if not isinstance(path, str):
         return False
+    # os.lstat, not Path.exists(): on Python 3.14 exists()/is_symlink() turn any OSError into False, and a
+    # folder that is only unreadable right now (permissions, an offline drive) must keep its record.
     try:
-        return Path(path).exists() or _is_link(Path(path))
-    except OSError:
-        return True  # unreadable now (e.g. an offline drive): keep the record
+        os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except (OSError, ValueError):
+        return True
+    return True
 
 
 def _save_registry_file(data: dict) -> None:

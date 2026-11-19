@@ -81,8 +81,11 @@ def latest_release(timeout: float = NOTICE_TIMEOUT) -> dict | None:
 
 
 def release_for_version(version: tuple[int, int, int], timeout: float = NOTICE_TIMEOUT) -> dict | None:
-    """The stable release tagged ``vX.Y.Z``, or ``None`` when it does not exist or is not stable."""
-    return _get_release(f"tags/v{format_version(version)}", timeout)
+    """The stable release tagged ``vX.Y.Z`` (or ``X.Y.Z``), or ``None`` when neither exists as a stable release."""
+    for tag in (f"v{format_version(version)}", format_version(version)):
+        if (release := _get_release(f"tags/{tag}", timeout)) is not None:
+            return release
+    return None
 
 
 def release_notice(installed_version: str) -> dict[str, str] | None:

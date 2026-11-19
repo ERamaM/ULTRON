@@ -1061,6 +1061,28 @@ def test_records_of_deleted_folders_are_dropped_on_the_next_write(inst, fake_hom
     assert list(_records(fake_home)) == [str(fake_home / ".claude" / "skills" / "ultron")]
 
 
+def test_inaccessible_recorded_folder_is_not_pruned(inst, fake_home, capsys, monkeypatch):
+    _run_main(inst, capsys, "--platforms", "claude,opencode")
+    opencode = fake_home / ".config" / "opencode" / "skills" / "ultron"
+    real_lstat = inst.os.lstat
+
+    def lstat(path, *args, **kwargs):
+        if Path(path) == opencode:
+            raise PermissionError("denied")  # Path.exists() would swallow this on Python 3.14
+        return real_lstat(path, *args, **kwargs)
+
+    real_exists, real_is_symlink = Path.exists, Path.is_symlink
+    monkeypatch.setattr(inst.os, "lstat", lstat)
+    # Python 3.14 behaviour: Path.exists()/is_symlink() swallow the PermissionError and return False
+    monkeypatch.setattr(Path, "exists", lambda self, **kw: False if self == opencode else real_exists(self, **kw))
+    monkeypatch.setattr(Path, "is_symlink", lambda self: False if self == opencode else real_is_symlink(self))
+    assert inst._record_target_exists({"path": str(opencode)}) is True
+    assert inst._record_target_exists({"path": str(fake_home / "never-existed")}) is False
+    code, _ = _run_main(inst, capsys, "--update", "--platforms", "claude")
+    assert code == 0
+    assert str(opencode) in _records(fake_home)
+
+
 def test_termination_after_a_copy_keeps_its_record(inst, fake_home, capsys, monkeypatch):
     real_copy = inst.install_copy
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -76,3 +77,37 @@ def test_breaker_resets_after_a_success():
     fetch_stage.fetch(run_id)
     errors = runs.read_jsonl(runs.run_dir(run_id) / "fetch_errors.jsonl")
     assert all(e["error"] == "inaccessible" for e in errors) and len(errors) == 4
+
+
+def test_breaker_counts_consecutive_responses_not_pages():
+    attempts: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        n = attempts[request.url.path] = attempts.get(request.url.path, 0) + 1
+        # Each URL answers 429, 500, 429: every page ends blocked, but never three blocked responses in a row.
+        return httpx.Response(500 if n == 2 else 429)
+
+    cands = [_cand("flaky.example.org", i) for i in range(4)]
+    run_id = _run(handler, cands)
+    fetch_stage.fetch(run_id)
+    errors = {e["url"]: e["error"] for e in runs.read_jsonl(runs.run_dir(run_id) / "fetch_errors.jsonl")}
+    assert [errors[c.normalized_url] for c in cands] == ["inaccessible"] * 4
+    assert attempts[urlsplit(cands[3].normalized_url).path] == 3  # the fourth URL was requested
+
+
+def test_breaker_stops_retries_once_the_streak_is_reached():
+    attempts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(request.url.path)
+        if request.url.path.endswith("/2"):
+            return httpx.Response(429) if attempts.count(request.url.path) == 1 else httpx.Response(200, text=PAGE)
+        return httpx.Response(403)
+
+    cands = [_cand("blocked.example.org", i) for i in range(4)]
+    run_id = _run(handler, cands)
+    fetch_stage.fetch(run_id)
+    errors = {e["url"]: e["error"] for e in runs.read_jsonl(runs.run_dir(run_id) / "fetch_errors.jsonl")}
+    # 403, 403, then a 429 completes the streak: the 429 retry is not sent and the last URL is skipped.
+    assert [errors[c.normalized_url] for c in cands] == ["inaccessible", "inaccessible", "host_blocked", "host_blocked"]
+    assert attempts == ["/jobs/0", "/jobs/1", "/jobs/2"]

@@ -46,6 +46,14 @@ class HttpError(RuntimeError):
         self.status_code = status_code
 
 
+class HostBlocked(HttpError):
+    """The host answered 403/429 ``block_threshold`` times in a row; no further request is sent to it."""
+
+    def __init__(self, host: str) -> None:
+        super().__init__(f"host_blocked: {host}")
+        self.host = host
+
+
 def _is_transient(exc: HttpError, method: str) -> bool:
     """Connect failures never reached the server, so any method may retry; read timeouts only for safe methods."""
     cause = exc.__cause__
@@ -105,7 +113,11 @@ class HttpClient:
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time,
+        block_threshold: int | None = None,
     ) -> None:
+        # With a threshold, a host whose consecutive 403/429 streak reached it gets no more requests from this
+        # client: no retry, no redirect hop and no fallback call to it (they raise HostBlocked instead).
+        self.block_threshold = block_threshold
         self.max_requests = max_requests
         self.max_requests_per_host = max_requests_per_host
         self.max_bytes = max_bytes
@@ -180,6 +192,8 @@ class HttpClient:
     def _send_once(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
     ) -> tuple[int, httpx.Headers, str]:
+        if self.block_threshold is not None and self.block_streak(host) >= self.block_threshold:
+            raise HostBlocked(host)
         self._charge(host)
         self._throttle(host)
         kwargs: dict[str, Any] = {"timeout": timeout}

@@ -36,7 +36,7 @@ criteria:
     preferred_terms: [senior, sr., staff, principal, lead]
     excluded_terms: [intern, junior, graduate, entry]
   remote_policy:
-    required: full_remote            # full_remote | any
+    required: full_remote            # full_remote (default when omitted) | any
     positive_terms: [remote, remote-first, work from home, distributed]
     negative_terms: [hybrid, onsite, on-site, in-office]
   location_scope:

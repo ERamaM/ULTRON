@@ -182,6 +182,8 @@ class HttpClient:
                 encoding = response.charset_encoding
                 headers = response.headers
                 status = response.status_code
+        except httpx.InvalidURL as exc:  # e.g. a host Python's IDNA codec accepts but httpx (IDNA2008) refuses
+            raise URLRejected("invalid_url") from exc
         except httpx.HTTPError as exc:
             raise HttpError(f"request failed: {type(exc).__name__}") from exc
         self._adapt_host_delay(host, status)

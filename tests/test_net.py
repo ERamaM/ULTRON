@@ -321,3 +321,20 @@ def test_large_numeric_retry_after_is_capped():
 
     make_client(handler, sleep=waits.append).get_text("https://x.test/")
     assert waits == [net.MAX_RETRY_AFTER]
+
+
+def test_invalid_idna_hostname_is_rejected_not_raised():
+    # Python's IDNA2003 codec accepts this host, but httpx (IDNA2008) refuses to build the request.
+    client = make_client(lambda r: httpx.Response(200, text="x"))
+    with pytest.raises(URLRejected) as info:
+        client.get_text("https://☃.net/")
+    assert info.value.reason == "invalid_url"
+
+
+def test_redirect_to_invalid_idna_hostname_is_rejected():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers=[(b"Location", "https://☃.net/".encode())])
+
+    # httpx already reports a bad Location as a protocol error; either way it must be a handled error type.
+    with pytest.raises((HttpError, URLRejected)):
+        make_client(handler).get_text("https://x.test/")

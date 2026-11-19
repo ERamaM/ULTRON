@@ -182,8 +182,14 @@ class HttpClient:
         for _hop in range(MAX_REDIRECTS + 1):
             admitted = admit_url(current, allowed_domains=allowed_domains)
             # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
+            # Resolve the ASCII host HTTPX connects to and sends as SNI/Host (IDNA2008, e.g. "xn--fa-hia.de"),
+            # not the Unicode name, which Python's resolver would encode differently ("fass.de").
+            try:
+                connect_host = httpx.URL(admitted.url).raw_host.decode("ascii")
+            except (httpx.InvalidURL, UnicodeError) as exc:
+                raise URLRejected("invalid_url") from exc
             self._validated[admitted.hostname] = resolve_public_addresses(
-                admitted.hostname, admitted.port, resolver=self._resolver
+                connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
             for attempt in range(1, MAX_ATTEMPTS + 1):

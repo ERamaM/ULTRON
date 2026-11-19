@@ -674,13 +674,19 @@ def test_swap_failure_restores_previous_install(inst, fake_home, tmp_path, monke
     assert not list(dest.parent.glob(".ultron-new-*"))
 
 
-def _has_everyone_read(path: Path) -> bool:
+def _inherited_everyone_read(path: Path) -> bool:
+    # Read rules as SIDs so the check does not depend on account-name resolution.
+    escaped_path = str(path).replace("'", "''")
     script = (
-        f"@((Get-Acl -LiteralPath '{path}').Access | Where-Object {{ "
-        "$_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -eq 'S-1-1-0' }).Count"
+        "$ErrorActionPreference = 'Stop'; "
+        f"$acl = [IO.File]::GetAccessControl('{escaped_path}'); "
+        "@($acl.GetAccessRules($false, $true, [Security.Principal.SecurityIdentifier]) | Where-Object { "
+        "$_.IdentityReference.Value -eq 'S-1-1-0' -and $_.AccessControlType -eq 'Allow' -and "
+        "($_.FileSystemRights -band [Security.AccessControl.FileSystemRights]::ReadData) }).Count"
     )
-    out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True, check=True)
-    return int(out.stdout.strip() or 0) > 0
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", script], capture_output=True, text=True, check=False)
+    assert out.returncode == 0, out.stderr
+    return int(out.stdout.strip()) > 0
 
 
 def test_installed_skill_inherits_the_parent_permissions(inst, fake_home, tmp_path):
@@ -695,8 +701,14 @@ def test_installed_skill_inherits_the_parent_permissions(inst, fake_home, tmp_pa
         if shutil.which("powershell") is None or shutil.which("icacls") is None:
             pytest.skip("powershell/icacls not available")
         subprocess.run(["icacls", str(parent), "/grant", "*S-1-1-0:(OI)(CI)RX", "/Q"], capture_output=True, check=True)
+        sibling = parent / "plain"
+        sibling.mkdir()
+        sample = sibling / "sample.md"
+        sample.touch()
+        assert _inherited_everyone_read(sample), "A regular file did not inherit the test ACL"
         inst.install_copy(src, dest, inst.runtime_info())
-        assert _has_everyone_read(dest / "SKILL.md")
+        for installed_file in (dest / "SKILL.md", dest / "references" / "seeds.md"):
+            assert _inherited_everyone_read(installed_file), f"{installed_file} did not inherit the destination ACL"
     else:
         inst.install_copy(src, dest, inst.runtime_info())
         sibling = parent / "plain"

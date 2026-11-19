@@ -391,3 +391,21 @@ def test_fetch_bamboohr_spa_and_greenhouse_form_shell_enrich_from_api(capsys):
     assert by_company["Vizzuality"]["job"]["posting_date"] == "2026-11-12"
     assert "microservices in Python" in by_company["Fever"]["job"]["body_text"]
     assert by_company["Fever"]["ats_fingerprint"] is True
+
+
+def test_fetch_invalid_idna_host_is_recorded_and_stage_continues():
+    from ultron.stages.fetch import fetch
+
+    run_id = _run(lambda r: httpx.Response(200, text=PAGE))
+    d = runs.run_dir(run_id)
+    bad = "https://☃.net/jobs/1"
+    runs.write_jsonl(d / "candidates.jsonl", [
+        _cand("https://boards.greenhouse.io/acme/jobs/1"),
+        CandidateUrl(query_id="web:1", query="", source_url=bad, normalized_url=bad, domain="☃.net",
+                     source_type="web_search", source_key="web_search"),
+    ])
+    runs.mark_stage(run_id, "discover_ats")
+    res = fetch(run_id)
+    assert res["fetched"] == 1 and res["failed"] == 1
+    assert len(runs.read_jsonl(d / "postings.jsonl")) == 1
+    assert runs.read_jsonl(d / "fetch_errors.jsonl")[0]["error"] == "url_rejected: invalid_url"

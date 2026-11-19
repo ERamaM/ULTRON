@@ -4,9 +4,32 @@ import re
 import unicodedata
 
 from ultron.core.models import COMPANY_NOT_FOUND, LOCATION_NOT_SHOWN, TITLE_NOT_FOUND, FinalRow
+from ultron.core.rules.geo_eu import EU_COUNTRY_TERMS, SPAIN_LOCALITY_TERMS, US_CITY_TERMS
 
-_TITLE_NOISE_RE = re.compile(r"\((?:[^)]*)\)|\[(?:[^\]]*)\]")
+_TITLE_NOISE_RE = re.compile(r"\(([^)]*)\)|\[([^\]]*)\]")
 _TITLE_MODE_RE = re.compile(r"\b(remote|remoto|hybrid|hibrido|teletrabajo)\b")
+# Parenthetical words that only describe work mode, contract, gender tag or region, never the role itself.
+_TITLE_NOISE_TOKENS = frozenset(
+    {
+        *("remote", "remoto", "hybrid", "hibrido", "teletrabajo", "onsite", "on", "site", "office", "fully"),
+        *("full", "part", "time", "contract", "permanent", "first", "friendly", "only", "or", "and", "in"),
+        *("m", "f", "w", "d", "x", "h", "mwd", "mfd", "fmd", "all", "genders", "gender"),
+        *("eu", "europe", "emea", "eea", "uk", "us", "usa", "worldwide", "global", "anywhere", "latam", "apac"),
+    }
+)
+_TITLE_PLACE_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(term) for term in (*EU_COUNTRY_TERMS, *SPAIN_LOCALITY_TERMS, *US_CITY_TERMS)) + r")\b"
+)
+_TITLE_TOKEN_SPLIT_RE = re.compile(r"[\W_]+")  # Unicode-aware: non-ASCII letters count as words too
+
+
+def _replace_title_parenthetical(match: re.Match[str]) -> str:
+    """Drop a parenthetical made only of work-mode/region noise; otherwise keep its words."""
+    content = match.group(1) if match.group(1) is not None else match.group(2)
+    tokens = _TITLE_TOKEN_SPLIT_RE.split(_TITLE_PLACE_RE.sub(" ", content))
+    if all(token in _TITLE_NOISE_TOKENS for token in tokens if token):
+        return " "
+    return f" {re.sub(r'[,;:/|]+', ' ', content)} "
 _VERDICT_RANK = {"keep": 0, "unsure": 1}
 _ELIGIBILITY_RANK = {"confirmed": 0, "high": 1, "medium": 2, "unknown": 3}
 
@@ -15,7 +38,7 @@ def normalize_title_for_dedup(title: str) -> str:
     """Collapse title variants that only differ by mode/noise/accents."""
     folded = unicodedata.normalize("NFKD", str(title or ""))
     folded = "".join(ch for ch in folded if not unicodedata.combining(ch))
-    low = _TITLE_NOISE_RE.sub(" ", folded.lower())
+    low = _TITLE_NOISE_RE.sub(_replace_title_parenthetical, folded.lower())
     low = _TITLE_MODE_RE.sub(" ", low)
     return re.sub(r"\s+", " ", low).strip(" -–—|,")
 

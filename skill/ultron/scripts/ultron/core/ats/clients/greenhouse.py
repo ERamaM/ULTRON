@@ -52,14 +52,14 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
     for job in jobs:
         if not isinstance(job, dict):
             continue
-        title = str(job.get("title", "")).strip()
+        title = str(job.get("title") or "").strip()
         apply_url = _canonical_greenhouse_url(board_identifier, job, eu=used_eu)
         if not title or not apply_url:
             continue
         location = ""
         location_payload = job.get("location")
         if isinstance(location_payload, dict):
-            location = str(location_payload.get("name", "")).strip()
+            location = str(location_payload.get("name") or "").strip()
         posted_at = str(job.get("first_published") or job.get("created_at") or job.get("updated_at") or "").strip() or None
         output.append(
             AtsPosting(

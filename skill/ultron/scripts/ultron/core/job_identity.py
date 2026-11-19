@@ -22,8 +22,35 @@ _TRACKING_KEYS = frozenset(
         "source",
         "trk",
         "tracking",
+        # Ad click IDs and email/marketing-automation parameters.
+        "_gl",
+        "_hsenc",
+        "_hsmi",
+        "dclid",
+        "gbraid",
+        "igshid",
+        "lever-origin",
+        "li_fat_id",
+        "mc_cid",
+        "mc_eid",
+        "mkt_tok",
+        "msclkid",
+        "ttclid",
+        "twclid",
+        "wbraid",
+        "yclid",
+        # Matomo/Piwik campaign keys (listed explicitly: a job board could use another pk_ key as an id).
+        "pk_campaign",
+        "pk_cid",
+        "pk_content",
+        "pk_cpn",
+        "pk_keyword",
+        "pk_kwd",
+        "pk_medium",
+        "pk_source",
     }
 )
+_TRACKING_PREFIXES = ("utm_", "hsa_", "mtm_")
 _JOB_ID_QUERY_KEY_PRIORITY = (
     "gh_jid",
     "jobid",
@@ -48,7 +75,7 @@ class CanonicalJobIdentity:
 
 def _is_tracking_key(key: str) -> bool:
     low = key.casefold()
-    return low.startswith("utm_") or low in _TRACKING_KEYS
+    return low.startswith(_TRACKING_PREFIXES) or low in _TRACKING_KEYS
 
 
 def _source_vendor(source_type: str, source_key: str) -> tuple[str, str]:

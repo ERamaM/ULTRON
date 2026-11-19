@@ -1,3 +1,5 @@
+<!-- Title format is type(scope)!: summary. Scope and ! are optional. Examples: fix: handle empty input and feat(export): add CSV export. -->
+
 ## Summary
 
 <!-- Describe the change, the problem it addresses, and any user-facing behavior. -->

@@ -291,18 +291,25 @@ def _core_company_words(company: str) -> list[str]:
     return words
 
 
-def slug_candidates(company: str, domain: str) -> list[str]:
-    """Board slugs to probe, in a fixed order: the literal name forms, the domain label, then at most
-    two normalized forms (legal suffix stripped, "&" as "and", initials joined)."""
+def _slug_candidate_passes(company: str, domain: str) -> tuple[list[str], list[str]]:
+    """(literal name forms + domain label, at most two normalized forms not already in the first list)."""
     words = re.findall(r"[a-z0-9]+", company.lower())
-    out = ["".join(words), "-".join(words)]
+    literal = ["".join(words), "-".join(words)]
     host = urlparse(domain if "://" in domain else f"//{domain}").netloc.lower() if domain.strip() else ""
     host = host.removeprefix("www.")
     if host:
-        out.append(host.split(".")[0])
+        literal.append(host.split(".")[0])
+    primary = list(dict.fromkeys(s for s in literal if s))
     core = _core_company_words(company)
-    out.extend(("".join(core), "-".join(core)))
-    return list(dict.fromkeys(s for s in out if s))
+    normalized = [s for s in dict.fromkeys(("".join(core), "-".join(core))) if s and s not in primary]
+    return primary, normalized
+
+
+def slug_candidates(company: str, domain: str) -> list[str]:
+    """Board slugs to probe, in a fixed order: the literal name forms, the domain label, then at most
+    two normalized forms (legal suffix stripped, "&" as "and", initials joined)."""
+    primary, normalized = _slug_candidate_passes(company, domain)
+    return primary + normalized
 
 
 def _build_seed(p: Proposal, ats: str, board: str, postings: int) -> AtsBoardSeed:
@@ -342,8 +349,11 @@ def verify_proposal(
         if hit is not None:
             pairs.append((hit.ats, hit.board_identifier))
     if not has_explicit:
-        slugs = slug_candidates(p.company, p.domain)
-        pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
+        # Literal and domain slugs are probed on every vendor before any normalized guess, so "acme" on an
+        # early vendor cannot preempt the company's literal "acmegmbh" board on a later one.
+        primary, normalized = _slug_candidate_passes(p.company, p.domain)
+        for slugs in (primary, normalized):
+            pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
 
     unsupported = invalid = host_budget = False
     skipped_vendors: set[str] = set()

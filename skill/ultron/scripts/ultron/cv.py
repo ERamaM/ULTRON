@@ -78,7 +78,8 @@ class CvDependencyMissing(CvExtractionError):
 class PdfRunner(Protocol):
     """Callable that returns normalized PDF page texts or raises a CV extraction error."""
 
-    def __call__(self, content: bytes, *, max_pages: int, max_chars: int, timeout_seconds: float) -> list[str]: ...
+    def __call__(self, content: bytes, *, max_pages: int, max_chars: int, timeout_seconds: float) -> list[str]:
+        """Return one normalized text per extracted PDF page."""
 
 
 _PDF_WORKER_ENV_KEYS = ("PATH", "SYSTEMROOT", "TEMP", "TMP", "HOME", "USERPROFILE", "LANG", "PYTHONPATH")

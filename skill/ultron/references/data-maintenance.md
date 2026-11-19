@@ -20,6 +20,8 @@ explicit flag. Show the preview to the user and get their agreement before re-ru
   `job_occurrences`) is kept, so `jobs list` and "new since" keep working. Jobs may still point to a deleted run id
   in `first_seen_run_id`/`last_seen_run_id`; that is expected.
 - `purge` never touches `profiles/` or `venv/`. It keeps `backups/` unless you pass `--include-backups`.
+- If the home has no `.ultron-home` marker (written by `install.py` into a home it created), the folder may have
+  existed before ULTRON used it, so `purge` keeps `cv/`, `backups/` and every `runs/` entry that is not a run folder.
 - Unfinished runs are never removed by `cleanup`. `purge` refuses to run while an unfinished run younger than 24 hours
   exists; finish or delete that run, or pass `--force` only if the user confirms it is abandoned.
 

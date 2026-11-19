@@ -301,6 +301,7 @@ def test_uninstall_only_marked_copies(inst, fake_home, capsys):
 def test_uninstall_keeps_ultron_home_without_purge_flag(inst, fake_home, capsys):
     home = fake_home / ".ultron"
     (home / "runs").mkdir(parents=True)
+    (home / ".ultron-home").write_text("x", encoding="utf-8")  # a home install.py created
     (home / "ultron.sqlite3").write_bytes(b"db")
     code, report = _run_main(inst, capsys, "--uninstall")
     assert code == 0
@@ -885,3 +886,52 @@ def test_claude_copy_gets_argument_hint_others_keep_portable_frontmatter(inst, f
     assert code == 0
     again = (proj / ".claude" / "skills" / "ultron" / "SKILL.md").read_text(encoding="utf-8")
     assert again.count("argument-hint:") == 1
+
+
+def _preexisting_user_folders(home: Path) -> None:
+    for rel in ("venv/x", "backups/x", "cv/mine/resume.pdf", "runs/x", "profiles/x", "seeds/x"):
+        (home / rel).parent.mkdir(parents=True, exist_ok=True)
+        (home / rel).write_bytes(b"precious")
+
+
+def test_purge_with_only_database_keeps_generic_folders(inst, fake_home, capsys, monkeypatch):
+    home = fake_home / "shared-home"
+    _preexisting_user_folders(home)
+    for name in ("ultron.sqlite3", "ultron.sqlite3-wal", "installs.json"):
+        (home / name).write_bytes(b"x")
+    (home / "update-notices").mkdir()
+    monkeypatch.setenv("ULTRON_HOME", str(home))
+    code, report = _run_main(inst, capsys, "--uninstall", "--purge-data", "--dry-run")
+    assert code == 0
+    data = report["ultron_home"]
+    assert sorted(data["would_delete"]) == ["installs.json", "ultron.sqlite3", "ultron.sqlite3-wal", "update-notices"]
+    assert data["kept_foreign_entries"] == ["backups", "cv", "profiles", "runs", "seeds", "venv"]
+    assert (home / "ultron.sqlite3").is_file()
+    code, report = _run_main(inst, capsys, "--uninstall", "--purge-data")
+    assert code == 0 and report["ok"] is True
+    assert report["ultron_home"]["kept_foreign_entries"] == ["backups", "cv", "profiles", "runs", "seeds", "venv"]
+    for rel in ("venv/x", "backups/x", "cv/mine/resume.pdf", "runs/x", "profiles/x", "seeds/x"):
+        assert (home / rel).read_bytes() == b"precious", rel
+    assert sorted(p.name for p in home.iterdir()) == ["backups", "cv", "profiles", "runs", "seeds", "venv"]
+
+
+def test_purge_removes_home_marker_last_so_a_failed_purge_can_be_retried(inst, fake_home, monkeypatch):
+    home = fake_home / "marked-home"
+    _preexisting_user_folders(home)
+    (home / "ultron.sqlite3").write_bytes(b"db")
+    (home / ".ultron-home").write_text("x", encoding="utf-8")
+    real_rmtree = inst.shutil.rmtree
+
+    def failing_rmtree(path, *args, **kwargs):
+        if Path(path).name == "venv":
+            raise PermissionError("venv is in use")
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(inst.shutil, "rmtree", failing_rmtree)
+    with pytest.raises(PermissionError):
+        inst._purge_home(home, dry_run=False)
+    assert (home / ".ultron-home").is_file()
+    assert (home / "venv").is_dir()
+    monkeypatch.setattr(inst.shutil, "rmtree", real_rmtree)
+    assert inst._purge_home(home, dry_run=False) == {"status": "removed"}
+    assert not home.exists()

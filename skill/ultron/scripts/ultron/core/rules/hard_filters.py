@@ -84,10 +84,27 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
         context = low[context_start:context_end]
         if any(negation in context for negation in negation_terms) or _negated_by_coordination(low, match.start()):
             continue
-        if any(perk in context for perk in rules_data.ONSITE_BENEFIT_CONTEXT_TERMS):
+        if _is_onsite_benefit(low, match):
             continue
         return True
     return False
+
+
+_ONSITE_BENEFIT_TERMS_RE = "|".join(re.escape(term) for term in sorted(rules_data.ONSITE_BENEFIT_CONTEXT_TERMS))
+_ONSITE_BENEFIT_AFTER_RE = re.compile(r"[ \t-]*(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b")
+_ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*$")
+
+
+def _is_onsite_benefit(text: str, match: re.Match[str]) -> bool:
+    """True when the onsite term describes a perk, not the work mode.
+
+    The perk noun must follow the term directly ("on-site gym", "in-office lunch") or the term must sit in a
+    list of perks in the same clause ("counseling, therapy placement, on-site support"). A perk elsewhere in
+    the sentence ("The position is onsite; gym membership included") does not exempt it.
+    """
+    if _ONSITE_BENEFIT_AFTER_RE.match(text, match.end()):
+        return True
+    return _ONSITE_BENEFIT_BEFORE_RE.search(text, max(0, match.start() - 60), match.start()) is not None
 
 
 _ONSITE_TERM_PRODUCT_SUFFIX_RE = re.compile(rules_data.ONSITE_TERM_PRODUCT_SUFFIX_PATTERN, re.IGNORECASE)

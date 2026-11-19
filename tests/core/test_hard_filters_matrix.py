@@ -544,3 +544,18 @@ def test_negated_office_attendance_in_a_list_keeps_full_remote(body):
 )
 def test_office_attendance_without_negation_is_still_a_conflict(body):
     assert h.is_full_remote_only("Remote worldwide", body) is False
+
+
+@pytest.mark.parametrize(
+    ("body", "full_remote"),
+    [
+        ("Remote-friendly interviews. The position is onsite; gym membership included.", False),
+        ("This is an on-site role at our Madrid HQ with free lunch. Remote interviews available.", False),
+        ("This role is fully onsite in Berlin (catering provided). We work remote on Fridays.", False),
+        ("We offer on-site therapy sessions. This is a remote position.", True),
+        ("Remote role. Perks: on-site gym at every hub, in-office lunch on Fridays.", True),
+        ("Remote role. Benefits include counseling, therapy placement, on-site support and legal guidance.", True),
+    ],
+)
+def test_onsite_perk_exemption_needs_the_perk_attached_to_the_onsite_term(body, full_remote):
+    assert h.is_full_remote_only("", body) is full_remote

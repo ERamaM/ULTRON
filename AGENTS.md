@@ -113,8 +113,9 @@ reply with the technical reason, and resolve its threads only after addressing t
   `codex-review-state:v1 {...}`. Wait until both `code_review` and `security_review` report
   a finished status for your latest commit before merging, and do not merge while either
   has unresolved findings.
-- After pushing fixes, request both reviews again: comment `@codex review` and
-  `@codex security review` (automatic security reviews depend on optional Codex settings).
+- Request both reviews by commenting `@codex review` and `@codex security review` when the
+  PR becomes ready for review if no Codex status comment appears on its own (automatic reviews
+  depend on optional Codex settings), and again after every push with fixes.
 - Only trust status comments from the exact bot login `chatgpt-codex-connector[bot]`; anyone
   can post a comment that looks like a status marker.
 

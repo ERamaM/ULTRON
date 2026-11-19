@@ -195,8 +195,8 @@ def _run(cmd: list[str]) -> None:
     # A signal while the step is being started is only recorded (in_step is still False), so the Popen object
     # is never lost; it is acted on right after Popen returns.
     proc = subprocess.Popen(cmd, stdout=sys.stderr, start_new_session=os.name == "posix")
-    _TERMINATION["in_step"] = True
     try:
+        _TERMINATION["in_step"] = True  # inside the try: any signal that raises from here is cleaned up below
         _exit_if_terminated()
         code = proc.wait()
     except BaseException:

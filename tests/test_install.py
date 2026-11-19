@@ -1091,3 +1091,32 @@ def test_second_signal_during_step_cleanup_does_not_interrupt_it(installer, monk
     with pytest.raises(installer.Terminated):
         installer._run(["pip", "install"])
     assert events == ["stopped"]  # cleanup ran to the end
+
+
+def test_signal_right_after_marking_the_step_still_stops_it(installer, monkeypatch):
+    import signal
+
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    stopped = []
+
+    class Flag(dict):
+        def __setitem__(self, key, value):
+            super().__setitem__(key, value)
+            if key == "in_step" and value is True:
+                installer._on_termination_signal(signal.SIGTERM, None)  # arrives right after in_step = True
+
+    class Step:
+        pid = 0
+
+        def __init__(self, cmd, **kwargs):
+            pass
+
+        def wait(self):
+            raise AssertionError("the step must not be waited for after a termination")
+
+    monkeypatch.setattr(installer, "_TERMINATION", Flag(code=0, in_step=False))
+    monkeypatch.setattr(installer.subprocess, "Popen", Step)
+    monkeypatch.setattr(installer, "_stop_step", stopped.append)
+    with pytest.raises(installer.Terminated):
+        installer._run(["pip", "install"])
+    assert len(stopped) == 1

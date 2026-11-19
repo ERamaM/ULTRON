@@ -46,6 +46,14 @@ class HttpError(RuntimeError):
         self.status_code = status_code
 
 
+def _is_transient(exc: HttpError, method: str) -> bool:
+    """Connect failures never reached the server, so any method may retry; read timeouts only for safe methods."""
+    cause = exc.__cause__
+    if isinstance(cause, (httpx.ConnectError, httpx.ConnectTimeout)):
+        return True
+    return isinstance(cause, httpx.ReadTimeout) and method in {"GET", "HEAD"}
+
+
 def _retry_after(response: httpx.Response, now: float) -> float | None:
     """Seconds from ``Retry-After`` (delta-seconds or HTTP-date against wall-clock ``now``), capped."""
     raw = (response.headers.get("Retry-After") or "").strip()
@@ -209,9 +217,15 @@ class HttpClient:
             )
             current = admitted.url
             for attempt in range(1, MAX_ATTEMPTS + 1):
-                status, headers, text = self._send_once(
-                    method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
-                )
+                try:
+                    status, headers, text = self._send_once(
+                        method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
+                    )
+                except HttpError as exc:
+                    if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
+                        self._sleep(0.5 * attempt)
+                        continue
+                    raise
                 if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
                     delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
                     self._sleep(0.5 * attempt if delay is None else delay)

@@ -862,6 +862,8 @@ def test_purge_removes_a_real_ultron_home_completely(inst, fake_home, capsys):
     code, _ = _run_main(inst, capsys, "--platforms", "claude")
     _ultron_layout(home)
     (home / "ultron.sqlite3-journal").write_bytes(b"j")
+    (home / "update-notices").mkdir()
+    (home / "update-notices" / "last-checked").touch()
     code, report = _run_main(inst, capsys, "--uninstall", "--purge-data")
     assert code == 0 and report["ultron_home"]["status"] == "removed"
     assert "kept_foreign_entries" not in report["ultron_home"]

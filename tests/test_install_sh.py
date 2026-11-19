@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -85,3 +86,23 @@ def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
     assert (out / "term").is_file()
     assert not (out / "finished").exists()
     assert (out / "stdin").read_text(encoding="utf-8").strip() == "hello"
+
+
+@pytest.mark.parametrize("flag", ["--dev", "--de"])
+def test_piped_install_refuses_dev_before_downloading(tmp_path, flag):
+    bin_dir = tmp_path / "bin"
+    work = tmp_path / "work"
+    bin_dir.mkdir()
+    work.mkdir()
+    marker = tmp_path / "downloaded"
+    _fake_tool(bin_dir, "curl", f'touch "{marker.as_posix()}"; exit 1')
+    _fake_tool(bin_dir, "uv", "exit 99")
+    env = {**os.environ, "HOME": str(tmp_path / "home"),
+           "PATH": os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])}
+    script = (REPO / "install.sh").read_bytes()
+    proc = subprocess.run([SH, "-s", "--", flag], input=script, cwd=work, env=env, capture_output=True, timeout=60,
+                          check=False)
+    assert proc.returncode == 2, proc.stderr
+    report = json.loads(proc.stdout)
+    assert report["error"] == "usage" and "--dev" in report["detail"]
+    assert not marker.exists()

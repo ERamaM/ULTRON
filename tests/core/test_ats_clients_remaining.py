@@ -348,3 +348,15 @@ def test_teamtailor_rss_rejects_xml_entity_bombs():
 
     with pytest.raises(AtsClientError, match="teamtailor_invalid_rss"):
         fetch("teamtailor", "acme", RssBombClient(text_value=bomb))
+
+
+def test_workable_null_title_or_url_is_skipped():
+    payload = {
+        "jobs": [
+            {"title": "MLOps", "url": None},
+            {"title": None, "url": "https://apply.workable.com/acme/j/CD"},
+            {"title": "Analyst", "url": "https://apply.workable.com/acme/j/EF"},
+        ]
+    }
+    out = fetch("workable", "acme", FakeClient(payload))
+    assert [(p.title, p.apply_url) for p in out] == [("Analyst", "https://apply.workable.com/acme/j/EF")]

@@ -18,20 +18,37 @@ def load_json_or_none(text: str) -> object | None:
         return None
 
 
+_DONE = object()
+
+
+def _container_children(container: dict | list) -> Iterator[object]:
+    return iter(container.values() if isinstance(container, dict) else container)
+
+
 def iter_json_dicts(node: object, *, max_depth: int = MAX_JSON_DEPTH, max_nodes: int = MAX_JSON_NODES) -> Iterator[dict]:
     """Yield every dict in ``node`` in pre-order, iteratively, within depth and node caps.
 
-    Only dicts and lists count toward ``max_nodes``; scalar values are never visited.
+    Only dicts and lists count toward ``max_nodes``; scalar values are never visited. Children are read lazily,
+    one iterator per depth level, so pending state is bounded by the depth, not by a container's width.
     """
-    stack: list[tuple[object, int]] = [(node, 0)] if isinstance(node, (dict, list)) else []
-    visited = 0
-    while stack and visited < max_nodes:
-        current, depth = stack.pop()
+    if not isinstance(node, (dict, list)) or max_nodes <= 0:
+        return
+    visited = 1
+    if isinstance(node, dict):
+        yield node
+    frames: list[tuple[Iterator[object], int]] = [(_container_children(node), 1)] if max_depth >= 1 else []
+    while frames:
+        children, depth = frames[-1]
+        child = next(children, _DONE)
+        if child is _DONE:
+            frames.pop()
+            continue
+        if not isinstance(child, (dict, list)):
+            continue
+        if visited >= max_nodes:
+            return
         visited += 1
-        if isinstance(current, dict):
-            yield current
-            children = list(current.values())
-        else:
-            children = current
+        if isinstance(child, dict):
+            yield child
         if depth < max_depth:
-            stack.extend((child, depth + 1) for child in reversed(children) if isinstance(child, (dict, list)))
+            frames.append((_container_children(child), depth + 1))

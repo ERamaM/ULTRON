@@ -359,11 +359,25 @@ def _read_registry() -> dict:
     return _read_registry_file().get("links", {})
 
 
+def _record_target_exists(record: object) -> bool:
+    path = record.get("path") if isinstance(record, dict) else None
+    if not isinstance(path, str):
+        return False
+    try:
+        return Path(path).exists() or _is_link(Path(path))
+    except OSError:
+        return True  # unreadable now (e.g. an offline drive): keep the record
+
+
 def _save_registry_file(data: dict) -> None:
-    """Write ``installs.json`` atomically (temp file in the same folder, then ``os.replace``)."""
+    """Write ``installs.json`` atomically (temp file in the same folder, then ``os.replace``).
+
+    Install records whose folder no longer exists (deleted by hand) are dropped on every write.
+    """
     path = _registry_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"links": data.get("links", {}), "installs": data.get("installs", {})}
+    installs = {key: record for key, record in data.get("installs", {}).items() if _record_target_exists(record)}
+    payload = {"links": data.get("links", {}), "installs": installs}
     tmp = path.with_name(f".{REGISTRY}.{secrets.token_hex(6)}.tmp")
     try:
         tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -162,6 +162,16 @@ def _recorded_copies() -> list[dict]:
     return copies
 
 
+def missing_records() -> list[str]:
+    """Recorded install folders that no longer exist (deleted by hand); install.py drops them on its next write."""
+    missing = []
+    for record in _registry_records().values():
+        path = record.get("path") if isinstance(record, dict) else None
+        if isinstance(path, str) and not Path(path).exists() and not _is_link(Path(path)):
+            missing.append(path)
+    return missing
+
+
 def find_copies(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
     """Every copy install to consider, one entry per skill folder.
 
@@ -420,6 +430,8 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         reason = "requested_version"
     home, cwd = Path.home(), Path.cwd()
     copies = find_copies(home=home, cwd=cwd, projects=projects)
+    if pruned := missing_records():
+        result["pruned_records"] = pruned
     if installed == target:
         # The CLI is current; skill copies that an older installer left behind still need the update.
         copies = [c for c in copies if (v := parse_version(c["version"])) is not None and v < target]

@@ -1051,6 +1051,16 @@ def test_dry_run_records_nothing(inst, fake_home, capsys):
     assert not (fake_home / ".ultron" / "installs.json").exists()
 
 
+def test_records_of_deleted_folders_are_dropped_on_the_next_write(inst, fake_home, capsys):
+    _run_main(inst, capsys, "--platforms", "claude,opencode")
+    opencode = fake_home / ".config" / "opencode" / "skills" / "ultron"
+    shutil.rmtree(opencode)  # deleted by hand
+    assert str(opencode) in _records(fake_home)
+    code, _ = _run_main(inst, capsys, "--update", "--platforms", "claude")
+    assert code == 0
+    assert list(_records(fake_home)) == [str(fake_home / ".claude" / "skills" / "ultron")]
+
+
 def test_termination_after_a_copy_keeps_its_record(inst, fake_home, capsys, monkeypatch):
     real_copy = inst.install_copy
 

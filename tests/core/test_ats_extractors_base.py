@@ -252,6 +252,26 @@ def test_json_load_loose_handles_invalid_json():
     assert base._json_load_loose('{"a": 1}') == {"a": 1}
 
 
+def test_parse_ats_page_survives_hostile_deeply_nested_jsonld():
+    from ultron.core.ats.registry import parse_ats_page
+
+    html = '<html><head><script type="application/ld+json">' + "[" * 200000 + "</script></head><body></body></html>"
+    job = parse_ats_page(_page(html, final_url="https://unknown.example/job"))
+    assert job.apply_url == "https://unknown.example/job"
+
+
+def test_jsonld_walk_handles_nesting_deeper_than_the_recursion_limit(monkeypatch):
+    # Build the structure directly: how deep json.loads itself can go varies by Python build.
+    deep: list = []
+    for _ in range(5000):
+        deep = [deep]
+    payload = {"@type": "JobPosting", "title": "Deep Role", "extra": deep}
+    monkeypatch.setattr(base, "load_json_or_none", lambda text: payload)
+    html = '<html><head><script type="application/ld+json">{}</script></head><body></body></html>'
+    job = base.parse_generic(_page(html))
+    assert job.title == "Deep Role"
+
+
 def test_iter_jobposting_nodes_skips_non_jobposting_and_invalid_json():
     html = """
     <script type="application/ld+json">not valid json</script>
@@ -466,3 +486,28 @@ def test_extract_text_lines_strips_and_drops_blanks():
 def test_host_labels_handles_empty_and_multi_part():
     assert base._host_labels("https://boards.greenhouse.io/acme") == ["boards", "greenhouse", "io"]
     assert base._host_labels("not-a-url") == []
+
+
+def test_structured_fields_ignore_json_null_and_use_name_of_nested_address_values():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "JobPosting", "title": "Data Engineer", "hiringOrganization": {"name": null},
+     "jobLocation": {"address": {"addressLocality": "Madrid", "addressRegion": null,
+                                 "addressCountry": {"@type": "Country", "name": "ES"}}, "name": null},
+     "jobLocationType": null, "datePosted": "2026-01-05"}
+    </script>
+    </head><body></body></html>
+    """
+    job = base.parse_generic(_page(html))
+    assert job.title == "Data Engineer"
+    assert job.location == "Madrid | ES"
+    assert "None" not in job.company
+    assert "None" not in job.remote_text
+
+
+def test_structured_fields_null_title_is_empty():
+    fields = base._structured_fields_from_node({"@type": "JobPosting", "title": None, "jobLocationType": None})
+    assert fields["title"] == ""
+    assert fields["remote_text"] == ""
+    assert base._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""

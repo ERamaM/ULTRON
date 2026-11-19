@@ -240,3 +240,20 @@ def test_workday_rejected_country_facet_keeps_unfiltered_pagination():
         "acme.wd5.myworkdayjobs.com/External", client=client, preferred_locations=("Spain",)
     )
     assert len(postings) == 21 and postings[-1].title == "Role 20"
+
+
+def test_next_data_extractor_survives_hostile_deeply_nested_json():
+    html = '<script id="__NEXT_DATA__" type="application/json">' + "[" * 200000 + "</script>"
+    assert workday._extract_from_next_data(html, "acme.wd5.myworkdayjobs.com") == []
+
+
+def test_next_data_extractor_handles_nesting_deeper_than_the_recursion_limit(monkeypatch):
+    # Build the structure directly: how deep json.loads itself can go varies by Python build.
+    deep: list = []
+    for _ in range(5000):
+        deep = [deep]
+    payload = {"props": {"jobs": [_job(1)]}, "deep": deep}
+    monkeypatch.setattr(workday, "load_json_or_none", lambda text: payload)
+    html = '<script id="__NEXT_DATA__" type="application/json">{}</script>'
+    postings = workday._extract_from_next_data(html, "acme.wd5.myworkdayjobs.com")
+    assert [p.title for p in postings] == ["Role 1"]

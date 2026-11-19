@@ -32,8 +32,8 @@ def fetch_workable_jobs(
     for job in jobs:
         if not isinstance(job, dict):
             continue
-        title = str(job.get("title", "")).strip()
-        apply_url = str(job.get("url", "")).strip()
+        title = str(job.get("title") or "").strip()
+        apply_url = str(job.get("url") or "").strip()
         if not title or not apply_url:
             continue
         # The widget repeats the same URL once per location.

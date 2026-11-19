@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import html as html_lib
 import re
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from bs4 import BeautifulSoup
 
 from ultron import runs
+from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
+from ultron.core.ats.clients.workable import workable_locations
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
 from ultron.core.extractors.ats_extractors.base import ats_canonical_domain, detect_ats_fingerprint
@@ -42,8 +44,6 @@ def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[Extracted
             board, job_id = match.group(1), match.group(2)
     if (not board or not job_id) and str(candidate.source_key or "").lower().startswith("greenhouse:"):
         board = candidate.source_key.split(":", 1)[1].strip()
-        from urllib.parse import parse_qs
-
         gh_jids = parse_qs(parsed.query).get("gh_jid") or parse_qs(urlsplit(candidate.source_url).query).get("gh_jid")
         if gh_jids and gh_jids[0].isdigit():
             job_id = gh_jids[0]
@@ -61,7 +61,7 @@ def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[Extracted
     location = str(loc_obj.get("name") or "") if isinstance(loc_obj, dict) else ""
     body_text = _html_to_text(str(payload.get("content") or ""))
     apply_url = normalize_url(str(payload.get("absolute_url") or candidate.normalized_url))
-    posted_str = str(payload.get("updated_at") or payload.get("first_published") or "").strip() or None
+    posted_str = str(payload.get("first_published") or payload.get("updated_at") or "").strip() or None
     job = ExtractedJob(
         title=clean_text(payload.get("title") or candidate.ats_title),
         company=clean_text(payload.get("company_name") or candidate.ats_company or board),
@@ -136,24 +136,30 @@ def _workable_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
     body_text = "\n\n".join(s for s in sections if s)
     if not body_text:
         return job
-    loc_obj = payload.get("location")
-    loc_parts: list[str] = []
-    if isinstance(loc_obj, dict):
-        loc_parts = [str(loc_obj.get(k) or "").strip() for k in ("city", "region", "country") if loc_obj.get(k)]
-    location = ", ".join(loc_parts)
-    if not location and isinstance(payload.get("locations"), list):
-        first = next((x for x in payload["locations"] if isinstance(x, dict)), None)
-        if first:
-            location = ", ".join(str(first.get(k) or "").strip() for k in ("city", "region", "country") if first.get(k))
-    remote_flag = bool(payload.get("remote")) or str(payload.get("workplace") or "").lower() == "remote"
-    remote_text = "Remote" if remote_flag else (job.remote_text or "")
+    location = "; ".join(workable_locations(payload))
+    workplace = str(payload.get("workplace") or "").strip().lower()
+    remote_text = job.remote_text
+    if workplace == "hybrid":
+        remote_text = "Hybrid"
+    elif payload.get("remote") is True or workplace == "remote":
+        remote_text = f"Remote {location}".strip()
     return job.model_copy(update={
         "title": clean_text(payload.get("title") or job.title),
         "location": clean_text(location or job.location),
-        "remote_text": clean_text(f"{remote_text} {location}".strip() if remote_flag and location else (remote_text or job.remote_text)),
+        "remote_text": clean_text(remote_text),
         "body_text": body_text,
         "posting_date": str(payload.get("published") or job.posting_date or "").strip() or None,
     })
+
+
+def _workable_closed_redirect(url: str, final_url: str) -> bool:
+    original = urlsplit(url)
+    final = urlsplit(final_url)
+    return (
+        original.hostname == final.hostname == "apply.workable.com"
+        and bool(_WORKABLE_BOARD_JOB_RE.match(original.path) or _WORKABLE_SHORT_JOB_RE.match(original.path))
+        and parse_qs(final.query).get("not_found") == ["true"]
+    )
 
 
 _SR_JOB_RE = re.compile(r"^/([^/]+)/([A-Za-z0-9_-]{6,})(?:/|$)")
@@ -197,15 +203,13 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         if isinstance(sections_dict.get(k), dict)
     ]
     body_text = "\n\n".join(p for p in parts if p)
-    loc_obj = payload.get("location") if isinstance(payload.get("location"), dict) else {}
-    loc_str = ", ".join(
-        str(loc_obj.get(k) or "").strip()
-        for k in ("city", "region", "country")
-        if loc_obj.get(k)
-    ).strip(", ")
+    loc_obj = payload.get("location")
+    loc_str = smartrecruiters_location(loc_obj)
     company_name = str((payload.get("company") or {}).get("name") or candidate.ats_company or job.company).strip()
-    remote_flag = bool(loc_obj.get("remote")) or "remote" in str(payload.get("workplace") or "").lower()
-    remote_text = f"Remote {loc_str}".strip() if remote_flag else job.remote_text
+    workplace = smartrecruiters_workplace(loc_obj)
+    if not workplace and "remote" in str(payload.get("workplace") or "").lower():
+        workplace = "Remote"
+    remote_text = f"{workplace} {loc_str}".strip() if workplace else job.remote_text
     # The careers subdomain can redirect a posting to the employer's homepage.
     apply_url = job.apply_url
     if not has_posting_url or looks_generic:
@@ -402,6 +406,9 @@ def fetch(run_id: str) -> dict:
                     continue
             reason = "expired_or_closed" if status in {404, 410} else "inaccessible"
             errors.append({"url": url, "error": reason, "status": status})
+            continue
+        if _workable_closed_redirect(url, final_url):
+            errors.append({"url": url, "error": "expired_or_closed", "status": status})
             continue
         page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html)
         # Same hint keys and sources as MARK III's verification_fetch.

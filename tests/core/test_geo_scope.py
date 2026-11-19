@@ -13,6 +13,7 @@ from ultron.cli import main
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
+from ultron.core.final_row import prepare_geography
 from ultron.core.models import ExtractedJob, JobEvaluation
 from ultron.core.rules.geography import geo_scope, scoped_eligibility_terms
 from ultron.core.rules.hard_filters import classify_remote_policy
@@ -71,6 +72,33 @@ def test_latam_eligibility_terms_mark_high():
     profile = _with_location_scope("backend-latam", eligibility_terms=["argentina"])
     result = characterize_job(_job(location="Remote - Argentina"), profile, load_allowed_domains())
     assert result["heuristic_evaluator"]["eligibility"] == "high"
+
+
+def test_us_eligibility_does_not_match_the_pronoun_or_incidental_prose():
+    profile = _with_location_scope("backend-latam", preferred=["United States"], eligibility_terms=["us"])
+    job = _job(location="Prague, Czechia", body="Come work with us in our Prague office. We serve United States customers.")
+    result = characterize_job(job, profile, load_allowed_domains())
+    assert result["classification_signals"]["eligibility_hint"] is None
+    assert result["heuristic_evaluator"]["eligibility"] is None
+    assert prepare_geography(job, profile["criteria"], geo="other")[0].eligibility is None
+
+    us_job = _job(location="Remote", body="This role is open to candidates in the US.")
+    result = characterize_job(us_job, profile, load_allowed_domains())
+    assert result["classification_signals"]["eligibility_hint"] == "high"
+    assert result["heuristic_evaluator"]["eligibility"] == "high"
+
+    remote_prose = job.model_copy(update={"remote_text": "Work remotely with us from Prague"})
+    assert characterize_job(remote_prose, profile, load_allowed_domains())["classification_signals"]["eligibility_hint"] is None
+    remote_scope = job.model_copy(update={"remote_text": "Remote US only"})
+    assert characterize_job(remote_scope, profile, load_allowed_domains())["classification_signals"]["eligibility_hint"] == "high"
+
+
+def test_scoped_eligibility_keeps_geographic_abbreviations():
+    profile = _with_location_scope("backend-latam", preferred=["St. Louis"], eligibility_terms=["st. louis"])
+    job = _job(body="This role is open to candidates in St. Louis. Applications open.")
+    result = characterize_job(job, profile, load_allowed_domains())
+    assert result["classification_signals"]["eligibility_hint"] == "high"
+    assert prepare_geography(job, profile["criteria"], geo="other")[0].eligibility == "high"
 
 
 def test_preferred_regions_count_as_eligibility_terms():

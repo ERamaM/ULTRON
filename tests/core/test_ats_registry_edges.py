@@ -49,6 +49,7 @@ def test_extract_seed_supports_each_registered_vendor(url, vendor):
 def test_registry_rejects_marketing_pages_and_accepts_schemeless_urls():
     assert extract_seed_from_url("greenhouse.io/customers", "Acme") is None
     assert extract_seed_from_url("www.smartrecruiters.com/blog", "Acme") is None
+    assert extract_seed_from_url("https://hire.lever.co/auth/login", "Acme") is None
     assert extract_seed_from_url("boards.greenhouse.io/acme/jobs/1", "Acme").ats == "greenhouse"
     assert is_direct_supported_ats_host("boards.greenhouse.io") is True
     assert is_direct_supported_ats_host("example.test") is False

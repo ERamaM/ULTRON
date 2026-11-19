@@ -228,6 +228,8 @@ def _greenhouse_seed(url: str, company_hint: str) -> str | None:
 def _lever_seed(url: str, _company_hint: str) -> str | None:
     parsed = urlparse(url)
     host = parsed.netloc.lower()
+    if host in {"hire.lever.co", "hire.eu.lever.co"}:
+        return None
     parts = [part.strip().lower() for part in parsed.path.split("/") if part.strip()]
     if host in {"jobs.lever.co", "jobs.eu.lever.co"}:
         return _normalize_board_identifier(parts[0] if parts else "")

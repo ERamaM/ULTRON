@@ -8,8 +8,8 @@ from ultron.core.ats.vendors import VENDOR_DATA_BY_NAME, domain_matches
 from ultron.core.urlpolicy import admit_url
 from ultron.net import HttpClient
 
-# Ashby includes both HTML and plaintext descriptions for every job in the board.
-_ASHBY_JSON_MAX_BYTES = 20_000_000
+# These APIs include both HTML and plaintext descriptions for every job in the board.
+_DESCRIPTION_HEAVY_BOARD_MAX_BYTES = 20_000_000
 
 # Vendors whose board identifier is ``host[/path]`` (the client calls that host directly).
 HOST_STYLE_VENDORS = frozenset({"workday", "icims", "taleo"})
@@ -46,7 +46,7 @@ class VendorScopedClient:
 
     def __init__(self, client, vendor: str) -> None:
         self._client = client
-        self._json_max_bytes = _ASHBY_JSON_MAX_BYTES if vendor == "ashby" else None
+        self._json_max_bytes = _DESCRIPTION_HEAVY_BOARD_MAX_BYTES if vendor in {"ashby", "lever"} else None
         self.allowed_domains = vendor_domains(vendor)
 
     def _admit(self, url: str) -> dict:

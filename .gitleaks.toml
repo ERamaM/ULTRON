@@ -1,0 +1,16 @@
+title = "ULTRON Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic dummy tokens used solely to test secret redaction"
+paths = [
+  '''(?:^|/)tests/core/test_privacy_and_export\.py$''',
+]
+
+[[allowlists]]
+description = "Ignore local virtual environments and build caches during directory scans"
+paths = [
+  '''(?:^|/)(?:\.venv|\.pytest_cache|\.ruff_cache|dist|build)/''',
+]

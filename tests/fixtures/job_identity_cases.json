@@ -1,0 +1,57 @@
+{
+  "equivalent_groups": [
+    {
+      "name": "greenhouse_board_and_custom_redirect",
+      "expected_identity_key": "greenhouse:acme:12345",
+      "source_type": "ats_api",
+      "source_key": "greenhouse:acme",
+      "urls": [
+        "https://boards.greenhouse.io/acme/jobs/12345?utm_source=digest",
+        "https://job-boards.greenhouse.io/acme/jobs/12345/#apply",
+        "https://careers.example.test/opening?gh_jid=12345&source=board"
+      ]
+    },
+    {
+      "name": "lever_uuid",
+      "expected_identity_key": "lever:acme:11111111-2222-3333-4444-555555555555",
+      "source_type": "ats_api",
+      "source_key": "lever:acme",
+      "urls": [
+        "https://jobs.lever.co/acme/11111111-2222-3333-4444-555555555555",
+        "https://JOBS.LEVER.CO:443/acme/11111111-2222-3333-4444-555555555555/?lever-source=feed#details"
+      ]
+    },
+    {
+      "name": "workday_requisition",
+      "expected_identity_key": "workday:acme.wd3.myworkdayjobs.com:r-2048",
+      "source_type": "ats_api",
+      "source_key": "workday:acme",
+      "urls": [
+        "https://acme.wd3.myworkdayjobs.com/en-US/jobs/job/Madrid/ML-Engineer_R-2048",
+        "https://ACME.wd3.myworkdayjobs.com/en-US/jobs/job/Madrid/ML-Engineer_R-2048/?utm_campaign=weekly"
+      ]
+    },
+    {
+      "name": "personio_position",
+      "expected_identity_key": "personio:acme:987654",
+      "source_type": "ats_api",
+      "source_key": "personio:acme",
+      "urls": [
+        "https://acme.jobs.personio.com/job/987654",
+        "https://acme.jobs.personio.com/job/987654/?display=en&ref=feed"
+      ]
+    }
+  ],
+  "generic_cases": [
+    {
+      "url": "https://münchen.example:443/jobs/ml/?utm_medium=email&department=ai#apply",
+      "expected_canonical_url": "https://xn--mnchen-3ya.example/jobs/ml?department=ai",
+      "expected_identity_key": "url://xn--mnchen-3ya.example/jobs/ml?department=ai"
+    },
+    {
+      "url": "careers.example.test/jobs/42?jobId=42&source=search",
+      "expected_canonical_url": "https://careers.example.test/jobs/42?jobId=42",
+      "expected_identity_key": "url://careers.example.test/jobs/42?jobId=42"
+    }
+  ]
+}

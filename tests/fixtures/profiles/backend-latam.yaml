@@ -1,0 +1,19 @@
+slug: backend-latam
+name: Backend Senior - Remote LATAM
+description: Test fixture for a backend profile with a Latin American scope and no vocabulary pack.
+enabled: true
+source_kind: example
+criteria:
+  sectors: [technology]
+  role_family_label: Backend engineering
+  target_titles:
+    - Senior Backend Engineer
+    - Senior Backend Developer
+  seniority:
+    required: true
+    preferred_terms: [senior, sr., staff, principal]
+  remote_policy:
+    required: full_remote
+  location_scope:
+    preferred: [Remote LATAM, Brazil, Mexico]
+  specialties: [APIs, distributed systems, PostgreSQL]

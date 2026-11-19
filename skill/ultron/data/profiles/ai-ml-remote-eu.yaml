@@ -1,0 +1,159 @@
+slug: ai-ml-remote-eu
+name: AI/ML Senior - Remote EU
+description: Editable example for senior AI/ML roles with remote European scope.
+prompt: ""
+enabled: true
+source_kind: example
+criteria:
+  sectors: [technology]
+  vocabulary_packs: [ai-ml]
+  role_family_label: AI/ML engineering
+  role_focus_terms:
+    - ai engineer
+    - machine learning engineer
+    - ml engineer
+    - llm engineer
+    - nlp engineer
+    - mlops engineer
+    - applied scientist
+    - research scientist
+    - research engineer
+  target_titles:
+    - Senior Machine Learning Engineer
+    - Senior ML Engineer
+    - Senior AI Engineer
+    - Senior LLM Engineer
+  seniority:
+    required: true
+    preferred_terms: [senior, sr., staff, principal, lead, distinguished]
+    excluded_terms: [intern, junior, graduate, entry]
+  remote_policy:
+    required: full_remote
+    positive_terms: [remote, remote-first, work from home, distributed]
+    negative_terms: [hybrid, onsite, on-site, in-office]
+  location_scope:
+    preferred: [Spain, Remote EU, Remote Europe, Remote EMEA]
+    eligibility_terms: [spain, remote eu, remote europe, within eu, within europe, emea, cet, cest]
+    excluded_terms: [us only, united states only, uk only, canada only, north america only]
+  exclusion_terms: [hybrid, onsite, on-site, manager, director, vp, intern, junior]
+  specialties: [LLM, RAG, MLOps, agents, eval, retrieval]
+  fallback_fit_signals: [ML]
+  role_signal_terms:
+    - machine learning
+    - ml engineer
+    - llm
+    - rag
+    - retrieval
+    - nlp
+    - generative ai
+    - artificial intelligence
+    - applied ai
+    - mlops
+    - deep learning
+    - computer vision
+    - ai agent
+    - agentic ai
+    - foundation model
+    - transformer
+    - fine-tuning
+    - finetuning
+    - embeddings
+    - model serving
+    - ai infrastructure
+    - llm infrastructure
+  role_ambiguity_terms: [llm, machine learning, mlops, rag, retrieval]
+  data_scientist_signal_terms:
+    - machine learning
+    - ml model
+    - llm
+    - rag
+    - retrieval
+    - evaluation
+    - production
+    - mlops
+    - pipeline
+    - deployment
+    - nlp
+    - deep learning
+    - computer vision
+    - artificial intelligence
+    - ai agent
+    - agentic ai
+    - foundation model
+    - ai safety
+    - transformer
+    - fine-tuning
+    - finetuning
+    - embeddings
+    - vector database
+    - model serving
+    - model inference
+    - prompt engineering
+query_templates:
+  core_titles:
+    - Senior Machine Learning Engineer
+    - Senior ML Engineer
+    - Senior AI Engineer
+    - Senior LLM Engineer
+  titles:
+    - Senior Machine Learning Engineer
+    - Senior ML Engineer
+    - Senior AI Engineer
+    - Senior LLM Engineer
+    - Senior Applied Scientist
+    - Senior Data Scientist Machine Learning
+    - Senior NLP Engineer
+    - Senior MLOps Engineer
+    - AI Agent Engineer
+    - GenAI Engineer
+    - ML Platform Engineer
+    - Foundation Model Engineer
+    - AI Infrastructure Engineer
+    - LLM Ops Engineer
+    - Senior Inference Engineer
+    - Senior Multimodal Engineer
+    - Senior Recommendation Engineer
+    - Senior GenAI Platform Engineer
+  regions: [Remote Europe, Remote EU, Remote EMEA, Remote Worldwide, Remote Global]
+  site_scopes:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    - greenhouse.io
+    - jobs.lever.co
+    - jobs.ashbyhq.com
+    - apply.workable.com
+    - workable.com
+    - personio.com
+    - personio.de
+    - recruitee.com
+    - teamtailor.com
+    - smartrecruiters.com
+    - homerun.co
+    - jobvite.com
+    - bamboohr.com
+    - breezy.hr
+    - applytojob.com
+    - factorialhr.com
+    - pinpointhq.com
+    - comeet.com
+    - myworkdayjobs.com
+    - icims.com
+    - taleo.net
+  specialties: [LLM, RAG, evaluation, MLOps, generative AI, fine-tuning, inference, AI safety, prompt engineering]
+  technologies: [PyTorch, OpenAI, vLLM, LangChain, Hugging Face, TensorFlow, Kubernetes, CUDA, embeddings, Triton]
+  exclusion_terms: [hybrid, onsite, on-site, manager, director, vp, intern, junior]
+worked_examples:
+  - input: Senior ML Engineer, Remote EU, LLM platform, accepting applications.
+    output:
+      verdict: keep
+      keep: true
+      is_allowed_family: true
+      is_senior: true
+      is_full_remote: true
+      eligibility: high
+  - input: Senior Frontend Engineer, Remote EU, React dashboards.
+    output:
+      verdict: discard
+      keep: false
+      discard_category: role_family
+      is_allowed_family: false

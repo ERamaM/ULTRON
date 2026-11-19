@@ -1,0 +1,6 @@
+{"jobs": [
+ {"id": 4012345, "title": "Senior Data Scientist", "updated_at": "2026-10-20T10:15:00-04:00", "location": {"name": "Remote - Spain"}, "absolute_url": "https://boards.greenhouse.io/acme/jobs/4012345"},
+ {"id": 4012346, "title": "ML Engineer", "updated_at": "2026-10-18T09:00:00-04:00", "location": {"name": "Madrid, Spain"}, "absolute_url": "https://acme.com/careers?gh_jid=4012346"},
+ {"id": "x-custom", "title": "Analytics Lead", "created_at": "2026-09-01T08:00:00-04:00", "location": {"name": "Barcelona"}, "absolute_url": "https://acme.com/careers?gh_jid=4012347"},
+ {"id": 4012348, "title": "", "location": {"name": "Remote"}, "absolute_url": "https://boards.greenhouse.io/acme/jobs/4012348"}
+], "meta": {"total": 4}}

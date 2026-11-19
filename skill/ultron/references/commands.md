@@ -1,0 +1,84 @@
+# Commands
+
+Users can drive ULTRON with short commands grouped in five areas. A command is the words after the skill's name,
+however the platform invokes the skill: `/ultron jobs new` (Claude Code), `$ultron jobs new` (Codex), or a plain
+message such as `ultron jobs new` (OpenCode, Antigravity, or any agent that loads skills by itself). Treat all of them
+the same way. Matching is case-insensitive and also accepts the user's language for the same word when the intent is
+clear (for example `ultron new openings` = `jobs new`).
+
+Anything that is not a command (for example `ultron find data roles in Madrid`) is a normal request: handle it
+with the matching intent in SKILL.md.
+
+## Menu
+
+Show this menu, translated into the user's language, when the user gives only the skill name, `help`, `menu`, or an
+unknown command (then say which word was not recognized). A group without an action runs its default (marked
+"default"); `<group> help` lists that group's actions.
+
+```
+ultron search [profile] [preset]      full search with the agent (default)
+       search quick [profile]         heuristic-only search, no web search or evaluation
+       search saved [list|run|create|delete] [name]
+ultron profile                        list profiles (default)
+       profile show <profile>
+       profile cv <path>              CV -> proposed profile -> user review -> save
+       profile companies [profile]    verified companies for a profile
+ultron jobs [filter]                  list saved jobs (default)
+       jobs new                       jobs new since the last run
+       jobs mark <job> <state> [note]
+       jobs why <url>                 why a job did not show up
+ultron runs                           list past runs (default)
+       runs show <run>
+       runs excel [run]
+ultron system                         installation and network check (default)
+       system data [status|check|backup|restore|cleanup|delete-run|purge]
+```
+
+## What each command does
+
+Run the CLI as SKILL.md explains (path from `RUNTIME.md`, one JSON object per command). For listing commands, show
+the JSON as a short table or list in the user's language; never paste raw JSON unless asked.
+
+### search
+
+- `search [profile] [preset]`: the search loop in SKILL.md. Without a profile, run `ultron profile list` and ask which
+  one (or offer `profile cv`). Preset defaults to `balanced`; also `fast`, `deep`, `seed_boost`.
+- `search quick [profile]`: `ultron run --unattended --profile <slug>`; then summarize the counts and the top of
+  `results.md`. Tell the user it used heuristics only.
+- `search saved ...`: `ultron saved-search list|run|create|delete`; see `references/scheduling.md`.
+
+### profile
+
+- `profile`: `ultron profile list`. If the list is empty, offer `profile cv <path>` or the bundled example
+  (`ultron profile install-example`).
+- `profile show <profile>`: `ultron profile show <slug>`; summarize roles, seniority, geography scope and languages.
+- `profile cv <path>`: the CV-to-profile steps in `references/profile.md` (extract, draft, validate, show the user,
+  save only after they confirm).
+- `profile companies [profile]`: `ultron seeds list --profile <slug>`; group by ATS vendor and show the count.
+
+### jobs
+
+- `jobs [filter]`: `ultron jobs list` with the options that match the filter words: a state (`unreviewed`,
+  `shortlisted`, `applied`, `rejected`, `archived`) → `--state`; a profile → `--profile`; a number → `--limit`;
+  `new` alone means the `jobs new` command below.
+- `jobs new`: take the latest finished run before the most recent one from `ultron runs list` and run
+  `ultron jobs new-since <run_id>`; with a single run, show `ultron jobs list --new`.
+- `jobs mark <job> <state> [note]`: `<job>` is a URL, an identity key, or a number from the last list you showed.
+  Run `ultron jobs mark <key> <state>` and, with a note, `ultron jobs note <key> "<note>"`. Accept the user's words
+  for states (e.g., applied → `applied`, discard/skip → `rejected`, keep/save/interested → `shortlisted`). For "this result is
+  wrong/good" use `ultron jobs feedback`; see `references/jobs-ledger.md`.
+- `jobs why <url>`: `ultron diagnose <url>`; explain the stage that dropped it, as `references/diagnose.md` says.
+
+### runs
+
+- `runs`: `ultron runs list`; show date, profile, preset, stages done and kept count, newest first.
+- `runs show <run>`: `ultron runs show <run_id>`; summarize settings and counts (it prints the full profile; do not
+  repeat it).
+- `runs excel [run]`: `ultron export xlsx --run <run_id>` (latest finished run by default); give the file path.
+
+### system
+
+- `system`: `ultron doctor`; list failed checks with their `fix`.
+- `system data [action]`: `ultron data <action>`, `status` by default; see `references/data-maintenance.md`.
+  Destructive actions (`cleanup`, `delete-run`, `purge`, `restore`) always run as a preview first and only execute
+  after the user confirms the preview.

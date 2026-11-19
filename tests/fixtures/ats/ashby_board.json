@@ -1,0 +1,36 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "j1",
+      "title": "AI Engineer",
+      "employmentType": "FullTime",
+      "isListed": true,
+      "jobUrl": "https://jobs.ashbyhq.com/acme/j1",
+      "publishedAt": "2026-10-10T12:00:00.000+00:00",
+      "location": "Remote",
+      "workplaceType": "Remote",
+      "isRemote": true
+    },
+    {
+      "id": "j2",
+      "title": "Data Engineer",
+      "employmentType": "FullTime",
+      "isListed": true,
+      "jobUrl": "https://jobs.ashbyhq.com/acme/j2",
+      "publishedAt": "2026-10-05T12:00:00.000+00:00",
+      "location": "Madrid",
+      "workplaceType": "Hybrid",
+      "isRemote": true
+    },
+    {
+      "id": "j3",
+      "title": "Internal Referral Role",
+      "employmentType": "FullTime",
+      "isListed": false,
+      "jobUrl": "https://jobs.ashbyhq.com/acme/j3",
+      "publishedAt": "2026-09-30T12:00:00.000+00:00",
+      "location": "Remote"
+    }
+  ]
+}

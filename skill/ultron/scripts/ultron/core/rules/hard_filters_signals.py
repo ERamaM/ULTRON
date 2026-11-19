@@ -1,0 +1,62 @@
+"""Context-sensitive text signals used by the hard filters.
+
+Each helper decides whether one lexical match is really the signal it resembles
+("closed-loop" is not a closed posting, "Georgia" may be the country, "not remote"
+is not a remote hint). They are pure functions over text so they stay testable.
+"""
+
+from __future__ import annotations
+
+import re
+from functools import lru_cache
+
+from ultron.core.rules.hard_filters_data import REMOTE_HINT_TERMS
+
+_REMOTE_HINT_NEGATION = re.compile(r"(?:\bnot-|\bnon-|\bisn't\b|\bnot\b|\bno\b)\s*$")
+_REMOTE_BENEFIT_SUFFIX = re.compile(
+    r"^\s+(?:work\s+)?(?:reimbursement|stipend|allowance|budget|equipment)\b",
+    re.IGNORECASE,
+)
+_DISTRIBUTED_TEAM_HINT = re.compile(r"\bdistributed teams?\b", re.IGNORECASE)
+_GEORGIA_COUNTRY_CUES = re.compile(r"\b(?:tbilisi|batumi|caucasus)\b")
+_GEORGIA_US_CUES = re.compile(r"\b(?:atlanta|savannah|ga|usa|united states)\b")
+
+
+@lru_cache(maxsize=64)
+def _term_pattern(term: str) -> re.Pattern[str]:
+    return re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)
+
+
+def georgia_window_is_us_state(window: str) -> bool:
+    """True when the text around "Georgia" points at the US state, not the country."""
+    low = window.lower()
+    if _GEORGIA_COUNTRY_CUES.search(low):
+        return False
+    if _GEORGIA_US_CUES.search(low):
+        return True
+    return re.search(r"\bu\.s\.", low) is not None
+
+
+def closed_match_is_technical_or_negated(low: str, match: re.Match[str]) -> bool:
+    """True for "closed-loop" style compounds and for "not closed" / "never closed"."""
+    suffix = low[match.end() : match.end() + 32]
+    if len(suffix) > 1 and suffix[0] == "-" and suffix[1].isalpha():
+        return True
+    prefix = low[max(0, match.start() - 45) : match.start()]
+    return re.search(r"\b(?:not|isn't|never)\s+$", prefix) is not None
+
+
+def has_remote_work_hint(text: str) -> bool:
+    """True when the text names remote work, ignoring "not remote" and bare "distributed"."""
+    for term in REMOTE_HINT_TERMS:
+        pattern = _DISTRIBUTED_TEAM_HINT if term == "distributed team" else _term_pattern(term)
+        for match in pattern.finditer(text):
+            if term == "remote":
+                prefix = text[max(0, match.start() - 24) : match.start()]
+                if _REMOTE_HINT_NEGATION.search(prefix):
+                    continue
+                suffix = text[match.end() : match.end() + 40]
+                if _REMOTE_BENEFIT_SUFFIX.search(suffix):
+                    continue
+            return True
+    return False

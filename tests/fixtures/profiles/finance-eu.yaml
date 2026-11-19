@@ -1,0 +1,18 @@
+slug: finance-eu
+name: Finance Senior - Remote EU
+description: Test fixture for a non-technical profile with no vocabulary pack.
+enabled: true
+source_kind: example
+criteria:
+  sectors: [finance]
+  role_family_label: Finance and accounting
+  target_titles:
+    - Financial Controller
+    - Senior Accountant
+  seniority:
+    required: false
+  remote_policy:
+    required: full_remote
+  location_scope:
+    preferred: [Remote EU, Remote Europe]
+  specialties: [IFRS, consolidation, month-end close]

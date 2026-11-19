@@ -17,7 +17,7 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   trace: if it would also fail a filter, fix that first.
 - `candidate_cap`: discovered, but never fetched because `max_pages` was reached. Use a larger preset (or
   `ultron saved-search create --override max_pages=...`; `run new` has no overrides), or narrow seeds so fewer boards compete.
-- `fetch_failed`: the page errored (`expired_or_closed` for 404/410, `inaccessible`, budget exhausted, rejected URL).
+- `fetch_failed`: the page errored (`expired_or_closed` for 404/410 or a Workable `?not_found=true` / Greenhouse `?error=true` board redirect, `inaccessible`, budget exhausted, rejected URL).
   Closed postings are expected; for budget errors use a larger preset (or `ultron saved-search create --override`).
   `blocked` (a captcha or bot-challenge page) and `js_shell` (a script-rendered page with no readable text) need a
   manual look: open the URL in a browser. `host_blocked` means the host kept answering 403/429, so the rest of its

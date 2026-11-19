@@ -5,6 +5,7 @@ import pytest
 def _isolated_ultron_home(tmp_path, monkeypatch):
     """Never let a test touch the real ~/.ultron."""
     monkeypatch.setenv("ULTRON_HOME", str(tmp_path / "ultron_home"))
+    monkeypatch.delenv("ULTRON_DISABLE_UPDATE_CHECK", raising=False)
 
 
 @pytest.fixture(autouse=True)

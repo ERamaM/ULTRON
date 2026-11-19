@@ -654,7 +654,7 @@ def _home_refusal(home: Path) -> str | None:
 # Entries of $ULTRON_HOME that ULTRON creates; ``--purge-data`` deletes only these (C1).
 OWNED_HOME_ENTRIES = frozenset({
     "venv", "runs", "profiles", "seeds", "backups", "cv", "ultron.sqlite3", "ultron.sqlite3-wal",
-    "ultron.sqlite3-shm", "ultron.sqlite3-journal", REGISTRY, HOME_MARKER,
+    "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices", REGISTRY, HOME_MARKER,
 })
 
 

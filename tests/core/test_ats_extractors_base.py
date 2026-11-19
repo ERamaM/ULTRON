@@ -431,3 +431,19 @@ def test_extract_text_lines_strips_and_drops_blanks():
 def test_host_labels_handles_empty_and_multi_part():
     assert base._host_labels("https://boards.greenhouse.io/acme") == ["boards", "greenhouse", "io"]
     assert base._host_labels("not-a-url") == []
+
+
+def test_parse_ats_page_survives_hostile_deeply_nested_jsonld():
+    from ultron.core.ats.registry import parse_ats_page
+
+    html = '<html><head><script type="application/ld+json">' + "[" * 200000 + "</script></head><body></body></html>"
+    job = parse_ats_page(_page(html, final_url="https://unknown.example/job"))
+    assert job.apply_url == "https://unknown.example/job"
+
+
+def test_jsonld_walk_handles_nesting_deeper_than_the_recursion_limit():
+    depth = 1500  # json.loads accepts this depth, a recursive walk does not.
+    payload = '{"@type": "JobPosting", "title": "Deep Role", "extra": ' + "[" * depth + "]" * depth + "}"
+    html = f'<html><head><script type="application/ld+json">{payload}</script></head><body></body></html>'
+    job = base.parse_generic(_page(html))
+    assert job.title == "Deep Role"

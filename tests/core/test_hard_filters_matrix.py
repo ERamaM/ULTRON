@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ultron.core.models import ClassificationSignals, ExtractedJob
-from ultron.core.rules import geo_eu
+from ultron.core.rules import geo_eu, geography
 from ultron.core.rules import hard_filters as h
 from ultron.core.rules import role_matching as roles
 from ultron.core.rules.term_matching import extract_matching_evidence, normalize_text
@@ -44,22 +44,22 @@ def test_filled_corporate_posting_overrides_stale_apply_hint():
 
 def test_geo_normalization_and_signal_helpers_cover_language_variants():
     assert normalize_text("HÍBRIDA") == "hibrida"
-    assert h._has_positive_spain_signal("Remote from Spain")
-    assert h._has_us_only_signal("US only")
-    assert h._has_security_clearance_requirement("DoD security clearance")
-    assert h._has_est_timezone_signal("EST hours")
-    assert h._has_disallowed_region_terms("US only")
-    assert list(h._iter_term_windows("remote EU role", "EU"))
-    assert h._has_pattern_match("location: united states", geo_eu.US_REMOTE_LOCATION_PATTERNS)
-    assert "eligibility" in h.build_geo_body_excerpt("eligibility: remote EU")
+    assert geo_eu._has_positive_spain_signal("Remote from Spain")
+    assert geo_eu._has_us_only_signal("US only")
+    assert geo_eu._has_security_clearance_requirement("DoD security clearance")
+    assert geo_eu._has_est_timezone_signal("EST hours")
+    assert geo_eu._has_disallowed_region_terms("US only")
+    assert list(geo_eu._iter_term_windows("remote EU role", "EU"))
+    assert geo_eu._has_pattern_match("location: united states", geo_eu.US_REMOTE_LOCATION_PATTERNS)
+    assert "eligibility" in geography.build_geo_body_excerpt("eligibility: remote EU")
 
 
 def test_location_context_classifiers_and_conflicts():
-    assert h._has_eu_country_in_location_context("remote from Germany")
-    assert h._has_non_eu_location_in_context("remote from Canada")
-    assert h._has_us_state_in_location_context("location: California")
-    assert h._has_eu_eligibility_signal("remote EU")
-    assert h._has_us_location_signal("United States")
+    assert geo_eu._has_eu_country_in_location_context("remote from Germany")
+    assert geo_eu._has_non_eu_location_in_context("remote from Canada")
+    assert geo_eu._has_us_state_in_location_context("location: California")
+    assert geo_eu._has_eu_eligibility_signal("remote EU")
+    assert geo_eu._has_us_location_signal("United States")
     assert h._has_contextual_hybrid_conflict("hybrid 3 days onsite")
     assert h._has_contextual_onsite_conflict("on-site in office")
     assert h._has_closed_status_with_context("position is now closed")
@@ -73,7 +73,7 @@ def test_role_and_remote_classifiers_cover_allowed_and_negative_shapes():
     assert h.is_full_remote_only("remote-first")
     assert not h.is_full_remote_only("hybrid 2 days onsite")
     assert h.is_open_status_ok("open position", True, False)
-    assert h.has_region_red_flags("US only")
+    assert geo_eu.has_region_red_flags("US only")
     assert h.classify_remote_policy("Remote EU") == "remote_eu"
     assert h.classify_remote_policy("Remote from Spain") == "remote_spain"
     assert h.classify_remote_policy("No location stated") is None
@@ -122,31 +122,31 @@ def test_apply_hard_filters_and_prefilter_cover_soft_recall_paths():
 
 
 def test_context_guards_distinguish_negations_idioms_and_false_timezone_matches():
-    assert h._has_positive_spain_signal("cannot hire in Spain") is False
-    assert h._has_positive_spain_signal("Remote from España") is True
-    assert h._has_us_only_signal("join us only for a meeting") is False
-    assert h._has_us_only_signal("USA-only applicants") is True
-    assert h._has_security_clearance_requirement("No security clearance required") is False
-    assert h._has_security_clearance_requirement("Security clearance not required") is False
-    assert h._has_security_clearance_requirement("US DoD security clearance") is True
-    assert h._has_est_timezone_signal("Est. 2012") is False
-    assert h._has_est_timezone_signal("5pm EST time") is True
-    assert h._has_disallowed_region_terms("security clearance required") is False
-    assert h._has_disallowed_region_terms("federal security clearance") is True
+    assert geo_eu._has_positive_spain_signal("cannot hire in Spain") is False
+    assert geo_eu._has_positive_spain_signal("Remote from España") is True
+    assert geo_eu._has_us_only_signal("join us only for a meeting") is False
+    assert geo_eu._has_us_only_signal("USA-only applicants") is True
+    assert geo_eu._has_security_clearance_requirement("No security clearance required") is False
+    assert geo_eu._has_security_clearance_requirement("Security clearance not required") is False
+    assert geo_eu._has_security_clearance_requirement("US DoD security clearance") is True
+    assert geo_eu._has_est_timezone_signal("Est. 2012") is False
+    assert geo_eu._has_est_timezone_signal("5pm EST time") is True
+    assert geo_eu._has_disallowed_region_terms("security clearance required") is False
+    assert geo_eu._has_disallowed_region_terms("federal security clearance") is True
 
 
 def test_geo_excerpt_context_and_role_focus_guards():
-    assert h.build_geo_body_excerpt("") == ""
+    assert geography.build_geo_body_excerpt("") == ""
     body = "\n".join(["Remote EU eligibility" for _ in range(5)] + ["Unrelated text"])
-    excerpt = h.build_geo_body_excerpt(body, max_chars=250)
+    excerpt = geography.build_geo_body_excerpt(body, max_chars=250)
     assert excerpt == "Remote EU eligibility"
-    assert h._has_eu_country_in_location_context("location: Germany") is True
-    assert h._has_eu_country_in_location_context("Germany engineering team") is False
-    assert h._has_non_eu_location_in_context("customers in Canada") is False
-    assert h._has_us_state_in_location_context("Georgia, Europe") is False
-    assert h._window_has_us_disqualifier("California, US") is True
-    assert h._has_eu_eligibility_signal("EMEA, CET, remote") is True
-    assert h._has_us_location_signal("remote from New York") is True
+    assert geo_eu._has_eu_country_in_location_context("location: Germany") is True
+    assert geo_eu._has_eu_country_in_location_context("Germany engineering team") is False
+    assert geo_eu._has_non_eu_location_in_context("customers in Canada") is False
+    assert geo_eu._has_us_state_in_location_context("Georgia, Europe") is False
+    assert geo_eu._window_has_us_disqualifier("California, US") is True
+    assert geo_eu._has_eu_eligibility_signal("EMEA, CET, remote") is True
+    assert geo_eu._has_us_location_signal("remote from New York") is True
     assert h._has_contextual_hybrid_conflict("hybrid cloud architecture") is False
     assert h._has_contextual_hybrid_conflict("hybrid role with 2 office days") is True
     assert h._has_contextual_onsite_conflict("office attendance not required") is False
@@ -201,8 +201,8 @@ def test_remote_status_policy_and_evidence_fallbacks():
     assert h.is_open_status_ok("Position filled", True, True) is False
     assert h.is_open_status_ok("closed beta access", True, True) is True
 
-    assert h.has_region_red_flags("Remote Canada") is True
-    assert h.has_region_red_flags("Remote EU") is False
+    assert geo_eu.has_region_red_flags("Remote Canada") is True
+    assert geo_eu.has_region_red_flags("Remote EU") is False
     assert h.classify_remote_policy("Remote Europe") == "remote_europe"
     assert h.classify_remote_policy("Remote EMEA") == "remote_emea"
     assert h.classify_remote_policy("Remote CET hours") == "remote_europe"
@@ -267,33 +267,33 @@ def test_hard_filters_and_prefilter_cover_hard_and_soft_geography_remote_paths()
 
 
 def test_geo_and_context_helpers_cover_negative_and_boundary_branches():
-    assert h._has_disallowed_region_terms("Remote US only") is True
-    assert h._has_disallowed_region_terms("security clearance required") is False
-    assert h._has_disallowed_region_terms("federal security clearance") is True
+    assert geo_eu._has_disallowed_region_terms("Remote US only") is True
+    assert geo_eu._has_disallowed_region_terms("security clearance required") is False
+    assert geo_eu._has_disallowed_region_terms("federal security clearance") is True
 
-    assert h.build_geo_body_excerpt("\n\nRemote EU " + "eligibility " * 40, max_chars=250)
-    assert h.build_geo_body_excerpt("Remote EU eligibility\nRemote Spain hiring", max_chars=250) == (
+    assert geography.build_geo_body_excerpt("\n\nRemote EU " + "eligibility " * 40, max_chars=250)
+    assert geography.build_geo_body_excerpt("Remote EU eligibility\nRemote Spain hiring", max_chars=250) == (
         "Remote EU eligibility\nRemote Spain hiring"
     )
-    assert h._window_has_us_disqualifier("California office") is True
-    assert h._window_has_us_disqualifier("New York office") is True
-    assert h._window_has_us_disqualifier("United States") is True
+    assert geo_eu._window_has_us_disqualifier("California office") is True
+    assert geo_eu._window_has_us_disqualifier("New York office") is True
+    assert geo_eu._window_has_us_disqualifier("United States") is True
 
-    assert h._has_term_in_location_context("EU remote team", {"eu"}) is True
-    assert h._has_term_in_location_context("Germany team", {"Germany"}, require_location_context=False) is True
+    assert geo_eu._has_term_in_location_context("EU remote team", {"eu"}) is True
+    assert geo_eu._has_term_in_location_context("Germany team", {"Germany"}, require_location_context=False) is True
     assert (
-        h._has_term_in_location_context(
+        geo_eu._has_term_in_location_context(
             "remote Germany, but California only", {"Germany"}, reject_if_us_disqualifier=True
         )
         is False
     )
-    assert h._has_us_state_in_location_context("location: Georgia, Europe") is False
-    assert h._has_eu_eligibility_signal("remote Spain") is True
-    assert h._has_eu_eligibility_signal("remote EU") is True
-    assert h._has_eu_eligibility_signal("location: Germany") is True
-    assert h._has_eu_eligibility_signal("EMEA, CET, remote") is True
-    assert h._has_us_location_signal("United States") is True
-    assert h._has_us_location_signal("San Francisco") is True
+    assert geo_eu._has_us_state_in_location_context("location: Georgia, Europe") is False
+    assert geo_eu._has_eu_eligibility_signal("remote Spain") is True
+    assert geo_eu._has_eu_eligibility_signal("remote EU") is True
+    assert geo_eu._has_eu_eligibility_signal("location: Germany") is True
+    assert geo_eu._has_eu_eligibility_signal("EMEA, CET, remote") is True
+    assert geo_eu._has_us_location_signal("United States") is True
+    assert geo_eu._has_us_location_signal("San Francisco") is True
     assert h._has_contextual_hybrid_conflict("hybrid optional") is False
     assert h._has_contextual_onsite_conflict("onsite optional") is False
 
@@ -331,10 +331,10 @@ def test_prefilter_strong_remote_positive_overrides_hybrid_conflict():
 
 
 def test_eu_country_terms_ignore_demonyms():
-    assert h.has_region_red_flags("UK only. This role requires Romanian and English.") is True
-    assert h._has_eu_country_in_location_context("location: romanian remote") is False
-    assert h._has_eu_country_in_location_context("Location: Romania. Remote.") is True
-    assert h.has_region_red_flags("UK only. Location: Germany remote") is False
+    assert geo_eu.has_region_red_flags("UK only. This role requires Romanian and English.") is True
+    assert geo_eu._has_eu_country_in_location_context("location: romanian remote") is False
+    assert geo_eu._has_eu_country_in_location_context("Location: Romania. Remote.") is True
+    assert geo_eu.has_region_red_flags("UK only. Location: Germany remote") is False
     for demonym in (
         "romanian",
         "estonian",
@@ -345,7 +345,7 @@ def test_eu_country_terms_ignore_demonyms():
         "slovenian",
         "spanish",
     ):
-        assert h._has_eu_country_in_location_context(f"location: {demonym} remote") is False
+        assert geo_eu._has_eu_country_in_location_context(f"location: {demonym} remote") is False
 
 
 def test_negated_or_bare_distributed_is_not_full_remote():
@@ -373,10 +373,10 @@ def test_closed_technical_suffix_and_direct_negation_are_not_status():
 
 def test_security_clearance_pronoun_us_is_not_regional():
     text = "Security clearance required. Work with us. Location: Berlin"
-    assert h._has_disallowed_region_terms(text) is False
-    assert h.has_region_red_flags(text) is False
+    assert geo_eu._has_disallowed_region_terms(text) is False
+    assert geo_eu.has_region_red_flags(text) is False
     # Control: an explicit US-citizenship requirement with clearance must still flag.
-    assert h._has_disallowed_region_terms("Security clearance required. US citizens only.") is True
+    assert geo_eu._has_disallowed_region_terms("Security clearance required. US citizens only.") is True
 
 
 def test_distributed_work_arrangement_phrases_still_count_as_remote_hints():
@@ -387,9 +387,9 @@ def test_distributed_work_arrangement_phrases_still_count_as_remote_hints():
 
 
 def test_georgia_country_is_not_a_us_state_without_us_cue():
-    assert h._has_us_state_in_location_context("Location: Georgia. Remote.") is False
-    assert h._has_us_state_in_location_context("Location: Tbilisi, Georgia. Remote.") is False
-    assert h._has_us_state_in_location_context("Location: Atlanta, Georgia. Remote.") is True
+    assert geo_eu._has_us_state_in_location_context("Location: Georgia. Remote.") is False
+    assert geo_eu._has_us_state_in_location_context("Location: Tbilisi, Georgia. Remote.") is False
+    assert geo_eu._has_us_state_in_location_context("Location: Atlanta, Georgia. Remote.") is True
 
 
 def test_custom_non_pack_profile_matches_role_via_body_signals_and_title_vocab():
@@ -432,20 +432,20 @@ def test_geo_eu_home_office_incidental_offices_and_india_red_flags():
         "SavvyMoney is a US based financial technology company with partners across digital banking platforms. "
         "Work 100% remotely from your home office in Warsaw, Poland."
     )
-    assert h._has_eu_country_in_location_context(savvymoney) is True
-    assert h.has_region_red_flags(savvymoney) is False
+    assert geo_eu._has_eu_country_in_location_context(savvymoney) is True
+    assert geo_eu.has_region_red_flags(savvymoney) is False
 
     cohere = (
         "Location: Paris\nRemote\n"
         "We are headquartered in Toronto with key offices in London, New York City, San Francisco, Paris and Berlin."
     )
-    assert h.has_region_red_flags(cohere) is False
+    assert geo_eu.has_region_red_flags(cohere) is False
 
-    assert h.has_region_red_flags("Location: Bangalore, India. Remote.") is True
-    assert h.has_region_red_flags("Location: Islamabad, Pakistan. Remote.") is True
-    assert h.has_region_red_flags("Location: Lafayette, IN") is True
-    assert h.has_region_red_flags("Location: Mills River, NC") is True
-    assert h.has_region_red_flags("Work remotely in France or Poland, in Europe") is False
+    assert geo_eu.has_region_red_flags("Location: Bangalore, India. Remote.") is True
+    assert geo_eu.has_region_red_flags("Location: Islamabad, Pakistan. Remote.") is True
+    assert geo_eu.has_region_red_flags("Location: Lafayette, IN") is True
+    assert geo_eu.has_region_red_flags("Location: Mills River, NC") is True
+    assert geo_eu.has_region_red_flags("Work remotely in France or Poland, in Europe") is False
 
 
 def test_onsite_eap_wellness_benefit_does_not_reject_remote_role():
@@ -459,9 +459,9 @@ def test_onsite_eap_wellness_benefit_does_not_reject_remote_role():
 
 
 def test_us_dotted_remote_and_brazil_trigger_red_flags():
-    assert h.has_region_red_flags("Location: U.S. (Remote)") is True
-    assert h.has_region_red_flags("Location: São Paulo, São Paulo, Brazil") is True
-    assert h.has_region_red_flags("Location: U.S. (Remote) or Remote Europe") is False
+    assert geo_eu.has_region_red_flags("Location: U.S. (Remote)") is True
+    assert geo_eu.has_region_red_flags("Location: São Paulo, São Paulo, Brazil") is True
+    assert geo_eu.has_region_red_flags("Location: U.S. (Remote) or Remote Europe") is False
 
 
 def test_in_office_matches_whole_phrase_only():

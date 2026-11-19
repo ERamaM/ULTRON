@@ -4,8 +4,8 @@ import re
 from collections.abc import Iterable
 
 from ultron.core.models import ClassificationSignals, ExtractedJob, ExtractionMeta, GeoScope
-from ultron.core.rules.geography import scoped_posting_eligibility
-from ultron.core.rules.hard_filters import build_geo_body_excerpt, classify_eligibility, classify_remote_policy
+from ultron.core.rules.geography import build_geo_body_excerpt, scoped_posting_eligibility
+from ultron.core.rules.hard_filters import classify_eligibility, classify_remote_policy
 from ultron.core.rules.hard_filters_data import DISALLOWED_REMOTE_TERMS, STRONG_REMOTE_POSITIVE_TERMS
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,

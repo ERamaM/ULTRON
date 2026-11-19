@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ultron.core.models import ExtractedJob
-from ultron.core.rules.hard_filters import build_geo_body_excerpt
+from ultron.core.rules.geography import build_geo_body_excerpt
 from ultron.core.rules.term_matching import find_terms
 
 

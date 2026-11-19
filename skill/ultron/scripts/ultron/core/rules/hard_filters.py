@@ -147,6 +147,8 @@ def _has_closed_status_with_context(text: str) -> bool:
         for match in word_boundary_pattern(term).finditer(low):
             if term == "closed" and signals.closed_match_is_technical_or_negated(low, match):
                 continue
+            if term == "closed" and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end()):
+                continue  # "applications closed via recruitment agencies" is agency boilerplate
             start = max(0, match.start() - 45)
             end = min(len(low), match.end() + 45)
             window = low[start:end]
@@ -191,8 +193,9 @@ _CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUF
 def _has_closed_status_phrase(low: str) -> bool:
     """Whole-phrase CLOSED_STATUS_PHRASES match, ignoring "not accepting applications from agencies" boilerplate."""
     for phrase in rules_data.CLOSED_STATUS_PHRASES:
+        exemptable = phrase in rules_data.AGENCY_EXEMPTABLE_CLOSED_PHRASES
         for match in term_boundary_pattern(phrase).finditer(low):
-            if not _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end()):
+            if not (exemptable and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
                 return True
     return False
 

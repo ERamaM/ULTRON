@@ -34,5 +34,11 @@ def test_closed_phrases_still_close_posting():
         "Applications closed.",
         "Position filled by recruitment agency.",
         "This role is closed.",
+        "This position is now closed by recruitment agency.",
+        "Position filled.",
     ):
         assert is_open_status_ok(body, True, True) is False, body
+
+
+def test_closed_phrase_inside_another_word_does_not_close_posting():
+    assert is_open_status_ok("Create a composition filled with color.", True, True) is True

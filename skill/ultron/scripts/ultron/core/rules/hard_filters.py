@@ -147,7 +147,11 @@ def _has_closed_status_with_context(text: str) -> bool:
         for match in word_boundary_pattern(term).finditer(low):
             if term == "closed" and signals.closed_match_is_technical_or_negated(low, match):
                 continue
-            if term == "closed" and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end()):
+            if (
+                term == "closed"
+                and _APPLICATIONS_BEFORE_RE.search(low, 0, match.start())
+                and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())
+            ):
                 continue  # "applications closed via recruitment agencies" is agency boilerplate
             start = max(0, match.start() - 45)
             end = min(len(low), match.end() + 45)
@@ -188,6 +192,8 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
 
 
 _CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+# The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
+_APPLICATIONS_BEFORE_RE = re.compile(r"\bapplications?\s+$")
 
 
 def _has_closed_status_phrase(low: str) -> bool:

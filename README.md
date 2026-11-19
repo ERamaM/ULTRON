@@ -21,7 +21,7 @@ ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code
 - **Zero-Python bootstrap:** `install.sh` and `install.ps1` automatically provision standalone `uv` and Python 3.12 if your machine does not have Python installed.
 - **19 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
 - **Hybrid precision & triage:** Deterministic rules discard off-location/off-seniority noise before your agent spends tokens reviewing only genuinely uncertain ("unsure") or high-signal postings.
-- **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, and Excel (`.xlsx`).
+- **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, Excel (`.xlsx`), and a self-contained offline HTML report.
 - **Scheduled / zero-token mode:** Run unattended heuristic searches with `ultron run --unattended`.
 
 ## Supported Agents
@@ -145,7 +145,7 @@ flowchart LR
 4. **ATS Crawl:** Query verified boards across 19 ATS vendors (`discover ats`).
 5. **Fetch:** Download job descriptions with vendor API enrichment fallbacks (`fetch`).
 6. **Filter:** Apply deterministic role, seniority, language, remote-policy, and geo rules (`filter`).
-7. **Evaluate & Finalize:** Have the agent evaluate doubtful (`unsure`) postings, rank results, persist history to `$ULTRON_HOME`, and emit `results.md`, `results.json`, and optional `.xlsx` exports.
+7. **Evaluate & Finalize:** Have the agent evaluate doubtful (`unsure`) postings, rank results, persist history to `$ULTRON_HOME`, and emit `results.md`, `results.json`, and optional `.xlsx` and `.html` exports.
 
 ## Supported ATS Vendors (19) & Feeds
 
@@ -186,7 +186,7 @@ ultron run --unattended --profile ai-ml-remote-eu
 
 - **Local-first storage:** Profiles, SQLite ledger, caches, and run outputs live exclusively in `$ULTRON_HOME` (default `~/.ultron`). ULTRON uploads no telemetry.
 - **Provider visibility:** Your chosen agent provider processes only what the agent reads (your profile, extracted CV text when drafting a profile, and shortlisted/ambiguous job descriptions).
-- **Redaction & untrusted input defense:** Exports redact common API tokens/credentials automatically and sanitize Markdown/spreadsheet cells. See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and security details.
+- **Redaction & untrusted input defense:** Exports redact common API tokens/credentials automatically and sanitize Markdown, spreadsheet, and HTML output. See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and security details.
 
 ## Development & CI
 
@@ -196,7 +196,7 @@ uv run ruff check
 uv run pytest
 ```
 
-Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, pytest on Linux, macOS, and Windows (Python 3.12 and 3.13), and end-to-end installer smoke tests. CodeQL scans Python and GitHub Actions on pushes to `main`, on pull requests, and once a week. Dependabot checks for GitHub Actions and `uv` dependency updates. The [CodeRabbit configuration](.coderabbit.yaml) applies after the GitHub app is installed for this repository. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, pytest on Linux, macOS, and Windows (Python 3.12 and 3.13), and end-to-end installer smoke tests. CodeQL scans Python and GitHub Actions on pushes to `main`, on pull requests, and once a week. Dependabot checks for GitHub Actions and `uv` dependency updates. Codex reviews pull requests (code and security); see [AGENTS.md](AGENTS.md). See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 

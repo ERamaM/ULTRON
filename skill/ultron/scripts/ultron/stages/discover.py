@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+import sqlite3
+from contextlib import closing
+from dataclasses import dataclass, replace
 from math import ceil
 from urllib.parse import urlparse
 
-from ultron import runs
+from ultron import home, ledger, runs
 from ultron import seeds as seed_store
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.ashby import ASHBY_API_HOST
@@ -42,6 +44,10 @@ def _identity(candidate: dict) -> str:
 GROUPS = ("agent", "pack", "other", "feed")
 FEED_SOURCE_TYPES = {"feed_discovered", "feed_company"}
 NON_FEED_RESERVE = 0.5
+# Share of seed slots kept for seeds without enough history, so new boards still get explored (at least 1 when capped).
+EXPLORATION_RESERVE = 0.1
+# Seeds this run requested (failures included, budget skips excluded); finalize turns them into yield rows.
+SEED_ATTEMPTS_FILE = "seed_attempts.jsonl"
 # MARK III ``_seed_request_host``: the host group protected by ``max_requests_per_host``.
 _VENDOR_HOSTS = {
     "greenhouse": "boards.greenhouse.io",
@@ -63,6 +69,45 @@ def _seed_request_host(seed) -> str:
     return _VENDOR_HOSTS.get(vendor, vendor or "unknown")
 
 
+@dataclass(frozen=True, slots=True)
+class SeedYield:
+    """A seed's history for one profile: finalized runs that queried it, and runs that kept a posting from it."""
+
+    attempts: int = 0
+    keeps: int = 0
+
+    @property
+    def measured(self) -> bool:
+        return self.attempts >= 3
+
+    @property
+    def deprioritized(self) -> bool:
+        return self.attempts >= 5 and self.keeps == 0
+
+    def rank(self) -> tuple[int, float]:
+        """Seeds with keeps by keep ratio, then unmeasured seeds, then measured seeds without keeps."""
+        if self.keeps > 0:  # even before 3 attempts: a seed that already produced keeps beats an unused one
+            return 0, -self.keeps / self.attempts
+        if not self.measured:
+            return 1, 0.0
+        return 2, 0.0
+
+
+def seed_key(seed) -> str:
+    return ":".join(seed_identity(seed.ats, seed.board_identifier))
+
+
+def load_seed_yields(profile_slug: str) -> dict[str, tuple[int, int]]:
+    """The profile's seed history from the ledger; empty (and no ledger created) before the first finalize."""
+    if not (home.ultron_home() / "ultron.sqlite3").exists():
+        return {}
+    try:
+        with closing(ledger.connect()) as conn:
+            return ledger.seed_yields(conn, profile_slug)
+    except sqlite3.Error:
+        return {}
+
+
 def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> tuple[int, str]:
     """``(order, group)``: agent → pack matching sectors & geo → other auto → feed → non-matching pack."""
     if profile_slug in seed.profiles:
@@ -79,21 +124,36 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> t
 
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
-) -> tuple[list[tuple[object, str]], dict[str, dict[str, int]]]:
+    yields: dict[str, tuple[int, int]] | None = None,
+) -> tuple[list[tuple[object, str]], dict[str, dict[str, int]], dict[str, int]]:
     """Curated seeds first, then ``limit`` with a non-feed reserve, then the MARK III per-host cap.
 
-    Within a group seeds keep ``priority`` order (stable). Feed seeds may take at most ``limit`` minus
-    the reserved share (``NON_FEED_RESERVE`` of ``limit``, or fewer when fewer non-feed seeds fit under
-    the host cap). Host slots are counted only for seeds actually selected, so a seed dropped by the
-    feed cap leaves its host slot to a later seed, and a host-capped seed does not use a seed slot.
-    Returns the selected ``(seed, group)`` pairs in query order and per-group counts
-    (``host_capped``, ``capped``).
+    Seeds whose history for this profile (``yields``: seed key -> ``(attempts, keeps)``) shows 5+ attempts
+    without a kept posting go last, after every group. Within a group, seeds with keeps come first by keep
+    ratio, then seeds with fewer than 3 attempts, then measured seeds without keeps; ties keep the
+    zero-postings flag and ``priority`` order (stable). With no history this is the plain group/priority order.
+    When eligible seeds exceed ``limit``, ``EXPLORATION_RESERVE`` of it (at least 1) is kept for unmeasured
+    seeds: when the plain order would leave them out, the best-ranked ones are picked first (taking host and
+    feed slots before the rest). Feed seeds may take at most ``limit`` minus the reserved share
+    (``NON_FEED_RESERVE`` of ``limit``, or fewer when fewer non-feed seeds fit under the host cap). Host slots
+    are counted only for seeds actually selected, so a seed dropped by the feed cap leaves its host slot to a
+    later seed, and a host-capped seed does not use a seed slot. Returns the selected ``(seed, group)`` pairs
+    in query order, per-group counts (``host_capped``, ``capped``) and yield stats
+    (``deprioritized``, ``exploration_reserved``).
     """
     sectors = {str(s) for s in profile_sectors or ()}
+    history = yields or {}
+
+    def stat(seed) -> SeedYield:
+        attempts, keeps = history.get(seed_key(seed), (0, 0))
+        return SeedYield(max(0, int(attempts)), max(0, int(keeps or 0)))
+
     ranked = sorted(
         ((seed, *_rank(seed, profile_slug, sectors, geo)) for seed in load_inventory(profile_slug)),
         key=lambda item: (
+            stat(item[0]).deprioritized,
             item[1],
+            *stat(item[0]).rank(),
             1 if (item[0].verification or {}).get("postings") == 0 else 0,
             item[0].priority,
         ),
@@ -109,21 +169,60 @@ def _select_seeds(
             hosts[host] = hosts.get(host, 0) + 1
             non_feed += 1
     feed_cap = limit - min(non_feed, ceil(limit * NON_FEED_RESERVE))
-    hosts = {}
-    selected: list[tuple[object, str]] = []
-    feeds = 0
-    for seed, _order, group in ranked:
-        host = _seed_request_host(seed)
-        if hosts.get(host, 0) >= per_host:
-            counts[group]["host_capped"] += 1
-            continue
-        if len(selected) >= limit or (group == "feed" and feeds >= feed_cap):
-            counts[group]["capped"] += 1
-            continue
-        hosts[host] = hosts.get(host, 0) + 1
-        feeds += group == "feed"
-        selected.append((seed, group))
-    return selected, counts
+    unmeasured = [i for i, (seed, _order, _group) in enumerate(ranked) if not stat(seed).measured]
+    reserve = min(max(1, ceil(limit * EXPLORATION_RESERVE)), len(unmeasured)) if len(ranked) > limit else 0
+
+    def fill(explore: list[int], wanted: int) -> tuple[list[int], dict[int, str]]:
+        """Pick up to ``wanted`` of ``explore`` first, then fill the remaining slots in ranked order."""
+        hosts: dict[str, int] = {}
+        chosen: list[int] = []
+        reason: dict[int, str] = {}
+        feeds = 0
+
+        def consider(i: int) -> bool:
+            nonlocal feeds
+            seed, _order, group = ranked[i]
+            host = _seed_request_host(seed)
+            if hosts.get(host, 0) >= per_host:
+                reason[i] = "host_capped"
+                return False
+            if len(chosen) >= limit or (group == "feed" and feeds >= feed_cap):
+                reason[i] = "capped"
+                return False
+            hosts[host] = hosts.get(host, 0) + 1
+            feeds += group == "feed"
+            chosen.append(i)
+            reason.pop(i, None)
+            return True
+
+        picked = 0
+        for i in explore:
+            if picked >= wanted:
+                break
+            picked += consider(i)
+        taken = set(chosen)
+        for i in range(len(ranked)):
+            if i not in taken:
+                consider(i)
+        return chosen, reason
+
+    chosen, reason = fill([], 0)
+    plain = set(chosen)
+    # Exploration reserve: when the plain order gives unmeasured seeds fewer slots than the reserve, pick the
+    # best-ranked unmeasured seeds first (they take host and feed slots before the rest), then refill.
+    if reserve > len(plain.intersection(unmeasured)):
+        chosen, reason = fill(unmeasured, reserve)
+    reserved = len(set(chosen).intersection(unmeasured) - plain)
+    for i, why in reason.items():
+        counts[ranked[i][2]][why] += 1
+    # Query in pick order: reserved exploration seeds first, so a higher-ranked board on the same host cannot
+    # spend the shared host request budget before them; without a reserve this is the ranked order.
+    selected = [(ranked[i][0], ranked[i][2]) for i in chosen]
+    stats = {
+        "deprioritized": sum(1 for seed, _order, _group in ranked if stat(seed).deprioritized),
+        "exploration_reserved": reserved,
+    }
+    return selected, counts, stats
 
 
 def _clean_posting(posting):
@@ -215,9 +314,10 @@ def discover_ats(run_id: str) -> dict:
     timeout = settings["ats_api_timeout"]
     search_verified, search_added, prefetched, verify_requests = _verify_search_proposals(run, out_dir, timeout=timeout)
     client = client_for_run(run)
-    seeds, groups = _select_seeds(
+    seeds, groups, yield_stats = _select_seeds(
         run["profile_slug"], criteria.get("sectors"),
         settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
+        yields=load_seed_yields(run["profile_slug"]),
     )
 
     candidates: list[CandidateUrl] = []
@@ -297,6 +397,11 @@ def discover_ats(run_id: str) -> dict:
     ]
     runs.write_jsonl(out_dir / "candidates.jsonl", [*candidates, *kept_rows])
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
+    skipped_ids = {e["seed_id"] for e in errors if e.get("skipped")}
+    runs.write_jsonl(
+        out_dir / SEED_ATTEMPTS_FILE,
+        [{"seed_key": seed_key(seed)} for seed, _group in seeds if seed.seed_id not in skipped_ids],
+    )
     runs.mark_stage(run_id, "discover_ats")
     skipped = sum(1 for e in errors if e.get("skipped"))
     # Per group: queried = selected and requested (failures included); skipped = selected but not requested.
@@ -317,6 +422,8 @@ def discover_ats(run_id: str) -> dict:
         "candidates": len(candidates),
         "requests": client.requests_made + verify_requests,
         "seed_groups": groups,
+        "seeds_deprioritized": yield_stats["deprioritized"],
+        "seeds_exploration_reserved": yield_stats["exploration_reserved"],
         "search_proposals_verified": search_verified,
         "search_proposals_added": search_added,
     }

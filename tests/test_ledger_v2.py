@@ -110,3 +110,27 @@ def test_migrate_v2_backfills_novelty_and_backs_up():
     [backup] = (home.ultron_home() / "backups").glob("ultron-*-pre-v3.sqlite3")
     with closing(sqlite3.connect(backup)) as conn:
         assert conn.execute("PRAGMA user_version").fetchone() == (2,)
+
+
+def test_migrate_v3_adds_seed_yield_table_and_backs_up():
+    _make_v1()
+    path = home.ultron_home() / "ultron.sqlite3"
+    with closing(sqlite3.connect(path)) as conn, conn:
+        ledger._apply_v2(conn)
+        ledger._apply_v3(conn)
+        conn.execute("PRAGMA user_version = 3")
+
+    with closing(ledger.connect()) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone() == (4,) == (ledger.SCHEMA_VERSION,)
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (3,)
+        assert conn.execute("SELECT COUNT(*) FROM job_occurrences WHERE is_new = 1").fetchone() == (3,)
+        assert ledger.seed_yields(conn, "p") == {}
+        with conn:
+            conn.execute("INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES ('p', 'lever:a', 'r1', 2)")
+            conn.execute("INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES ('p', 'lever:a', 'r2', 0)")
+        assert ledger.seed_yields(conn, "p") == {"lever:a": (2, 1)}
+    [backup] = (home.ultron_home() / "backups").glob("ultron-*-pre-v4.sqlite3")
+    with closing(sqlite3.connect(backup)) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone() == (3,)
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        assert "seed_yield_runs" not in tables

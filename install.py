@@ -36,8 +36,10 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
@@ -131,9 +133,100 @@ def _group_by_path(targets: dict[str, Path]) -> list[tuple[Path, list[str]]]:
 # ------------------------------------------------------------------------------------------------ venv
 
 
+# Termination requested by SIGTERM/SIGHUP: its exit code, and whether a pip/venv step is running right now.
+_TERMINATION = {"code": 0, "in_step": False}
+
+
+class Terminated(BaseException):
+    """SIGTERM/SIGHUP stopped the installer; ``main`` reports it as one JSON object with exit code ``code``."""
+
+    def __init__(self, code: int) -> None:
+        super().__init__(f"stopped by signal (exit {code})")
+        self.code = code
+
+
+def _exit_if_terminated() -> None:
+    """Checkpoint between steps and file replacements: stop here if a termination signal was received."""
+    if _TERMINATION["code"]:
+        raise Terminated(_TERMINATION["code"])
+
+
+_STEP_STOP_GRACE = 10.0  # seconds a step's process group gets to exit after SIGTERM before SIGKILL
+
+
+def _group_alive(pgid: int) -> bool:
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _stop_step(proc: subprocess.Popen) -> None:
+    """Stop a step and every process it started (build backends included), then reap it."""
+    if os.name != "posix":
+        proc.kill()
+        proc.wait()
+        return
+    for sig, grace in ((signal.SIGTERM, _STEP_STOP_GRACE), (signal.SIGKILL, 5.0)):
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            break
+        deadline = time.monotonic() + grace
+        while time.monotonic() < deadline:
+            if proc.poll() is not None and not _group_alive(proc.pid):
+                break
+            time.sleep(0.05)
+        else:
+            continue
+        break
+    proc.wait()
+
+
 def _run(cmd: list[str]) -> None:
-    """Run an installer step; its output goes to stderr so stdout stays one JSON object."""
-    subprocess.run(cmd, check=True, stdout=sys.stderr)
+    """Run an installer step; its output goes to stderr so stdout stays one JSON object.
+
+    On POSIX the step gets its own process group, so an interruption can stop pip/uv and the build backends
+    they start before ``install.sh`` removes a downloaded source those processes still read.
+    """
+    _exit_if_terminated()  # a pending termination stops before the next step, never inside file moves
+    # A signal while the step is being started is only recorded (in_step is still False), so the Popen object
+    # is never lost; it is acted on right after Popen returns.
+    proc = subprocess.Popen(cmd, stdout=sys.stderr, start_new_session=os.name == "posix")
+    try:
+        _TERMINATION["in_step"] = True  # inside the try: any signal that raises from here is cleaned up below
+        _exit_if_terminated()
+        code = proc.wait()
+    except BaseException:
+        _TERMINATION["in_step"] = False  # a second signal during cleanup is recorded, not raised
+        _stop_step(proc)
+        raise
+    finally:
+        _TERMINATION["in_step"] = False
+    if code:
+        raise subprocess.CalledProcessError(code, cmd)
+
+
+def _on_termination_signal(signum: int, _frame: object) -> None:
+    _TERMINATION["code"] = 128 + signum
+    if _TERMINATION["in_step"]:
+        raise Terminated(128 + signum)  # _run stops and reaps the step's process group, then re-raises
+
+
+def _handle_termination_signals() -> None:
+    """Stop cleanly on SIGTERM/SIGHUP instead of dying with a pip/venv step still running.
+
+    With the default handlers only this process dies, and ``install.sh`` would then delete a downloaded source
+    that the orphaned step still uses. A signal during a step ends it now; at any other moment (for example
+    while a previous install is moved aside and replaced) it takes effect at the next checkpoint: before the
+    next step, the next target, a data purge, or the final report. File replacement is never cut in half.
+    """
+    for name in ("SIGTERM", "SIGHUP"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _on_termination_signal)
 
 
 def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
@@ -627,6 +720,7 @@ def install_dev(*, target: Path, source: Path | None = None, force_copy: bool = 
     targets = []
     for rel in PLATFORM_DIRS:
         dest = Path(target) / rel / "ultron"
+        _exit_if_terminated()
         install_copy(source, dest, runtime, label=rel.parts[0].lstrip("."))
         entry = {"path": str(dest), "mode": "symlink" if _is_link(dest) else "copy"}
         platforms = ["claude"] if rel.parts[0] == ".claude" else [p for p in PLATFORMS if p != "claude"]
@@ -669,6 +763,7 @@ def run_install(*, scope: str, project: Path | None, platforms: list[str], dev: 
         if entry["status"] != "pending":
             continue
         dest = Path(entry["path"])
+        _exit_if_terminated()
         try:
             label = entry["platforms"][0] if len(entry["platforms"]) == 1 else "agents"
             entry["status"] = install_copy(source, dest, runtime, label=label, info=entry)
@@ -678,7 +773,10 @@ def run_install(*, scope: str, project: Path | None, platforms: list[str], dev: 
         except (InstallError, OSError) as exc:
             entry.update(status="skipped", reason=str(exc))
             continue
+        # Recorded right after its copy (the write is atomic), so a termination at the next checkpoint never
+        # leaves a finished install unrecorded or installs.json half-written.
         _try_record(entry, dest, scope=scope, project=project, version=runtime["version"])
+    _exit_if_terminated()
     report = {"action": "update" if update else "install", "scope": scope, "dry_run": dry_run,
               "version": runtime["version"], "venv": str(venv), "venv_tool": tool,
               "ultron": str(runtime["executable"]), "targets": entries}
@@ -763,6 +861,7 @@ def run_uninstall(*, scope: str, project: Path | None, platforms: list[str], pur
         elif dry_run:
             entry["status"] = "removed"
         else:
+            _exit_if_terminated()
             try:
                 entry["status"] = "removed" if uninstall_copy(path) else "skipped"
             except OSError as exc:
@@ -785,7 +884,9 @@ def run_uninstall(*, scope: str, project: Path | None, platforms: list[str], pur
         if refusal:
             data.update(status="refused", reason=refusal)
         else:
+            _exit_if_terminated()  # never start deleting data after a termination request
             data.update(_purge_home(home, dry_run=dry_run))
+    _exit_if_terminated()
     # Folders we did not create are skipped on purpose; only a failed removal or a refused purge is an error.
     ok = data["status"] != "refused" and not any(e["status"] == "failed" for e in entries)
     return {"action": "uninstall", "scope": scope, "dry_run": dry_run, "targets": entries,
@@ -878,9 +979,14 @@ def main(argv: list[str] | None = None) -> int:
     except (InstallError, OSError, subprocess.CalledProcessError) as exc:
         print(json.dumps({"error": "install_failed", "detail": str(exc)}, ensure_ascii=False))
         return 1
+    except Terminated as exc:
+        detail = f"{exc}; work finished before the signal is kept, nothing after it was started"
+        print(json.dumps({"error": "terminated", "detail": detail}, ensure_ascii=False))
+        return exc.code
     print(_dump(report))
     return 0 if report.get("ok", True) else 1
 
 
 if __name__ == "__main__":
+    _handle_termination_signals()
     sys.exit(main())

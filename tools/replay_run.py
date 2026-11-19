@@ -27,7 +27,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from eval_harness import final_status, replay
+from eval_harness import final_status, read_final_outcomes, replay
 
 from ultron import runs
 
@@ -54,25 +54,36 @@ def resolve_run_dir(run_id: str | None, run_path: Path | None) -> Path:
 
 
 def _recorded(path: Path) -> dict[str, str]:
-    """Recorded decision per identity: ``keep``/``unsure``/``discard`` after finalize, else the filter route."""
+    """Recorded decision per identity: ``keep``/``unsure``/``discard`` after finalize, else the filter route.
+
+    A ranked identity whose exported row cannot be joined back (export redaction may rewrite its URL)
+    is ``ranked``: it was in the shortlist, with an unknown verdict.
+    """
     recorded: dict[str, str] = {}
     for row in runs.read_jsonl(path / "discarded.jsonl"):
         recorded[row["identity_key"]] = "discard"
-    entries = [*runs.read_jsonl(path / "kept.jsonl"), *runs.read_jsonl(path / "ambiguous.jsonl")]
     results_path = path / "results.json"
     if not results_path.is_file():
-        for entry in entries:
-            recorded[entry["identity_key"]] = "pending"
+        entries = [*runs.read_jsonl(path / "kept.jsonl"), *runs.read_jsonl(path / "ambiguous.jsonl")]
+        recorded.update({entry["identity_key"]: "pending" for entry in entries})
         return recorded
     rows = json.loads(results_path.read_text(encoding="utf-8")).get("rows") or []
-    ranked = {str(row.get("apply_url") or ""): row for row in rows}
-    for entry in entries:
-        row = ranked.get(str((entry.get("job") or {}).get("apply_url") or ""))
-        if row is None:
-            recorded[entry["identity_key"]] = "discard"
+    for key, outcome in read_final_outcomes(path, rows).items():
+        if outcome["status"] == "discarded":
+            recorded[key] = "discard"
+        elif outcome["verdict"] is None:
+            recorded[key] = "ranked"
         else:
-            recorded[entry["identity_key"]] = "unsure" if row.get("evaluation_verdict") == "unsure" else "keep"
+            recorded[key] = "unsure" if outcome["verdict"] == "unsure" else "keep"
     return recorded
+
+
+def _changed(recorded: str, replayed: str) -> bool:
+    if recorded in ("pending", "missing"):
+        return False
+    if recorded == "ranked":
+        return replayed == "discard"
+    return recorded != replayed
 
 
 def replay_run(path: Path, *, use_evaluations: bool = True) -> dict[str, Any]:
@@ -102,7 +113,7 @@ def replay_run(path: Path, *, use_evaluations: bool = True) -> dict[str, Any]:
             "reason": filtered.get("reason") or (outcome.get("final") or {}).get("reason"),
             "rank": (outcome.get("final") or {}).get("rank"),
         }
-    changed = sorted(k for k, v in identities.items() if v["recorded"] not in (v["replayed"], "pending", "missing"))
+    changed = sorted(k for k, v in identities.items() if _changed(v["recorded"], v["replayed"]))
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "run_id": str(run.get("run_id") or path.name),

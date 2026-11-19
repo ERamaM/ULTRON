@@ -11,7 +11,6 @@ metrics (``quality_benchmark.py``) or diff two replays (``replay_run.py``).
 
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from collections.abc import Iterator
@@ -20,8 +19,8 @@ from pathlib import Path
 from typing import Any
 
 from ultron import runs
+from ultron.stages import finalize as finalize_stage
 from ultron.stages.filter import filter_run
-from ultron.stages.finalize import finalize
 
 REPLAY_RUN_ID = "20000101-000000-000000"
 REPLAY_CREATED_AT = "2000-01-01T00:00:00+00:00"
@@ -57,21 +56,31 @@ def _filter_outcomes(out_dir: Path) -> dict[str, dict[str, Any]]:
     return outcomes
 
 
-def _final_outcomes(out_dir: Path) -> dict[str, dict[str, Any]]:
-    """Final rank (1-based) or finalize-stage discard for every identity that reached finalize."""
-    entries = [*runs.read_jsonl(out_dir / "kept.jsonl"), *runs.read_jsonl(out_dir / "ambiguous.jsonl")]
-    by_url: dict[str, str] = {}
-    for entry in entries:
-        by_url.setdefault(str((entry.get("job") or {}).get("apply_url") or ""), entry["identity_key"])
+def assign_ranks(
+    entries: list[dict[str, Any]], discarded: dict[str, dict[str, Any]], rows: list[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Final outcome of every identity that reached finalize.
+
+    ``entries`` are the kept and ambiguous filter rows, ``discarded`` maps identities to their
+    ``finalize_discards.jsonl`` row and ``rows`` are the shortlist rows in rank order. An identity is
+    ranked exactly when finalize did not discard it; the shortlist rows (joined by ``apply_url``,
+    first unassigned identity first) only add its rank, verdict and score.
+    """
     outcomes: dict[str, dict[str, Any]] = {}
-    for row in runs.read_jsonl(out_dir / "finalize_discards.jsonl"):
-        outcomes[row["identity_key"]] = {"status": "discarded", "stage": row.get("stage"), "reason": row.get("reason")}
-    results = json.loads((out_dir / "results.json").read_text(encoding="utf-8"))
-    for rank, row in enumerate(results.get("rows") or [], start=1):
-        key = by_url.get(str(row.get("apply_url") or ""))
-        if key is None:
+    pending: dict[str, list[str]] = {}
+    for entry in entries:
+        key = entry["identity_key"]
+        if key in discarded:
+            row = discarded[key]
+            outcomes[key] = {"status": "discarded", "stage": row.get("stage"), "reason": row.get("reason")}
+        elif key not in outcomes:
+            outcomes[key] = {"status": "ranked", "rank": None, "verdict": None}
+            pending.setdefault(str((entry.get("job") or {}).get("apply_url") or ""), []).append(key)
+    for rank, row in enumerate(rows, start=1):
+        keys = pending.get(str(row.get("apply_url") or ""))
+        if not keys:
             continue
-        outcomes[key] = {
+        outcomes[keys.pop(0)] = {
             "status": "ranked",
             "rank": rank,
             "verdict": row.get("evaluation_verdict"),
@@ -79,6 +88,28 @@ def _final_outcomes(out_dir: Path) -> dict[str, dict[str, Any]]:
             "match_band": row.get("match_band"),
         }
     return outcomes
+
+
+def read_final_outcomes(out_dir: Path, rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    entries = [*runs.read_jsonl(out_dir / "kept.jsonl"), *runs.read_jsonl(out_dir / "ambiguous.jsonl")]
+    discarded = {row["identity_key"]: row for row in runs.read_jsonl(out_dir / "finalize_discards.jsonl")}
+    return assign_ranks(entries, discarded, rows)
+
+
+@contextmanager
+def _capture_shortlist(store: list[dict[str, Any]]) -> Iterator[None]:
+    """Keep finalize's ranked rows before export redaction (redaction can rewrite URLs)."""
+    original = finalize_stage.write_outputs
+
+    def capture(output_dir, run_id, rows, summary, discards):
+        store[:] = [row.model_dump(mode="json") for row in rows]
+        return original(output_dir, run_id, rows, summary, discards)
+
+    finalize_stage.write_outputs = capture
+    try:
+        yield
+    finally:
+        finalize_stage.write_outputs = original
 
 
 def replay(
@@ -114,9 +145,14 @@ def replay(
         if evaluations:
             runs.write_jsonl(out_dir / "evaluations.jsonl", evaluations)
         filter_summary = filter_run(run_id)
-        finalize_summary = finalize(run_id)
+        shortlist: list[dict[str, Any]] = []
+        with _capture_shortlist(shortlist):
+            finalize_summary = finalize_stage.finalize(run_id)
         filtered = _filter_outcomes(out_dir)
-        final = _final_outcomes(out_dir)
+        final = read_final_outcomes(out_dir, shortlist)
+    ranked = [o for o in final.values() if o["status"] == "ranked"]
+    if len(shortlist) != finalize_summary["roles"] or any(o["rank"] is None for o in ranked):
+        raise RuntimeError("replay could not map every shortlist row to a posting identity")
     identities = [str(row["identity_key"]) for row in postings]
     return {
         "filter_summary": filter_summary,

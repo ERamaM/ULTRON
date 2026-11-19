@@ -233,6 +233,17 @@ def test_replay_is_deterministic_and_leaves_the_home_untouched(report, tmp_path)
     assert not Path(home).exists() or not any((Path(home) / "runs").glob("*"))
 
 
+def test_tools_never_write_the_labels():
+    import measure_quality
+
+    labelled = [*sorted(CORPUS.rglob("*.*")), measure_quality.LABELS_PATH, measure_quality.CORPUS_PATH]
+    before = {path: path.read_bytes() for path in labelled if path.is_file()}
+    qb.run_benchmark()
+    measure_quality.measure()
+    assert {path: path.read_bytes() for path in labelled if path.is_file()} == before
+    assert sorted(CORPUS.rglob("*.*")) == sorted(p for p in before if CORPUS in p.parents)
+
+
 def test_every_relevant_miss_has_a_losing_stage(report):
     for case in report["cases"]:
         missed = case["truth"]["relevant"] is True and case["prediction"]["status"] != "keep"

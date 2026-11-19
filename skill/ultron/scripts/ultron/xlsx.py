@@ -38,7 +38,14 @@ def _col_letter(idx: int) -> str:
 
 
 def _neutralize_formula(value: str) -> str:
-    """Keep untrusted spreadsheet text from becoming an Excel formula."""
+    """Make untrusted text safe for a cell: drop control characters, then keep it from becoming a formula.
+
+    openpyxl refuses (``IllegalCharacterError``) the C0 controls XML cannot hold, such as ``\\x08`` or ``\\x1b``.
+    They are stripped first, so a leading control character cannot hide a formula prefix.
+    """
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+
+    value = ILLEGAL_CHARACTERS_RE.sub("", value)
     return "'" + value if re.match(r"^\s*[=+\-@]", value) else value
 
 

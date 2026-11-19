@@ -125,3 +125,9 @@ def test_url_utils_and_page_links():
 
     links = urls.fetch_page_links("https://acme.example/careers", 1, client=Client())
     assert "https://boards.greenhouse.io/acme/jobs/1" in links and "https://acme.example/jobs" in links
+
+
+def test_arbeitnow_null_next_link_stops_pagination():
+    c = FakeClient({"data": [{"title": "ML Engineer", "url": "https://a/jobs/1"}], "links": {"next": None}})
+    rows, discards = collectors.collect_arbeitnow_urls(1, 3, api_url="https://a/api", request_json=c.request_json)
+    assert len(rows) == 1 and discards == [] and c.requested == ["https://a/api"]

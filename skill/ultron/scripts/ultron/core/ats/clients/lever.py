@@ -33,8 +33,8 @@ def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
     for job in jobs:
         if not isinstance(job, dict):
             continue
-        title = str(job.get("text", "")).strip()
-        apply_url = str(job.get("hostedUrl", "")).strip()
+        title = str(job.get("text") or "").strip()
+        apply_url = str(job.get("hostedUrl") or "").strip()
         if not title or not apply_url:
             continue
         categories = job.get("categories") if isinstance(job.get("categories"), dict) else {}

@@ -229,10 +229,42 @@ def _handle_termination_signals() -> None:
             signal.signal(getattr(signal, name), _on_termination_signal)
 
 
+def find_on_path(name: str) -> str | None:
+    """``name`` on PATH, never from the current directory (unlike ``shutil.which`` on Windows).
+
+    Only absolute PATH entries are searched; empty, relative and current-directory entries are skipped, so an
+    untrusted checkout holding ``uv.exe`` cannot become the installer's executable. On Windows the ``PATHEXT``
+    extensions are tried. The same resolver lives in ``install.py`` and ``ultron.update`` (tested together).
+    """
+    try:
+        cwd = os.path.normcase(os.path.realpath(os.getcwd()))
+    except OSError:
+        cwd = None
+    exts = [""]
+    if os.name == "nt":
+        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e.strip()]
+        if os.path.splitext(name)[1]:
+            exts.insert(0, "")
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        entry = entry.strip().strip('"')
+        if not entry or not os.path.isabs(entry):
+            continue
+        try:
+            if os.path.normcase(os.path.realpath(entry)) == cwd:
+                continue
+        except OSError:
+            continue
+        for ext in exts:
+            candidate = os.path.join(entry, name + ext)
+            if os.path.isfile(candidate) and (os.name == "nt" or os.access(candidate, os.X_OK)):
+                return candidate
+    return None
+
+
 def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
     """Create/update the venv and install ``scripts[cv,xlsx]`` (editable or regular); return the tool used."""
     spec = f"{scripts}{EXTRAS}"
-    uv = shutil.which("uv")
+    uv = find_on_path("uv")
     if uv:
         _run([uv, "venv", "--allow-existing", "--python", ">=3.12", str(venv)])
         if editable:

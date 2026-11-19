@@ -168,6 +168,11 @@ _GENERIC_PORTAL_TITLES = frozenset({"join us", "careers", "jobs", "career", "ope
 _WD_LOCALE_RE = re.compile(r"^[a-z]{2}(?:-[A-Z]{2})?$")
 
 
+def _dict_or_empty(value: object) -> object:
+    """``{}`` for a missing (``None``) JSON object; every other value is returned for validation."""
+    return {} if value is None else value
+
+
 def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
     src = str(candidate.source_key or "").strip()
     is_sr_domain = job.domain == "smartrecruiters.com" or job.domain.endswith(".smartrecruiters.com")
@@ -195,9 +200,10 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         return job, False
     if not isinstance(payload, dict) or not payload.get("name"):
         return job, False
-    job_ad = payload.get("jobAd") or {}
-    sections_dict = (job_ad.get("sections") or {}) if isinstance(job_ad, dict) else None
-    company_obj = payload.get("company") or {}
+    # Only a missing (null) object defaults to {}; any other non-dict, even an empty list, is malformed.
+    job_ad = _dict_or_empty(payload.get("jobAd"))
+    sections_dict = _dict_or_empty(job_ad.get("sections")) if isinstance(job_ad, dict) else None
+    company_obj = _dict_or_empty(payload.get("company"))
     if not isinstance(sections_dict, dict) or not isinstance(company_obj, dict):
         return job, False
     ordered = ("jobDescription", "qualifications", "additionalInformation", "companyDescription")

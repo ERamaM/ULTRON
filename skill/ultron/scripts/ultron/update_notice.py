@@ -63,7 +63,9 @@ def _release_from(payload: object) -> dict | None:
 def _get_release(path: str, timeout: float) -> dict | None:
     _, owner, name = repository()
     try:
-        response = httpx.get(f"https://api.github.com/repos/{owner}/{name}/releases/{path}", timeout=timeout)
+        # trust_env=False: ignore proxy variables and .netrc, like every request through net.py
+        url = f"https://api.github.com/repos/{owner}/{name}/releases/{path}"
+        response = httpx.get(url, timeout=timeout, trust_env=False)
         if response.status_code == 404:
             return None
         response.raise_for_status()

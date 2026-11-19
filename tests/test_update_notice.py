@@ -14,7 +14,8 @@ def test_version_check_reports_newer_release_once(monkeypatch, tmp_path, capsys)
     calls = []
     tag = "v0.10.0"
 
-    def get(url, *, timeout):
+    def get(url, *, timeout, trust_env):
+        assert trust_env is False  # proxies from the environment are ignored, as in net.py
         calls.append(url)
         return httpx.Response(200, json={"tag_name": tag}, request=httpx.Request("GET", url))
 
@@ -53,7 +54,8 @@ def test_version_check_reports_newer_release_once(monkeypatch, tmp_path, capsys)
 def test_check_fails_quietly_without_a_new_stable_release(monkeypatch, tmp_path, status, payload):
     monkeypatch.setenv("ULTRON_HOME", str(tmp_path))
 
-    def get(url, *, timeout):
+    def get(url, *, timeout, trust_env):
+        assert trust_env is False  # proxies from the environment are ignored, as in net.py
         return httpx.Response(status, json=payload, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(update_notice.httpx, "get", get)
@@ -73,7 +75,8 @@ def test_disabled_check_does_not_contact_github(monkeypatch):
 def test_recent_check_with_mtime_slightly_ahead_is_not_repeated(monkeypatch, tmp_path):
     calls = []
 
-    def get(url, *, timeout):
+    def get(url, *, timeout, trust_env):
+        assert trust_env is False  # proxies from the environment are ignored, as in net.py
         calls.append(url)
         return httpx.Response(200, json={"tag_name": "v0.10.0"}, request=httpx.Request("GET", url))
 

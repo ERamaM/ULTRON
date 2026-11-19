@@ -7,6 +7,7 @@ command(s) for the agent to run as a separate process. Nothing from the archive 
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shlex
@@ -22,8 +23,8 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from ultron import __version__
+from ultron.doctor import _home_path, _marker_valid, _registered_link
 from ultron.doctor import _in_dev_checkout as _doctor_in_dev_checkout
-from ultron.doctor import _marker_valid, _registered_link
 from ultron.net import USER_AGENT
 from ultron.platforms import PLATFORM_NAMES, global_skill_dirs
 from ultron.update_notice import format_version, latest_release, parse_version, release_for_version, repository
@@ -113,30 +114,94 @@ def _project_skill_dirs(project: Path) -> dict[tuple[str, ...], Path]:
     }
 
 
-def discover_installs(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
-    """Installer scopes to refresh, rebuilt from the ``.ultron-install.json`` markers ``install.py`` writes.
+def _real(path: Path) -> str:
+    """The key ``install.py`` uses in ``installs.json`` (parents resolved, last component not followed)."""
+    return str(Path(path).parent.resolve() / Path(path).name)
 
-    ``install.py`` keeps no list of its installs (``installs.json`` records only ``--dev`` links), so global
-    installs are found in the platforms' user folders and project installs in ``cwd`` and ``projects``.
+
+def _registry_records() -> dict:
+    """``installs`` from ``$ULTRON_HOME/installs.json`` (written by install.py); empty for older/missing files."""
+    try:
+        data = json.loads((_home_path() / "installs.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return {}
+    records = data.get("installs") if isinstance(data, dict) else None
+    return records if isinstance(records, dict) else {}
+
+
+def _marker_version(path: Path) -> str | None:
+    try:
+        version = json.loads((path / ".ultron-install.json").read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError, UnicodeDecodeError, AttributeError):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def _platforms(names: object) -> list[str]:
+    if not isinstance(names, list):
+        return []
+    return _ordered({"antigravity" if n == "antigravity-legacy" else n for n in names if isinstance(n, str)})
+
+
+def _recorded_copies() -> list[dict]:
+    """Copy installs recorded by install.py that still exist and still carry a valid marker."""
+    copies = []
+    for record in _registry_records().values():
+        if not isinstance(record, dict) or record.get("mode") == "link" or not isinstance(record.get("path"), str):
+            continue
+        scope, project, platforms = record.get("scope"), record.get("project"), _platforms(record.get("platforms"))
+        if scope not in ("global", "project") or not platforms or (scope == "project" and not isinstance(project, str)):
+            continue
+        path = Path(record["path"])
+        if not _is_copy_install(path):  # removed or replaced since it was recorded
+            continue
+        version = record.get("version") if isinstance(record.get("version"), str) else _marker_version(path)
+        copies.append({"scope": scope, "project": project if scope == "project" else None, "path": str(path),
+                       "platforms": platforms, "version": version, "found_by": "record"})
+    return copies
+
+
+def find_copies(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
+    """Every copy install to consider, one entry per skill folder.
+
+    Records in ``installs.json`` come first (they find project installs anywhere). Installs made before
+    install.py recorded them are found by their ``.ultron-install.json`` marker in the platforms' global folders,
+    ``cwd`` and ``projects``.
     """
-    installs: list[dict] = []
-    found: set[str] = set()
-    paths: list[str] = []
+    copies = _recorded_copies()
+    seen = {_real(Path(c["path"])) for c in copies}
+
+    def add(scope: str, project: str | None, path: Path, platforms: list[str]) -> None:
+        if _real(path) not in seen and _is_copy_install(path):
+            seen.add(_real(path))
+            copies.append({"scope": scope, "project": project, "path": str(path), "platforms": platforms,
+                           "version": _marker_version(path), "found_by": "marker"})
+
     for name, path in global_skill_dirs(home).items():
-        if _is_copy_install(path):
-            found.add("antigravity" if name == "antigravity-legacy" else name)
-            paths.append(str(path))
-    if found:
-        installs.append({"scope": "global", "platforms": _ordered(found), "paths": paths})
+        add("global", None, path, ["antigravity" if name == "antigravity-legacy" else name])
     for project in _project_dirs(home, cwd, projects):
-        found, paths = set(), []
         for platforms, path in _project_skill_dirs(project).items():
-            if _is_copy_install(path):
-                found.update(platforms)
-                paths.append(str(path))
-        if found:
-            installs.append({"scope": "project", "project": str(project), "platforms": _ordered(found), "paths": paths})
-    return installs
+            add("project", str(project), path, list(platforms))
+    return copies
+
+
+def group_scopes(copies: list[dict]) -> list[dict]:
+    """One entry per installer scope (global, or one project folder) with the union of platforms."""
+    groups: dict[tuple[str, str | None], dict] = {}
+    for copy in copies:
+        key = (copy["scope"], copy["project"])
+        group = groups.setdefault(key, {"scope": copy["scope"], "platforms": set(), "paths": [], "versions": {}})
+        if copy["scope"] == "project":
+            group["project"] = copy["project"]
+        group["platforms"].update(copy["platforms"])
+        group["paths"].append(copy["path"])
+        group["versions"][copy["path"]] = copy["version"]
+    return [{**group, "platforms": _ordered(group["platforms"])} for group in groups.values()]
+
+
+def discover_installs(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
+    """Installer scopes to refresh (see ``find_copies``)."""
+    return group_scopes(find_copies(home=home, cwd=cwd, projects=projects))
 
 
 def dev_links(*, home: Path, cwd: Path, projects: list[Path]) -> list[str]:
@@ -144,7 +209,14 @@ def dev_links(*, home: Path, cwd: Path, projects: list[Path]) -> list[str]:
     candidates = list(global_skill_dirs(home).values())
     for project in _project_dirs(home, cwd, projects):
         candidates.extend(_project_skill_dirs(project).values())
-    return [str(path) for path in candidates if _is_link(path) and _registered_link(path)]
+    for record in _registry_records().values():
+        if isinstance(record, dict) and record.get("mode") == "link" and isinstance(record.get("path"), str):
+            candidates.append(Path(record["path"]))
+    out: list[str] = []
+    for path in candidates:
+        if _is_link(path) and _registered_link(path) and str(path) not in out:
+            out.append(str(path))
+    return out
 
 
 # ------------------------------------------------------------------------------------------- commands
@@ -337,25 +409,33 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         return result
     target = release["version"]
     result.update(target=format_version(target), tag=release["tag"], release_url=release["url"])
-    if installed is not None and (target == installed or (to is None and target < installed)):
-        result.update(status="up_to_date", detail=f"ULTRON {__version__} is already up to date")
-        return result
-    if installed is not None and target < installed:
+    cli_current = installed is not None and (target == installed or (to is None and target < installed))
+    if installed is not None and target < installed and to is not None:
         result["downgrade"] = True
+    home, cwd = Path.home(), Path.cwd()
+    copies = find_copies(home=home, cwd=cwd, projects=projects)
+    reason = "cli_outdated"
+    if cli_current:
+        # The CLI is current; skill copies that an older installer left behind still need the update.
+        copies = [c for c in copies if (v := parse_version(c["version"])) is not None and v < target]
+        if not copies:
+            result.update(status="up_to_date", detail=f"ULTRON {__version__} is already up to date")
+            return result
+        reason = "stale_skill_copies"
     if _in_dev_checkout():
         result.update(status="source_checkout",
                       detail="running from a source checkout: update it with git, then run install.py --dev --update")
         return result
-    home, cwd = Path.home(), Path.cwd()
-    installs = discover_installs(home=home, cwd=cwd, projects=projects)
+    installs = group_scopes(copies)
     links = dev_links(home=home, cwd=cwd, projects=projects)
     if links:
         result["dev_links"] = links
         result["dev_note"] = "linked (--dev) skill folders follow their checkout: update it with git instead"
     if not installs:
-        result.update(status="no_installs", detail="no ULTRON skill installed by install.py was found globally, "
-                      "in the current folder or in --project folders")
+        result.update(status="no_installs", detail="no ULTRON skill installed by install.py was found (installs.json, "
+                      "global folders, the current folder or --project folders)")
         return result
+    result["reason"] = reason
     url, _, _ = repository()
     temp = Path(tempfile.mkdtemp(prefix="ultron-update-"))
     try:

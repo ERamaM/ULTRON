@@ -47,5 +47,6 @@ def register(subparsers) -> None:
     mode.add_argument("--check", action="store_true", help="only compare the installed and latest stable versions")
     mode.add_argument("--to", type=_version, metavar="vX.Y.Z", help="prepare this stable release instead of the latest")
     parser.add_argument("--project", action="append", default=[], metavar="DIR",
-                        help="also refresh the project install in DIR (repeatable; the current folder is always checked)")
+                        help="also look for an unrecorded project install in DIR (repeatable; recorded installs "
+                             "and the current folder are always checked)")
     parser.set_defaults(func=_run)

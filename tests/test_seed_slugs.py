@@ -62,3 +62,14 @@ def test_generic_company_names_are_never_probed(company):
     res = verify_proposal(Proposal(company=company), client=make_client(handler), timeout=5)
     assert res.status == "unresolved" and res.reason == "no_board_found"
     assert seen == []
+
+
+@pytest.mark.parametrize("company,expected", [
+    ("Société Générale", ["societegenerale", "societe-generale"]),
+    ("Zürich Insurance", ["zurichinsurance", "zurich-insurance"]),
+    ("Ñaña Labs", ["nanalabs", "nana-labs"]),
+    ("Crème Brûlée GmbH", ["cremebruleegmbh", "creme-brulee-gmbh", "cremebrulee", "creme-brulee"]),
+    ("Straße Ørsted AG", ["strasseorstedag", "strasse-orsted-ag", "strasseorsted", "strasse-orsted"]),
+])
+def test_diacritics_are_transliterated_not_dropped(company, expected):
+    assert slug_candidates(company, "") == expected

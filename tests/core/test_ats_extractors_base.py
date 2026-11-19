@@ -431,3 +431,28 @@ def test_extract_text_lines_strips_and_drops_blanks():
 def test_host_labels_handles_empty_and_multi_part():
     assert base._host_labels("https://boards.greenhouse.io/acme") == ["boards", "greenhouse", "io"]
     assert base._host_labels("not-a-url") == []
+
+
+def test_structured_fields_ignore_json_null_and_use_name_of_nested_address_values():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "JobPosting", "title": "Data Engineer", "hiringOrganization": {"name": null},
+     "jobLocation": {"address": {"addressLocality": "Madrid", "addressRegion": null,
+                                 "addressCountry": {"@type": "Country", "name": "ES"}}, "name": null},
+     "jobLocationType": null, "datePosted": "2026-01-05"}
+    </script>
+    </head><body></body></html>
+    """
+    job = base.parse_generic(_page(html))
+    assert job.title == "Data Engineer"
+    assert job.location == "Madrid | ES"
+    assert "None" not in job.company
+    assert "None" not in job.remote_text
+
+
+def test_structured_fields_null_title_is_empty():
+    fields = base._structured_fields_from_node({"@type": "JobPosting", "title": None, "jobLocationType": None})
+    assert fields["title"] == ""
+    assert fields["remote_text"] == ""
+    assert base._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""

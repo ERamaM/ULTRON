@@ -187,3 +187,29 @@ def test_fetch_vendor_jobs_dispatches():
 def test_unsupported_vendor_raises():
     with pytest.raises(AtsClientError, match="vendor_not_supported_yet"):
         fetch_vendor_jobs("nosuchvendor", "acme", client=FakeClient([]), timeout=5)
+
+
+def test_greenhouse_null_title_or_location_is_not_stringified():
+    payload = {
+        "jobs": [
+            {"id": 1, "title": None, "absolute_url": "https://boards.greenhouse.io/acme/jobs/1"},
+            {
+                "id": 2,
+                "title": "Engineer",
+                "location": {"name": None},
+                "absolute_url": "https://boards.greenhouse.io/acme/jobs/2",
+            },
+        ]
+    }
+    out = fetch_greenhouse_jobs("acme", client=FakeClient([payload]))
+    assert [(p.title, p.location) for p in out] == [("Engineer", "")]
+
+
+def test_lever_null_hosted_url_or_title_is_skipped():
+    payload = [
+        {"text": "Engineer", "hostedUrl": None},
+        {"text": None, "hostedUrl": "https://jobs.lever.co/acme/2"},
+        {"text": "Analyst", "hostedUrl": "https://jobs.lever.co/acme/3"},
+    ]
+    out = fetch_lever_jobs("acme", client=FakeClient([payload]))
+    assert [(p.title, p.apply_url) for p in out] == [("Analyst", "https://jobs.lever.co/acme/3")]

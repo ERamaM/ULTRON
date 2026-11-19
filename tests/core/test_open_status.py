@@ -16,6 +16,12 @@ def test_contextual_closed_still_rejects():
     assert is_open_status_ok("This position is now closed.", True, True) is False
 
 
+def test_expired_structured_deadline_rejects():
+    body = "We are looking for a Senior ML Engineer to join our team."
+    assert is_open_status_ok(body, True, True, expired=True) is False
+    assert is_open_status_ok(body, True, True, expired=False) is True
+
+
 def test_agency_boilerplate_does_not_close_posting():
     for body in (
         "Apply now. Please note we are not accepting applications from recruitment agencies.",

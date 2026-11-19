@@ -160,14 +160,18 @@ def _has_closed_status_phrase(low: str) -> bool:
     return False
 
 
-def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool) -> bool:
-    """Reject only explicit closed-status phrases.
+def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool, *, expired: bool = False) -> bool:
+    """Reject only explicit closed-status evidence.
 
     ``apply_available`` and ``is_open_hint`` are intentionally not trusted:
     ATS buttons and heuristic hints are often missing or stale, while an
-    explicit closed phrase in the body is actionable evidence.
+    explicit closed phrase in the body is actionable evidence. ``expired`` is
+    explicit evidence too: a structured ``validThrough`` deadline that parsed
+    and is in the past.
     """
 
+    if expired:
+        return False
     low = normalize_text(text)
     if _has_closed_status_phrase(low):
         return False
@@ -272,7 +276,9 @@ def apply_hard_filters(
         else:
             return False, "non_eu_remote"
 
-    if not is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint):
+    if not is_open_status_ok(
+        job.body_text, job.apply_available, job.is_open_hint, expired=job.valid_through_expired
+    ):
         return False, "expired_or_closed"
 
     return True, None
@@ -305,7 +311,9 @@ def pre_filter_candidate(
     if not allow_outside_ats_allowlist and not _is_allowed_domain(job.domain, allowed_domains):
         return False, "outside_ats_allowlist"
 
-    if not is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint):
+    if not is_open_status_ok(
+        job.body_text, job.apply_available, job.is_open_hint, expired=job.valid_through_expired
+    ):
         return False, "expired_or_closed"
 
     if classification_signals is None:

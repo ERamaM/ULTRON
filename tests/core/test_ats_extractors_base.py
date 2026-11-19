@@ -577,3 +577,12 @@ def test_urlless_posting_wins_over_a_node_for_another_job_id():
 def test_overlong_posting_url_is_not_parsed_for_identity():
     assert base._posting_identity("https://acme.com/careers?q=" + "x" * 5000) == ""
     assert base._posting_identity("https://boards.greenhouse.io/acme/jobs/123") == "greenhouse:acme:123"
+
+
+def test_valid_through_is_bounded_and_only_a_terminal_z_is_utc():
+    now = base.datetime(2026, 6, 15, 12, 0, tzinfo=base.UTC)
+    assert base._valid_through_expired("z" * 5_000_000, now=now) is False  # rejected before any replacement
+    assert base._valid_through_expired("2026-06-15T11:00:00z", now=now) is True
+    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert base._valid_through_expired("2026-06-15TZ1:00:00", now=now) is False  # a Z elsewhere is not UTC
+    assert base._valid_through_expired("2020-01-01" + " " * 100, now=now) is False  # over the length cap

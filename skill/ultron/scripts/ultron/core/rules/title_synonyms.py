@@ -29,7 +29,11 @@ TITLE_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
 def normalize_role_title(title: str) -> str:
     """Normalize dash separators and appended Spanish gender alternatives."""
     normalized = re.sub(r"(?<=\w)(o/a|a/o)\b", lambda match: match[0][0], _normalize_term(title))
-    return re.sub(r"\s+[-\u2013\u2014]\s*|\s*[-\u2013\u2014]\s+", " ", normalized).strip()
+    return normalize_title_separators(normalized).strip()
+
+
+def normalize_title_separators(title: str) -> str:
+    return re.sub(r"\s+[-\u2013\u2014]\s*|\s*[-\u2013\u2014]\s+", " ", title)
 
 
 def _normalize_term(term: str) -> str:
@@ -41,7 +45,8 @@ def expand_role_terms(
     terms: Iterable[str] | None, *, extra_groups: Sequence[Sequence[str]] = ()
 ) -> list[str]:
     """Expand focus terms with known synonyms (generic plus ``extra_groups``), preserving order."""
-    groups = (*TITLE_SYNONYM_GROUPS, *(tuple(group) for group in extra_groups))
+    groups = tuple(tuple(normalize_role_title(member) for member in group)
+                   for group in (*TITLE_SYNONYM_GROUPS, *extra_groups))
     expanded: list[str] = []
     seen: set[str] = set()
 

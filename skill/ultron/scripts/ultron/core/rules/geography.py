@@ -56,6 +56,7 @@ def location_scope(profile: Mapping[str, Any] | None) -> dict[str, tuple[str, ..
 
 
 GENERIC_REGION_TOKENS = frozenset({"remote", "worldwide", "anywhere", "global"})
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])(?<!\b[A-Z]\.)(?<!\b(?:[Ss]t|[Mm]t|[Ff]t)\.) +(?=[A-Z])")
 
 
 def scoped_eligibility_terms(profile: Mapping[str, Any] | None) -> tuple[str, ...]:
@@ -76,14 +77,15 @@ def scoped_eligibility_terms(profile: Mapping[str, Any] | None) -> tuple[str, ..
 def scoped_posting_eligibility(location: str, remote_text: str, body_text: str, terms: Iterable[str]) -> Eligibility | None:
     """Use structured location or geographic context for non-European profiles."""
     terms = tuple(terms)
-    if find_terms(f"{location}\n{remote_text}", terms):
+    prose_terms = tuple(term for term in terms if term != "us")
+    if find_terms(location, terms) or find_terms(remote_text, prose_terms):
         return "high"
     # Limit the context to the sentence that carries the geography signal.
-    body_excerpt = build_geo_body_excerpt(re.sub(r"(?<=[.!?]) +(?=[A-Z])", "\n", body_text))
+    body_excerpt = build_geo_body_excerpt(_SENTENCE_BOUNDARY.sub("\n", body_text))
     # In prose, the lowercase pronoun "us" is not a country abbreviation.
-    if "us" in terms and re.search(r"(?<!\w)US(?!\w)", body_excerpt):
+    if "us" in terms and re.search(r"(?<!\w)US(?!\w)", f"{remote_text}\n{body_excerpt}"):
         return "high"
-    return "high" if find_terms(body_excerpt, (term for term in terms if term != "us")) else None
+    return "high" if find_terms(body_excerpt, prose_terms) else None
 
 
 def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:

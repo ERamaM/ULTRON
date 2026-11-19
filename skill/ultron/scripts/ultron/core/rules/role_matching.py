@@ -10,7 +10,7 @@ from typing import Any
 from ultron.core.rules import hard_filters_data as rules_data
 from ultron.core.rules.term_matching import find_terms
 from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary
-from ultron.core.rules.title_synonyms import expand_role_terms, normalize_role_title
+from ultron.core.rules.title_synonyms import expand_role_terms, normalize_role_title, normalize_title_separators
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 
 
@@ -193,11 +193,11 @@ def score_role_family(
     signals: list[str] = []
     role_terms = _normalized_role_terms(allowed_terms, vocabulary)
     custom_role_terms = bool(allowed_terms) and role_terms != set(vocabulary.role_terms)
-    title_exact_hits = (
-        find_terms(normalize_role_title(t), sorted(role_terms))
-        if custom_role_terms and not vocabulary.role_terms
-        else [term for term in role_terms if term in t]
-    )
+    if custom_role_terms and not vocabulary.role_terms:
+        title_exact_hits = find_terms(normalize_role_title(t), sorted(role_terms))
+    else:
+        normalized_title = normalize_title_separators(t)
+        title_exact_hits = [term for term in role_terms if normalize_title_separators(term) in normalized_title]
     custom_exact_title_match = custom_role_terms and bool(title_exact_hits)
 
     # Suppress negative-terms penalties whose own words overlap with the user's

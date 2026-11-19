@@ -253,13 +253,55 @@ class VerifyResult:
     jobs: tuple = field(default=(), repr=False, compare=False)
 
 
+# Trailing legal-form words that never belong in an ATS board slug ("Acme GmbH" -> "acme").
+# Only legal forms: product words such as "ai" or "labs" can name a different company's board.
+LEGAL_COMPANY_SUFFIXES = frozenset({
+    "inc",
+    "incorporated",
+    "llc",
+    "ltd",
+    "limited",
+    "corp",
+    "corporation",
+    "co",
+    "plc",
+    "gmbh",
+    "ag",
+    "sl",
+    "slu",
+    "sa",
+    "sau",
+    "sas",
+    "srl",
+    "bv",
+    "oy",
+    "ab",
+    "pte",
+    "pty",
+})
+
+
+def _core_company_words(company: str) -> list[str]:
+    """Company name words with "&" spelled out, dotted initials joined and trailing legal forms dropped."""
+    raw = company.lower().replace("&", " and ")
+    raw = re.sub(r"\b(?:[a-z]\.)+[a-z]\b", lambda m: m.group(0).replace(".", ""), raw)
+    words = re.findall(r"[a-z0-9]+", raw)
+    while len(words) > 1 and (words[-1] in LEGAL_COMPANY_SUFFIXES or words[-1] == "and"):
+        words.pop()
+    return words
+
+
 def slug_candidates(company: str, domain: str) -> list[str]:
+    """Board slugs to probe, in a fixed order: the literal name forms, the domain label, then at most
+    two normalized forms (legal suffix stripped, "&" as "and", initials joined)."""
     words = re.findall(r"[a-z0-9]+", company.lower())
     out = ["".join(words), "-".join(words)]
     host = urlparse(domain if "://" in domain else f"//{domain}").netloc.lower() if domain.strip() else ""
     host = host.removeprefix("www.")
     if host:
         out.append(host.split(".")[0])
+    core = _core_company_words(company)
+    out.extend(("".join(core), "-".join(core)))
     return list(dict.fromkeys(s for s in out if s))
 
 

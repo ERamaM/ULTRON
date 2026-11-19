@@ -126,9 +126,10 @@ query_templates:
   regions: [Remote LATAM, Remote Brazil]
 ```
 
-`run new` builds the query plan from `query_templates.core_titles` x `regions` (falling back to
-`criteria.target_titles`), interleaving `site:<domain>` ATS queries when `query_templates.site_scopes`
-is set, capped by the preset.
+`run new` combines the core titles with the regions first. It uses `criteria.target_titles` when
+`query_templates.core_titles` is empty, then adds combinations from `query_templates.titles`.
+The preset caps the plan. If `query_templates.site_scopes` is set, the plan interleaves general
+queries with `site:<domain>` queries.
 
 ## Creating a profile from a CV
 

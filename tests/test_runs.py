@@ -156,3 +156,21 @@ def test_build_query_plan_interleaves_site_scopes():
 
     no_scopes = {"query_templates": {"core_titles": ["Senior ML Engineer"], "regions": ["Remote EU"]}}
     assert build_query_plan(no_scopes, 10) == ["Senior ML Engineer Remote EU"]
+
+
+def test_larger_query_plans_use_supplementary_profile_titles():
+    from ultron.runs_cmd import build_query_plan
+
+    profile = {"query_templates": {
+        "core_titles": ["Senior ML Engineer"],
+        "titles": ["Senior ML Engineer", "Applied Scientist"],
+        "regions": ["Remote EU"],
+        "site_scopes": ["jobs.ashbyhq.com"],
+    }}
+    short = build_query_plan(profile, 2)
+    assert short == ["Senior ML Engineer Remote EU", "site:jobs.ashbyhq.com Senior ML Engineer Remote EU"]
+    assert build_query_plan(profile, 4) == [
+        *short, "Applied Scientist Remote EU", "site:jobs.ashbyhq.com Applied Scientist Remote EU",
+    ]
+    profile["query_templates"]["titles"] = "Applied Scientist"
+    assert build_query_plan(profile, 4) == short

@@ -106,12 +106,16 @@ or `discover feeds` (either one is enough), but running both gives the best cove
 
 No web search tool available? Skip this section, continue with step 5 (`discover ats`), and say so in the final summary.
 
-Run the `query_plan` queries with your web search tool (for non-European profiles the queries come
-from the profile's own regions, so they are regional too; when `query_templates.site_scopes` is set,
-`query_plan` already includes `site:` ATS queries). Useful refinements: add a technology from
-`query_templates.technologies`. Collect **individual job-posting URLs** (one opening per URL), not
-search pages, listing pages or aggregator home pages. Write them as JSONL with `url` (required),
-`title`, `company` and `query`:
+Submit each `query_plan` string in order with its spelling, region and `site:` operator intact.
+The plan already reflects the profile's regions and site scopes. For a web search tool, use the
+string as the query. For a SearXNG instance, send that same string as the URL-encoded `q`
+parameter. If you add a supplementary query using a profile technology, record it separately
+and use the same query with each provider when comparing them. Record how many planned queries
+you actually submitted if you stopped early.
+
+Collect **individual job-posting URLs** (one opening per URL), excluding portals and aggregator
+home pages. Write them as JSONL with the required `url`, plus `title`, `company` and the exact
+submitted `query`.
 
 ```jsonl
 {"url": "https://jobs.lever.co/example/0b1c2d3e-4f50-6789-abcd-ef0123456789", "title": "Senior ML Engineer", "company": "Example", "query": "Senior ML Engineer Remote Europe"}

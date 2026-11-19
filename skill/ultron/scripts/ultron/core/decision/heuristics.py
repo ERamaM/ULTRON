@@ -90,7 +90,9 @@ class HeuristicEvaluator:
         full_remote = is_full_remote_only(job.remote_text, job.body_text)
         if classification_signals and classification_signals.remote_conflict is True:
             full_remote = False
-        open_status = is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint)
+        open_status = is_open_status_ok(
+            job.body_text, job.apply_available, job.is_open_hint, expired=job.valid_through_expired
+        )
         eligibility = self._eligibility(job, classification_signals)
         fit_signals = self._fit_signals(text)
         verdict, reason, category = self._decision(

@@ -79,6 +79,41 @@ def test_parse_generic_uses_posted_date_and_returns_none_without_dates():
     assert empty.posting_date is None
 
 
+def test_valid_through_expired_rules():
+    from datetime import UTC, datetime
+
+    now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
+    # Past date-time (any offset) is expired.
+    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert base._valid_through_expired("2026-06-15T13:30:00+02:00", now=now) is True
+    assert base._valid_through_expired("2026-06-14", now=now) is True
+    # A date-only value counts through the end of that UTC day.
+    assert base._valid_through_expired("2026-06-15", now=now) is False
+    # Future values are fine; naive date-times are read as UTC.
+    assert base._valid_through_expired("2026-06-15T13:00:00", now=now) is False
+    assert base._valid_through_expired("2027-01-01T00:00:00Z", now=now) is False
+    assert base._valid_through_expired("9999-12-31", now=now) is False
+    # Missing, unparseable and placeholder values are ignored.
+    for value in ("", "not a date", "0000-00-00", "1970-01-01", "1900-01-01T00:00:00Z", "31/12/2020"):
+        assert base._valid_through_expired(value, now=now) is False, value
+
+
+def test_parse_generic_flags_jobposting_with_past_valid_through():
+    def page(valid_through: str) -> str:
+        return (
+            '<html><head><script type="application/ld+json">'
+            '{"@type": "JobPosting", "title": "ML Engineer", "datePosted": "2020-01-01", '
+            f'"validThrough": "{valid_through}"}}'
+            "</script></head><body></body></html>"
+        )
+
+    expired = base.parse_generic(_page(page("2020-02-01T00:00:00Z")))
+    assert expired.valid_through_expired is True
+    assert expired.posting_date == "2020-01-01"
+    assert base.parse_generic(_page(page("2999-01-01"))).valid_through_expired is False
+    assert base.parse_generic(_page(page("soon"))).valid_through_expired is False
+
+
 def test_parse_generic_domain_fallback_company_when_no_other_signal():
     html = "<html><head><title>Careers</title></head><body></body></html>"
     job = base.parse_generic(_page(html, final_url="https://acme-corp.example.com/careers/123"))

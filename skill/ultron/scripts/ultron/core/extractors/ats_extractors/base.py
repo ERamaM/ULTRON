@@ -472,6 +472,12 @@ def _posting_identity(url: str) -> str:
         return ""
 
 
+# At most this many JobPosting node URLs are canonicalized per page. A page with more never yields deadline
+# evidence (validThrough is ignored), so a hostile page cannot make identity matching slow, and an uncertain
+# match never drops a posting.
+_MAX_IDENTITY_CHECKS = 50
+
+
 def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None) -> dict[str, str]:
     """Pick the JobPosting of the evaluated page; fall back to the first titled one.
 
@@ -484,14 +490,19 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
     path_match: dict[str, str] | None = None
     page_key = _comparable_page_url(page_url or "")
     page_identity = _posting_identity(page_url or "") if page_key else ""
+    identity_checks = 0
     for job in _iter_jobposting_nodes(soup):
         fields = _structured_fields_from_node(job)
         node_url = job.get("url")
         has_url = isinstance(node_url, str) and bool(node_url.strip())
         if page_key and has_url:
             resolved = urljoin(page_url or "", node_url.strip())
-            if page_identity and _posting_identity(resolved) == page_identity:
-                return fields
+            if page_identity and identity_checks < _MAX_IDENTITY_CHECKS:
+                identity_checks += 1
+                if _posting_identity(resolved) == page_identity:
+                    return fields
+            elif page_identity:
+                identity_checks += 1  # over the cap: no more canonicalization, no deadline evidence
             fields = {**fields, "valid_through": ""}
             if _comparable_page_url(resolved) == page_key:
                 if path_match is None:
@@ -508,7 +519,10 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
         if first_fields is None:
             first_fields = fields
     # Exact identity first (returned above), then a node without url, then the same path with another job id.
-    return urlless or path_match or first_fields or {}
+    chosen = urlless or path_match or first_fields or {}
+    if identity_checks > _MAX_IDENTITY_CHECKS and chosen.get("valid_through"):
+        chosen = {**chosen, "valid_through": ""}  # too many postings to tell which deadline is this page's
+    return chosen
 
 
 def extract_text_lines(text: str) -> list[str]:

@@ -119,6 +119,8 @@ REMOTE_HINT_TERMS = {
     "trabajo a distancia",
 }
 ONSITE_TERMS = {"on-site", "onsite", "in-office", "office presence", "in office"}
+# ONSITE_TERMS match as whole terms; an office-suite product right after one ("in Office 365") is not a work mode.
+ONSITE_TERM_PRODUCT_SUFFIX_PATTERN = r"\s*(?:365|suite)\b"
 ONSITE_BENEFIT_CONTEXT_TERMS = {
     "therapy",
     "counseling",

@@ -85,10 +85,10 @@ class SeedYield:
 
     def rank(self) -> tuple[int, float]:
         """Seeds with keeps by keep ratio, then unmeasured seeds, then measured seeds without keeps."""
+        if self.keeps > 0:  # even before 3 attempts: a seed that already produced keeps beats an unused one
+            return 0, -self.keeps / self.attempts
         if not self.measured:
             return 1, 0.0
-        if self.keeps > 0:
-            return 0, -self.keeps / self.attempts
         return 2, 0.0
 
 
@@ -214,7 +214,9 @@ def _select_seeds(
     reserved = len(set(chosen).intersection(unmeasured) - plain)
     for i, why in reason.items():
         counts[ranked[i][2]][why] += 1
-    selected = [(ranked[i][0], ranked[i][2]) for i in sorted(chosen)]
+    # Query in pick order: reserved exploration seeds first, so a higher-ranked board on the same host cannot
+    # spend the shared host request budget before them; without a reserve this is the ranked order.
+    selected = [(ranked[i][0], ranked[i][2]) for i in chosen]
     stats = {
         "deprioritized": sum(1 for seed, _order, _group in ranked if stat(seed).deprioritized),
         "exploration_reserved": reserved,

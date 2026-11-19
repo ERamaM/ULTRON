@@ -13,8 +13,10 @@ TABLE_SEP = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
 def _escape_cell(value: str) -> str:
     from ultron.core.privacy import redact
 
-    text = str(redact(value)).replace("\r", "").replace("\n", " ").replace("\t", " ")
+    # Clean before redacting: an invisible character can split a token so the redaction misses it.
+    text = str(value).replace("\r", "").replace("\n", " ").replace("\t", " ")
     text = "".join(ch for ch in text if unicodedata.category(ch) not in {"Cc", "Cf"})
+    text = str(redact(text))
     text = text.replace("\\", "\\\\").replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
     return text.replace("<", "&lt;").replace(">", "&gt;").strip()
 

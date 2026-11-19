@@ -182,6 +182,7 @@ Output: `{"fetched": 210, "failed": 40, "requests": 250}`
 Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
+`host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
 
 ## 7. Filter
 

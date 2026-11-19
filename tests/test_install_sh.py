@@ -68,8 +68,9 @@ def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
     out = tmp_path / "out"
     out.mkdir()
     o = out.as_posix()
-    # The fake installer records its stdin, then runs ~10 s unless TERM stops it.
-    _fake_tool(bin_dir, "uv", f'trap \'echo term > "{o}/term"; exit 143\' TERM\n'
+    # The fake installer records its stdin, then runs ~10 s unless TERM stops it; it then exits 7, so the
+    # launcher must return the installer's own status, not the 143 of its interrupted wait.
+    _fake_tool(bin_dir, "uv", f'trap \'echo term > "{o}/term"; exit 7\' TERM\n'
                               f'read line || line=none; echo "$line" > "{o}/stdin"; touch "{o}/started"\n'
                               f'i=0; while [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; touch "{o}/finished"')
     # The signal goes to the launcher PID only (not the process group), from inside sh so it also works with
@@ -82,7 +83,7 @@ def test_sigterm_to_launcher_reaches_installer_and_keeps_its_stdin(tmp_path):
     env = {**os.environ, "HOME": str(tmp_path / "home"),
            "PATH": os.pathsep.join([str(bin_dir), os.environ.get("PATH", "")])}
     proc = subprocess.run([SH, "-c", driver], cwd=src, env=env, capture_output=True, timeout=60, check=False)
-    assert b"rc=143" in proc.stdout, (proc.stdout, proc.stderr)
+    assert b"rc=7" in proc.stdout, (proc.stdout, proc.stderr)
     assert (out / "term").is_file()
     assert not (out / "finished").exists()
     assert (out / "stdin").read_text(encoding="utf-8").strip() == "hello"

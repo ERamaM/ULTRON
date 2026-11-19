@@ -169,6 +169,7 @@ def test_diagnose_and_workflow_doc_notes():
 def test_commands_reference_covers_every_group_and_action():
     text = (REFERENCES / "commands.md").read_text(encoding="utf-8")
     skill = SKILL_MD.read_text(encoding="utf-8")
+    assert "`references/commands.md`" in skill
     groups = {
         "search": ["quick", "saved"],
         "profile": ["show", "cv", "companies"],
@@ -177,7 +178,6 @@ def test_commands_reference_covers_every_group_and_action():
         "system": ["data"],
     }
     for group, actions in groups.items():
-        assert f"`{group}`" in skill, f"SKILL.md command table lacks {group}"
         assert f"### {group}" in text, f"commands.md lacks a section for {group}"
         for action in actions:
             assert f"{group} {action}" in text, f"commands.md lacks `{group} {action}`"

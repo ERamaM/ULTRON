@@ -37,8 +37,10 @@ def _clean(value: Any) -> str:
         return ""
     if isinstance(value, (list, tuple)):
         value = ", ".join(str(item) for item in value if item not in (None, ""))
-    text = str(redact(str(value))).replace("\r", " ").replace("\n", " ").replace("\t", " ")
-    return "".join(ch for ch in text if unicodedata.category(ch) not in {"Cc", "Cf"}).strip()
+    text = str(value).replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    text = "".join(ch for ch in text if unicodedata.category(ch) not in {"Cc", "Cf"})
+    # Redact the final text: removing a zero-width character can join a split token ("gh\u200bp_...").
+    return str(redact(text)).strip()
 
 
 def _t(value: Any) -> str:

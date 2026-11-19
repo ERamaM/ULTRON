@@ -165,3 +165,12 @@ def test_empty_results_render(run_id, tmp_path, capsys):
     page = _export(run_id, tmp_path, capsys)
     assert "No roles made the shortlist" in page
     assert page.rstrip().endswith("</html>")
+
+
+def test_redaction_runs_after_removing_format_characters():
+    from ultron.core.reporting import html_report
+
+    split = "token gh\u200bp_abcdefgh12345678 end"
+    cleaned = html_report._clean(split)
+    assert "ghp_abcdefgh12345678" not in cleaned and "[REDACTED]" in cleaned
+    assert html_report._clean("  two\nlines\twith\u200b zero width  ") == "two lines with zero width"

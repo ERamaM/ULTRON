@@ -53,10 +53,19 @@ gh api graphql --paginate -F owner='{owner}' -F name='{repo}' -F pr=<PR> -f quer
         reviewThreads(first: 100, after: $endCursor) {
           pageInfo { hasNextPage endCursor }
           nodes { id isResolved path line
-            comments(first: 20) { nodes { databaseId author { login } body } } }
+            comments(first: 100) { totalCount nodes { databaseId author { login } body } } }
         }
       }
     }
+  }'
+
+# A thread whose comments.totalCount is over 100: read all of its comments before resolving it
+gh api graphql --paginate -F id=<THREAD_ID> -f query='
+  query($id: ID!, $endCursor: String) {
+    node(id: $id) { ... on PullRequestReviewThread {
+      comments(first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes { databaseId author { login } body } } } }
   }'
 
 # Reply to an inline comment (use the first comment's databaseId)

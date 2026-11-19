@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import tempfile
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -281,9 +282,19 @@ LEGAL_COMPANY_SUFFIXES = frozenset({
 })
 
 
+# Letters NFKD does not decompose into an ASCII base letter.
+_ASCII_FOLD = str.maketrans({"ß": "ss", "æ": "ae", "œ": "oe", "ø": "o", "ł": "l", "đ": "d", "ð": "d", "þ": "th"})
+
+
+def ascii_fold(text: str) -> str:
+    """Lowercase ASCII transliteration: "Société Zürich Ñaña" -> "societe zurich nana" (NFKD, marks stripped)."""
+    decomposed = unicodedata.normalize("NFKD", str(text or "").lower().translate(_ASCII_FOLD))
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).encode("ascii", "ignore").decode("ascii")
+
+
 def _core_company_words(company: str) -> list[str]:
     """Company name words with "&" spelled out, dotted initials joined and trailing legal forms dropped."""
-    raw = company.lower().replace("&", " and ")
+    raw = ascii_fold(company).replace("&", " and ")
     raw = re.sub(r"\b(?:[a-z]\.)+[a-z]\b", lambda m: m.group(0).replace(".", ""), raw)
     words = re.findall(r"[a-z0-9]+", raw)
     while len(words) > 1 and (words[-1] in LEGAL_COMPANY_SUFFIXES or words[-1] == "and"):
@@ -380,8 +391,8 @@ def _slug_candidate_passes(company: str, domain: str) -> tuple[list[str], list[s
 
     Generic slugs (``careers``, ``jobs``, ``remote``...) are never returned: they name no company.
     """
-    words = re.findall(r"[a-z0-9]+", company.lower())
-    literal = ["".join(words), "-".join(words), domain_slug(domain)]
+    words = re.findall(r"[a-z0-9]+", ascii_fold(company))
+    literal =["".join(words), "-".join(words), domain_slug(domain)]
     primary = list(dict.fromkeys(s for s in literal if s and s not in BLOCKED_GENERIC_SLUGS))
     core = _core_company_words(company)
     normalized = [

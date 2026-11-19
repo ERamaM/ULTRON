@@ -319,8 +319,9 @@ def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> d
     if open_runs and not force:
         raise MaintenanceError("open_run", f"recent unfinished runs exist ({', '.join(open_runs[:3])}); finish them or pass --force")
     home_dir = home.ultron_home()
-    # Generic names (cv/, backups/) are only ULTRON's in a home it owns: install marker or ledger (C1b).
-    owned = (home_dir / HOME_MARKER).is_file() or (home_dir / "ultron.sqlite3").is_file()
+    # Generic names (cv/, backups/, anything in runs/) are only ULTRON's in a home install.py marked as its own.
+    # The ledger is no proof: the CLI creates it on first use in whatever folder ULTRON_HOME points at.
+    owned = (home_dir / HOME_MARKER).is_file()
     targets = [home_dir / f"ultron.sqlite3{s}" for s in _DB_SIDECARS]
     targets += [home_dir / "runs", home_dir / "seeds" / "auto_seeds.yaml"]
     if owned:
@@ -331,18 +332,19 @@ def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> d
     plan: list[Path] = []
     for t in present:
         if t.name == "runs" and t.is_dir() and not _is_link(t):
-            plan.extend(t.iterdir())  # keep the (empty) runs/ folder itself
-        else:
+            # keep the (empty) runs/ folder itself; without the marker only ULTRON run folders go
+            plan.extend(c for c in sorted(t.iterdir()) if owned or RUN_ID_RE.fullmatch(c.name))
+        elif t.name != "runs" or owned:
             plan.append(t)
     for t in plan:  # validate everything BEFORE deleting anything
         _safe_target(t, root, link_ok=True)
     if not yes:
         return {
             "preview": True,
-            "would_delete": [str(t) for t in present],
+            "would_delete": [str(t) for t in plan],
             "keeps": ["profiles", "venv"] + ([] if include_backups and owned else ["backups"])
-            + ([] if owned else ["cv"]),
+            + ([] if owned else ["cv", "runs/ entries that are not ULTRON run folders"]),
         }
     for t in plan:
         _remove(t, root, link_ok=True)
-    return {"preview": False, "deleted": [str(t) for t in present]}
+    return {"preview": False, "deleted": [str(t) for t in plan]}

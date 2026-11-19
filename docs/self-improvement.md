@@ -79,8 +79,6 @@ hypotheses are documented and do not block the end of the session.
 ## Live budgets
 
 - At most **3 live runs per scenario** and **15 live runs per session**.
-- Prefer the `fast` preset for re-verification. Never raise preset limits to compensate for a
-  blocked domain.
 
 ## Experiment hygiene
 
@@ -185,6 +183,9 @@ The diff counts transitions such as `keep->discard` and lists each changed ident
 agent evaluations are reused only for identities still in the filter output, as finalize does.
 An identity that newly becomes ambiguous falls back to its heuristic verdict.
 
+Replay reports name a run's postings by identity key and reason only. They are still run
+artifacts: keep them out of the repository, PRs and issues.
+
 ### Current baseline
 
 Measured on this charter's introduction (`balanced` preset, no agent):
@@ -198,23 +199,37 @@ Measured on this charter's introduction (`balanced` preset, no agent):
 | 60-case not relevant | 5 kept, 0 unsure, 16 discarded |
 | 60-case ambiguous | 6 kept, 3 unsure, 13 discarded |
 
-Known limits of the 120-case labels: `relevant` ignores seniority (junior and manager core roles
-are labelled relevant, while the example profile requires seniority), and `eligibility_label`
-does not appear in the fixture text. Review these labels by hand before reading recall as
-absolute. They work as a regression gate as they are.
+Known limits of the 120-case corpus:
+
+- Only 10 cases are labelled relevant, so one case moves recall by 10 points. Several slices with
+  10 or more labelled cases have no relevant case at all.
+- `relevant` ignores seniority. 3 of the 10 relevant cases are manager-level roles, but the
+  example profile excludes managers. Two of the misses are these cases.
+- `eligibility_label` does not appear in the fixture text.
+- Spanish core titles are templated as "Senior Ingenieria Machine Learning". Five of the seven
+  misses are these titles failing role-family matching, which may be an artifact of the
+  template.
+
+Review these labels by hand before reading recall as an absolute number. As they are, they work
+as a regression gate.
 
 ## Vendor no-go decisions
 
-Do not add these sources. Each would need a login, a per-tenant token, a captcha or a headless
-browser, which ULTRON does not use:
+The MARK II project closed a feasibility review of these vendors as no-go. Do not add or extend
+them. Without a stable public endpoint they would need logins, tokens, a captcha solver or a
+headless browser, and ULTRON uses none of these. The existing Workday, Taleo and iCIMS clients
+are unaffected.
 
-- SAP SuccessFactors
-- Workday keyword search (the existing Workday board listing stays)
-- Taleo pagination beyond the first page
-- Oracle Recruiting Cloud
-- iCIMS search beyond the public board pages already supported
+| Vendor | Decision | Main reason |
+|---|---|---|
+| SAP SuccessFactors | not added | No stable public endpoint and no permissive terms |
+| Workday keyword search | not added | No stable public contract; restrictive terms |
+| Taleo pagination | not added | No permissive terms; may require a login; limited HTML coverage |
+| Oracle Recruiting Cloud | not added | Its REST endpoint is documented for Oracle's internal use only |
+| iCIMS search | not added | No public unauthenticated API and no permissive terms |
 
-Reopen a decision only with evidence of a public, unauthenticated, bounded API.
+Reopen a decision only with evidence of a public, unauthenticated, bounded API and terms that
+allow automated access.
 
 ## Session report
 

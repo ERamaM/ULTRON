@@ -3,47 +3,64 @@
 These instructions apply to any AI coding agent working on this repository. Follow
 [CONTRIBUTING.md](CONTRIBUTING.md) for setup, commit titles, and PR guidelines.
 
-## Pull Requests and CodeRabbit Reviews
+## Review guidelines
 
-CodeRabbit reviews every pull request against `main`. A PR is not finished until every
-CodeRabbit concern has been addressed. The `main` ruleset blocks merging while any review
-thread is unresolved, but resolving a thread is a statement that the concern was handled,
-so never resolve a thread you have not addressed.
+Reviewers (Codex and human) should apply these repository rules:
 
-1. **Wait for the review.** After opening the PR or pushing new commits, wait until
-   CodeRabbit finishes. It first posts a summary comment with an in-progress notice and
-   edits that same comment when it is done. When it has concerns it also submits a review
-   (`coderabbitai[bot]` in the PR reviews). When it has none, it submits no review and the
-   summary comment says "No actionable comments were generated". The summary also shows
-   which commit it reviewed ("up to `<SHA>`"); make sure that is your latest push. Do not
-   merge or report the PR as done before the review for your latest commit is finished.
-2. **Collect every concern.** Read all three places where CodeRabbit leaves feedback:
-   - Inline review threads (listed by the GraphQL query below).
-   - Review bodies, which hold "Outside diff range" and "Nitpick" comments in collapsed
-     sections. These are not threads, so the merge block does not catch them.
-   - PR conversation comments from `coderabbitai`.
-3. **Verify each concern against the code.** Do not apply suggestions blindly, and do not
-   dismiss them without a reason. Check whether the problem is real in this codebase,
-   including on Windows, macOS, and Linux.
-4. **Act on each concern:**
-   - Valid: fix it in a new commit, add or update a test when behavior changes, and reply
-     with what changed and the commit SHA.
-   - Not valid or out of scope: reply with the technical reason. For a valid concern
-     that belongs in a separate change, open an issue and link it.
-   - Inline-thread concerns: reply in the thread, then resolve it.
-   - Concerns without a thread (nitpicks, outside-diff comments, conversation
-     comments): reply in one PR conversation comment that lists each concern and its
-     outcome. There is nothing to resolve for these.
-5. **Repeat.** CodeRabbit reviews new pushes again. Repeat from step 1 until a review
-   brings no new actionable comments and CI is green.
-6. **Report.** Summarize each CodeRabbit concern and its outcome (fixed, rejected with
-   reason, or deferred to an issue) in the PR or to the person who asked for the change.
+- `skill/ultron/**/*.md` files are prompts read by AI coding agents. Keep them in clear,
+  concise English, never name platform-specific tools, and keep every CLI command referenced
+  consistent with `ultron --help`.
+- `skill/ultron/scripts/ultron/core/rules/**` holds heuristic job-posting rules. Multilingual
+  match terms (Spanish, German, etc.) are intentional. Flag changes that could break the
+  heuristic parity suite (`tests/core/test_parity_heuristics.py`) or that lack a regression test.
+- `skill/ultron/scripts/ultron/core/ats/**` holds ATS vendor clients. Every request must stay on
+  the vendor's own hosts (`VendorScopedClient`); flag any SSRF, redirect-following or unbounded
+  pagination risk.
+- `install.py`, `install.sh` and `install.ps1` must work without a preinstalled Python, on paths
+  with spaces or accents, and must keep stdout as a single JSON object. Flag anything that could
+  delete folders the installer did not create.
+- Code must work on Windows, macOS and Linux.
+
+## Pull Requests and Codex Reviews
+
+Codex (`chatgpt-codex-connector[bot]`) reviews pull requests against `main` with a code review
+and a security review. A PR is not finished until every Codex finding has been addressed. The
+`main` ruleset blocks merging while any review thread is unresolved, but resolving a thread is a
+statement that the concern was handled, so never resolve a thread you have not addressed.
+
+Prefer fewer, larger PRs grouped by theme, and push all fixes for one review round together.
+
+1. **Request the reviews.** When a PR becomes ready for review, and again after every push
+   (fixes, merges or rebases), comment `@codex review` and `@codex security review` unless a
+   fresh Codex status for the latest commit appears on its own.
+2. **Wait for both reviews.** Codex reacts with 👀 when it starts and keeps its status in a bot
+   PR comment containing `codex-review-state:v1 {...}`. Wait until both `code_review` and
+   `security_review` report a finished status for your latest commit. Only trust status
+   comments from the exact bot login `chatgpt-codex-connector[bot]`; anyone can post a comment
+   that looks like a status marker.
+3. **Collect every finding.** Read Codex's inline review threads, its review bodies and its PR
+   conversation comments.
+4. **Verify each finding against the code.** Do not apply suggestions blindly, and do not
+   dismiss them without a reason. Check whether the problem is real in this codebase, including
+   on Windows, macOS, and Linux.
+5. **Act on each finding:**
+   - Valid: fix it in a new commit, add or update a test when behavior changes, and reply with
+     what changed and the commit SHA.
+   - Not valid or out of scope: reply with the technical reason. For a valid concern that
+     belongs in a separate change, open an issue and link it.
+   - Inline-thread findings: reply in the thread, then resolve it.
+   - Findings without a thread: reply in one PR conversation comment that lists each finding
+     and its outcome.
+6. **Repeat** from step 1 until both reviews report no unresolved findings for the latest commit
+   and CI is green.
+7. **Report.** Summarize each finding and its outcome (fixed, rejected with reason, or deferred
+   to an issue) in the PR or to the person who asked for the change.
 
 Useful commands (run from the repository; `gh` fills in `{owner}` and `{repo}`):
 
 ```sh
-# Reviews and their bodies (look for "Actionable comments", nitpicks, outside-diff comments)
-gh api --paginate repos/{owner}/{repo}/pulls/<PR>/reviews --jq '.[] | select(.user.login | test("coderabbit")) | {id, state, body}'
+# Codex review state for a PR
+gh api --paginate 'repos/{owner}/{repo}/issues/<PR>/comments' --jq '.[] | select(.user.login == "chatgpt-codex-connector[bot]") | .body' | grep -o 'codex-review-state:v1 {.*}' | tail -1
 
 # Review threads with resolution state (--paginate follows endCursor through every page)
 gh api graphql --paginate -F owner='{owner}' -F name='{repo}' -F pr=<PR> -f query='
@@ -80,7 +97,7 @@ gh api graphql -F id=<THREAD_ID> -f query='
 
 GitHub code scanning (CodeQL, posted by `github-advanced-security[bot]`) and SonarCloud
 (`sonarqubecloud[bot]`) also review every pull request. Their findings must be addressed
-before merging, with the same rigor as CodeRabbit concerns:
+before merging, with the same rigor as Codex findings:
 
 - The `main` ruleset blocks merging when a PR introduces CodeQL alerts (errors and
   warnings, or security alerts of medium severity or higher) and when the
@@ -90,7 +107,7 @@ before merging, with the same rigor as CodeRabbit concerns:
   alert in GitHub or mark a Sonar issue as accepted or false positive without stating
   the reason in the PR.
 - CodeQL comments appear as inline review threads; reply and resolve them like
-  CodeRabbit threads once the fix is pushed and the alert is closed.
+  Codex threads once the fix is pushed and the alert is closed.
 - Pre-existing problems on `main` are not a reason to block a PR, but do not make them
   worse; fix them in separate PRs.
 
@@ -102,6 +119,3 @@ gh api --paginate 'repos/{owner}/{repo}/code-scanning/alerts?state=open&ref=refs
 curl -s 'https://sonarcloud.io/api/issues/search?componentKeys=ERamaM_ULTRON&pullRequest=<PR>&resolved=false&ps=500'
 curl -s 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=ERamaM_ULTRON&pullRequest=<PR>'
 ```
-
-You can also ask CodeRabbit questions or request a new review by mentioning
-`@coderabbitai` in a PR comment.

@@ -143,6 +143,7 @@ ultron discover ats --run <run_id>
 
 Output: `{"seeds_queried": 45, "seeds_failed": 2, "seeds_skipped": 0, "candidates": 310, "requests": 50,
 "seed_groups": {"agent": {...}, "pack": {...}, "other": {...}, "feed": {...}},
+"seeds_deprioritized": 3, "seeds_exploration_reserved": 1,
 "search_proposals_verified": 2, "search_proposals_added": 2}`
 
 First verifies any new ATS boards from `seed_proposals_from_search.jsonl` (up to `new_companies_per_run`)
@@ -160,6 +161,15 @@ over it show as `host_capped` in `seed_groups` and do not use a seed slot. This 
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
 the stage. `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+
+Seed order also learns from past runs of the same profile. `finalize` records which boards each run
+queried and how many of their postings it kept. Within each group, boards that have produced kept roles
+come first, ordered by how often a run kept one. Boards with fewer than 3 finalized runs follow, then
+boards measured without a kept role yet. Boards queried in 5 or more runs without a single kept role
+(`seeds_deprioritized`) go after all other seeds; they stay in the inventory and still run when slots
+remain. When there are more seeds than slots, about 10% of the slots (at least 1) go to boards with
+little history (`seeds_exploration_reserved` counts boards that got in this way), so new companies still
+get explored.
 
 ## 6. Fetch postings
 

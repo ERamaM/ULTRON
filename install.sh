@@ -89,6 +89,16 @@ if [ -z "$SRC_DIR" ] && is_source_dir "$PWD"; then
 fi
 
 if [ -z "$SRC_DIR" ]; then
+    # --dev links the skill and an editable runtime to the source folder, but a downloaded source is removed
+    # when this script exits. ("--de" is argparse's unambiguous abbreviation of --dev.)
+    for arg in "$@"; do
+        case "$arg" in
+            --de|--dev)
+                printf '%s\n' '{"error": "usage", "detail": "--dev needs a git checkout of ULTRON; clone the repository and run ./install.sh --dev there"}'
+                exit 2
+                ;;
+        esac
+    done
     if ! command -v tar >/dev/null 2>&1; then
         echo "[ultron] Error: 'tar' is required to unpack the ULTRON archive." >&2
         exit 1

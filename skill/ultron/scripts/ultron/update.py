@@ -167,9 +167,20 @@ def missing_records() -> list[str]:
     missing = []
     for record in _registry_records().values():
         path = record.get("path") if isinstance(record, dict) else None
-        if isinstance(path, str) and not Path(path).exists() and not _is_link(Path(path)):
+        if isinstance(path, str) and _definitely_missing(path):
             missing.append(path)
     return missing
+
+
+def _definitely_missing(path: str) -> bool:
+    """Only "not found" counts; any other error (permissions, offline drive) keeps the record (see install.py)."""
+    try:
+        os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return True
+    except (OSError, ValueError):
+        return False
+    return False
 
 
 def find_copies(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
@@ -208,6 +219,32 @@ def group_scopes(copies: list[dict]) -> list[dict]:
         group["paths"].append(copy["path"])
         group["versions"][copy["path"]] = copy["version"]
     return [{**group, "platforms": _ordered(group["platforms"])} for group in groups.values()]
+
+
+def _split_mixed_antigravity(groups: list[dict], home: Path) -> tuple[list[dict], list[dict]]:
+    """Drop ``antigravity`` from the global command when one of its two folders is a registered dev link.
+
+    ``install.py --global --platforms antigravity`` refreshes both the current and the legacy Antigravity folder, so
+    it would replace that dev link with a copy. The copy is left for the user to update by hand instead.
+    """
+    dirs = global_skill_dirs(home)
+    links = [str(p) for k, p in dirs.items() if k.startswith("antigravity") and _is_link(p) and _registered_link(p)]
+    if not links:
+        return groups, []
+    out, manual = [], []
+    for group in groups:
+        if group["scope"] == "global" and "antigravity" in group["platforms"]:
+            manual.append({
+                "platform": "antigravity",
+                "dev_links": links,
+                "detail": "one Antigravity folder is a --dev link: the installer would replace it, so the "
+                          "Antigravity copy is not updated here; update it by hand or remove one of the two",
+            })
+            group = {**group, "platforms": [p for p in group["platforms"] if p != "antigravity"]}
+            if not group["platforms"]:
+                continue
+        out.append(group)
+    return out, manual
 
 
 def discover_installs(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
@@ -279,7 +316,8 @@ def _runner(install_py: Path) -> list[str]:
     """Run ``install.py`` outside ULTRON's venv (the installer rebuilds it), like the bootstrap scripts do."""
     uv = find_on_path("uv")
     if uv:
-        return [uv, "run", "--python", ">=3.12", "--no-project", str(install_py)]
+        # --isolated: never run inside an active venv (VIRTUAL_ENV may be ULTRON's own, which the installer rebuilds)
+        return [uv, "run", "--python", ">=3.12", "--no-project", "--isolated", str(install_py)]
     return [_base_interpreter(), str(install_py)]
 
 
@@ -437,7 +475,8 @@ def extract_source(archive: Path, dest: Path, *, expected_version: str) -> Path:
 NEXT_STEPS = [
     (
         "Ask the user before running anything. If they agree, run each command in `commands` as its own separate "
-        "process, one after another, exactly as given (`argv`, with `env` when present)."
+        "process, one after another, exactly as given (`argv`, with `env` when present). Run them from a shell "
+        "where ULTRON's venv is not activated (unset VIRTUAL_ENV); the commands already avoid using it."
     ),
     "Then run `ultron doctor` with the executable listed in RUNTIME.md and report any failed check.",
     "Tell the user to restart the agent session so the updated skill is loaded.",
@@ -484,7 +523,9 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         result.update(status="source_checkout",
                       detail="running from a source checkout: update it with git, then run install.py --dev --update")
         return result
-    installs = group_scopes(copies)
+    installs, manual = _split_mixed_antigravity(group_scopes(copies), home)
+    if manual:
+        result["manual"] = manual
     links = dev_links(home=home, cwd=cwd, projects=projects)
     if links:
         result["dev_links"] = links

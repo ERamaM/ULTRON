@@ -216,6 +216,15 @@ def test_to_accepts_a_version_without_v_prefix(monkeypatch, capsys):
     assert code == 0 and out["tag"] == "v0.2.0"
 
 
+def test_to_resolves_a_release_tagged_without_v(monkeypatch, capsys):
+    _install(Path.home() / ".claude" / "skills" / "ultron")
+    calls = _api(monkeypatch, {"0.2.0": _release("0.2.0")})
+    _serve(monkeypatch, _zip(_source_zip("0.2.0")), tag="0.2.0")
+    code, out = _run(capsys, "--to", "0.2.0")
+    assert code == 0 and out["tag"] == "0.2.0"
+    assert [c.rsplit("/", 1)[1] for c in calls] == ["v0.2.0", "0.2.0"]
+
+
 # --------------------------------------------------------------------------------------------- prepare
 
 
@@ -274,6 +283,57 @@ def test_installer_runs_outside_the_ultron_venv(monkeypatch, capsys):
     _, out = _run(capsys)
     argv = out["commands"][0]["argv"]
     assert argv[:5] == ["/opt/tools/uv", "run", "--python", ">=3.12", "--no-project"]
+    # --isolated: an active VIRTUAL_ENV (ULTRON's own venv) must not become the installer's interpreter
+    assert "--isolated" in argv[:argv.index(out["source"] + update.os.sep + "install.py")]
+    assert any("VIRTUAL_ENV" in step for step in out["next_steps"])
+
+
+def test_mixed_antigravity_copy_and_dev_link_is_left_for_manual_handling(monkeypatch, capsys):
+    home = Path.home()
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    _install(home / ".claude" / "skills" / "ultron")
+    _install(home / ".gemini" / "config" / "skills" / "ultron")
+    legacy = home / ".gemini" / "antigravity" / "skills" / "ultron"
+    monkeypatch.setattr(update, "_is_link", lambda path: Path(path) == legacy)
+    monkeypatch.setattr(update, "_registered_link", lambda path: Path(path) == legacy)
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    _serve(monkeypatch, _zip(_source_zip("0.2.0")))
+    code, out = _run(capsys)
+    assert code == 0
+    [command] = out["commands"]
+    assert command["argv"][-2:] == ["--platforms", "claude"]  # antigravity would also replace the dev link
+    assert out["manual"][0]["platform"] == "antigravity"
+    assert str(legacy) in out["manual"][0]["dev_links"]
+
+
+def test_mixed_antigravity_only_gives_no_command(monkeypatch, capsys):
+    home = Path.home()
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    _install(home / ".gemini" / "config" / "skills" / "ultron")
+    legacy = home / ".gemini" / "antigravity" / "skills" / "ultron"
+    monkeypatch.setattr(update, "_is_link", lambda path: Path(path) == legacy)
+    monkeypatch.setattr(update, "_registered_link", lambda path: Path(path) == legacy)
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "no_installs" and out["commands"] == []
+    assert out["manual"][0]["platform"] == "antigravity"
+
+
+def test_missing_records_keeps_inaccessible_paths(monkeypatch, tmp_path):
+    blocked = tmp_path / "blocked" / ".claude" / "skills" / "ultron"
+    gone = tmp_path / "gone" / ".claude" / "skills" / "ultron"
+    _record([{"scope": "project", "project": str(p.parents[2]), "path": str(p), "platforms": ["claude"],
+              "version": "0.1.0"} for p in (blocked, gone)])
+    real_lstat = update.os.lstat
+
+    def lstat(path, *args, **kwargs):
+        if Path(path) == blocked:
+            raise PermissionError("denied")
+        return real_lstat(path, *args, **kwargs)
+
+    monkeypatch.setattr(update.os, "lstat", lstat)
+    monkeypatch.setattr(Path, "exists", lambda self, **kw: False)  # Python 3.14: errors read as "missing"
+    assert update.missing_records() == [str(gone)]
 
 
 def test_up_to_date_returns_no_command(monkeypatch, capsys):

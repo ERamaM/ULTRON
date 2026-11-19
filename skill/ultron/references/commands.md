@@ -106,7 +106,8 @@ To update, ask the user first. If they agree:
    are older. It never runs them, because the running installation cannot replace itself.
 2. If `status` is `up_to_date`, `no_release`, `no_installs` or `source_checkout`, tell the user (`detail`) and stop. With
    `dev_links`, those linked folders follow their git checkout and are not updated. `pruned_records` lists recorded
-   folders that were deleted by hand; the next installer run drops them from `installs.json`.
+   folders that were deleted by hand; the next installer run drops them from `installs.json`. Tell the user about
+   each `manual` entry (a copy that cannot be updated safely, for example next to a `--dev` link).
    If `downgrade` is true, the requested version is older than the installed one: confirm with the user again.
 3. Otherwise run each entry of `commands` as its own separate process, one after another, exactly as given.
    `argv` is authoritative; `display` is the same command quoted for PowerShell on Windows and for sh elsewhere.

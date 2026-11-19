@@ -241,3 +241,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $exe profile install-example
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Regression: a single argument must not be splatted character by character.
+          $out = powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 --dry-run
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = ($out -join "`n") | ConvertFrom-Json
+          if (-not $result.dry_run) { throw 'Single-argument --dry-run was not applied' }

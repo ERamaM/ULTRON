@@ -151,3 +151,10 @@ def test_filter_candidates_rejects_vendor_marketing_and_documentation_pages():
 
     assert [candidate.normalized_url for candidate in candidates] == ["https://www.comeet.com/jobs/acme/41.001"]
     assert [item["reason"] for item in discards] == ["ats_non_board_url"] * 3
+
+
+def test_filter_candidates_matches_linkedin_by_host_not_substring():
+    hits = [_hit("https://de.linkedin.com/jobs/view/2"), _hit("https://linkedin.com.example.net/careers/3")]
+    kept, discards = filter_candidates(hits, {"allowed_ats_domains": [], "blocked_final_domains": []})
+    assert [d["reason"] for d in discards] == ["linkedin_forbidden"]
+    assert [c.normalized_url for c in kept] == ["https://linkedin.com.example.net/careers/3"]

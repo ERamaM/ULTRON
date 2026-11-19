@@ -79,6 +79,26 @@ The `ultron` binary lives inside its dedicated venv (`~/.ultron/venv`) rather th
 | `--uninstall` | Remove ULTRON installs (add `--purge-data` to remove `$ULTRON_HOME` data) |
 | `--dry-run` | Preview actions without modifying the filesystem |
 
+### Updating ULTRON
+
+Updates are manual. From a clone, first update the checkout to the branch or tag you want to install. Then run the bootstrap with `--update` and the same installation scope you used originally.
+
+**macOS / Linux:**
+
+```sh
+./install.sh --update
+```
+
+**Windows (PowerShell):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1 --update
+```
+
+Add `--project DIR` for a project installation and `--platforms` to limit which agent skill copies are refreshed. If you installed from the web, you can run the bootstrap from outside any ULTRON checkout. The remote bootstrap downloads `main` by default.
+
+The update refreshes the CLI in `$ULTRON_HOME/venv`, replaces existing skill copies in the selected scope, and rewrites `RUNTIME.md`. Installations that share the same `$ULTRON_HOME` share the updated CLI. Profiles, saved searches, job history, and past run outputs are kept. Add `--dry-run` to preview the installer's targets. After updating, run `version` and `doctor` with the executable listed in `RUNTIME.md`, then start a new agent session to reload the skill.
+
 ## How It Works
 
 ```mermaid

@@ -49,7 +49,7 @@ def test_workbook_sheets(run_id):
     assert wb.sheetnames == ["Summary", "Roles (2)", "Discards (2)"]
     assert wb["Roles (2)"].max_row == 3
     assert wb["Roles (2)"].auto_filter.ref
-    assert wb["Roles (2)"].freeze_panes == "A2"
+    assert wb["Roles (2)"].freeze_panes == "B2"
     assert wb["Roles (2)"]["Q2"].hyperlink is not None
     d = wb["Discards (2)"]
     assert [d.cell(row=r, column=1).value for r in (2, 3)] == ["stale", "final_cap"]

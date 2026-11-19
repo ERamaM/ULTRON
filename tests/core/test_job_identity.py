@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from ultron.core import job_identity
 from ultron.core.job_identity import canonical_job_identity
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "job_identity_cases.json"
@@ -141,3 +142,37 @@ def test_ashby_and_workable_canonical_identities():
     w1 = canonical_job_identity("https://apply.workable.com/huggingface/j/9E2A4C02C7/")
     w2 = canonical_job_identity("https://apply.workable.com/j/9E2A4C02C7", source_type="workable", source_key="workable:huggingface")
     assert w1.identity_key == w2.identity_key == "workable:huggingface:9e2a4c02c7"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "lever-origin",
+        "mc_cid",
+        "mc_eid",
+        "_hsenc",
+        "_hsmi",
+        "hsa_cam",
+        "msclkid",
+        "gbraid",
+        "wbraid",
+        "dclid",
+        "yclid",
+        "ttclid",
+        "twclid",
+        "li_fat_id",
+        "igshid",
+        "mkt_tok",
+        "_gl",
+        "mtm_campaign",
+        "pk_campaign",
+        "pk_cpn",
+    ],
+)
+def test_common_tracking_keys_are_ignored(key):
+    assert job_identity._is_tracking_key(key)
+
+
+@pytest.mark.parametrize("key", ["token", "gh_jid", "ashby_jid", "req", "jobid", "id", "page", "pk_jobid"])
+def test_job_keys_are_not_tracking(key):
+    assert not job_identity._is_tracking_key(key)

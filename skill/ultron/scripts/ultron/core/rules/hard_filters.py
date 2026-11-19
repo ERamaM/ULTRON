@@ -147,6 +147,12 @@ def _has_closed_status_with_context(text: str) -> bool:
         for match in word_boundary_pattern(term).finditer(low):
             if term == "closed" and signals.closed_match_is_technical_or_negated(low, match):
                 continue
+            if (
+                term == "closed"
+                and _APPLICATIONS_BEFORE_RE.search(low, 0, match.start())
+                and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())
+            ):
+                continue  # "applications closed via recruitment agencies" is agency boilerplate
             start = max(0, match.start() - 45)
             end = min(len(low), match.end() + 45)
             window = low[start:end]
@@ -185,6 +191,23 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
     return not _has_contextual_hybrid_conflict(body_low)
 
 
+_CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+# The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
+_APPLICATIONS_BEFORE_RE = re.compile(
+    r"\bapplications?\s+(?:(?:are|is|were|was|have|has|been|now|currently)\s+)*$"
+)
+
+
+def _has_closed_status_phrase(low: str) -> bool:
+    """Whole-phrase CLOSED_STATUS_PHRASES match, ignoring "not accepting applications from agencies" boilerplate."""
+    for phrase in rules_data.CLOSED_STATUS_PHRASES:
+        exemptable = phrase in rules_data.AGENCY_EXEMPTABLE_CLOSED_PHRASES
+        for match in term_boundary_pattern(phrase).finditer(low):
+            if not (exemptable and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
+                return True
+    return False
+
+
 def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool) -> bool:
     """Reject only explicit closed-status phrases.
 
@@ -194,7 +217,7 @@ def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool) -> b
     """
 
     low = normalize_text(text)
-    if contains_any_substring(low, rules_data.CLOSED_STATUS_PHRASES):
+    if _has_closed_status_phrase(low):
         return False
     if _has_closed_status_with_context(low):
         return False

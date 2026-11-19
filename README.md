@@ -187,7 +187,7 @@ uv run ruff check
 uv run pytest
 ```
 
-Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, pytest on Linux, macOS, and Windows (Python 3.12 and 3.13), and end-to-end installer smoke tests. CodeQL scans Python and GitHub Actions on pushes to `main`, on pull requests, and once a week. Dependabot checks for GitHub Actions and `uv` dependency updates. The [CodeRabbit configuration](.coderabbit.yaml) applies after the GitHub app is installed for this repository. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, pytest on Linux, macOS, and Windows (Python 3.12 and 3.13), and end-to-end installer smoke tests. CodeQL scans Python and GitHub Actions on pushes to `main`, on pull requests, and once a week. Dependabot checks for GitHub Actions and `uv` dependency updates. Codex reviews pull requests (code and security); see [AGENTS.md](AGENTS.md). See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 

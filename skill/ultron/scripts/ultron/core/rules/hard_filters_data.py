@@ -38,7 +38,30 @@ CLOSED_STATUS_PHRASES = {
     "inscripcion cerrada",
     "ya no aceptamos solicitudes",
 }
-
+# Agency boilerplate ("not accepting applications from recruitment agencies.") is not a closed posting.
+# Conservative rule: an application-acceptance phrase is exempt only when a channel word ("from", "via",
+# "through", "de"; never "by", as in "closed by the agency") is followed by a list made only of agency or
+# recruiter terms, joined by commas/"and"/"or", and that list ends the sentence. Any other continuation
+# ("... or individual applicants", "... and candidates must apply directly") keeps the phrase closed, which
+# is the behavior without the exemption. Filled or closed postings ("position filled ...") are never exempt.
+AGENCY_EXEMPTABLE_CLOSED_PHRASES = frozenset({
+    "no longer accepting",
+    "not accepting applications",
+    "applications closed",
+    "ya no aceptamos solicitudes",
+})
+_AGENCY_TERM = (
+    r"(?:(?:external|third[- ]party|recruitment|staffing|unsolicited|recruiting|executive)\s+)*"
+    r"(?:agenc\w*|recruiters?|headhunt\w*|(?:search|staffing|recruitment)\s+firms?)"
+    r"(?:\s+de\s+(?:seleccion|reclutamiento|colocacion|empleo))?"
+)
+_AGENCY_LIST_SEPARATOR = r"(?:\s*,\s*(?:(?:and|or|y|o)\s+)?|\s+(?:and|or|y|o)\s+)"
+# Up to three words before the channel word cover "applications or CVs from agencies".
+CLOSED_STATUS_AGENCY_SUFFIX_PATTERN = (
+    r"\s+(?:[\w-]+\s+){0,3}?(?:from|via|through|de)\s+(?:(?:the|las?|los)\s+)?"
+    + _AGENCY_TERM + r"(?:" + _AGENCY_LIST_SEPARATOR + _AGENCY_TERM + r")*"
+    + r"[ \t]*(?:[.!;]|\r?\n|$)"
+)
 
 LOCATION_CONTEXT_TERMS = {
     "remote",

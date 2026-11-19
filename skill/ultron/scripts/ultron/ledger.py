@@ -12,7 +12,7 @@ from ultron import home
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -94,6 +94,16 @@ _V2_TABLES = (
 )""",
 )
 
+# One row per (profile, seed, finalized run): the run queried the seed and kept ``kept`` of its postings.
+# Attempts and keeps are aggregates over runs, so re-finalizing a run replaces its rows instead of double-counting.
+_SEED_YIELD_RUNS = """CREATE TABLE IF NOT EXISTS seed_yield_runs (
+    profile_slug TEXT NOT NULL,
+    seed_key TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    kept INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (profile_slug, seed_key, run_id)
+)"""
+
 _V1_COLUMNS = "identity_key, canonical_url, title, company, first_seen, last_seen, times_seen, review_state"
 
 
@@ -170,6 +180,11 @@ def _apply_v3(conn: sqlite3.Connection) -> None:
     )
 
 
+def _apply_v4(conn: sqlite3.Connection) -> None:
+    conn.execute(_SEED_YIELD_RUNS)
+    conn.execute("CREATE INDEX IF NOT EXISTS seed_yield_runs_run ON seed_yield_runs (run_id)")
+
+
 def migrate(conn: sqlite3.Connection) -> int:
     """Bring the ledger up to ``SCHEMA_VERSION`` (forward only); backs up first. Returns the final version.
 
@@ -200,6 +215,9 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version == 2:
                 _apply_v3(conn)
                 version = 3
+            if version == 3:
+                _apply_v4(conn)
+                version = 4
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:
@@ -343,9 +361,32 @@ def record_run(conn: sqlite3.Connection, run_id: str, summary: RunSummary, profi
         _record_run(conn, run_id, summary, profile_slug, preset)
 
 
+def _record_seed_yield(conn: sqlite3.Connection, run_id: str, profile_slug: str, kept: dict[str, int]) -> None:
+    conn.execute("DELETE FROM seed_yield_runs WHERE run_id = ?", (run_id,))
+    conn.executemany(
+        "INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES (?, ?, ?, ?)",
+        [(profile_slug, key, run_id, max(0, int(count))) for key, count in sorted(kept.items())],
+    )
+
+
+def seed_yields(conn: sqlite3.Connection, profile_slug: str) -> dict[str, tuple[int, int]]:
+    """``{seed_key: (attempts, keeps)}`` for a profile: runs that queried the seed, and those that kept a posting."""
+    return {
+        key: (attempts, keeps)
+        for key, attempts, keeps in conn.execute(
+            "SELECT seed_key, COUNT(*), SUM(kept > 0) FROM seed_yield_runs WHERE profile_slug = ? GROUP BY seed_key",
+            (profile_slug,),
+        )
+    }
+
+
 def record_finalized_run(
     conn: sqlite3.Connection, summary: RunSummary, rows: list[FinalRow], *, profile_slug: str, preset: str,
+    seed_kept: dict[str, int] | None = None,
 ) -> dict[str, bool]:
+    """Record the run and its occurrences; ``seed_kept`` (seed key -> kept postings) replaces its seed yield rows."""
     with conn:
         _record_run(conn, summary.run_id, summary, profile_slug, preset)
+        if seed_kept is not None:
+            _record_seed_yield(conn, summary.run_id, profile_slug, seed_kept)
         return _record_occurrences(conn, summary.run_id, rows, profile_slug)

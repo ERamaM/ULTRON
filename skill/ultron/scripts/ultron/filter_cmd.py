@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ultron import runs, xlsx
+from ultron.core.reporting import html_report
 from ultron.output import emit, fail, fail_stage_order
 from ultron.stages.evaluate import RecordError, pending_batch, record_evaluations
 from ultron.stages.filter import filter_run
@@ -27,7 +28,7 @@ def _guard(func, *args) -> int:
     return 0
 
 
-def _finalize(run_id: str, with_xlsx: bool = False) -> dict:
+def _finalize(run_id: str, with_xlsx: bool = False, with_html: bool = False) -> dict:
     payload = finalize(run_id)
     if with_xlsx:
         try:
@@ -35,6 +36,11 @@ def _finalize(run_id: str, with_xlsx: bool = False) -> dict:
         except (xlsx.XlsxUnavailable, OSError, ValueError) as exc:
             # finalize already committed; report the export failure without losing its payload.
             payload["xlsx_error"] = str(exc)
+    if with_html:
+        try:
+            payload["outputs"]["results_html"] = str(html_report.export_run_to_html(run_id))
+        except (OSError, ValueError) as exc:
+            payload["html_error"] = str(exc)
     return payload
 
 
@@ -57,4 +63,5 @@ def register(subparsers) -> None:
     fin = subparsers.add_parser("finalize", help="merge verdicts, rank, cap, record history and export")
     fin.add_argument("--run", required=True)
     fin.add_argument("--xlsx", action="store_true", help="also write results.xlsx")
-    fin.set_defaults(func=lambda a: _guard(_finalize, a.run, a.xlsx))
+    fin.add_argument("--html", action="store_true", help="also write results.html (self-contained, offline)")
+    fin.set_defaults(func=lambda a: _guard(_finalize, a.run, a.xlsx, a.html))

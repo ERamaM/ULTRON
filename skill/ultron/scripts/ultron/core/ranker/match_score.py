@@ -1,4 +1,4 @@
-"""Deterministic, explainable profile-match scoring (score-v3)."""
+"""Deterministic, explainable profile-match scoring (score-v4)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from ultron.core.rules.term_matching import find_terms
 
 DimensionState = Literal["matched", "missing", "unknown", "not_required", "penalized"]
 MatchBand = Literal["strong", "good", "borderline", "ineligible"]
-SCORE_VERSION = "score-v3"
+SCORE_VERSION = "score-v4"
 
 
 class MatchDimension(BaseModel):

@@ -113,7 +113,7 @@ def test_confirmed_remote_contradiction_and_eligibility_levels():
     assert medium.dimensions["eligibility"].state == "unknown"
     assert medium.dimensions["eligibility"].evidence == "Remote EMEA"
     assert compute_match_score(_evaluation(eligibility="high"), STRICT).dimensions["eligibility"].state == "matched"
-    assert SCORE_VERSION == "score-v3"
+    assert SCORE_VERSION == "score-v4"
 
 
 @pytest.mark.parametrize(

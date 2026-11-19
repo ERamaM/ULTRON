@@ -22,6 +22,7 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   `blocked` (a captcha or bot-challenge page) and `js_shell` (a script-rendered page with no readable text) need a
   manual look: open the URL in a browser. `host_blocked` means the host kept answering 403/429, so the rest of its
   URLs were skipped for this run; retry later or open them manually.
+  `skipped_navigation_failures` means fetch stopped because most URLs failed to load (network down).
 - `extraction_failed`: the page was downloaded but no posting could be parsed. Prefer ATS-API seeds over scraping
   the HTML page; the page may be a client-rendered shell.
 - `prefilter`: cheap early rejection (domain, obvious role/title mismatch). Adjust the profile's role terms

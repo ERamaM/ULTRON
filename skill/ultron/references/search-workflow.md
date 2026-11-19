@@ -177,7 +177,7 @@ get explored.
 ultron fetch --run <run_id>
 ```
 
-Output: `{"fetched": 210, "failed": 40, "capped": 12, "requests": 250}`
+Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250}`
 
 Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
 submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
@@ -185,6 +185,9 @@ in `fetch_capped.jsonl`.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
+If at least 50 URLs failed to load at all (connection errors, timeouts) and they are at least half of the URLs
+tried, fetch stops early: the output has `"stopped": "navigation_failures"` and the remaining URLs are recorded as
+`skipped_navigation_failures`. Check the network or proxy, then run a new search.
 
 ## 7. Filter
 

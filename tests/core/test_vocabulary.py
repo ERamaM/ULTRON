@@ -13,7 +13,7 @@ from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.prefilter import passes_coarse_prefilter
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.models import ExtractedJob
-from ultron.core.rules.role_matching import score_role_family
+from ultron.core.rules.role_matching import is_allowed_family, score_role_family
 from ultron.core.rules.title_synonyms import expand_role_terms
 from ultron.core.vocabulary import VocabularyPack, active_pack, load_packs
 
@@ -229,6 +229,12 @@ def test_dashed_synonym_group_uses_normalized_members():
     assert expand_role_terms([term], extra_groups=[(term, "Graduate Occupational Therapist")]) == [
         "occupational therapist graduate program", "graduate occupational therapist",
     ]
+
+
+def test_dashed_focus_terms_match_in_the_posting_body():
+    terms = ("Occupational Therapist - Graduate Program", "Patient Care - Rehabilitation")
+    body = "Join our Occupational Therapist - Graduate Program. Provide patient care - rehabilitation."
+    assert is_allowed_family("Occupational Therapist", body, allowed_terms=terms)
 
 
 @pytest.mark.parametrize(("title", "body", "discard_reason"), [

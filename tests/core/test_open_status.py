@@ -22,6 +22,7 @@ def test_agency_boilerplate_does_not_close_posting():
         "We are no longer accepting CVs from agencies at this time.",
         "We are not accepting applications from third-party recruiters.",
         "Ya no aceptamos solicitudes de agencias de selección.",
+        "This role has applications closed via recruitment agencies; please apply directly.",
     ):
         assert is_open_status_ok(body, True, True) is True, body
 
@@ -31,5 +32,7 @@ def test_closed_phrases_still_close_posting():
         "This vacancy is closed and no longer accepting applications.",
         "We are not accepting applications for this role.",
         "Applications closed.",
+        "Position filled by recruitment agency.",
+        "This role is closed.",
     ):
         assert is_open_status_ok(body, True, True) is False, body

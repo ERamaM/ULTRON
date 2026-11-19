@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from ultron.core.models import ClassificationSignals, Eligibility, ExtractedJob, ExtractionMeta, GeoScope, RemotePolicy
 from ultron.core.rules import hard_filters_data as rules_data
@@ -37,7 +37,12 @@ from ultron.core.rules.role_matching import (
     score_role_family,
 )
 from ultron.core.rules.term_matching import find_terms, normalize_text
-from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary, word_boundary_pattern
+from ultron.core.rules.text_patterns import (
+    contains_any_substring,
+    contains_any_word_boundary,
+    term_boundary_pattern,
+    word_boundary_pattern,
+)
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 
 logger = logging.getLogger(__name__)
@@ -112,18 +117,28 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
                 continue
             return True
 
-    for term in rules_data.ONSITE_TERMS:
-        pattern = re.compile(re.escape(term), re.IGNORECASE)
-        for match in pattern.finditer(low):
-            context_start = max(0, match.start() - 60)
-            context_end = min(len(low), match.end() + 25)
-            context = low[context_start:context_end]
-            if any(negation in context for negation in negation_terms):
-                continue
-            if any(perk in context for perk in rules_data.ONSITE_BENEFIT_CONTEXT_TERMS):
-                continue
-            return True
+    for match in _iter_onsite_term_matches(low):
+        context_start = max(0, match.start() - 60)
+        context_end = min(len(low), match.end() + 25)
+        context = low[context_start:context_end]
+        if any(negation in context for negation in negation_terms):
+            continue
+        if any(perk in context for perk in rules_data.ONSITE_BENEFIT_CONTEXT_TERMS):
+            continue
+        return True
     return False
+
+
+_ONSITE_TERM_PRODUCT_SUFFIX_RE = re.compile(rules_data.ONSITE_TERM_PRODUCT_SUFFIX_PATTERN, re.IGNORECASE)
+
+
+def _iter_onsite_term_matches(text: str) -> Iterator[re.Match[str]]:
+    """Yield whole-term ONSITE_TERMS matches ("Berlin office" and "in Office 365" do not count)."""
+    for term in rules_data.ONSITE_TERMS:
+        product_exempt = term.endswith("office")
+        for match in term_boundary_pattern(term).finditer(text):
+            if not (product_exempt and _ONSITE_TERM_PRODUCT_SUFFIX_RE.match(text, match.end())):
+                yield match
 
 
 def _has_closed_status_with_context(text: str) -> bool:
@@ -253,7 +268,7 @@ def apply_hard_filters(
     has_positive_remote_hint = contains_any_substring(full_text_low, rules_data.REMOTE_HINT_TERMS)
     has_negative_remote_hint = contains_any_substring(
         full_text_low, rules_data.DISALLOWED_REMOTE_TERMS
-    ) or contains_any_substring(full_text_low, rules_data.ONSITE_TERMS)
+    ) or next(_iter_onsite_term_matches(full_text_low), None) is not None
     if (
         remote_required
         and (has_positive_remote_hint or has_negative_remote_hint)

@@ -44,6 +44,58 @@ def test_slug_candidates_order():
     assert slug_candidates("Acme", "https://www.acme.com/x") == ["acme"]
 
 
+@pytest.mark.parametrize(
+    ("company", "expected"),
+    [
+        ("Acme GmbH", ["acmegmbh", "acme-gmbh", "acme"]),
+        ("Acme S.L.", ["acmesl", "acme-s-l", "acme"]),
+        ("Acme, Inc.", ["acmeinc", "acme-inc", "acme"]),
+        ("Acme Robotics S.A.", ["acmeroboticssa", "acme-robotics-s-a", "acmerobotics", "acme-robotics"]),
+        ("Acme Holding AG", ["acmeholdingag", "acme-holding-ag", "acmeholding", "acme-holding"]),
+        ("Nordic Widgets Oy", ["nordicwidgetsoy", "nordic-widgets-oy", "nordicwidgets", "nordic-widgets"]),
+        ("A&B", ["ab", "a-b", "aandb", "a-and-b"]),
+        ("J.P. Widgets", ["jpwidgets", "j-p-widgets", "jp-widgets"]),
+        ("Smith & Co.", ["smithco", "smith-co", "smith"]),
+    ],
+)
+def test_slug_candidates_strip_legal_suffixes_without_domain(company, expected):
+    assert slug_candidates(company, "") == expected
+
+
+def test_slug_candidates_extras_are_bounded_and_keep_domain_label():
+    out = slug_candidates("Acme Data Systems Ltd", "https://acmedata.example")
+    assert out == ["acmedatasystemsltd", "acme-data-systems-ltd", "acmedata", "acmedatasystems", "acme-data-systems"]
+    assert len(out) == len(dict.fromkeys(out))
+
+
+def test_slug_candidates_keep_a_bare_legal_word():
+    assert slug_candidates("GmbH", "") == ["gmbh"]
+    # Product words are not legal suffixes: stripping them would probe another company's board.
+    assert slug_candidates("Acme AI", "") == ["acmeai", "acme-ai"]
+
+
+def test_verify_probes_suffix_stripped_slug():
+    def handler(request):
+        if request.url.host == "api.lever.co" and request.url.path.endswith("/acme"):
+            return httpx.Response(200, json=[{"text": "Senior ML Engineer", "hostedUrl": "https://jobs.lever.co/acme/1"}])
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
+    assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acme"
+
+
+def test_verify_probes_literal_slugs_on_every_vendor_before_normalized_guesses():
+    def handler(request):
+        if "greenhouse" in request.url.host and "/acme/" in request.url.path:
+            return httpx.Response(200, json=GH_JOBS)  # a different company's board
+        if request.url.host == "api.lever.co" and request.url.path.rstrip("/").endswith("/acmegmbh"):
+            return httpx.Response(200, json=[{"text": "Senior ML Engineer", "hostedUrl": "https://jobs.lever.co/acmegmbh/1"}])
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
+    assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acmegmbh"
+
+
 def test_verify_explicit_pair():
     res = verify_proposal(Proposal("Acme", ats="greenhouse", board="acme"), client=make_client(gh_handler), timeout=5)
     assert res.status == "verified" and res.postings == 3

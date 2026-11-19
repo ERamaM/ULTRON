@@ -37,3 +37,11 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 - Keep PRs focused and include regression tests for bug fixes or new ATS/feed behaviors.
 - Never commit `.env` files, personal profiles/CVs, `~/.ultron` exports, or hardcoded local filesystem paths.
 - Check GitHub Actions results (`lint`, `secrets`, `test`, and `install-smoke`) after pushing.
+
+## Publishing a Release
+
+1. Bump the package version in `skill/ultron/scripts/pyproject.toml` and `skill/ultron/scripts/ultron/__init__.py`. Refresh `uv.lock` with `uv lock` and submit the changes in a PR.
+2. After the version PR merges and CI passes, tag that commit as `vX.Y.Z` and push the tag. The version in the tag should match the package version.
+3. The [Release workflow](.github/workflows/release.yml) runs Ruff and pytest, builds the wheel, and publishes it with `SHA256SUMS.txt` on GitHub Releases. Verify that both files are attached to the release.
+
+A merge updates the source available to the default bootstrap. A tag publishes a versioned release artifact. Users refresh existing installations with [`--update`](README.md#updating-ultron).

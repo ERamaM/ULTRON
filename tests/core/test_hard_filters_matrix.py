@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ultron.core.models import ClassificationSignals, ExtractedJob
 from ultron.core.rules import geo_eu, geography
 from ultron.core.rules import hard_filters as h
@@ -518,3 +520,27 @@ def test_in_office_matches_whole_phrase_only():
     assert ineligible("Berlin Office") is False
     assert ineligible("Lisbon Office") is False
     assert ineligible("Berlin, in office") is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Build RAG pipelines. No geographic restriction or office attendance. Applications remain open.",
+        "No relocation or office attendance required.",
+        "Fully distributed, without travel or office attendance.",
+    ],
+)
+def test_negated_office_attendance_in_a_list_keeps_full_remote(body):
+    assert h.is_full_remote_only("Remote worldwide", body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Office attendance is required twice a month.",
+        "No visa sponsorship. Office attendance required on Mondays.",
+        "No geographic restriction, but office attendance is expected weekly.",
+    ],
+)
+def test_office_attendance_without_negation_is_still_a_conflict(body):
+    assert h.is_full_remote_only("Remote worldwide", body) is False

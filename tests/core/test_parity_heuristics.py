@@ -43,6 +43,15 @@ INTENTIONAL_DEVIATIONS = {
         }
         for case_id in ("en-negative-shape-08", "es-negative-shape-07")
     },
+    # "No geographic restriction or office attendance" negates office attendance too; MARK III read it as an
+    # onsite conflict and discarded a fully remote worldwide role that the quality labels mark relevant.
+    "en-positive-shape-07": {
+        "heuristic_evaluator": {
+            "discard_category": None, "discard_reason": None, "is_full_remote": True, "keep": True, "verdict": "keep",
+        },
+        "hard_filter": {"keep": True, "reason": None},
+        "pipeline_characterization": {"outcome": "keep", "reason": None, "stage": "completed"},
+    },
 }
 
 

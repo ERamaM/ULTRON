@@ -423,3 +423,17 @@ def test_block_threshold_stops_requests_redirects_and_retries_to_a_blocked_host(
         client.get_text("https://open.test/x")
     assert hits == ["blocked.test/1", "blocked.test/2", "open.test/x"]
     assert make_client(handler).block_threshold is None  # off by default
+
+
+def test_unicode_host_resolves_the_ascii_name_httpx_connects_to():
+    asked: list[str] = []
+
+    def resolver(hostname: str, port: int) -> list[str]:
+        asked.append(hostname)
+        # The two IDNA encodings of "faß.de" point at different servers.
+        return ["93.184.216.34"] if hostname == "xn--fa-hia.de" else ["198.51.100.7"]
+
+    client = make_client(lambda r: httpx.Response(200, text="ok"), resolver=resolver)
+    assert client.get_text("https://faß.de/")[0] == 200
+    assert asked == ["xn--fa-hia.de"]
+    assert client._validated["faß.de"] == ("93.184.216.34",)

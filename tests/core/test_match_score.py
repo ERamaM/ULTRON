@@ -81,7 +81,8 @@ def test_unknown_is_distinct_from_false_and_reaches_borderline():
 def test_absent_preferences_are_not_required_or_scored_as_failures():
     score = compute_match_score(
         _evaluation(is_senior=False, seniority_evidence="Junior", is_full_remote=False, remote_evidence="Onsite"),
-        {},
+        # A missing remote_policy.required defaults to full_remote, so opting out of remote must be explicit.
+        {"remote_policy": {"required": "any"}},
     )
     assert score.dimensions["seniority"].state == "not_required"
     assert score.dimensions["remote"].state == "not_required"
@@ -112,7 +113,7 @@ def test_confirmed_remote_contradiction_and_eligibility_levels():
     assert medium.dimensions["eligibility"].state == "unknown"
     assert medium.dimensions["eligibility"].evidence == "Remote EMEA"
     assert compute_match_score(_evaluation(eligibility="high"), STRICT).dimensions["eligibility"].state == "matched"
-    assert SCORE_VERSION == "score-v3"
+    assert SCORE_VERSION == "score-v4"
 
 
 @pytest.mark.parametrize(

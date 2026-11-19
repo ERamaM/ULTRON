@@ -26,6 +26,7 @@ from ultron.core.feeds.collectors import COLLECTORS
 from ultron.core.feeds.urls import AGGREGATOR_DOMAINS, SHORTENER_DOMAINS, candidate_urls_from_row, redirect_targets
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import AtsBoardSeed, CandidateUrl
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope, scoped_eligibility_terms
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
@@ -280,8 +281,7 @@ def discover_feeds(run_id: str) -> dict:
     geo = geo_scope(profile)
     scope = location_scope(profile)
     elig_terms = scoped_eligibility_terms(profile)
-    remote_req_val = str((criteria.get("remote_policy") or {}).get("required") or "full_remote").strip().lower()
-    remote_required = remote_req_val not in {"any", "none", "optional", "hybrid", "onsite", "on-site", "false"}
+    remote_required = is_remote_required(criteria)
     title_vocabulary = build_title_vocabulary(criteria, vocabulary=pack)
     timeout = settings["ats_api_timeout"]
     # Large JSON feeds (e.g. arbeitnow ~10 MB) exceed the default 5 MB page cap.

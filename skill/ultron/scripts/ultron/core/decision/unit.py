@@ -15,6 +15,7 @@ from ultron.core.data_paths import data_dir
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig, HeuristicEvaluator
 from ultron.core.models import ExtractedJob, GeoScope, JobEvaluation
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.classification_signals import build_classification_signals
 from ultron.core.rules.geography import geo_scope, scoped_eligibility_terms
 from ultron.core.rules.hard_filters import apply_hard_filters, pre_filter_candidate
@@ -125,8 +126,7 @@ def characterize_job(
         eligibility_terms=scoped_eligibility_terms(profile),
         role_negatives=role_negatives,
     )
-    remote_req_val = str(((profile.get("criteria") or {}).get("remote_policy") or {}).get("required") or "full_remote").strip().lower()
-    remote_required = remote_req_val not in {"any", "none", "optional", "hybrid", "onsite", "on-site", "false"}
+    remote_required = is_remote_required(profile.get("criteria"))
     pre_keep, pre_reason = pre_filter_candidate(
         job,
         allowed_domains,

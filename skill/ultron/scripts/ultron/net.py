@@ -14,7 +14,8 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from ultron import __version__
-from ultron.core.urlpolicy import Resolver, URLRejected, admit_url
+from ultron.core.urlpolicy import Resolver, URLRejected, admit_url, resolve_public_addresses
+from ultron.pinned_transport import PINNED_ADDRESSES, PinnedTransport
 
 USER_AGENT = f"ULTRON/{__version__}"
 MAX_REDIRECTS = 5
@@ -132,8 +133,10 @@ class HttpClient:
         self._last_request: dict[str, float] = {}
         self._host_delay: dict[str, float] = {}
         self._block_streak: dict[str, int] = {}
+        self._validated: dict[str, tuple[str, ...]] = {}  # hostname -> addresses validated for the current hop
         self._client = httpx.Client(
-            transport=transport,
+            # An injected transport (tests) sees the logical URL; the pinned addresses travel in the extension.
+            transport=PinnedTransport() if transport is None else transport,
             follow_redirects=False,
             trust_env=False,
             headers={"User-Agent": USER_AGENT},
@@ -196,7 +199,7 @@ class HttpClient:
             raise HostBlocked(host)
         self._charge(host)
         self._throttle(host)
-        kwargs: dict[str, Any] = {"timeout": timeout}
+        kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
         try:
@@ -226,8 +229,16 @@ class HttpClient:
         byte_limit = self.max_bytes if max_bytes is None else max_bytes
         current = url
         for _hop in range(MAX_REDIRECTS + 1):
-            admitted = admit_url(
-                current, allowed_domains=allowed_domains, resolve_dns=True, resolver=self._resolver
+            admitted = admit_url(current, allowed_domains=allowed_domains)
+            # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
+            # Resolve the ASCII host HTTPX connects to and sends as SNI/Host (IDNA2008, e.g. "xn--fa-hia.de"),
+            # not the Unicode name, which Python's resolver would encode differently ("fass.de").
+            try:
+                connect_host = httpx.URL(admitted.url).raw_host.decode("ascii")
+            except (httpx.InvalidURL, UnicodeError) as exc:
+                raise URLRejected("invalid_url") from exc
+            self._validated[admitted.hostname] = resolve_public_addresses(
+                connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
             for attempt in range(1, MAX_ATTEMPTS + 1):

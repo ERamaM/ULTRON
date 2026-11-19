@@ -22,6 +22,7 @@ from ultron.core.models import (
 )
 from ultron.core.ranker.match_score import compute_match_score
 from ultron.core.ranker.profile_terms import collect_profile_term_hits
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geo_eu import SPAIN_LOCALITY_TERMS
 from ultron.core.rules.geography import (
     GeoAssessment,
@@ -89,12 +90,7 @@ def _assemble_final_row(
     geo: GeoScope = "eu",
 ) -> FinalRow:
     """Build a kept FinalRow: fill geo defaults, assemble eligibility evidence, map source fields."""
-    remote_req_val = (
-        str(((profile_criteria or {}).get("remote_policy") or {}).get("required") or "full_remote").strip().lower()
-        if profile_criteria is not None
-        else "full_remote"
-    )
-    remote_required = remote_req_val not in {"any", "none", "optional", "hybrid", "onsite", "on-site", "false"}
+    remote_required = is_remote_required(profile_criteria)
     remote_policy = heur_remote_policy
     eligibility = heur_eligibility
     if (

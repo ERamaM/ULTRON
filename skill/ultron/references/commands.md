@@ -17,7 +17,7 @@ A group without an action runs its default (marked "default").
 
 ```
 ultron search [profile] [preset]      full search with the agent (default)
-       search quick [profile]         heuristic-only search, no web search or evaluation
+       search quick [profile] [preset] heuristic-only search, no web search or evaluation
        search saved [list|run|create|delete] [name]
 ultron profile                        list profiles (default)
        profile show <profile>
@@ -43,8 +43,9 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 
 - `search [profile] [preset]`: follow the profile selection steps and search loop in SKILL.md.
   Preset defaults to `balanced`. Other presets are `fast`, `deep`, and `seed_boost`.
-- `search quick [profile]`: follow the same profile selection steps. Once the profile is selected,
-  run `ultron run --unattended --profile <slug>` and summarize the counts and top matches.
+- `search quick [profile] [preset]`: follow the same profile selection steps. Once the profile is
+  selected, run `ultron run --unattended --profile <slug> [--preset <p>]` with the requested preset
+  and summarize the counts and top matches. Use `balanced` by default.
   Tell the user it used heuristics only.
 - `search saved ...`: `ultron saved-search list|run|create|delete`; see `references/scheduling.md`.
 

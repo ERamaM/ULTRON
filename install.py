@@ -20,7 +20,7 @@ behaviour: project install into ``--target`` (default ``.``).
 ``--update`` refreshes the venv and only the targets that already hold an ULTRON install (others: skipped).
 ``--uninstall`` removes only folders that contain ``.ultron-install.json``; ``$ULTRON_HOME`` is kept unless
 ``--purge-data`` is given, and even then only if it holds ``.ultron-home`` (written by every install) or
-``ultron.sqlite3``. Nothing outside the ``ultron`` folders this installer created is ever deleted: destinations
+``ultron.sqlite3`` (with only the database, generic entries such as ``venv`` or ``cv`` are kept). Nothing outside the ``ultron`` folders this installer created is ever deleted: destinations
 inside the source tree are refused, a marker only counts when its ``path`` is the folder itself, ``--dev`` links
 are tracked in ``$ULTRON_HOME/installs.json`` (no marker is written through them), unmarked phase-1 folders are
 moved to ``$ULTRON_HOME/backups/legacy-skill-<platform>-<timestamp>``, and links are unlinked, never followed.
@@ -550,7 +550,7 @@ def _uninstall_reason(dst: Path) -> str:
 
 
 def _mark_home(home: Path) -> None:
-    """Record that this folder is an ULTRON home (``--purge-data`` requires it or ``ultron.sqlite3``).
+    """Record that this folder is an ULTRON home (only then does ``--purge-data`` delete its generic entries).
 
     Only a folder the installer creates, or one that is empty, is marked: an existing folder with other
     content (``ULTRON_HOME`` pointed at a shared directory) is never claimed.
@@ -644,7 +644,8 @@ def _home_refusal(home: Path) -> str | None:
         return f"{home} is the user's home, one of its parents or a drive root"
     if resolved == REPO or resolved in REPO.parents or REPO in resolved.parents:
         return f"{home} overlaps the ULTRON source folder"
-    # P4-R3: only the installer's own marker or the ULTRON database qualify (a venv or runs/ alone does not)
+    # P4-R3: only the installer's own marker or the ULTRON database qualify (a venv or runs/ alone does not);
+    # with the database alone, _purge_home deletes only ULTRON-specific names
     looks_like_home = (home / HOME_MARKER).is_file() or (home / "ultron.sqlite3").is_file()
     if not looks_like_home:
         return f"{home} does not look like an ULTRON home (no {HOME_MARKER} or ultron.sqlite3)"
@@ -656,15 +657,24 @@ OWNED_HOME_ENTRIES = frozenset({
     "venv", "runs", "profiles", "seeds", "backups", "cv", "ultron.sqlite3", "ultron.sqlite3-wal",
     "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices", REGISTRY, HOME_MARKER,
 })
+# Without HOME_MARKER the folder existed before ULTRON used it (the CLI creates the ledger in any folder
+# ULTRON_HOME points at), so generic names like venv/ or cv/ may be the user's: only these are deleted.
+SPECIFIC_HOME_ENTRIES = frozenset({
+    "ultron.sqlite3", "ultron.sqlite3-wal", "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices",
+    REGISTRY,
+})
 
 
 def _purge_home(home: Path, *, dry_run: bool) -> dict:
     """Delete the ULTRON-owned entries of ``home``; remove ``home`` itself only if nothing else is left."""
+    deletable = OWNED_HOME_ENTRIES if (home / HOME_MARKER).is_file() else SPECIFIC_HOME_ENTRIES
     children = sorted(home.iterdir(), key=lambda p: p.name)
-    owned = [c for c in children if c.name in OWNED_HOME_ENTRIES]
-    foreign = [c.name for c in children if c.name not in OWNED_HOME_ENTRIES]
+    owned = [c for c in children if c.name in deletable]
+    foreign = [c.name for c in children if c.name not in deletable]
+    extra = {"would_delete": [c.name for c in owned]} if dry_run else {}
     if not dry_run:
-        for child in owned:
+        # The marker goes last: if an earlier deletion fails, a retry still treats the generic entries as ULTRON's
+        for child in sorted(owned, key=lambda c: c.name == HOME_MARKER):
             if _is_link(child):
                 _unlink(child)  # never follow a link out of the home
             elif child.is_dir():
@@ -674,9 +684,12 @@ def _purge_home(home: Path, *, dry_run: bool) -> dict:
         if not foreign:
             home.rmdir()
     if not foreign:
-        return {"status": "removed"}
-    return {"status": "ultron_data_removed", "kept_foreign_entries": foreign,
-            "note": "the folder also holds files ULTRON did not create; they and the folder were kept"}
+        return {"status": "removed", **extra}
+    note = "the folder also holds files ULTRON did not create; they and the folder were kept"
+    if deletable is SPECIFIC_HOME_ENTRIES:
+        note = (f"no {HOME_MARKER}: the folder existed before ULTRON used it, so only ULTRON's database and "
+                "records were deleted; the rest and the folder were kept (remove them manually if they are ULTRON's)")
+    return {"status": "ultron_data_removed", "kept_foreign_entries": foreign, **extra, "note": note}
 
 
 def run_uninstall(*, scope: str, project: Path | None, platforms: list[str], purge_data: bool = False,

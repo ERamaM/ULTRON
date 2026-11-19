@@ -13,6 +13,11 @@ from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
 from ultron.stages.feeds import is_aggregator_host
 
+# Evaluator-stage discards whose ambiguity score reaches the preset threshold go to the agent instead of
+# being final, at most this many per run (highest scores first). Hard evidence is never rescued.
+MAX_RESCUED_DISCARDS = 20
+HARD_EVIDENCE_REASONS = frozenset({"expired_or_closed", "location_excluded", "outside_ats_allowlist"})
+
 
 def allows_outside_allowlist(row: dict) -> bool:
     """MARK III's ATS-fingerprint override, at the ULTRON boundary.
@@ -28,6 +33,18 @@ def allows_outside_allowlist(row: dict) -> bool:
         return True
     domain = str((row.get("job") or {}).get("domain") or "")
     return row.get("ats_fingerprint") is True and not is_aggregator_host(domain)
+
+
+def _rescuable(result: dict) -> bool:
+    """An evaluator-stage heuristic discard that passed every authoritative gate and has no hard evidence."""
+    evaluation = result["_evaluation"]
+    return (
+        result["pipeline_characterization"]["stage"] == "heuristic_evaluator"
+        and result["hard_filter"]["keep"]
+        and evaluation.open_status_ok
+        and evaluation.discard_category != "closed_or_invalid"
+        and evaluation.discard_reason not in HARD_EVIDENCE_REASONS
+    )
 
 
 def filter_run(run_id: str) -> dict:
@@ -46,9 +63,10 @@ def filter_run(run_id: str) -> dict:
     kept: list[dict] = []
     ambiguous: list[dict] = []
     discarded: list[dict] = []
+    rescue_candidates: list[tuple[int, int, dict, dict]] = []
     reasons: Counter[str] = Counter()
 
-    for row in runs.read_jsonl(out_dir / "postings.jsonl"):
+    for order, row in enumerate(runs.read_jsonl(out_dir / "postings.jsonl")):
         job = ExtractedJob(**row["job"])
         identity = row["identity_key"]
         result = characterize_job(
@@ -57,16 +75,29 @@ def filter_run(run_id: str) -> dict:
             target_regions=target_regions,
         )
         decision = result["pipeline_characterization"]
+        evaluation = result["_evaluation"]
         if decision["outcome"] == "discard":
             reason = decision["reason"] or "unknown"
             record = DiscardRecord(
                 apply_url=job.apply_url, reason=reason, title=job.title, company=job.company,
                 location=job.location, remote_text=job.remote_text,
             ).model_dump(mode="json")
-            discarded.append({**record, "stage": decision["stage"], "identity_key": identity})
+            discard = {**record, "stage": decision["stage"], "identity_key": identity}
+            if _rescuable(result):
+                score = scorer.score(job, evaluation, classification_signals=result["_signals"])
+                if score >= threshold:
+                    entry = {
+                        "identity_key": identity,
+                        "job": job.model_dump(mode="json"),
+                        "heuristic": evaluation.model_dump(mode="json"),
+                        "ambiguity": score,
+                        "rescued_discard": {"reason": reason, "stage": decision["stage"]},
+                    }
+                    rescue_candidates.append((score, order, entry, discard))
+                    continue
+            discarded.append(discard)
             reasons[reason] += 1
             continue
-        evaluation = result["_evaluation"]
         score = scorer.score(job, evaluation, classification_signals=result["_signals"])
         entry = {
             "identity_key": identity,
@@ -81,6 +112,13 @@ def filter_run(run_id: str) -> dict:
         else:
             kept.append(entry)
 
+    rescue_candidates.sort(key=lambda item: (-item[0], item[1]))
+    rescued = rescue_candidates[:MAX_RESCUED_DISCARDS]
+    ambiguous.extend(entry for _score, _order, entry, _discard in rescued)
+    for _score, _order, _entry, discard in sorted(rescue_candidates[MAX_RESCUED_DISCARDS:], key=lambda c: c[1]):
+        discarded.append(discard)
+        reasons[discard["reason"]] += 1
+
     runs.write_jsonl(out_dir / "discarded.jsonl", discarded)
     runs.write_jsonl(out_dir / "kept.jsonl", kept)
     runs.write_jsonl(out_dir / "ambiguous.jsonl", ambiguous)
@@ -89,5 +127,6 @@ def filter_run(run_id: str) -> dict:
         "kept": len(kept),
         "ambiguous": len(ambiguous),
         "discarded": len(discarded),
+        "rescued_discards": len(rescued),
         "discard_reasons": dict(reasons.most_common()),
     }

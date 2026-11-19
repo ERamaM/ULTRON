@@ -89,34 +89,32 @@ def stable_split(case_id: str) -> str:
     return "dev" if bucket < 70 else "test"
 
 
+def _label_errors(labels: Any) -> list[str]:
+    if not isinstance(labels, dict) or set(labels) != LABEL_KEYS:
+        return [f"labels must have exactly {sorted(LABEL_KEYS)}"]
+    errors = [f"labels.{key} must be true, false or null" for key in sorted(LABEL_KEYS - {"eligibility"})
+              if labels[key] not in (True, False, None)]
+    if labels["eligibility"] not in ENUMS["eligibility_label"]:
+        errors.append("labels.eligibility is invalid")
+    return errors
+
+
 def _check_case(case: Any, path: Path) -> list[str]:
     if not isinstance(case, dict):
         return [f"{path.name}: not a mapping"]
-    errors = []
     if set(case) != CASE_KEYS:
-        errors.append(f"{path.name}: keys differ from the case contract: {sorted(set(case) ^ CASE_KEYS)}")
-        return errors
-    if case["id"] != path.stem:
-        errors.append(f"{path.name}: id {case['id']!r} does not match the file name")
-    for key, allowed in ENUMS.items():
-        if case[key] not in allowed:
-            errors.append(f"{path.name}: {key}={case[key]!r} is not one of {sorted(allowed)}")
-    if case.get("split") != stable_split(str(case["id"])):
-        errors.append(f"{path.name}: split does not match the stable hash split")
-    labels = case["labels"]
-    if not isinstance(labels, dict) or set(labels) != LABEL_KEYS:
-        errors.append(f"{path.name}: labels must have exactly {sorted(LABEL_KEYS)}")
-    else:
-        for key in LABEL_KEYS - {"eligibility"}:
-            if labels[key] not in (True, False, None):
-                errors.append(f"{path.name}: labels.{key} must be true, false or null")
-        if labels["eligibility"] not in ENUMS["eligibility_label"]:
-            errors.append(f"{path.name}: labels.eligibility is invalid")
-    if case["fixture"] != f"../fixtures/{case['id']}.json":
-        errors.append(f"{path.name}: fixture must be ../fixtures/{case['id']}.json")
-    if not str(case["notes"]).strip():
-        errors.append(f"{path.name}: notes must not be empty")
-    return errors
+        return [f"{path.name}: keys differ from the case contract: {sorted(set(case) ^ CASE_KEYS)}"]
+    case_id = str(case["id"])
+    checks = [
+        (case_id == path.stem, f"id {case_id!r} does not match the file name"),
+        (case["split"] == stable_split(case_id), "split does not match the stable hash split"),
+        (case["fixture"] == f"../fixtures/{case_id}.json", f"fixture must be ../fixtures/{case_id}.json"),
+        (bool(str(case["notes"]).strip()), "notes must not be empty"),
+    ]
+    checks += [(case[key] in allowed, f"{key}={case[key]!r} is not one of {sorted(allowed)}")
+               for key, allowed in ENUMS.items()]
+    problems = [message for ok, message in checks if not ok] + _label_errors(case["labels"])
+    return [f"{path.name}: {message}" for message in problems]
 
 
 def _check_fixture(fixture: Any, case: dict[str, Any], name: str) -> list[str]:
@@ -137,6 +135,24 @@ def _check_fixture(fixture: Any, case: dict[str, Any], name: str) -> list[str]:
     return errors
 
 
+def _load_record(root: Path, path: Path) -> tuple[tuple[dict[str, Any], dict[str, Any]] | None, list[str]]:
+    """One validated ``(case, fixture)`` pair, or ``None`` and the reasons it is invalid."""
+    try:
+        case = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        return None, [f"{path.name}: unreadable: {exc}"]
+    case_errors = _check_case(case, path)
+    if case_errors:
+        return None, case_errors
+    fixture_path = root / "fixtures" / f"{case['id']}.json"
+    try:
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, [f"{fixture_path.name}: unreadable: {exc}"]
+    fixture_errors = _check_fixture(fixture, case, fixture_path.name)
+    return (None if fixture_errors else (case, fixture)), fixture_errors
+
+
 def load_corpus(root: Path | None = None) -> tuple[dict[str, Any], list[tuple[dict[str, Any], dict[str, Any]]]]:
     """Return ``(metadata, [(case, fixture), ...])`` sorted by id; raise ``CorpusError`` when invalid."""
     root = CORPUS_DIR if root is None else root
@@ -149,25 +165,10 @@ def load_corpus(root: Path | None = None) -> tuple[dict[str, Any], list[tuple[di
     errors: list[str] = []
     records = []
     for path in sorted((root / "cases").glob("*.yaml")):
-        try:
-            case = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as exc:
-            errors.append(f"{path.name}: unreadable: {exc}")
-            continue
-        case_errors = _check_case(case, path)
-        if case_errors:
-            errors.extend(case_errors)
-            continue
-        fixture_path = root / "fixtures" / f"{case['id']}.json"
-        try:
-            fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            errors.append(f"{fixture_path.name}: unreadable: {exc}")
-            continue
-        fixture_errors = _check_fixture(fixture, case, fixture_path.name)
-        errors.extend(fixture_errors)
-        if not fixture_errors:
-            records.append((case, fixture))
+        record, record_errors = _load_record(root, path)
+        errors.extend(record_errors)
+        if record is not None:
+            records.append(record)
     minimum = int(meta.get("minimum_cases") or 0)
     if not errors and len(records) < minimum:
         errors.append(f"corpus has {len(records)} cases, fewer than minimum_cases={minimum}")
@@ -338,44 +339,59 @@ def _check_report(report: Any, label: str) -> None:
         raise CorpusError(f"{label} report is not a replay report")
 
 
+def _declines(base: dict[str, Any], candidate: dict[str, Any], tolerance: float, label: str) -> list[str]:
+    return [
+        f"{label} {metric} declined by {float(base[metric]) - float(candidate[metric]):.4f}"
+        for metric in GATED_METRICS
+        if float(base[metric]) - float(candidate[metric]) > tolerance
+    ]
+
+
+def _slice_gates(baseline: dict[str, Any], candidate: dict[str, Any]) -> tuple[list[str], list[str]]:
+    regressions: list[str] = []
+    insufficient: list[str] = []
+    for dimension, groups in baseline["metrics"]["slices"].items():
+        candidate_groups = candidate["metrics"]["slices"].get(dimension) or {}
+        for name, values in groups.items():
+            other = candidate_groups.get(name)
+            if not other:
+                regressions.append(f"slice {dimension}={name} is missing")
+                continue
+            sample = min(int(values["sample_size"]), int(other["sample_size"]))
+            if sample < MIN_SLICE_SAMPLE:
+                insufficient.append(f"{dimension}={name} sample={sample}")
+            else:
+                regressions += _declines(values, other, SLICE_REGRESSION_TOLERANCE, f"slice {dimension}={name}")
+    return regressions, insufficient
+
+
+def _case_gates(baseline: dict[str, Any], candidate: dict[str, Any], justified: set[str]) -> list[str]:
+    candidate_cases = {c["id"]: c for c in candidate.get("cases") or []}
+    regressions = []
+    for case in baseline.get("cases") or []:
+        other = candidate_cases.get(case["id"])
+        if other is None:
+            regressions.append(f"case {case['id']} is missing")
+            continue
+        was_kept = case["truth"]["relevant"] is True and case["prediction"]["status"] == "keep"
+        if was_kept and other["prediction"]["status"] != "keep" and case["id"] not in justified:
+            regressions.append(f"new false negative: {case['id']}")
+    return regressions
+
+
 def compare_reports(
     baseline: dict[str, Any], candidate: dict[str, Any], *, justified_case_ids: set[str] | None = None
 ) -> ComparisonResult:
     """Apply the gates: global drop > 1 point, slice drop > 5 points (n >= 10), new false negatives."""
     _check_report(baseline, "baseline")
     _check_report(candidate, "candidate")
-    regressions: list[str] = []
-    insufficient: list[str] = []
-    base, cand = baseline["metrics"]["classification"], candidate["metrics"]["classification"]
-    for metric in GATED_METRICS:
-        decline = float(base[metric]) - float(cand[metric])
-        if decline > GLOBAL_REGRESSION_TOLERANCE:
-            regressions.append(f"global {metric} declined by {decline:.4f}")
-    for dimension, groups in baseline["metrics"]["slices"].items():
-        candidate_groups = candidate["metrics"]["slices"].get(dimension) or {}
-        for name, values in groups.items():
-            candidate_values = candidate_groups.get(name)
-            if not candidate_values:
-                regressions.append(f"slice {dimension}={name} is missing")
-                continue
-            sample = min(int(values["sample_size"]), int(candidate_values["sample_size"]))
-            if sample < MIN_SLICE_SAMPLE:
-                insufficient.append(f"{dimension}={name} sample={sample}")
-                continue
-            for metric in GATED_METRICS:
-                decline = float(values[metric]) - float(candidate_values[metric])
-                if decline > SLICE_REGRESSION_TOLERANCE:
-                    regressions.append(f"slice {dimension}={name} {metric} declined by {decline:.4f}")
-    justified = justified_case_ids or set()
-    candidate_cases = {c["id"]: c for c in candidate.get("cases") or []}
-    for case in baseline.get("cases") or []:
-        other = candidate_cases.get(case["id"])
-        if other is None:
-            regressions.append(f"case {case['id']} is missing")
-            continue
-        lost = case["truth"]["relevant"] is True and case["prediction"]["status"] == "keep"
-        if lost and other["prediction"]["status"] != "keep" and case["id"] not in justified:
-            regressions.append(f"new false negative: {case['id']}")
+    regressions = _declines(
+        baseline["metrics"]["classification"], candidate["metrics"]["classification"],
+        GLOBAL_REGRESSION_TOLERANCE, "global",
+    )
+    slice_regressions, insufficient = _slice_gates(baseline, candidate)
+    regressions += slice_regressions
+    regressions += _case_gates(baseline, candidate, justified_case_ids or set())
     return ComparisonResult(not regressions, tuple(regressions), tuple(insufficient))
 
 
@@ -414,7 +430,7 @@ def _read_report(path: Path, label: str) -> dict[str, Any]:
         raise CorpusError(f"{label} report {path.name} is unreadable: {exc}") from exc
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="ULTRON labelled quality benchmark (offline replay).")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("validate", help="check the corpus contract")
@@ -424,33 +440,46 @@ def main(argv: list[str] | None = None) -> int:
     cmp_.add_argument("baseline", type=Path)
     cmp_.add_argument("candidate", type=Path, nargs="?", help="candidate report (default: replay the corpus now)")
     cmp_.add_argument("--allow-case", action="append", default=[], help="justified new false negative (repeatable)")
-    args = parser.parse_args(argv)
-    try:
-        if args.command == "validate":
-            _meta, records = load_corpus()
-            print(json.dumps({"valid": True, "cases": len(records)}))
-            return 0
-        if args.command == "run":
-            report = run_benchmark()
-            if args.output:
-                args.output.write_text(dump_report(report), encoding="utf-8", newline="\n")
-                args.output.with_suffix(".md").write_text(report_markdown(report), encoding="utf-8", newline="\n")
-            else:
-                sys.stdout.write(dump_report(report))
-            return 0
-        baseline = _read_report(args.baseline, "baseline")
-        candidate = _read_report(args.candidate, "candidate") if args.candidate else run_benchmark()
-        result = compare_reports(baseline, candidate, justified_case_ids=set(args.allow_case))
-    except CorpusError as exc:
-        print(json.dumps({"valid": False, "error": str(exc)}))
-        return 2
+    return parser
+
+
+def _cmd_validate(_args: argparse.Namespace) -> int:
+    _meta, records = load_corpus()
+    print(json.dumps({"valid": True, "cases": len(records)}))
+    return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    report = run_benchmark()
+    if args.output:
+        args.output.write_text(dump_report(report), encoding="utf-8", newline="\n")
+        args.output.with_suffix(".md").write_text(report_markdown(report), encoding="utf-8", newline="\n")
+    else:
+        sys.stdout.write(dump_report(report))
+    return 0
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    baseline = _read_report(args.baseline, "baseline")
+    candidate = _read_report(args.candidate, "candidate") if args.candidate else run_benchmark()
+    result = compare_reports(baseline, candidate, justified_case_ids=set(args.allow_case))
     print(json.dumps({
         "passed": result.passed,
         "regressions": list(result.regressions),
         "insufficient_sample": list(result.insufficient_samples),
-        "candidate": {k: candidate["metrics"]["classification"][k] for k in ("precision", "recall", "f1")},
+        "candidate": {k: candidate["metrics"]["classification"][k] for k in GATED_METRICS},
     }, indent=2))
     return 0 if result.passed else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    command = {"validate": _cmd_validate, "run": _cmd_run, "compare": _cmd_compare}[args.command]
+    try:
+        return command(args)
+    except CorpusError as exc:
+        print(json.dumps({"valid": False, "error": str(exc)}))
+        return 2
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ CASES = {case["id"]: case for case in CORPUS["cases"]}
 IDS = ["en-positive-shape-01", "en-positive-shape-03", "en-ambiguous-shape-01", "en-negative-shape-01"]
 
 
-def _finished_run(capsys, *, evaluate: bool = False) -> str:
+def _finished_run(capsys, *, evaluate: bool = False, urls: dict[str, str] | None = None) -> str:
     profiles.install_example()
     run_id = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
     run = runs.load_run(run_id)
@@ -30,8 +30,11 @@ def _finished_run(capsys, *, evaluate: bool = False) -> str:
     rows = []
     for cid in IDS:
         job = {**CORPUS["defaults"], **CASES[cid]["job"]}
-        job.setdefault("apply_url", f"https://boards.greenhouse.io/example/jobs/{cid}")
-        rows.append({"candidate": {}, "job": job, "identity_key": f"id:{cid}"})
+        job["apply_url"] = (urls or {}).get(cid, f"https://boards.greenhouse.io/example/jobs/{cid}")
+        candidate = {"query_id": "q1", "query": "synthetic", "source_url": job["apply_url"],
+                     "normalized_url": job["apply_url"], "domain": "boards.greenhouse.io",
+                     "source_type": "ats_api", "source_key": f"greenhouse:{cid}"}
+        rows.append({"candidate": candidate, "job": job, "identity_key": f"id:{cid}"})
     runs.write_jsonl(runs.run_dir(run_id) / "postings.jsonl", rows)
     runs.mark_stage(run_id, "fetch")
     assert main(["filter", "--run", run_id]) == 0
@@ -81,6 +84,28 @@ def test_recorded_agent_evaluations_are_reused_unless_disabled(capsys):
     assert diff["same_run"] is True
     assert diff["transitions"] == {"discard->unsure": 1}
     assert diff["changes"][0]["identity_key"] == "id:en-ambiguous-shape-01"
+
+
+def test_redacted_export_urls_still_count_as_ranked(capsys):
+    url = "https://boards.greenhouse.io/example/jobs/1?gh_jid=1&access_token=abcdef123456"
+    run_id = _finished_run(capsys, urls={"en-positive-shape-01": url})
+    exported = json.loads((runs.run_dir(run_id) / "results.json").read_text(encoding="utf-8"))["rows"]
+    assert url not in {row["apply_url"] for row in exported}
+    report = replay_run.replay_run(runs.run_dir(run_id))
+    entry = report["identities"]["id:en-positive-shape-01"]
+    assert entry["recorded"] == "ranked"
+    assert entry["replayed"] == "keep" and entry["rank"] is not None
+    assert report["changed_vs_recorded"] == []
+
+
+def test_postings_sharing_one_url_are_mapped_once(capsys):
+    shared = "https://boards.greenhouse.io/example/jobs/shared"
+    run_id = _finished_run(capsys, urls={"en-positive-shape-01": shared, "en-positive-shape-03": shared})
+    report = replay_run.replay_run(runs.run_dir(run_id))
+    assert report["changed_vs_recorded"] == []
+    pair = [report["identities"][f"id:{cid}"] for cid in ("en-positive-shape-01", "en-positive-shape-03")]
+    ranks = [entry["rank"] for entry in pair if entry["replayed"] != "discard"]
+    assert ranks and None not in ranks and len(set(ranks)) == len(ranks)
 
 
 def test_a_run_that_stopped_after_filter_is_pending(capsys):

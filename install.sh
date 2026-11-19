@@ -136,9 +136,19 @@ forward_signal() {
     fi
 }
 run_installer() {
+    # Traps first, so no signal can reach the plain cleanup trap while the installer runs.
+    INSTALLER_SIGNALED=0
+    trap 'forward_signal TERM' INT TERM HUP
+    if [ "$INSTALLER_SIGNALED" -eq 1 ]; then
+        trap cleanup INT TERM
+        trap - HUP
+        return 143  # cancelled before the installer started
+    fi
     { "$@" <&3 3<&- & } 3<&0
     INSTALLER_PID=$!
-    trap 'forward_signal TERM' INT TERM HUP
+    if [ "$INSTALLER_SIGNALED" -eq 1 ]; then
+        forward_signal TERM  # the signal arrived before INSTALLER_PID was known
+    fi
     # A trapped signal interrupts wait, which then returns > 128 without the installer's status. Only then wait
     # again: the shell keeps the status of a background child until a wait reports it, so the next wait returns
     # the installer's own status (127 included), even if the child has already been reaped.

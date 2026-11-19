@@ -43,6 +43,7 @@ _TRACKING_KEYS = frozenset(
         "pk_campaign",
         "pk_cid",
         "pk_content",
+        "pk_cpn",
         "pk_keyword",
         "pk_kwd",
         "pk_medium",

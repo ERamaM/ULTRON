@@ -18,7 +18,7 @@ def fetch_ashby_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
             continue
         title = str(job.get("title") or "").strip()
         job_url = str(job.get("jobUrl") or "").strip()
-        if not title or not job_url or not job.get("isListed", True):
+        if not title or not job_url or not job.get("isListed", True) or job.get("isArchived") is True:
             continue
         locations = [str(job.get("location") or "").strip()]
         secondary_locations = job.get("secondaryLocations")

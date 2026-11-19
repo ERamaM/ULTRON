@@ -68,7 +68,25 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
-      - run: uv run pytest -q
+      - run: uv run pytest -q -rfE --junitxml=pytest-report.xml
+      - name: Annotate test failures
+        if: failure()
+        shell: bash
+        run: |
+          uv run python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report = Path("pytest-report.xml")
+          if not report.is_file():
+              raise SystemExit(0)
+          for case in ET.parse(report).getroot().iter("testcase"):
+              for node in list(case.findall("failure")) + list(case.findall("error")):
+                  title = f"{case.get('classname')}::{case.get('name')}"
+                  body = (node.get("message") or "") + "\n" + (node.text or "")
+                  body = body[-3500:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+                  print(f"::error title={title}::{body}")
+          PY
 
   install-smoke:
     name: Installer Smoke (${{ matrix.os }})

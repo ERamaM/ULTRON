@@ -154,7 +154,12 @@ def test_filter_candidates_rejects_vendor_marketing_and_documentation_pages():
 
 
 def test_filter_candidates_matches_linkedin_by_host_not_substring():
-    hits = [_hit("https://de.linkedin.com/jobs/view/2"), _hit("https://linkedin.com.example.net/careers/3")]
+    hits = [
+        _hit("https://de.linkedin.com/jobs/view/2"),
+        _hit("https://www.linkedin.com:443/jobs/view/4"),
+        _hit("https://www.linkedin.com./jobs/view/5"),
+        _hit("https://linkedin.com.example.net/careers/3"),
+    ]
     kept, discards = filter_candidates(hits, {"allowed_ats_domains": [], "blocked_final_domains": []})
-    assert [d["reason"] for d in discards] == ["linkedin_forbidden"]
+    assert [d["reason"] for d in discards] == ["linkedin_forbidden"] * 3
     assert [c.normalized_url for c in kept] == ["https://linkedin.com.example.net/careers/3"]

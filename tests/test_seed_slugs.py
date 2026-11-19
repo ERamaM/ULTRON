@@ -47,7 +47,7 @@ def test_guessed_generic_subdomain_slug_does_not_verify_someone_elses_board():
     res = verify_proposal(Proposal(company="Zyxcorp", domain="careers.zyxcorp.com"),
                           client=make_client(handler), timeout=5)
     assert res.status != "verified", (res.seed.ats, res.seed.board_identifier)
-    assert not any("/careers/" in path for path in seen)
+    assert not any("/boards/careers/" in path for path in seen)
 
 
 @pytest.mark.parametrize("company", ["Careers", "Jobs", "Remote", "Hiring", "Team"])
@@ -73,3 +73,57 @@ def test_generic_company_names_are_never_probed(company):
 ])
 def test_diacritics_are_transliterated_not_dropped(company, expected):
     assert slug_candidates(company, "") == expected
+
+
+NEW_PROBE_PAGES = {
+    "bamboohr": ("acme.bamboohr.com", "/careers/list",
+                 {"result": [{"id": "7", "jobOpeningName": "Engineer", "location": {"city": "Madrid"}}]}),
+    "jazzhr": ("acme.applytojob.com", "/",
+               '<li class="job-listing"><a href="/apply/abc/Engineer"><span class="job-title">Engineer</span></a></li>'),
+    "jobvite": ("jobs.jobvite.com", "/acme",
+                '<tr class="jv-job-list"><a href="https://jobs.jobvite.com/acme/job/o1" data-title="Engineer">x</a></tr>'),
+    "factorial": ("jobs.factorialhr.com", "/acme/api/jobs",
+                  {"jobs": [{"title": "Engineer", "url": "https://jobs.factorialhr.com/acme/job/1"}]}),
+}
+
+
+@pytest.mark.parametrize("vendor", sorted(NEW_PROBE_PAGES))
+def test_slug_probing_reaches_the_bare_slug_vendors(vendor):
+    host, path, body = NEW_PROBE_PAGES[vendor]
+
+    def handler(request):
+        if request.url.host == host and request.url.path == path:
+            return httpx.Response(200, json=body) if isinstance(body, dict) else httpx.Response(200, text=body)
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal(company="Acme", domain="acme.com"), client=make_client(handler), timeout=5)
+    assert res.status == "verified", res.reason
+    assert (res.seed.ats, res.seed.board_identifier, res.postings) == (vendor, "acme", 1)
+
+
+@pytest.mark.parametrize("vendor", sorted(NEW_PROBE_PAGES))
+def test_an_empty_bare_slug_board_is_not_a_guessed_verification(vendor):
+    host = NEW_PROBE_PAGES[vendor][0]
+
+    def handler(request):
+        if request.url.host != host:
+            return httpx.Response(404)
+        if request.url.path.endswith(("/api/jobs", "/list")):  # the vendor answers, but lists no postings
+            return httpx.Response(200, json={"result": [], "jobs": []})
+        return httpx.Response(200, text="<html><body>No open positions</body></html>")
+
+    res = verify_proposal(Proposal(company="Acme", domain="acme.com"), client=make_client(handler), timeout=5)
+    assert (res.status, res.reason) == ("unresolved", "no_board_found")
+
+
+def test_misses_on_the_bare_slug_vendors_stay_no_board_found():
+    hosts: list[str] = []
+
+    def handler(request):
+        hosts.append(request.url.host)
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal(company="Acme", domain="acme.com"), client=make_client(handler), timeout=5)
+    assert (res.status, res.reason) == ("unresolved", "no_board_found")
+    for host in ("acme.bamboohr.com", "acme.applytojob.com", "jobs.jobvite.com", "jobs.factorialhr.com"):
+        assert host in hosts

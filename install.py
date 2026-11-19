@@ -434,6 +434,14 @@ def _make_staging(parent: Path) -> Path:
     raise InstallError(f"could not create a staging folder in {parent}")
 
 
+def _copy_skill_file(src: str, dst: str) -> str:
+    """Create files with destination ACLs while preserving file times and mode."""
+    # On Windows, copy2 can use CopyFile2, which also copies source security attributes.
+    shutil.copyfile(src, dst)
+    shutil.copystat(src, dst)
+    return dst
+
+
 def install_copy(src: Path, dst: Path, runtime: dict, *, label: str | None = None, info: dict | None = None) -> str:
     """Install ``src`` at ``dst``; return ``installed``, ``updated`` or ``upgraded-legacy``.
 
@@ -462,13 +470,13 @@ def install_copy(src: Path, dst: Path, runtime: dict, *, label: str | None = Non
         try:
             os.symlink(src, dst, target_is_directory=True)
         except (OSError, NotImplementedError):  # e.g. Windows without Developer Mode / symlink privilege
-            shutil.copytree(src, dst, ignore=COPY_IGNORE)
+            shutil.copytree(src, dst, ignore=COPY_IGNORE, copy_function=_copy_skill_file)
         _write_runtime(dst, runtime, src)
         return status
     staging = _make_staging(dst.parent)
     staged, old = staging / "ultron", staging / "old"
     try:
-        shutil.copytree(src, staged, ignore=COPY_IGNORE)
+        shutil.copytree(src, staged, ignore=COPY_IGNORE, copy_function=_copy_skill_file)
         if state == "link":
             _unlink(dst)
             _forget_link(dst)

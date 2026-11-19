@@ -155,7 +155,7 @@ def filter_candidates(
             continue
         domain = domain_of(normalized)
 
-        if "linkedin.com" in domain:
+        if domain == "linkedin.com" or domain.endswith(".linkedin.com"):
             discards.append({"url": hit.url, "reason": "linkedin_forbidden", "detail": domain})
             continue
 

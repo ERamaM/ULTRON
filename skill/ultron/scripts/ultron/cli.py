@@ -40,7 +40,13 @@ class _UsageError(Exception):
 
 
 def _cmd_version(args: argparse.Namespace) -> int:
-    emit({"ultron": __version__})
+    result = {"ultron": __version__}
+    if args.check_update:
+        from ultron.update_notice import release_notice
+
+        if (notice := release_notice(__version__)) is not None:
+            result["update_available"] = notice
+    emit(result)
     return 0
 
 
@@ -48,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="ultron", description="ULTRON - Universal Locator & Triage of Roles, Openings and Niches")
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     version = subparsers.add_parser("version", help="print the ULTRON version")
+    version.add_argument("--check-update", action="store_true", help="also check for a newer published release")
     version.set_defaults(func=_cmd_version)
     for module in COMMAND_MODULES:
         module.register(subparsers)

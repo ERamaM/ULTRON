@@ -51,6 +51,9 @@ class XlsxUnavailable(RuntimeError):
     """openpyxl (the ``xlsx`` extra) is not installed."""
 
 
+_NEW_LABEL = "New"
+
+
 def _col_letter(idx: int) -> str:
     from openpyxl.utils import get_column_letter
 
@@ -107,13 +110,13 @@ _ROLE_COLUMNS = [
     ("evaluation_verdict", "Verdict", 12, False),
     ("source_type", "Source Type", 14, False),
     ("source_label", "Source", 22, False),
-    ("match_score", "Match Score", 12, False),
+    ("match_score", "Match Score", 14, False),
     ("match_band", "Match Band", 14, False),
     ("matched_requirements", "Matched", 32, False),
     ("missing_requirements", "Missing", 32, False),
     ("uncertain_requirements", "Uncertain", 32, False),
     ("apply_url", "Apply URL", 52, True),
-    ("is_new", "New", 8, False),
+    ("is_new", "New", 10, False),
     ("apply_url", "Apply", 10, "open"),
 ]
 
@@ -179,6 +182,9 @@ def _write_table(ws, columns, rows, styles, *, verdict_key: str | None = None) -
         verdict = (record.get(verdict_key) if verdict_key else "") or ""
         for c_idx, (key, _label, _width, is_url) in enumerate(columns, start=1):
             value = _cell_value(record.get(key))
+            if key == "is_new":
+                # A text label renders the same in every Excel locale (booleans show as TRUE/VERDADERO/WAHR).
+                value = _NEW_LABEL if record.get(key) is True else None
             if is_url == "open":
                 url = value if isinstance(value, str) and _is_web_link(value) else None
                 cell = ws.cell(row=excel_row, column=c_idx, value="Open" if url else None)
@@ -257,7 +263,7 @@ def _add_role_cues(ws, columns, row_count: int) -> None:
     new_col = _column_letter_for(columns, "is_new")
     ws.conditional_formatting.add(
         f"A2:{_col_letter(len(columns))}{last}",
-        FormulaRule(formula=[f"${new_col}2=TRUE"], fill=solid(_NEW_ROW_FILL), font=Font(bold=True)),
+        FormulaRule(formula=[f'${new_col}2="{_NEW_LABEL}"'], fill=solid(_NEW_ROW_FILL), font=Font(bold=True)),
     )
 
 

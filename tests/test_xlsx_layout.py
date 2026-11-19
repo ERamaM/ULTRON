@@ -113,7 +113,7 @@ def test_conditional_formatting_cues(run_id):
     assert {r.formula[0] for r in elig_rules} >= {'"confirmed"', '"high"', '"medium"', '"unknown"'}
     for rule in band_rules + elig_rules:
         assert rule.dxf.fill.fgColor.rgb or rule.dxf.fill.bgColor.rgb
-    new_rules = [rule for _ref, rule in rules if rule.type == "expression" and "=TRUE" in rule.formula[0]]
+    new_rules = [rule for _ref, rule in rules if rule.type == "expression" and '="New"' in rule.formula[0]]
     assert new_rules and new_rules[0].dxf.font.bold
     # Pills outrank the new-row highlight.
     assert max(r.priority for r in band_rules + elig_rules) < min(r.priority for r in new_rules)
@@ -160,3 +160,10 @@ def test_empty_workbook_has_no_broken_ranges(run_id):
     ws = wb["Roles (0)"]
     assert _rules(ws) == []
     assert wb["Summary"]["E5"].value is not None
+
+
+def test_new_column_uses_a_locale_independent_label(run_id):
+    ws = _wb(run_id)["Roles (3)"]
+    new_col = _col(ws, "New")
+    assert [ws[f"{new_col}{r}"].value for r in (2, 3, 4)] == ["New", None, "New"]
+    assert ws.column_dimensions[new_col].width >= 10

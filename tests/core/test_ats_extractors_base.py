@@ -79,6 +79,59 @@ def test_parse_generic_uses_posted_date_and_returns_none_without_dates():
     assert empty.posting_date is None
 
 
+def test_valid_through_expired_rules():
+    from datetime import UTC, datetime
+
+    now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
+    # Past date-time (any offset) is expired.
+    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert base._valid_through_expired("2026-06-15T13:30:00+02:00", now=now) is True
+    assert base._valid_through_expired("2026-06-14", now=now) is True
+    # A date-only value counts through the end of that UTC day.
+    assert base._valid_through_expired("2026-06-15", now=now) is False
+    # Future values are fine; naive date-times are read as UTC.
+    assert base._valid_through_expired("2026-06-15T13:00:00", now=now) is False
+    assert base._valid_through_expired("2027-01-01T00:00:00Z", now=now) is False
+    assert base._valid_through_expired("9999-12-31", now=now) is False
+    # Missing, unparseable and placeholder values are ignored.
+    for value in ("", "not a date", "0000-00-00", "1970-01-01", "1900-01-01T00:00:00Z", "31/12/2020"):
+        assert base._valid_through_expired(value, now=now) is False, value
+
+
+def test_parse_generic_flags_jobposting_with_past_valid_through():
+    def page(valid_through: str) -> str:
+        return (
+            '<html><head><script type="application/ld+json">'
+            '{"@type": "JobPosting", "title": "ML Engineer", "datePosted": "2020-01-01", '
+            f'"validThrough": "{valid_through}"}}'
+            "</script></head><body></body></html>"
+        )
+
+    expired = base.parse_generic(_page(page("2020-02-01T00:00:00Z")))
+    assert expired.valid_through_expired is True
+    assert expired.posting_date == "2020-01-01"
+    assert base.parse_generic(_page(page("2999-01-01"))).valid_through_expired is False
+    assert base.parse_generic(_page(page("soon"))).valid_through_expired is False
+
+
+def test_expired_recommendation_does_not_expire_the_page():
+    def page(nodes: str) -> str:
+        return f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+
+    other = ('{"@type": "JobPosting", "title": "Data Engineer", "validThrough": "2020-02-01T00:00:00Z", '
+             '"url": "https://boards.greenhouse.io/acme/jobs/999"}')
+    # Only a recommendation with an expired deadline: it may fill in the title, but not expire this page.
+    active = base.parse_generic(_page(page(other)))
+    assert active.valid_through_expired is False
+    # The page's own posting still decides, whichever order the nodes come in.
+    own = ('{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01T00:00:00Z", '
+           '"url": "https://boards.greenhouse.io/acme/jobs/123"}')
+    assert base.parse_generic(_page(page(f"{other}, {own}"))).valid_through_expired is True
+    # A node without a url is still trusted, as before.
+    bare = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01T00:00:00Z"}'
+    assert base.parse_generic(_page(page(bare))).valid_through_expired is True
+
+
 def test_parse_generic_domain_fallback_company_when_no_other_signal():
     html = "<html><head><title>Careers</title></head><body></body></html>"
     job = base.parse_generic(_page(html, final_url="https://acme-corp.example.com/careers/123"))
@@ -476,3 +529,84 @@ def test_structured_fields_null_title_is_empty():
     assert fields["title"] == ""
     assert fields["remote_text"] == ""
     assert base._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""
+
+
+def test_relative_jsonld_url_for_this_posting_keeps_its_deadline():
+    def page(url: str) -> str:
+        return ('<html><head><script type="application/ld+json">'
+                '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01", '
+                f'"url": "{url}"}}</script></head><body></body></html>')
+
+    assert base.parse_generic(_page(page("/acme/jobs/123"))).valid_through_expired is True
+    assert base.parse_generic(_page(page("/acme/jobs/999"))).valid_through_expired is False
+
+
+def test_job_id_query_parameter_decides_which_deadline_applies():
+    page_url = "https://acme.com/careers?gh_jid=4012346"
+    nodes = (
+        '{"@type": "JobPosting", "title": "Other role", "validThrough": "2020-02-01", '
+        '"url": "https://acme.com/careers?gh_jid=4012347"}, '
+        '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2999-01-01", '
+        f'"url": "{page_url}"}}'
+    )
+    html = f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+    job = base.parse_generic(_page(html, final_url=page_url))
+    assert job.valid_through_expired is False
+    assert job.title == "ML Engineer"
+    # Only the other job id's node: its fields may be used, its deadline is not.
+    only_other = (
+        '<html><head><script type="application/ld+json">{"@type": "JobPosting", "title": "Other role", '
+        '"validThrough": "2020-02-01", "url": "https://acme.com/careers?gh_jid=4012347"}</script></head>'
+        "<body></body></html>"
+    )
+    assert base.parse_generic(_page(only_other, final_url=page_url)).valid_through_expired is False
+
+
+def test_urlless_posting_wins_over_a_node_for_another_job_id():
+    page_url = "https://acme.com/careers?gh_jid=4012346"
+    bare = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01"}'
+    other = ('{"@type": "JobPosting", "title": "Other role", "validThrough": "2999-01-01", '
+             '"url": "https://acme.com/careers?gh_jid=4012347"}')
+    for nodes in (f"{bare}, {other}", f"{other}, {bare}"):
+        html = f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+        job = base.parse_generic(_page(html, final_url=page_url))
+        assert job.title == "ML Engineer", nodes
+        assert job.valid_through_expired is True, nodes
+
+
+def test_overlong_posting_url_is_not_parsed_for_identity():
+    assert base._posting_identity("https://acme.com/careers?q=" + "x" * 5000) == ""
+    assert base._posting_identity("https://boards.greenhouse.io/acme/jobs/123") == "greenhouse:acme:123"
+
+
+def test_valid_through_is_bounded_and_only_a_terminal_z_is_utc():
+    now = base.datetime(2026, 6, 15, 12, 0, tzinfo=base.UTC)
+    assert base._valid_through_expired("z" * 5_000_000, now=now) is False  # rejected before any replacement
+    assert base._valid_through_expired("2026-06-15T11:00:00z", now=now) is True
+    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert base._valid_through_expired("2026-06-15TZ1:00:00", now=now) is False  # a Z elsewhere is not UTC
+    assert base._valid_through_expired("2020-01-01" + " " * 100, now=now) is False  # over the length cap
+
+
+def test_identity_matching_is_bounded_on_pages_with_many_postings(monkeypatch):
+    calls = []
+    real = base._posting_identity
+
+    def counting(url):
+        calls.append(url)
+        return real(url)
+
+    monkeypatch.setattr(base, "_posting_identity", counting)
+    page_url = "https://boards.greenhouse.io/acme/jobs/123"
+    many = ", ".join(f'{{"@type": "JobPosting", "url": "/acme/jobs/{1000 + i}"}}' for i in range(500))
+    expired = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01"}'
+    html = f'<html><head><script type="application/ld+json">[{expired}, {many}]</script></head><body></body></html>'
+    job = base.parse_generic(_page(html, final_url=page_url))
+    assert len(calls) <= base._MAX_IDENTITY_CHECKS + 1  # the page URL plus the capped node URLs
+    assert job.title == "ML Engineer"
+    assert job.valid_through_expired is False  # too many candidates: the deadline is ignored, never trusted
+
+    # A matching node within the cap still decides, as on normal pages.
+    own = f'{{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01", "url": "{page_url}"}}'
+    html = f'<html><head><script type="application/ld+json">[{own}, {many}]</script></head><body></body></html>'
+    assert base.parse_generic(_page(html, final_url=page_url)).valid_through_expired is True

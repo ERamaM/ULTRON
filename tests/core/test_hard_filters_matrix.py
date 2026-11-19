@@ -464,6 +464,29 @@ def test_us_dotted_remote_and_brazil_trigger_red_flags():
     assert geo_eu.has_region_red_flags("Location: U.S. (Remote) or Remote Europe") is False
 
 
+def test_expired_valid_through_discards_as_expired_or_closed():
+    expired = _job(valid_through_expired=True)
+    assert h.apply_hard_filters(expired, ["greenhouse.io"]) == (False, "expired_or_closed")
+    assert h.pre_filter_candidate(expired, ["greenhouse.io"]) == (False, "expired_or_closed")
+    assert h.apply_hard_filters(_job(), ["greenhouse.io"]) == (True, None)
+
+
+def test_parsed_past_valid_through_survives_stage_round_trip_and_is_discarded():
+    from ultron.core.extractors.ats_extractors.base import parse_generic
+    from ultron.core.models import JobRawPage
+
+    url = "https://boards.greenhouse.io/acme/jobs/1"
+    html = (
+        '<html><head><script type="application/ld+json">'
+        '{"@type": "JobPosting", "title": "Senior ML Engineer", "validThrough": "2020-02-01T00:00:00Z"}'
+        "</script></head><body>Remote EU. We hire remotely in EU.</body></html>"
+    )
+    parsed = parse_generic(JobRawPage(url=url, final_url=url, status_code=200, html=html))
+    # Stages persist jobs with model_dump(mode="json") and rebuild them with ExtractedJob(**row).
+    job = ExtractedJob(**parsed.model_dump(mode="json"))
+    assert h.apply_hard_filters(job, ["greenhouse.io"]) == (False, "expired_or_closed")
+
+
 def test_in_office_matches_whole_phrase_only():
     from types import SimpleNamespace
 

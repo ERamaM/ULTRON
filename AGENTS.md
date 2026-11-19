@@ -113,7 +113,8 @@ one, fix it or reply with the technical reason, and resolve its threads only aft
 them.
 
 - Request both reviews by commenting `@codex review` and `@codex security review` when such a PR
-  becomes ready for review, and again after every push (fixes, merges or rebases).
+  becomes ready for review. On any PR that already has Codex reviews, whatever its size, request
+  both again after every push (fixes, merges or rebases).
 - Codex reacts with 👀 when it starts and keeps its status in a bot PR comment containing
   `codex-review-state:v1 {...}`. Once Codex reviews were requested, wait until both
   `code_review` and `security_review` report a finished status for your latest commit before

@@ -333,6 +333,32 @@ def has_ats_fingerprint(html: str) -> bool:
     return bool(vendor and ats_canonical_domain(vendor))
 
 
+# Thresholds stay low so short real postings are kept; a false positive would drop a posting.
+_CHALLENGE_MAX_VISIBLE_CHARS = 1000
+_SHELL_MAX_VISIBLE_CHARS = 120
+_CAPTCHA_WORD_RE = re.compile(r"(?<![a-z])captcha")  # "recaptcha" badges on real forms do not count
+_CHALLENGE_PHRASES = ("verify you are human", "security check", "just a moment")
+_SCRIPT_TAG_RE = re.compile(r"<script\b", re.IGNORECASE)
+
+
+def unusable_page_reason(html: str, job: ExtractedJob) -> str | None:
+    """``blocked`` for a short bot-challenge page, ``js_shell`` for a script-rendered page with almost no text."""
+    body = (job.body_text or "").strip()
+    if len(body) >= _CHALLENGE_MAX_VISIBLE_CHARS:
+        return None
+    visible = _html_to_text(html)
+    low = visible.lower()
+    if len(visible) < _CHALLENGE_MAX_VISIBLE_CHARS and (
+        _CAPTCHA_WORD_RE.search(low) or any(phrase in low for phrase in _CHALLENGE_PHRASES)
+    ):
+        return "blocked"
+    shell = len(visible) < _SHELL_MAX_VISIBLE_CHARS and len(body) < _SHELL_MAX_VISIBLE_CHARS
+    # A recognized ATS embed is still useful downstream (fingerprint, ATS hints), so only unknown shells are dropped.
+    if shell and _SCRIPT_TAG_RE.search(html) and not has_ats_fingerprint(html):
+        return "js_shell"
+    return None
+
+
 def fetch(run_id: str) -> dict:
     runs.require_stage(run_id, "fetch")
     run = runs.load_run(run_id)
@@ -427,10 +453,15 @@ def fetch(run_id: str) -> dict:
         job.apply_url = normalize_url(final_url)
         job.domain = domain_of(job.apply_url)
         job, gh_enriched = _greenhouse_api_enrich(candidate, job, client)
-        job = _workable_api_enrich(candidate, job, client)
+        workable_job = _workable_api_enrich(candidate, job, client)
+        workable_enriched, job = workable_job is not job, workable_job
         job, sr_enriched = _smartrecruiters_api_enrich(candidate, job, client)
         job, wd_enriched = _workday_api_enrich(candidate, job, client)
         job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
+        enriched = gh_enriched or workable_enriched or sr_enriched or wd_enriched or bamboo_enriched
+        if not enriched and (reason := unusable_page_reason(html, job)):
+            errors.append({"url": url, "error": reason, "status": status})  # left for the agent to open manually
+            continue
         postings.append({
             "candidate": candidate.model_dump(mode="json"),
             "job": job.model_dump(mode="json"),

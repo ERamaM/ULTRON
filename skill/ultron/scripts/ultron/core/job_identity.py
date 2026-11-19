@@ -39,9 +39,17 @@ _TRACKING_KEYS = frozenset(
         "twclid",
         "wbraid",
         "yclid",
+        # Matomo/Piwik campaign keys (listed explicitly: a job board could use another pk_ key as an id).
+        "pk_campaign",
+        "pk_cid",
+        "pk_content",
+        "pk_keyword",
+        "pk_kwd",
+        "pk_medium",
+        "pk_source",
     }
 )
-_TRACKING_PREFIXES = ("utm_", "hsa_", "mtm_", "pk_")
+_TRACKING_PREFIXES = ("utm_", "hsa_", "mtm_")
 _JOB_ID_QUERY_KEY_PRIORITY = (
     "gh_jid",
     "jobid",

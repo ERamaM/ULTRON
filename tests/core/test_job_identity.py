@@ -172,6 +172,6 @@ def test_common_tracking_keys_are_ignored(key):
     assert job_identity._is_tracking_key(key)
 
 
-@pytest.mark.parametrize("key", ["token", "gh_jid", "ashby_jid", "req", "jobid", "id", "page"])
+@pytest.mark.parametrize("key", ["token", "gh_jid", "ashby_jid", "req", "jobid", "id", "page", "pk_jobid"])
 def test_job_keys_are_not_tracking(key):
     assert not job_identity._is_tracking_key(key)

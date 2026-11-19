@@ -133,6 +133,7 @@ def test_content_summary_and_score_clamp(run_id, tmp_path, capsys):
     assert "3 new" in page
     assert "<details" in page and "stale (1)" in page and "final cap (1)" in page
     assert '<meta name="viewport"' in page and "prefers-color-scheme:dark" in page and "@media print" in page
+    assert "[hidden]{display:none!important}" in page  # the filter's hidden cards must beat .job{display:grid}
 
 
 def test_export_is_deterministic_and_lf_only(run_id, tmp_path, capsys):

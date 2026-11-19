@@ -10,7 +10,7 @@ executable named in `RUNTIME.md` (see SKILL.md). Every command prints **one JSON
 - **Your input files** (proposals, web results, evaluation batches) go in the run folder with an
   `agent_` prefix, e.g. `agent_proposals.jsonl`, `agent_web.jsonl`, `agent_eval_01.jsonl`. Never write to
   a file the CLI owns (`run.json`, `candidates.jsonl`, `postings.jsonl`, `kept.jsonl`, `ambiguous.jsonl`,
-  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`,
+  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`, `fetch_capped.jsonl`,
   `finalize_discards.jsonl`, `feed_errors.jsonl`, `seed_proposals_from_*.jsonl`, `results.*`,
   `run_summary.md`).
 - **JSONL** = one JSON object per line, UTF-8 without BOM, no surrounding array. Write these files with
@@ -177,9 +177,11 @@ get explored.
 ultron fetch --run <run_id>
 ```
 
-Output: `{"fetched": 210, "failed": 40, "requests": 250}`
+Output: `{"fetched": 210, "failed": 40, "capped": 12, "requests": 250}`
 
-Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
+Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
+submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
+in `fetch_capped.jsonl`.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.

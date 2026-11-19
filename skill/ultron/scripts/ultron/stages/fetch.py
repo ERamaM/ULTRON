@@ -29,6 +29,14 @@ _SPA_BODY_MIN_CHARS = 400
 # counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
 # host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
 HOST_BLOCK_THRESHOLD = 3
+# Global stop: once at least this many URLs failed to load at the transport level (connection errors, timeouts)
+# and they are at least half of the URLs attempted, the network or proxy is assumed down and the rest is skipped.
+NAV_FAILURE_STOP_THRESHOLD = 50
+NAV_FAILURE_STOP_RATIO = 0.5
+
+
+def should_stop_on_nav_failures(nav_failures: int, attempted: int) -> bool:
+    return nav_failures >= NAV_FAILURE_STOP_THRESHOLD and nav_failures >= NAV_FAILURE_STOP_RATIO * max(attempted, 1)
 
 
 def _host_is(host: str, domain: str) -> bool:
@@ -474,15 +482,20 @@ def fetch(run_id: str) -> dict:
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
-    budget_spent = False
+    budget_spent = nav_stopped = False
+    attempted = nav_failures = 0
     for candidate, identity in selected:
         url = candidate.normalized_url
+        if nav_stopped:
+            errors.append({"url": url, "error": "skipped_navigation_failures"})
+            continue
         if budget_spent:
             errors.append({"url": url, "error": "skipped_request_budget_exhausted"})
             continue
         if candidate.domain in skipped_hosts:
             errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
             continue
+        attempted += 1
         try:
             status, final_url, html = client.get_text(url)
         except HostBlocked:
@@ -512,6 +525,9 @@ def fetch(run_id: str) -> dict:
                 })
                 continue
             errors.append({"url": url, "error": f"http_error: {exc}", "status": exc.status_code})
+            if exc.status_code is None:  # transport failure: no HTTP response at all
+                nav_failures += 1
+                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
             continue
         except URLRejected as exc:
             errors.append({"url": url, "error": f"url_rejected: {exc}"})
@@ -575,4 +591,8 @@ def fetch(run_id: str) -> dict:
     runs.write_jsonl(out_dir / "postings.jsonl", postings)
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")
-    return {"fetched": len(postings), "failed": len(errors), "capped": len(capped), "requests": client.requests_made}
+    summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
+               "navigation_failures": nav_failures, "requests": client.requests_made}
+    if nav_stopped:
+        summary["stopped"] = "navigation_failures"
+    return summary

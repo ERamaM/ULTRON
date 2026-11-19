@@ -70,14 +70,24 @@ def test_old_python_is_rejected_with_json(installer, capsys, monkeypatch):
     assert out["error"] == "python_too_old"
 
 
+def _fake_popen(record):
+    """A stand-in for subprocess.Popen whose steps succeed at once; ``record(cmd, kwargs)`` sees each call."""
+
+    class FakePopen:
+        pid = 0
+
+        def __init__(self, cmd, **kwargs):
+            record(cmd, kwargs)
+
+        def wait(self):
+            return 0
+
+    return FakePopen
+
+
 def test_venv_tool_output_goes_to_stderr(installer, tmp_path, monkeypatch):
     calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(kwargs)
-        return subprocess.CompletedProcess(cmd, 0)
-
-    monkeypatch.setattr(installer.subprocess, "run", fake_run)
+    monkeypatch.setattr(installer.subprocess, "Popen", _fake_popen(lambda cmd, kwargs: calls.append(kwargs)))
     for uv in ("uv", None):
         monkeypatch.setattr(installer.shutil, "which", lambda name, uv=uv: uv)
         installer.create_venv(tmp_path / "venv", tmp_path / "scripts")
@@ -477,12 +487,7 @@ def test_conflicting_flags_are_usage_errors(inst, capsys, argv):
 
 def test_non_editable_venv_install_commands(inst, tmp_path, monkeypatch):
     calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 0)
-
-    monkeypatch.setattr(inst.subprocess, "run", fake_run)
+    monkeypatch.setattr(inst.subprocess, "Popen", _fake_popen(lambda cmd, kwargs: calls.append(cmd)))
     scripts = tmp_path / "José Pérez" / "scripts"
     for uv in ("uv", None):
         monkeypatch.setattr(inst.shutil, "which", lambda name, uv=uv: uv)
@@ -897,14 +902,23 @@ def test_termination_signal_stops_a_running_step_now(installer, monkeypatch):
     installer._handle_termination_signals()
     handler = registered[signal.SIGTERM]
 
-    def step(cmd, **kwargs):
-        handler(signal.SIGTERM, None)  # the signal arrives while the step runs
+    class Step:
+        pid = 0
 
-    monkeypatch.setattr(installer.subprocess, "run", step)
-    with pytest.raises(SystemExit) as exc:
+        def __init__(self, cmd, **kwargs):
+            self.stopped = False
+
+        def wait(self):
+            handler(signal.SIGTERM, None)  # the signal arrives while the step runs
+
+    stopped = []
+    monkeypatch.setattr(installer.subprocess, "Popen", Step)
+    monkeypatch.setattr(installer, "_stop_step", stopped.append)
+    with pytest.raises(installer.Terminated) as exc:
         installer._run(["pip", "install"])
     assert exc.value.code == 128 + signal.SIGTERM
     assert installer._TERMINATION["in_step"] is False
+    assert len(stopped) == 1  # the running step was stopped before the exception left _run
 
 
 def test_termination_signal_outside_a_step_waits_for_the_next_step(installer, monkeypatch):
@@ -913,8 +927,8 @@ def test_termination_signal_outside_a_step_waits_for_the_next_step(installer, mo
     monkeypatch.setitem(installer._TERMINATION, "code", 0)
     installer._on_termination_signal(signal.SIGTERM, None)  # e.g. while a previous install is being replaced
     calls = []
-    monkeypatch.setattr(installer.subprocess, "run", lambda cmd, **kwargs: calls.append(cmd))
-    with pytest.raises(SystemExit) as exc:
+    monkeypatch.setattr(installer.subprocess, "Popen", lambda cmd, **kwargs: calls.append(cmd))
+    with pytest.raises(installer.Terminated) as exc:
         installer._run(["pip", "install"])
     assert exc.value.code == 128 + signal.SIGTERM
     assert calls == []
@@ -967,3 +981,65 @@ def test_purge_removes_home_marker_last_so_a_failed_purge_can_be_retried(inst, f
     monkeypatch.setattr(inst.shutil, "rmtree", real_rmtree)
     assert inst._purge_home(home, dry_run=False) == {"status": "removed"}
     assert not home.exists()
+
+
+def test_pending_termination_stops_install_before_the_next_target(inst, fake_home, capsys, monkeypatch):
+    monkeypatch.setitem(inst._TERMINATION, "code", 143)
+    proj = fake_home / "proj"
+    code, report = _run_main(inst, capsys, "--project", str(proj))
+    assert code == 143 and report["error"] == "terminated"
+    assert not (proj / ".claude" / "skills" / "ultron").exists()
+
+
+def test_pending_termination_never_starts_a_data_purge(inst, fake_home, capsys, monkeypatch):
+    home = fake_home / ".ultron"
+    _run_main(inst, capsys, "--platforms", "claude")
+    _ultron_layout(home)
+    monkeypatch.setitem(inst._TERMINATION, "code", 143)
+    code, report = _run_main(inst, capsys, "--uninstall", "--purge-data")
+    assert code == 143 and report == {"error": "terminated", "detail": report["detail"]}
+    assert (home / "ultron.sqlite3").is_file()
+
+
+def test_termination_during_a_step_reports_one_json_object(inst, fake_home, capsys, monkeypatch):
+    def stopped(**kwargs):
+        raise inst.Terminated(143)
+
+    monkeypatch.setattr(inst, "run_install", stopped)
+    code, report = _run_main(inst, capsys, "--project", str(fake_home / "proj"))
+    assert code == 143 and report["error"] == "terminated"
+
+
+def test_run_raises_called_process_error_on_failure(installer):
+    with pytest.raises(subprocess.CalledProcessError):
+        installer._run([sys.executable, "-c", "raise SystemExit(3)"])
+    installer._run([sys.executable, "-c", "pass"])
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX-only")
+def test_sigterm_during_a_step_stops_its_descendants(installer, tmp_path, monkeypatch):
+    import signal
+    import threading
+    import time
+
+    marker = tmp_path / "grandchild-finished"
+    started = tmp_path / "grandchild-started"
+    grandchild = (f"import pathlib, time; pathlib.Path({str(started)!r}).touch(); time.sleep(3); "
+                  f"pathlib.Path({str(marker)!r}).touch()")
+    child = f"import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', {grandchild!r}]); time.sleep(30)"
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    previous = signal.signal(signal.SIGTERM, installer._on_termination_signal)
+
+    def terminate():
+        while not started.exists():
+            time.sleep(0.05)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    try:
+        threading.Thread(target=terminate, daemon=True).start()
+        with pytest.raises(installer.Terminated):
+            installer._run([sys.executable, "-c", child])
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+    time.sleep(4)
+    assert not marker.exists()  # the grandchild (a build backend, say) was stopped with the step's group

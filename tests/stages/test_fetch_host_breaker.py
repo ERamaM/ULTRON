@@ -55,10 +55,13 @@ def test_breaker_skips_host_after_consecutive_blocks(blocked_status):
     result = fetch_stage.fetch(run_id)
     errors = runs.read_jsonl(runs.run_dir(run_id) / "fetch_errors.jsonl")
     by_url = {e["url"]: e for e in errors}
-    assert [by_url[c.normalized_url]["error"] for c in blocked] == ["inaccessible"] * n + ["host_blocked"] * 2
+    # HttpClient retries a 429 within one URL and every attempt counts, so a 429 host trips after one URL.
+    requested = 1 if blocked_status == 429 else n
+    assert [by_url[c.normalized_url]["error"] for c in blocked] == (
+        ["inaccessible"] * requested + ["host_blocked"] * (len(blocked) - requested)
+    )
     assert result["fetched"] == 1  # other hosts are unaffected
-    attempts_per_url = 3 if blocked_status == 429 else 1  # HttpClient retries 429 within one request
-    assert hits["blocked.example.org"] == n * attempts_per_url
+    assert hits["blocked.example.org"] == n  # 3 attempts on one URL (429) or 1 attempt on each of 3 URLs (403)
 
 
 def test_breaker_resets_after_a_success():

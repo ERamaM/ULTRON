@@ -338,3 +338,15 @@ def test_redirect_to_invalid_idna_hostname_is_rejected():
     # httpx already reports a bad Location as a protocol error; either way it must be a handled error type.
     with pytest.raises((HttpError, URLRejected)):
         make_client(handler).get_text("https://x.test/")
+
+
+def test_block_streak_counts_every_403_429_attempt_and_resets():
+    statuses = iter([429, 429, 429, 200, 403])
+    client = make_client(lambda r: httpx.Response(next(statuses)), min_interval_per_host=0.0)
+    assert client.get_text("https://x.test/a")[0] == 429  # three attempts
+    assert client.block_streak("x.test") == 3
+    client.get_text("https://x.test/b")
+    assert client.block_streak("x.test") == 0
+    client.get_text("https://x.test/c")
+    assert client.block_streak("x.test") == 1
+    assert client.block_streak("other.test") == 0

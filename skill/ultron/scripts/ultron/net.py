@@ -111,6 +111,7 @@ class HttpClient:
         self._per_host: dict[str, int] = {}
         self._last_request: dict[str, float] = {}
         self._host_delay: dict[str, float] = {}
+        self._block_streak: dict[str, int] = {}
         self._client = httpx.Client(
             transport=transport,
             follow_redirects=False,
@@ -147,7 +148,12 @@ class HttpClient:
         """Current minimum spacing between requests to ``host`` (adapts to 429 and 2xx responses)."""
         return self._host_delay.get(host, self.min_interval_per_host)
 
+    def block_streak(self, host: str) -> int:
+        """Consecutive 403/429 responses from ``host``, counting every attempt (retries included)."""
+        return self._block_streak.get(host, 0)
+
     def _adapt_host_delay(self, host: str, status: int) -> None:
+        self._block_streak[host] = self._block_streak.get(host, 0) + 1 if status in (403, 429) else 0
         current = self.host_delay(host)
         if status == 429:
             self._host_delay[host] = min(HOST_BACKOFF_MAX, max(HOST_BACKOFF_MIN, current * 2.0))

@@ -90,8 +90,14 @@ def test_delete_run_preview_then_yes():
     assert _counts() == (1, 1, 0)
 
 
+def _mark_home(root):
+    """What install.py writes into a home it created: only then are generic names like cv/ ULTRON's."""
+    (root / maintenance.HOME_MARKER).write_text("x", encoding="utf-8")
+
+
 def _seed_home():
     root = home.ultron_home()
+    _mark_home(root)
     _mk_run()
     (root / "seeds" / "auto_seeds.yaml").write_text("x: 1", encoding="utf-8")
     (root / "cv").mkdir()
@@ -204,6 +210,7 @@ def test_purge_unlinks_symlinks_never_follows(tmp_path):
     (outside / "keep.txt").write_text("x", encoding="utf-8")
     _mk_run()
     root = home.ultron_home()
+    _mark_home(root)
     try:
         (root / "runs" / "zzz-link").symlink_to(outside, target_is_directory=True)
         (root / "cv").symlink_to(outside, target_is_directory=True)
@@ -221,6 +228,7 @@ def test_purge_unlinks_symlinks_never_follows(tmp_path):
 def test_purge_validates_before_deleting(tmp_path, monkeypatch):
     _mk_run()
     root = home.ultron_home()
+    _mark_home(root)
     real = maintenance._safe_target
 
     def boom(path, root_, **kw):
@@ -316,6 +324,7 @@ def test_purge_in_owned_home_keeps_foreign_entries(tmp_path, monkeypatch):
     monkeypatch.setenv("ULTRON_HOME", str(shared))
     (shared / "cv").mkdir(parents=True)
     (shared / "ultron.sqlite3").write_bytes(b"")
+    _mark_home(shared)
     (shared / "thesis.docx").write_bytes(b"x")
     (shared / "notes").mkdir()
     maintenance.purge(yes=True, include_backups=True)
@@ -333,3 +342,36 @@ def test_cli_purge_spares_generic_folders_in_an_unowned_home(tmp_path, monkeypat
     capsys.readouterr()
     assert (shared / "cv" / "mine.txt").is_file() and (shared / "backups" / "mine.txt").is_file()
     assert not (shared / "ultron.sqlite3").exists()
+
+
+def _shared_home_with_ledger(tmp_path, monkeypatch):
+    shared = tmp_path / "shared-ledger"
+    monkeypatch.setenv("ULTRON_HOME", str(shared))
+    for rel in ("venv/x", "backups/x", "cv/mine/resume.pdf", "runs/x"):
+        (shared / rel).parent.mkdir(parents=True, exist_ok=True)
+        (shared / rel).write_bytes(b"precious")
+    with closing(ledger.connect()):
+        pass  # the CLI creates the ledger on first use
+    assert (shared / "ultron.sqlite3").is_file()
+    return shared
+
+
+@pytest.mark.parametrize("extra", [[], ["--include-backups"]])
+def test_cli_purge_with_only_ledger_keeps_preexisting_folders(tmp_path, monkeypatch, capsys, extra):
+    shared = _shared_home_with_ledger(tmp_path, monkeypatch)
+    assert main(["data", "purge", "--yes", *extra]) == 0
+    capsys.readouterr()
+    for rel in ("venv/x", "backups/x", "cv/mine/resume.pdf", "runs/x"):
+        assert (shared / rel).read_bytes() == b"precious", rel
+    assert not (shared / "ultron.sqlite3").exists()
+
+
+def test_purge_with_only_ledger_still_removes_run_folders(tmp_path, monkeypatch):
+    shared = _shared_home_with_ledger(tmp_path, monkeypatch)
+    rid = _mk_run()
+    preview = maintenance.purge(yes=False)
+    assert not any(p.endswith(("cv", "backups")) for p in preview["would_delete"])
+    assert str(shared / "runs" / "x") not in preview["would_delete"]
+    maintenance.purge(yes=True)
+    assert not (shared / "runs" / rid).exists()
+    assert (shared / "runs" / "x").is_file() and (shared / "cv" / "mine" / "resume.pdf").is_file()

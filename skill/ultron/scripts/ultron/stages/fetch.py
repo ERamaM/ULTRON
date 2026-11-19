@@ -24,7 +24,9 @@ _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNOREC
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
 _WORKABLE_SHORT_JOB_RE = re.compile(r"^/j/([A-Za-z0-9]{6,})(?:/|$)")
 _SPA_BODY_MIN_CHARS = 400
-HOST_BLOCK_THRESHOLD = 3  # consecutive 403/429 pages from one host before its remaining URLs are skipped
+# Consecutive 403/429 answers from one host before its remaining URLs are skipped. Every response counts,
+# including HttpClient's retries of a 429, so a rate-limiting host trips the breaker after one URL's attempts.
+HOST_BLOCK_THRESHOLD = 3
 
 
 def _html_to_text(raw: str) -> str:
@@ -379,7 +381,10 @@ def fetch(run_id: str) -> dict:
         if candidate.domain in skipped_hosts:
             errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
             continue
-        if block_strikes.get(candidate.domain, 0) >= HOST_BLOCK_THRESHOLD:
+        if (
+            block_strikes.get(candidate.domain, 0) >= HOST_BLOCK_THRESHOLD
+            or client.block_streak((urlsplit(url).hostname or "").lower()) >= HOST_BLOCK_THRESHOLD
+        ):
             if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
                 postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
                                  "identity_key": identity, "ats_fingerprint": True})

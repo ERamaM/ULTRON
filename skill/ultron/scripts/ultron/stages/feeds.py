@@ -32,7 +32,7 @@ from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
 from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
-from ultron.seeds import FEED_PROPOSALS_FILE, Proposal, SeedFileError, add_seeds, load_inventory
+from ultron.seeds import FEED_PROPOSALS_FILE, LEGAL_COMPANY_SUFFIXES, Proposal, SeedFileError, add_seeds, load_inventory
 
 FEED_PREFIX = "feed:"
 PROPOSALS_FILE = FEED_PROPOSALS_FILE
@@ -74,32 +74,8 @@ _GENERIC_AGGREGATOR_NAMES = frozenset({"remote"})
 _AGGREGATOR_NAMES = {d.split(".")[0] for d in _AGGREGATORS} - _GENERIC_AGGREGATOR_NAMES
 _COUNTRY_SLDS = frozenset({"co", "com", "org", "net"})  # arbeitnow.co.uk, foo.com.au
 _GENERIC_HOST_LABELS = frozenset({"www", "jobs", "careers", "apply", "boards", "job", "work", "team"})
-_COMPANY_SUFFIXES = frozenset({
-    "inc",
-    "incorporated",
-    "ltd",
-    "limited",
-    "llc",
-    "corp",
-    "corporation",
-    "co",
-    "gmbh",
-    "ag",
-    "sl",
-    "sa",
-    "sas",
-    "srl",
-    "bv",
-    "plc",
-    "pte",
-    "pty",
-    "labs",
-    "lab",
-    "ai",
-    "hq",
-    "io",
-    "app",
-})
+# Legal forms plus product words that do not distinguish a company's domain label.
+_COMPANY_SUFFIXES = LEGAL_COMPANY_SUFFIXES | frozenset({"labs", "lab", "ai", "hq", "io", "app"})
 _THIRD_PARTY_DOMAINS = frozenset({
     "github.com",
     "gitlab.com",

@@ -30,3 +30,6 @@ The history survives run cleanup (see `references/data-maintenance.md`).
 - `ultron runs show <run_id>` prints the whole run record including the full profile; prefer `ultron runs list`.
 - `ultron export xlsx --run <run_id> [--out <file.xlsx>]` writes the run's results as an Excel workbook (needs the
   optional Excel dependency; if it is missing the command says so and the `results.md`/`results.json` files remain).
+  Use this command for Excel requests on every provider. The CLI owns the sheets, columns, styles, filters, and
+  hyperlinks. Agent evaluations can change which rows are exported. Re-exporting the same run with the same ULTRON
+  version preserves the workbook content and formatting. File timestamps can differ.

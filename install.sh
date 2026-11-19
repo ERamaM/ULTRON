@@ -126,8 +126,10 @@ fi
 # downloaded source. fd 3 keeps the child's stdin: an asynchronous command otherwise gets /dev/null. A
 # non-interactive shell starts background children with SIGINT ignored, so INT is forwarded as TERM.
 INSTALLER_PID=""
+INSTALLER_SIGNALED=0
 # shellcheck disable=SC2329 # invoked from a trap
 forward_signal() {
+    INSTALLER_SIGNALED=1
     if [ -n "$INSTALLER_PID" ]; then
         kill -s "$1" "$INSTALLER_PID" 2>/dev/null || true
     fi
@@ -137,12 +139,21 @@ run_installer() {
     INSTALLER_PID=$!
     trap 'forward_signal TERM' INT TERM
     trap 'forward_signal HUP' HUP
+    # A trapped signal interrupts wait, whose status (> 128) is then not the installer's. Wait again until a
+    # wait returns without a signal. The shell keeps a reaped background child's status for that next wait;
+    # 127 there means it was already collected, so the last status stands.
     status=0
-    wait "$INSTALLER_PID" || status=$?
-    # A trapped signal interrupts wait (status > 128); keep waiting until the installer itself has exited.
-    while kill -0 "$INSTALLER_PID" 2>/dev/null; do
-        status=0
-        wait "$INSTALLER_PID" || status=$?
+    first_wait=1
+    while :; do
+        INSTALLER_SIGNALED=0
+        wait_status=0
+        wait "$INSTALLER_PID" || wait_status=$?
+        if [ "$first_wait" -eq 0 ] && [ "$wait_status" -eq 127 ] && ! kill -0 "$INSTALLER_PID" 2>/dev/null; then
+            break
+        fi
+        first_wait=0
+        status=$wait_status
+        [ "$INSTALLER_SIGNALED" -eq 1 ] || break
     done
     INSTALLER_PID=""
     trap cleanup INT TERM

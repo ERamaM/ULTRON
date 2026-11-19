@@ -35,6 +35,9 @@ LONG_POSTING_MENTIONING_SECURITY_CHECK = (
 )
 
 
+SECURITY_CHECK_CHALLENGE_PAGE = """<html><head><title>Security check</title></head><body>
+<p>Security check: please enable JavaScript and cookies in your browser.</p></body></html>"""
+
 SPLIT_CHALLENGE_PAGE = """<html><head><title>One more step</title></head><body>
 <p>Verify you are <b>human</b></p></body></html>"""
 
@@ -71,7 +74,7 @@ def _fetch_single(html: str) -> tuple[list[dict], list[dict]]:
     return runs.read_jsonl(d / "postings.jsonl"), runs.read_jsonl(d / "fetch_errors.jsonl")
 
 
-@pytest.mark.parametrize("html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE, SPLIT_CHALLENGE_PAGE])
+@pytest.mark.parametrize("html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE, SPLIT_CHALLENGE_PAGE, SECURITY_CHECK_CHALLENGE_PAGE])
 def test_challenge_page_recorded_as_blocked(html):
     postings, errors = _fetch_single(html)
     assert postings == []
@@ -94,6 +97,8 @@ def test_real_postings_still_pass(html):
     "Our signup flow is captchaless.",
     "You will maintain our security checker service.",
     "Our forms are protected by reCAPTCHA.",
+    "Applicants must pass a security check.",
+    "You will run regular security checks.",
 ])
 def test_challenge_words_inside_other_words_do_not_block(sentence):
     postings, errors = _fetch_single(_short_posting(sentence))
@@ -104,9 +109,20 @@ def test_smartrecruiters_metadata_without_description_does_not_skip_classificati
     from ultron.stages import fetch as fetch_stage
 
     def metadata_only(candidate, job, client):
-        return job.model_copy(update={"title": "Senior Engineer", "company": "Example"}), True
+        return job.model_copy(update={"title": "Senior Engineer", "company": "Example"}), True, False
 
-    monkeypatch.setattr(fetch_stage, "_smartrecruiters_api_enrich", metadata_only)
+    monkeypatch.setattr(fetch_stage, "_smartrecruiters_api_lookup", metadata_only)
     postings, errors = _fetch_single(CAPTCHA_PAGE)
     assert postings == []
     assert errors == [{"url": "https://careers.example.org/jobs/42", "error": "blocked", "status": 200}]
+
+
+def test_smartrecruiters_description_skips_classification_even_if_unchanged(monkeypatch):
+    from ultron.stages import fetch as fetch_stage
+
+    def described(candidate, job, client):
+        return job, True, True  # the API returned the same description extraction already found
+
+    monkeypatch.setattr(fetch_stage, "_smartrecruiters_api_lookup", described)
+    postings, errors = _fetch_single(CAPTCHA_PAGE)
+    assert errors == [] and len(postings) == 1

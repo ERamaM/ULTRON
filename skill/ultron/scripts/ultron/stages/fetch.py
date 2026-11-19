@@ -29,6 +29,12 @@ _SPA_BODY_MIN_CHARS = 400
 HOST_BLOCK_THRESHOLD = 3
 
 
+def _host_is(host: str, domain: str) -> bool:
+    """True when ``host`` is ``domain`` or one of its subdomains (label-aware, not a substring test)."""
+    host = host.lower().rstrip(".")
+    return host == domain or host.endswith("." + domain)
+
+
 def _html_to_text(raw: str) -> str:
     if not raw:
         return ""
@@ -52,7 +58,7 @@ def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[Extracted
             job_id = gh_jids[0]
     if not board or not job_id:
         return None
-    api_host = "boards-api.eu.greenhouse.io" if ".eu.greenhouse.io" in host else "boards-api.greenhouse.io"
+    api_host = "boards-api.eu.greenhouse.io" if _host_is(host, "eu.greenhouse.io") else "boards-api.greenhouse.io"
     api_url = f"https://{api_host}/v1/boards/{board}/jobs/{job_id}"
     try:
         payload = client.request_json(api_url, allowed_domains=("greenhouse.io",))
@@ -184,7 +190,8 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
     looks_generic = low_title in _GENERIC_PORTAL_TITLES or low_title.startswith("careers at ")
     if len((job.body_text or "").strip()) >= _SPA_BODY_MIN_CHARS and has_posting_url and not looks_generic:
         return job, False
-    if not (src.lower().startswith("smartrecruiters:") or "smartrecruiters.com" in candidate.normalized_url.lower()):
+    candidate_host = urlsplit(candidate.normalized_url).hostname or ""
+    if not (src.lower().startswith("smartrecruiters:") or _host_is(candidate_host, "smartrecruiters.com")):
         return job, False
     parsed = urlsplit(candidate.normalized_url)
     board, job_id = "", ""

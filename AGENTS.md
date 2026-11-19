@@ -27,10 +27,13 @@ so never resolve a thread you have not addressed.
    including on Windows, macOS, and Linux.
 4. **Act on each concern:**
    - Valid: fix it in a new commit, add or update a test when behavior changes, and reply
-     in the thread with what changed and the commit SHA.
-   - Not valid or out of scope: reply in the thread with the technical reason. For a
-     valid concern that belongs in a separate change, open an issue and link it.
-   - Then resolve the thread.
+     with what changed and the commit SHA.
+   - Not valid or out of scope: reply with the technical reason. For a valid concern
+     that belongs in a separate change, open an issue and link it.
+   - Inline-thread concerns: reply in the thread, then resolve it.
+   - Concerns without a thread (nitpicks, outside-diff comments, conversation
+     comments): reply in one PR conversation comment that lists each concern and its
+     outcome. There is nothing to resolve for these.
 5. **Repeat.** CodeRabbit reviews new pushes again. Repeat from step 1 until a review
    brings no new actionable comments and CI is green.
 6. **Report.** Summarize each CodeRabbit concern and its outcome (fixed, rejected with
@@ -40,14 +43,15 @@ Useful commands (run from the repository; `gh` fills in `{owner}` and `{repo}`):
 
 ```sh
 # Reviews and their bodies (look for "Actionable comments", nitpicks, outside-diff comments)
-gh api repos/{owner}/{repo}/pulls/<PR>/reviews --jq '.[] | select(.user.login | test("coderabbit")) | {id, state, body}'
+gh api --paginate repos/{owner}/{repo}/pulls/<PR>/reviews --jq '.[] | select(.user.login | test("coderabbit")) | {id, state, body}'
 
-# Review threads with resolution state
-gh api graphql -F owner='{owner}' -F name='{repo}' -F pr=<PR> -f query='
-  query($owner: String!, $name: String!, $pr: Int!) {
+# Review threads with resolution state (--paginate follows endCursor through every page)
+gh api graphql --paginate -F owner='{owner}' -F name='{repo}' -F pr=<PR> -f query='
+  query($owner: String!, $name: String!, $pr: Int!, $endCursor: String) {
     repository(owner: $owner, name: $name) {
       pullRequest(number: $pr) {
-        reviewThreads(first: 100) {
+        reviewThreads(first: 100, after: $endCursor) {
+          pageInfo { hasNextPage endCursor }
           nodes { id isResolved path line
             comments(first: 20) { nodes { databaseId author { login } body } } }
         }

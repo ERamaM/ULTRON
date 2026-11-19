@@ -4,6 +4,7 @@
 (`Universal Locator & Triage of Roles, Openings and Niches`)
 
 [![CI](https://github.com/ERamaM/ULTRON/actions/workflows/ci.yml/badge.svg)](https://github.com/ERamaM/ULTRON/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ERamaM/ULTRON/actions/workflows/codeql.yml/badge.svg)](https://github.com/ERamaM/ULTRON/actions/workflows/codeql.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Secret Scanning: Gitleaks](https://img.shields.io/badge/secrets-gitleaks-blueviolet)](.gitleaks.toml)
@@ -143,14 +144,6 @@ ultron run --unattended --profile ai-ml-remote-eu
 - **Provider visibility:** Your chosen agent provider processes only what the agent reads (your profile, extracted CV text when drafting a profile, and shortlisted/ambiguous job descriptions).
 - **Redaction & untrusted input defense:** Exports redact common API tokens/credentials automatically and sanitize Markdown/spreadsheet cells. See [SECURITY.md](SECURITY.md) for reporting vulnerabilities and security details.
 
-## Migrating from MARK III
-
-Import existing MARK III profiles, seeds, and job ledger history with:
-
-```sh
-ultron import-mark3 <path> [--dry-run]
-```
-
 ## Development & CI
 
 ```sh
@@ -159,7 +152,7 @@ uv run ruff check
 uv run pytest
 ```
 
-Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, multi-OS Pytest across Linux/macOS/Windows (Python 3.12 & 3.13), and end-to-end installer smoke tests. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Continuous integration runs Ruff linting, wheel build checks, Gitleaks secret scanning, pytest on Linux, macOS, and Windows (Python 3.12 and 3.13), and end-to-end installer smoke tests. CodeQL scans Python and GitHub Actions on pushes to `main`, on pull requests, and once a week. Dependabot checks for GitHub Actions and `uv` dependency updates. The [CodeRabbit configuration](.coderabbit.yaml) applies after the GitHub app is installed for this repository. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 

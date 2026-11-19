@@ -155,7 +155,8 @@ def filter_candidates(
             continue
         domain = domain_of(normalized)
 
-        if "linkedin.com" in domain:
+        host = (parsed.hostname or "").lower().rstrip(".")  # no port, no trailing dot
+        if host == "linkedin.com" or host.endswith(".linkedin.com"):
             discards.append({"url": hit.url, "reason": "linkedin_forbidden", "detail": domain})
             continue
 

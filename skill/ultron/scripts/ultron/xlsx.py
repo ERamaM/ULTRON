@@ -38,7 +38,14 @@ def _col_letter(idx: int) -> str:
 
 
 def _neutralize_formula(value: str) -> str:
-    """Keep untrusted spreadsheet text from becoming an Excel formula."""
+    """Make untrusted text safe for a cell: drop control characters, then keep it from becoming a formula.
+
+    openpyxl refuses (``IllegalCharacterError``) the C0 controls XML cannot hold, such as ``\\x08`` or ``\\x1b``.
+    They are stripped first, so a leading control character cannot hide a formula prefix.
+    """
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+
+    value = ILLEGAL_CHARACTERS_RE.sub("", value)
     return "'" + value if re.match(r"^\s*[=+\-@]", value) else value
 
 
@@ -233,7 +240,7 @@ def _build_summary_sheet(ws, run: dict, summary: dict, counts: dict[str, int], s
             rc = ws.cell(row=row, column=1, value=_neutralize_formula(str(reason)))
             rc.border = styles["border"]
             rc.alignment = styles["cell_align_nowrap"]
-            cc = ws.cell(row=row, column=2, value=count)
+            cc = ws.cell(row=row, column=2, value=_cell_value(count))
             cc.border = styles["border"]
             row += 1
     ws.freeze_panes = "A4"

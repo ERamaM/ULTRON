@@ -14,6 +14,8 @@ _REPOSITORY = "https://github.com/ERamaM/ULTRON"
 _LATEST_RELEASE = "https://api.github.com/repos/ERamaM/ULTRON/releases/latest"
 _VERSION = re.compile(r"v?(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})")
 _CHECK_INTERVAL = 24 * 60 * 60
+# File timestamps can run slightly ahead of time.time() (coarser clock on Windows).
+_CLOCK_SKEW = 60
 
 
 def release_notice(installed_version: str) -> dict[str, str] | None:
@@ -26,7 +28,7 @@ def release_notice(installed_version: str) -> dict[str, str] | None:
         state = ultron_home() / "update-notices"
         state.mkdir(exist_ok=True)
         checked = state / "last-checked"
-        if checked.exists() and 0 <= time.time() - checked.stat().st_mtime < _CHECK_INTERVAL:
+        if checked.exists() and -_CLOCK_SKEW <= time.time() - checked.stat().st_mtime < _CHECK_INTERVAL:
             return None
         checked.touch()
         response = httpx.get(_LATEST_RELEASE, timeout=1.5)

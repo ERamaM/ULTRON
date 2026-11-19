@@ -299,7 +299,7 @@ def collect_arbeitnow_urls(
         if isinstance(data, list):
             rows.extend(item for item in data if isinstance(item, dict))
         links = payload.get("links", {})
-        next_url = str(links.get("next", "")).strip() if isinstance(links, dict) else ""
+        next_url = str(links.get("next") or "").strip() if isinstance(links, dict) else ""
     return rows, discards
 
 

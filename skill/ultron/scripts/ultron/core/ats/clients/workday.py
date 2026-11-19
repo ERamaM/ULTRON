@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import re
 from collections import deque
@@ -14,6 +13,7 @@ from ultron.core.ats.clients.base import (
     locator_url,
     refuse_browser_fallback,
 )
+from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.rules.term_matching import normalize_text
 from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
 
@@ -54,22 +54,12 @@ def _extract_from_next_data(html: str, host: str, path: str = "") -> list[AtsPos
     match = NEXT_DATA_RE.search(html)
     if not match:
         return []
-    try:
-        payload = json.loads(match.group(1))
-    except json.JSONDecodeError:
+    payload = load_json_or_none(match.group(1))
+    if payload is None:
         return []
 
-    def _iter_nodes(node: object):
-        if isinstance(node, dict):
-            yield node
-            for value in node.values():
-                yield from _iter_nodes(value)
-        elif isinstance(node, list):
-            for item in node:
-                yield from _iter_nodes(item)
-
     out: list[AtsPosting] = []
-    for item in _iter_nodes(payload):
+    for item in iter_json_dicts(payload):
         if not isinstance(item, dict):
             continue
         title = str(item.get("title") or "").strip()

@@ -106,6 +106,40 @@ def test_no_network_skips_network_checks():
     assert "network_dns" not in ids and "network_https" not in ids
 
 
+def test_public_diagnostic_contains_known_statuses_without_local_details(monkeypatch, capsys):
+    def checks(*, network):
+        assert not network
+        return [
+            doctor.Check("python_version", True, "Python available"),
+            doctor.Check("ultron_home_writable", False, "/home/sample/private/profile.yaml", "Private path"),
+            doctor.Check("sample@example.invalid", True, "Unexpected check"),
+        ]
+
+    monkeypatch.setattr(doctor, "run_checks", checks)
+    assert main(["doctor", "--public", "--no-network"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert set(payload) == {"ok", "ultron", "python", "os", "checks"}
+    assert payload["ok"] is False
+    assert payload["checks"] == [
+        {"id": "python_version", "ok": True},
+        {"id": "ultron_home_writable", "ok": False},
+    ]
+
+
+def test_public_diagnostic_suppresses_unexpected_exception_details(monkeypatch, capsys):
+    def broken(*, network):
+        raise PermissionError("/home/sample/private/profile.yaml")
+
+    monkeypatch.setattr(doctor, "run_checks", broken)
+    assert main(["doctor", "--public"]) == 1
+    public = capsys.readouterr()
+    assert json.loads(public.out) == {
+        "error": "diagnostic_failed",
+        "detail": "The public diagnostic could not be completed.",
+    }
+    assert public.err == ""
+
+
 def test_db_schema_missing_is_ok_and_not_created(tmp_path):
     check = _by_id(doctor.run_checks(network=False))["db_schema"]
     assert check.ok and "not created" in check.detail

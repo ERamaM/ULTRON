@@ -124,7 +124,8 @@ fi
 # Runs the installer as a background child so the shell can forward termination signals to it (a trap in
 # the shell only runs after a foreground child exits) and still survive it, so the EXIT trap removes the
 # downloaded source. fd 3 keeps the child's stdin: an asynchronous command otherwise gets /dev/null. A
-# non-interactive shell starts background children with SIGINT ignored, so INT is forwarded as TERM.
+# non-interactive shell starts background children with SIGINT ignored, so INT is forwarded as TERM; HUP
+# too, so install.py stops a running pip/venv step before this shell removes the source it uses.
 INSTALLER_PID=""
 INSTALLER_SIGNALED=0
 # shellcheck disable=SC2329 # invoked from a trap
@@ -137,23 +138,17 @@ forward_signal() {
 run_installer() {
     { "$@" <&3 3<&- & } 3<&0
     INSTALLER_PID=$!
-    trap 'forward_signal TERM' INT TERM
-    trap 'forward_signal HUP' HUP
-    # A trapped signal interrupts wait, whose status (> 128) is then not the installer's. Wait again until a
-    # wait returns without a signal. The shell keeps a reaped background child's status for that next wait;
-    # 127 there means it was already collected, so the last status stands.
-    status=0
-    first_wait=1
+    trap 'forward_signal TERM' INT TERM HUP
+    # A trapped signal interrupts wait, which then returns > 128 without the installer's status. Only then wait
+    # again: the shell keeps the status of a background child until a wait reports it, so the next wait returns
+    # the installer's own status (127 included), even if the child has already been reaped.
     while :; do
         INSTALLER_SIGNALED=0
-        wait_status=0
-        wait "$INSTALLER_PID" || wait_status=$?
-        if [ "$first_wait" -eq 0 ] && [ "$wait_status" -eq 127 ] && ! kill -0 "$INSTALLER_PID" 2>/dev/null; then
+        status=0
+        wait "$INSTALLER_PID" || status=$?
+        if [ "$INSTALLER_SIGNALED" -eq 0 ] || [ "$status" -le 128 ]; then
             break
         fi
-        first_wait=0
-        status=$wait_status
-        [ "$INSTALLER_SIGNALED" -eq 1 ] || break
     done
     INSTALLER_PID=""
     trap cleanup INT TERM

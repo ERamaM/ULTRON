@@ -131,22 +131,42 @@ def _group_by_path(targets: dict[str, Path]) -> list[tuple[Path, list[str]]]:
 # ------------------------------------------------------------------------------------------------ venv
 
 
+# Termination requested by SIGTERM/SIGHUP: its exit code, and whether a pip/venv step is running right now.
+_TERMINATION = {"code": 0, "in_step": False}
+
+
+def _exit_if_terminated() -> None:
+    if _TERMINATION["code"]:
+        raise SystemExit(_TERMINATION["code"])
+
+
 def _run(cmd: list[str]) -> None:
     """Run an installer step; its output goes to stderr so stdout stays one JSON object."""
-    subprocess.run(cmd, check=True, stdout=sys.stderr)
+    _exit_if_terminated()  # a pending termination stops before the next step, never inside file moves
+    _TERMINATION["in_step"] = True
+    try:
+        subprocess.run(cmd, check=True, stdout=sys.stderr)
+    finally:
+        _TERMINATION["in_step"] = False
 
 
-def _exit_on_sigterm(signum: int, _frame: object) -> None:
-    raise SystemExit(128 + signum)
+def _on_termination_signal(signum: int, _frame: object) -> None:
+    _TERMINATION["code"] = 128 + signum
+    if _TERMINATION["in_step"]:
+        raise SystemExit(128 + signum)  # subprocess.run kills and reaps the running step, then re-raises
 
 
-def _handle_sigterm() -> None:
-    """Turn SIGTERM into SystemExit, so ``subprocess.run`` kills and reaps a running pip/venv step first.
+def _handle_termination_signals() -> None:
+    """Stop cleanly on SIGTERM/SIGHUP instead of dying with a pip/venv step still running.
 
-    With the default handler only this process dies, and ``install.sh`` would then delete a downloaded source
-    that the orphaned step still uses.
+    With the default handlers only this process dies, and ``install.sh`` would then delete a downloaded source
+    that the orphaned step still uses. A signal during a step ends it now; at any other moment (for example
+    while a previous install is moved aside and replaced) it only takes effect before the next step, so file
+    replacement is never cut in half.
     """
-    signal.signal(signal.SIGTERM, _exit_on_sigterm)
+    for name in ("SIGTERM", "SIGHUP"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), _on_termination_signal)
 
 
 def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
@@ -818,5 +838,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    _handle_sigterm()
+    _handle_termination_signals()
     sys.exit(main())

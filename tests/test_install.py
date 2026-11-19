@@ -887,13 +887,33 @@ def test_claude_copy_gets_argument_hint_others_keep_portable_frontmatter(inst, f
     assert again.count("argument-hint:") == 1
 
 
-def test_sigterm_handler_exits_so_running_steps_are_killed(installer, monkeypatch):
+def test_termination_signal_stops_a_running_step_now(installer, monkeypatch):
     import signal
 
     registered = {}
     monkeypatch.setattr(installer.signal, "signal", lambda signum, handler: registered.update({signum: handler}))
-    installer._handle_sigterm()
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    installer._handle_termination_signals()
     handler = registered[signal.SIGTERM]
+
+    def step(cmd, **kwargs):
+        handler(signal.SIGTERM, None)  # the signal arrives while the step runs
+
+    monkeypatch.setattr(installer.subprocess, "run", step)
     with pytest.raises(SystemExit) as exc:
-        handler(signal.SIGTERM, None)
+        installer._run(["pip", "install"])
     assert exc.value.code == 128 + signal.SIGTERM
+    assert installer._TERMINATION["in_step"] is False
+
+
+def test_termination_signal_outside_a_step_waits_for_the_next_step(installer, monkeypatch):
+    import signal
+
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    installer._on_termination_signal(signal.SIGTERM, None)  # e.g. while a previous install is being replaced
+    calls = []
+    monkeypatch.setattr(installer.subprocess, "run", lambda cmd, **kwargs: calls.append(cmd))
+    with pytest.raises(SystemExit) as exc:
+        installer._run(["pip", "install"])
+    assert exc.value.code == 128 + signal.SIGTERM
+    assert calls == []

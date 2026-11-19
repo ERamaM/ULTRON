@@ -1043,3 +1043,51 @@ def test_sigterm_during_a_step_stops_its_descendants(installer, tmp_path, monkey
         signal.signal(signal.SIGTERM, previous)
     time.sleep(4)
     assert not marker.exists()  # the grandchild (a build backend, say) was stopped with the step's group
+
+
+def test_signal_while_a_step_starts_still_stops_that_step(installer, monkeypatch):
+    import signal
+
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    stopped = []
+
+    class Step:
+        pid = 0
+
+        def __init__(self, cmd, **kwargs):
+            installer._on_termination_signal(signal.SIGTERM, None)  # arrives inside Popen: only recorded
+
+        def wait(self):
+            raise AssertionError("the step must not be waited for after a termination")
+
+    monkeypatch.setattr(installer.subprocess, "Popen", Step)
+    monkeypatch.setattr(installer, "_stop_step", stopped.append)
+    with pytest.raises(installer.Terminated):
+        installer._run(["pip", "install"])
+    assert len(stopped) == 1 and installer._TERMINATION["in_step"] is False
+
+
+def test_second_signal_during_step_cleanup_does_not_interrupt_it(installer, monkeypatch):
+    import signal
+
+    monkeypatch.setitem(installer._TERMINATION, "code", 0)
+    events = []
+
+    class Step:
+        pid = 0
+
+        def __init__(self, cmd, **kwargs):
+            pass
+
+        def wait(self):
+            installer._on_termination_signal(signal.SIGTERM, None)
+
+    def stop(proc):
+        installer._on_termination_signal(signal.SIGTERM, None)  # a second signal during the grace period
+        events.append("stopped")
+
+    monkeypatch.setattr(installer.subprocess, "Popen", Step)
+    monkeypatch.setattr(installer, "_stop_step", stop)
+    with pytest.raises(installer.Terminated):
+        installer._run(["pip", "install"])
+    assert events == ["stopped"]  # cleanup ran to the end

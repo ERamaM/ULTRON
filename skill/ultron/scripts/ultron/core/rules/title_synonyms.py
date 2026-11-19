@@ -19,7 +19,7 @@ TITLE_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
     ),
     (
         "process engineer", "process engineering", "ingeniero de procesos", "ingeniera de procesos",
-        "ingenieria de procesos",
+        "ingenieria de procesos", "ingeniero de proceso", "ingeniera de proceso",
     ),
     ("manufacturing engineer", "ingeniero de fabricacion", "ingeniera de fabricacion"),
 )

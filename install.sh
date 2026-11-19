@@ -67,6 +67,7 @@ install_uv() {
 }
 
 TMP_DIR=""
+# shellcheck disable=SC2329 # invoked from a trap
 cleanup() {
     if [ -n "$TMP_DIR" ] && [ -d "$TMP_DIR" ]; then
         rm -rf "$TMP_DIR"
@@ -110,19 +111,47 @@ if [ -z "$SRC_DIR" ]; then
     fi
 fi
 
-# No exec: the shell must survive the installer so the EXIT trap removes the downloaded source.
+# Runs the installer as a background child so the shell can forward termination signals to it (a trap in
+# the shell only runs after a foreground child exits) and still survive it, so the EXIT trap removes the
+# downloaded source. fd 3 keeps the child's stdin: an asynchronous command otherwise gets /dev/null. A
+# non-interactive shell starts background children with SIGINT ignored, so INT is forwarded as TERM.
+INSTALLER_PID=""
+# shellcheck disable=SC2329 # invoked from a trap
+forward_signal() {
+    if [ -n "$INSTALLER_PID" ]; then
+        kill -s "$1" "$INSTALLER_PID" 2>/dev/null || true
+    fi
+}
+run_installer() {
+    { "$@" <&3 3<&- & } 3<&0
+    INSTALLER_PID=$!
+    trap 'forward_signal TERM' INT TERM
+    trap 'forward_signal HUP' HUP
+    status=0
+    wait "$INSTALLER_PID" || status=$?
+    # A trapped signal interrupts wait (status > 128); keep waiting until the installer itself has exited.
+    while kill -0 "$INSTALLER_PID" 2>/dev/null; do
+        status=0
+        wait "$INSTALLER_PID" || status=$?
+    done
+    INSTALLER_PID=""
+    trap cleanup INT TERM
+    trap - HUP
+    return "$status"
+}
+
 # `|| rc=$?` keeps `set -e` from exiting before the installer's exit code is captured. The braces make the
 # shell read the whole tail before running anything, so under `curl | sh` a child that reads stdin cannot
 # swallow the final `exit` and turn a failure into exit 0.
 {
     rc=0
     if command -v uv >/dev/null 2>&1; then
-        uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@" || rc=$?
+        run_installer uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@" || rc=$?
     elif PY_BIN=$(find_python); then
-        "$PY_BIN" "$SRC_DIR/install.py" "$@" || rc=$?
+        run_installer "$PY_BIN" "$SRC_DIR/install.py" "$@" || rc=$?
     else
         install_uv
-        uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@" || rc=$?
+        run_installer uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@" || rc=$?
     fi
     exit "$rc"
 }

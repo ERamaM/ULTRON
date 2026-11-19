@@ -190,7 +190,10 @@ def _decode_text_bytes(content: bytes) -> str:
     if content.startswith(b"\xef\xbb\xbf"):
         return content.decode("utf-8-sig")
     if content.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return content.decode("utf-16")
+        try:
+            return content.decode("utf-16")
+        except UnicodeDecodeError as exc:  # odd byte count or lone surrogate after a UTF-16 BOM
+            raise CvExtractionError("CV text is not valid UTF-16", code="no_extractable_text") from exc
     try:
         return content.decode("utf-8")
     except UnicodeDecodeError:

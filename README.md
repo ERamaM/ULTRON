@@ -77,7 +77,7 @@ The `ultron` binary lives inside its dedicated venv (`~/.ultron/venv`) rather th
 | `--platforms claude,codex` | Target specific agents (`claude`, `codex`, `opencode`, `antigravity`) |
 | `--update` | Refresh the virtual environment and existing ULTRON installs |
 | `--uninstall` | Remove ULTRON installs (add `--purge-data` to remove `$ULTRON_HOME` data) |
-| `--dry-run` | Preview actions without modifying the filesystem |
+| `--dry-run` | Preview installer changes without updating the venv, skill copies, or saved data. The bootstrap may still download and extract the source or provision `uv` and Python. |
 
 ### Updating ULTRON
 
@@ -111,7 +111,7 @@ curl -fsSL https://raw.githubusercontent.com/ERamaM/ULTRON/main/install.sh | sh 
 
 Add `--project DIR` for a project installation and `--platforms` to limit which agent skill copies are refreshed.
 
-The update refreshes the CLI in `$ULTRON_HOME/venv`, replaces existing skill copies in the selected scope, and rewrites `RUNTIME.md`. Installations that share the same `$ULTRON_HOME` share the updated CLI. Profiles, saved searches, job history, and past run outputs are kept. Add `--dry-run` to preview the installer's targets. After updating, run `version` and `doctor` with the executable listed in `RUNTIME.md`, then start a new agent session to reload the skill.
+The update refreshes the CLI in `$ULTRON_HOME/venv`, replaces existing skill copies in the selected scope, and rewrites `RUNTIME.md`. Installations that share the same `$ULTRON_HOME` share the updated CLI. Profiles, saved searches, job history, and past run outputs are kept. Add `--dry-run` to preview the installer's targets. The macOS/Linux web bootstrap can leave its extracted source in a temporary directory, including during a preview. After updating, run `version` and `doctor` with the executable listed in `RUNTIME.md`, then start a new agent session to reload the skill.
 
 ## How It Works
 

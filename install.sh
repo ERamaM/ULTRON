@@ -110,13 +110,15 @@ if [ -z "$SRC_DIR" ]; then
     fi
 fi
 
+# No exec: the shell must survive the installer so the EXIT trap removes the downloaded source.
+# `|| rc=$?` keeps `set -e` from exiting before the installer's exit code is captured.
+rc=0
 if command -v uv >/dev/null 2>&1; then
-    exec uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@"
+    uv run --python ">=3.12" --no-project "$SRC_DIR/install.py" "$@" || rc=$?
+elif PY_BIN=$(find_python); then
+    "$PY_BIN" "$SRC_DIR/install.py" "$@" || rc=$?
+else
+    install_uv
+    uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@" || rc=$?
 fi
-
-if PY_BIN=$(find_python); then
-    exec "$PY_BIN" "$SRC_DIR/install.py" "$@"
-fi
-
-install_uv
-exec uv run --python 3.12 --no-project "$SRC_DIR/install.py" "$@"
+exit "$rc"

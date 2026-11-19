@@ -485,3 +485,36 @@ def test_parsed_past_valid_through_survives_stage_round_trip_and_is_discarded():
     # Stages persist jobs with model_dump(mode="json") and rebuild them with ExtractedJob(**row).
     job = ExtractedJob(**parsed.model_dump(mode="json"))
     assert h.apply_hard_filters(job, ["greenhouse.io"]) == (False, "expired_or_closed")
+
+
+def test_in_office_matches_whole_phrase_only():
+    from types import SimpleNamespace
+
+    from ultron.core.discovery.prefilter import is_clearly_ineligible_at_discovery
+
+    for body in (
+        "Our team is based in our Berlin office.",
+        "Our main office in Lisbon hosts quarterly meetups.",
+        "Experience in Office 365 administration.",
+        "Support requests are answered within office hours.",
+    ):
+        assert h.is_full_remote_only("Remote", body) is True, body
+        assert h.apply_hard_filters(_job(remote_text="", body_text=body), ["boards.greenhouse.io"]) == (True, None)
+    for body in (
+        "You will work 3 days in office.",
+        "This is an on-site role.",
+        "Work arrangement: on-site\nSuite 200, Main Street, Berlin.",
+        "Work arrangement: on-site suite access.",
+        "Work arrangement: in office\nSuite 200, Main Street, Berlin.",
+        "This is an _on-site_ role.",
+    ):
+        assert h.is_full_remote_only("Remote", body) is False, body
+    assert h.is_full_remote_only("Remote", "Experience with the in-office suite of tools.") is True
+
+    def ineligible(location):
+        posting = SimpleNamespace(title="Engineer", location=location, remote_hint="")
+        return is_clearly_ineligible_at_discovery(posting, geo="any")
+
+    assert ineligible("Berlin Office") is False
+    assert ineligible("Lisbon Office") is False
+    assert ineligible("Berlin, in office") is True

@@ -58,6 +58,12 @@ check clearly fails (put the first failing check in `discard_category`). `unsure
 fact is missing (typically the remote policy or eligibility); unsure roles stay in the results flagged
 for the user, so prefer it over guessing.
 
+**Rescued discards.** An item whose `heuristic.verdict` is `"discard"` (with its `discard_reason`) is a
+borderline rejection the CLI sent you instead of dropping it: it already passed the remote, geography
+and open-status gates, and only the heuristic evaluator rejected it. Judge it with the same rubric;
+confirm the discard when the reason holds, otherwise keep it or mark it unsure. If you do not record
+it, it stays discarded.
+
 ## The record format
 
 `ultron evaluate record --from <file>` takes JSONL, one line per posting:

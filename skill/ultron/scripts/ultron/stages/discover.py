@@ -20,6 +20,7 @@ from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, GeoScope
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
@@ -208,8 +209,7 @@ def discover_ats(run_id: str) -> dict:
     pack = active_pack(profile)
     geo = geo_scope(profile)
     scope = location_scope(profile)
-    remote_req_val = str((criteria.get("remote_policy") or {}).get("required") or "full_remote").strip().lower()
-    remote_required = remote_req_val not in {"any", "none", "optional", "hybrid", "onsite", "on-site", "false"}
+    remote_required = is_remote_required(criteria)
     title_vocabulary = build_title_vocabulary(criteria, vocabulary=pack)
     per_seed = settings["ats_api_max_jobs_per_seed"]
     timeout = settings["ats_api_timeout"]

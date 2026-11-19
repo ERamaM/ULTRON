@@ -560,3 +560,20 @@ def test_job_id_query_parameter_decides_which_deadline_applies():
         "<body></body></html>"
     )
     assert base.parse_generic(_page(only_other, final_url=page_url)).valid_through_expired is False
+
+
+def test_urlless_posting_wins_over_a_node_for_another_job_id():
+    page_url = "https://acme.com/careers?gh_jid=4012346"
+    bare = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01"}'
+    other = ('{"@type": "JobPosting", "title": "Other role", "validThrough": "2999-01-01", '
+             '"url": "https://acme.com/careers?gh_jid=4012347"}')
+    for nodes in (f"{bare}, {other}", f"{other}, {bare}"):
+        html = f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+        job = base.parse_generic(_page(html, final_url=page_url))
+        assert job.title == "ML Engineer", nodes
+        assert job.valid_through_expired is True, nodes
+
+
+def test_overlong_posting_url_is_not_parsed_for_identity():
+    assert base._posting_identity("https://acme.com/careers?q=" + "x" * 5000) == ""
+    assert base._posting_identity("https://boards.greenhouse.io/acme/jobs/123") == "greenhouse:acme:123"

@@ -143,21 +143,11 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
     return not _has_contextual_hybrid_conflict(body_low)
 
 
-_CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+_CLOSED_STATUS_AGENCY_SUFFIX_RE = signals.CLOSED_STATUS_AGENCY_SUFFIX_RE
 # The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
 _APPLICATIONS_BEFORE_RE = re.compile(
     r"\bapplications?\s+(?:(?:are|is|were|was|have|has|been|now|currently)\s+)*$"
 )
-
-
-def _has_closed_status_phrase(low: str) -> bool:
-    """Whole-phrase CLOSED_STATUS_PHRASES match, ignoring "not accepting applications from agencies" boilerplate."""
-    for phrase in rules_data.CLOSED_STATUS_PHRASES:
-        exemptable = phrase in rules_data.AGENCY_EXEMPTABLE_CLOSED_PHRASES
-        for match in term_boundary_pattern(phrase).finditer(low):
-            if not (exemptable and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
-                return True
-    return False
 
 
 def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool, *, expired: bool = False) -> bool:
@@ -173,7 +163,7 @@ def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool, *, e
     if expired:
         return False
     low = normalize_text(text)
-    if _has_closed_status_phrase(low):
+    if signals.has_closed_status_phrase(low):
         return False
     if _has_closed_status_with_context(low):
         return False

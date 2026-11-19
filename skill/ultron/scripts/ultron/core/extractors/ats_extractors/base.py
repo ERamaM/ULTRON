@@ -14,6 +14,7 @@ from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.models import ExtractedJob, JobRawPage
 from ultron.core.rules.geo_eu import EXTRACTOR_COMPENSATION_OVERRIDE_TERMS, EXTRACTOR_LOCATION_MARKERS
 from ultron.core.rules.hard_filters_data import STRONG_REMOTE_POSITIVE_TERMS
+from ultron.core.rules.hard_filters_signals import has_closed_status_phrase
 
 _LOCATION_MARKER_RE = re.compile(r"\b(?:location|based in|located in|" + "|".join(EXTRACTOR_LOCATION_MARKERS) + r")\b")
 REMOTE_HINT_TERMS = ("remote", "remoto", "telecommute", "distributed", "work from home")
@@ -21,17 +22,6 @@ REMOTE_HINT_TERMS = ("remote", "remoto", "telecommute", "distributed", "work fro
 # workplace signal — incidental lines like "Optional office in Berlin" must not match.
 REMOTE_CONFLICT_TERMS = ("hybrid", "on-site", "onsite", "in-office")
 APPLY_HINT_TERMS = ("apply", "submit application", "apply now", "send application", "accepting applications")
-OPEN_CLOSED_TERMS = (
-    "position filled",
-    "job expired",
-    "no longer accepting",
-    "this position is closed",
-    "this role is closed",
-    "posting is closed",
-    "role has been filled",
-    "job has expired",
-    "link expired",
-)
 LOCATION_LABEL_TERMS = ("location", "ubicación", "ubicacion", "where", "location:")
 REMOTE_TECH_CONTEXT = (
     "remote monitoring",
@@ -746,7 +736,7 @@ def _parse_generic_with_provenance(
     text_low = text.lower()
     apply_available = any(token in text_low for token in APPLY_HINT_TERMS)
 
-    closed = any(token in text_low for token in OPEN_CLOSED_TERMS)
+    closed = has_closed_status_phrase(text)  # same phrase list as the hard filters
 
     posting_date = structured.get("posting_date", "") or None
     if not posting_date:

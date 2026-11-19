@@ -84,6 +84,9 @@ The `ultron` binary lives inside its dedicated venv (`~/.ultron/venv`) rather th
 
 Updates are manual. From a clone, first update the checkout to the branch or tag you want to install. Then run the bootstrap with `--update` and the same installation scope you used originally.
 
+After an interactive search, ULTRON can check for a newer stable GitHub release once every 24 hours
+and show a single note per new version. Set `ULTRON_DISABLE_UPDATE_CHECK=1` to turn off the check.
+
 **macOS / Linux:**
 
 ```sh

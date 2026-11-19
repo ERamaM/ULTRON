@@ -477,8 +477,16 @@ def test_in_office_matches_whole_phrase_only():
     ):
         assert h.is_full_remote_only("Remote", body) is True, body
         assert h.apply_hard_filters(_job(remote_text="", body_text=body), ["boards.greenhouse.io"]) == (True, None)
-    for body in ("You will work 3 days in office.", "This is an on-site role."):
+    for body in (
+        "You will work 3 days in office.",
+        "This is an on-site role.",
+        "Work arrangement: on-site\nSuite 200, Main Street, Berlin.",
+        "Work arrangement: on-site suite access.",
+        "Work arrangement: in office\nSuite 200, Main Street, Berlin.",
+        "This is an _on-site_ role.",
+    ):
         assert h.is_full_remote_only("Remote", body) is False, body
+    assert h.is_full_remote_only("Remote", "Experience with the in-office suite of tools.") is True
 
     def ineligible(location):
         posting = SimpleNamespace(title="Engineer", location=location, remote_hint="")

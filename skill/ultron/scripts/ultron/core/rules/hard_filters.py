@@ -135,8 +135,9 @@ _ONSITE_TERM_PRODUCT_SUFFIX_RE = re.compile(rules_data.ONSITE_TERM_PRODUCT_SUFFI
 def _iter_onsite_term_matches(text: str) -> Iterator[re.Match[str]]:
     """Yield whole-term ONSITE_TERMS matches ("Berlin office" and "in Office 365" do not count)."""
     for term in rules_data.ONSITE_TERMS:
+        product_exempt = term.endswith("office")
         for match in term_boundary_pattern(term).finditer(text):
-            if not _ONSITE_TERM_PRODUCT_SUFFIX_RE.match(text, match.end()):
+            if not (product_exempt and _ONSITE_TERM_PRODUCT_SUFFIX_RE.match(text, match.end())):
                 yield match
 
 

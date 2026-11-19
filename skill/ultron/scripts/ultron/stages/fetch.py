@@ -18,12 +18,16 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
 _WORKABLE_SHORT_JOB_RE = re.compile(r"^/j/([A-Za-z0-9]{6,})(?:/|$)")
 _SPA_BODY_MIN_CHARS = 400
+# Consecutive 403/429 responses from one host before HttpClient stops sending it requests. Every response
+# counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
+# host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
+HOST_BLOCK_THRESHOLD = 3
 
 
 def _host_is(host: str, domain: str) -> bool:
@@ -179,17 +183,20 @@ def _dict_or_empty(value: object) -> object:
     return {} if value is None else value
 
 
-def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+def _smartrecruiters_api_lookup(
+    candidate: CandidateUrl, job: ExtractedJob, client
+) -> tuple[ExtractedJob, bool, bool]:
+    """``(job, enriched, described)``: ``described`` is True when the API supplied a description."""
     src = str(candidate.source_key or "").strip()
     is_sr_domain = job.domain == "smartrecruiters.com" or job.domain.endswith(".smartrecruiters.com")
     has_posting_url = is_sr_domain and _SR_JOB_RE.match(urlsplit(job.apply_url).path) is not None
     low_title = (job.title or "").strip().lower()
     looks_generic = low_title in _GENERIC_PORTAL_TITLES or low_title.startswith("careers at ")
     if len((job.body_text or "").strip()) >= _SPA_BODY_MIN_CHARS and has_posting_url and not looks_generic:
-        return job, False
+        return job, False, False
     candidate_host = urlsplit(candidate.normalized_url).hostname or ""
     if not (src.lower().startswith("smartrecruiters:") or _host_is(candidate_host, "smartrecruiters.com")):
-        return job, False
+        return job, False, False
     parsed = urlsplit(candidate.normalized_url)
     board, job_id = "", ""
     m = _SR_JOB_RE.match(parsed.path or "")
@@ -199,20 +206,20 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         board = src.split(":", 1)[1].strip() or board
     job_id = job_id.split("-")[0] if "-" in job_id else job_id
     if not board or not job_id:
-        return job, False
+        return job, False, False
     api_url = f"https://api.smartrecruiters.com/v1/companies/{board}/postings/{job_id}"
     try:
         payload = client.request_json(api_url, allowed_domains=("smartrecruiters.com",))
     except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
-        return job, False
+        return job, False, False
     if not isinstance(payload, dict) or not payload.get("name"):
-        return job, False
+        return job, False, False
     # Only a missing (null) object defaults to {}; any other non-dict, even an empty list, is malformed.
     job_ad = _dict_or_empty(payload.get("jobAd"))
     sections_dict = _dict_or_empty(job_ad.get("sections")) if isinstance(job_ad, dict) else None
     company_obj = _dict_or_empty(payload.get("company"))
     if not isinstance(sections_dict, dict) or not isinstance(company_obj, dict):
-        return job, False
+        return job, False, False
     ordered = ("jobDescription", "qualifications", "additionalInformation", "companyDescription")
     parts = [
         _html_to_text(str((sections_dict.get(k) or {}).get("text") or ""))
@@ -240,7 +247,12 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         "remote_text": clean_text(remote_text),
         "body_text": body_text or job.body_text,
         "posting_date": str(payload.get("releasedDate") or job.posting_date or "").strip() or None,
-    }), True
+    }), True, bool(body_text)
+
+
+def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
+    job, enriched, _described = _smartrecruiters_api_lookup(candidate, job, client)
+    return job, enriched
 
 
 def _workday_cxs_detail_url(url: str) -> str | None:
@@ -351,13 +363,43 @@ def has_ats_fingerprint(html: str) -> bool:
     return bool(vendor and ats_canonical_domain(vendor))
 
 
+# Thresholds stay low so short real postings are kept; a false positive would drop a posting.
+_CHALLENGE_MAX_VISIBLE_CHARS = 1000
+_SHELL_MAX_VISIBLE_CHARS = 120
+# Whole words only: "recaptcha" badges on real forms, "captchaless" or "security checker" do not count.
+_CHALLENGE_RE = re.compile(r"(?<![a-z])(?:captchas?|verify you are human|just a moment|checking your browser)(?![a-z])")
+# "security check" also appears in real postings ("applicants must pass a security check"), so it only counts
+# together with browser-challenge wording.
+_SECURITY_CHECK_RE = re.compile(r"(?<![a-z])security check(?![a-z])")
+_CHALLENGE_CONTEXT_RE = re.compile(r"(?<![a-z])(?:browser|javascript|cookies|cloudflare|ray id|robot)(?![a-z])")
+_SCRIPT_TAG_RE = re.compile(r"<script\b", re.IGNORECASE)
+
+
+def unusable_page_reason(html: str, job: ExtractedJob) -> str | None:
+    """``blocked`` for a short bot-challenge page, ``js_shell`` for a script-rendered page with almost no text."""
+    body = (job.body_text or "").strip()
+    if len(body) >= _CHALLENGE_MAX_VISIBLE_CHARS:
+        return None
+    visible = _html_to_text(html)
+    low = " ".join(visible.lower().split())  # text nodes are joined with newlines: "verify you are\nhuman"
+    if len(visible) < _CHALLENGE_MAX_VISIBLE_CHARS and (
+        _CHALLENGE_RE.search(low) or (_SECURITY_CHECK_RE.search(low) and _CHALLENGE_CONTEXT_RE.search(low))
+    ):
+        return "blocked"
+    shell = len(visible) < _SHELL_MAX_VISIBLE_CHARS and len(body) < _SHELL_MAX_VISIBLE_CHARS
+    # A recognized ATS embed is still useful downstream (fingerprint, ATS hints), so only unknown shells are dropped.
+    if shell and _SCRIPT_TAG_RE.search(html) and not has_ats_fingerprint(html):
+        return "js_shell"
+    return None
+
+
 def fetch(run_id: str) -> dict:
     runs.require_stage(run_id, "fetch")
     run = runs.load_run(run_id)
     out_dir = runs.run_dir(run_id)
     max_pages = run["settings"]["max_pages"]
     # Per-host caps limit seeds per API host in discovery, not page fetching: shared ATS hosts are bounded by max_pages.
-    client = client_for_run(run, max_requests_per_host=max_pages)
+    client = client_for_run(run, max_requests_per_host=max_pages, block_threshold=HOST_BLOCK_THRESHOLD)
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
@@ -386,6 +428,13 @@ def fetch(run_id: str) -> dict:
             continue
         try:
             status, final_url, html = client.get_text(url)
+        except HostBlocked:
+            if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
+                postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
+                                 "identity_key": identity, "ats_fingerprint": True})
+                continue
+            errors.append({"url": url, "error": "host_blocked"})
+            continue
         except RequestBudgetExceeded as exc:
             if exc.scope == "host":
                 skipped_hosts.add(exc.host or candidate.domain)
@@ -445,10 +494,16 @@ def fetch(run_id: str) -> dict:
         job.apply_url = normalize_url(final_url)
         job.domain = domain_of(job.apply_url)
         job, gh_enriched = _greenhouse_api_enrich(candidate, job, client)
-        job = _workable_api_enrich(candidate, job, client)
-        job, sr_enriched = _smartrecruiters_api_enrich(candidate, job, client)
+        workable_job = _workable_api_enrich(candidate, job, client)
+        workable_enriched, job = workable_job is not job, workable_job
+        # SmartRecruiters metadata without a description keeps the page text, which still needs classifying.
+        job, sr_enriched, sr_described = _smartrecruiters_api_lookup(candidate, job, client)
         job, wd_enriched = _workday_api_enrich(candidate, job, client)
         job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
+        enriched = gh_enriched or workable_enriched or sr_described or wd_enriched or bamboo_enriched
+        if not enriched and (reason := unusable_page_reason(html, job)):
+            errors.append({"url": url, "error": reason, "status": status})  # left for the agent to open manually
+            continue
         postings.append({
             "candidate": candidate.model_dump(mode="json"),
             "job": job.model_dump(mode="json"),

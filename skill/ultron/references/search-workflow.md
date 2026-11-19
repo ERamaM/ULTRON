@@ -143,6 +143,7 @@ ultron discover ats --run <run_id>
 
 Output: `{"seeds_queried": 45, "seeds_failed": 2, "seeds_skipped": 0, "candidates": 310, "requests": 50,
 "seed_groups": {"agent": {...}, "pack": {...}, "other": {...}, "feed": {...}},
+"seeds_deprioritized": 3, "seeds_exploration_reserved": 1,
 "search_proposals_verified": 2, "search_proposals_added": 2}`
 
 First verifies any new ATS boards from `seed_proposals_from_search.jsonl` (up to `new_companies_per_run`)
@@ -161,6 +162,15 @@ you verify and find matter: they are queried first. Postings are pre-filtered by
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
 the stage. `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
 
+Seed order also learns from past runs of the same profile. `finalize` records which boards each run
+queried and how many of their postings it kept. Within each group, boards that have produced kept roles
+come first, ordered by how often a run kept one. Boards with fewer than 3 finalized runs follow, then
+boards measured without a kept role yet. Boards queried in 5 or more runs without a single kept role
+(`seeds_deprioritized`) go after all other seeds; they stay in the inventory and still run when slots
+remain. When there are more seeds than slots, about 10% of the slots (at least 1) go to boards with
+little history (`seeds_exploration_reserved` counts boards that got in this way), so new companies still
+get explored.
+
 ## 6. Fetch postings
 
 ```
@@ -170,7 +180,9 @@ ultron fetch --run <run_id>
 Output: `{"fetched": 210, "failed": 40, "requests": 250}`
 
 Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
-Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`.
+Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
+bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
+`host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
 
 ## 7. Filter
 
@@ -229,7 +241,7 @@ Rules:
 ## 9. Finalize
 
 ```
-ultron finalize --run <run_id>
+ultron finalize --run <run_id> [--xlsx] [--html]
 ```
 
 Output:
@@ -247,6 +259,8 @@ Output:
 - `unsure` rows stay in the results, flagged as unsure.
 - A role you kept can still be dropped here (location conflict, duplicate, cap); those are listed in
   `finalize_discards.jsonl` with a `stage` field.
+- `--xlsx` and `--html` also write `results.xlsx` / `results.html` and add `results_xlsx` / `results_html` to
+  `outputs`. If that export fails, finalize still succeeds and reports `xlsx_error` / `html_error`.
 - `results.json` rows carry `is_new` (never seen in an earlier run). Running finalize twice gives
   the same result and does not double-count history.
 

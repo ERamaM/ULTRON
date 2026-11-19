@@ -78,6 +78,7 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 - `runs show <run>`: `ultron runs show <run_id>`; summarize settings and counts (it prints the full profile; do not
   repeat it).
 - `runs excel [run]`: `ultron export xlsx --run <run_id>` (latest finished run by default); give the file path.
+- `runs html [run]`: `ultron export html --run <run_id>` (latest finished run by default); give the file path.
 
 ### system
 

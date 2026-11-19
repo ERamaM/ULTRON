@@ -25,6 +25,23 @@ def make_client(handler, **kwargs) -> HttpClient:
     return HttpClient(**options)
 
 
+class FakeClock:
+    """Monotonic clock that only advances when the client sleeps, so tests never wait."""
+
+    def __init__(self, start: float = 100.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def sleep(self, record: list[float]):
+        def _sleep(seconds: float) -> None:
+            record.append(seconds)
+            self.now += seconds
+
+        return _sleep
+
+
 def test_urlrejected_is_policy_class():
     assert net.URLRejected is urlpolicy.URLRejected
 
@@ -71,11 +88,13 @@ def test_retries_429_then_succeeds():
         calls.append(1)
         return httpx.Response(429) if len(calls) < 3 else httpx.Response(200, text="done")
 
-    client = make_client(handler, sleep=waits.append)
+    clock = FakeClock()
+    client = make_client(handler, sleep=clock.sleep(waits), clock=clock)
     status, _, text = client.get_text("https://x.test/")
     assert (status, text) == (200, "done")
     assert client.requests_made == 3
-    assert waits == [0.5, 1.0]
+    # Retry backoff (0.5, 1.0) plus the adaptive host delay a 429 sets (5s, then 10s) before the next attempt.
+    assert waits == [0.5, 4.5, 1.0, 9.0]
 
 
 def test_retry_after_respected_when_small():
@@ -241,6 +260,69 @@ def test_undeclared_non_utf8_falls_back_to_cp1252():
     assert make_client(handler).get_text("https://x.test/")[2] == "Engineer’s"
 
 
+def test_host_delay_grows_on_429_and_decays_on_success():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429) if request.url.path == "/busy" else httpx.Response(200, text="ok")
+
+    waits: list[float] = []
+    clock = FakeClock()
+    client = make_client(handler, min_interval_per_host=0.5, sleep=clock.sleep(waits), clock=clock)
+    assert client.get_text("https://x.test/busy")[0] == 429  # three attempts: 5s, 10s, 15s (capped)
+    assert client.host_delay("x.test") == 15.0
+    client.get_text("https://x.test/ok")
+    assert client.host_delay("x.test") == 14.5
+    assert client.host_delay("other.test") == 0.5  # per host
+    client.get_text("https://x.test/busy")
+    assert client.host_delay("x.test") == 15.0
+    assert max(waits) <= 15.0
+
+
+def test_host_delay_never_decays_below_min_interval():
+    clock = FakeClock()
+    client = make_client(lambda r: httpx.Response(200, text="ok"), min_interval_per_host=0.5,
+                         sleep=clock.sleep([]), clock=clock)
+    client.get_text("https://x.test/1")
+    client.get_text("https://x.test/2")
+    assert client.host_delay("x.test") == 0.5
+
+
+def test_retry_after_http_date_form():
+    now = 1_445_412_480.0  # Wed, 21 Oct 2015 07:28:00 GMT
+    response = httpx.Response(503, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:04 GMT"})
+    assert net._retry_after(response, now) == 4.0
+    past = httpx.Response(503, headers={"Retry-After": "Wed, 21 Oct 2015 07:27:00 GMT"})
+    assert net._retry_after(past, now) == 0.0
+    far = httpx.Response(503, headers={"Retry-After": "Thu, 22 Oct 2015 07:28:00 GMT"})
+    assert net._retry_after(far, now) == net.MAX_RETRY_AFTER
+    assert net._retry_after(httpx.Response(503, headers={"Retry-After": "soon"}), now) is None
+
+
+def test_retry_after_http_date_is_slept():
+    calls = []
+    waits: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(503, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:03 GMT"})
+        return httpx.Response(200, text="ok")
+
+    make_client(handler, sleep=waits.append, wall_clock=lambda: 1_445_412_480.0).get_text("https://x.test/")
+    assert waits == [3.0]
+
+
+def test_large_numeric_retry_after_is_capped():
+    calls = []
+    waits: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503, headers={"Retry-After": "3600"}) if len(calls) == 1 else httpx.Response(200)
+
+    make_client(handler, sleep=waits.append).get_text("https://x.test/")
+    assert waits == [net.MAX_RETRY_AFTER]
+
+
 def _flaky(exc_type, failures=1):
     calls: list[str] = []
 
@@ -309,3 +391,49 @@ def test_redirect_to_invalid_idna_hostname_is_rejected():
     # httpx already reports a bad Location as a protocol error; either way it must be a handled error type.
     with pytest.raises((HttpError, URLRejected)):
         make_client(handler).get_text("https://x.test/")
+
+
+def test_block_streak_counts_every_403_429_attempt_and_resets():
+    statuses = iter([429, 429, 429, 200, 403])
+    client = make_client(lambda r: httpx.Response(next(statuses)), min_interval_per_host=0.0)
+    assert client.get_text("https://x.test/a")[0] == 429  # three attempts
+    assert client.block_streak("x.test") == 3
+    client.get_text("https://x.test/b")
+    assert client.block_streak("x.test") == 0
+    client.get_text("https://x.test/c")
+    assert client.block_streak("x.test") == 1
+    assert client.block_streak("other.test") == 0
+
+
+def test_block_threshold_stops_requests_redirects_and_retries_to_a_blocked_host():
+    hits: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits.append(f"{request.url.host}{request.url.path}")
+        if request.url.host == "blocked.test":
+            return httpx.Response(403)
+        return httpx.Response(302, headers={"Location": "https://blocked.test/r"})
+
+    client = make_client(handler, block_threshold=2)
+    assert client.get_text("https://blocked.test/1")[0] == 403
+    assert client.get_text("https://blocked.test/2")[0] == 403
+    with pytest.raises(net.HostBlocked):
+        client.get_text("https://blocked.test/3")
+    with pytest.raises(net.HostBlocked):  # a redirect hop to the blocked host is not followed
+        client.get_text("https://open.test/x")
+    assert hits == ["blocked.test/1", "blocked.test/2", "open.test/x"]
+    assert make_client(handler).block_threshold is None  # off by default
+
+
+def test_unicode_host_resolves_the_ascii_name_httpx_connects_to():
+    asked: list[str] = []
+
+    def resolver(hostname: str, port: int) -> list[str]:
+        asked.append(hostname)
+        # The two IDNA encodings of "faß.de" point at different servers.
+        return ["93.184.216.34"] if hostname == "xn--fa-hia.de" else ["198.51.100.7"]
+
+    client = make_client(lambda r: httpx.Response(200, text="ok"), resolver=resolver)
+    assert client.get_text("https://faß.de/")[0] == 200
+    assert asked == ["xn--fa-hia.de"]
+    assert client._validated["faß.de"] == ("93.184.216.34",)

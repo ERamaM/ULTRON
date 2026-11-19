@@ -198,3 +198,13 @@ def test_redact_is_linear_on_hostile_long_text(text):
     start = time.perf_counter()
     redact(text)
     assert time.perf_counter() - start < 0.5
+
+
+def test_markdown_cell_redacts_tokens_split_by_invisible_characters():
+    from ultron.core.reporting.export import _escape_cell
+
+    token = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    split = token[:2] + "\u200b" + token[2:]
+    cell = _escape_cell(f"apply with {split} today")
+    assert token not in cell
+    assert "\u200b" not in cell

@@ -12,24 +12,56 @@ from dataclasses import dataclass
 from typing import Any
 
 from ultron.core.models import Eligibility, GeoScope, RemotePolicy
-from ultron.core.rules.geo_eu import EUROPEAN_SCOPE_TOKENS
-from ultron.core.rules.hard_filters import (
-    build_geo_body_excerpt,
-    classify_eligibility,
-    classify_remote_policy,
+from ultron.core.rules import hard_filters_data as rules_data
+from ultron.core.rules.geo_eu import (
+    EUROPEAN_SCOPE_TOKENS,
+    classify_eu_eligibility,
+    classify_eu_remote_policy,
     has_region_red_flags,
 )
 from ultron.core.rules.term_matching import find_terms, normalize_text
+from ultron.core.rules.text_patterns import contains_any_substring
 
 __all__ = [
     "EUROPEAN_SCOPE_TOKENS",
     "GeoAssessment",
     "assess_geography",
+    "build_geo_body_excerpt",
     "geo_scope",
     "is_european_scope",
     "location_scope",
     "scoped_eligibility_terms",
 ]
+
+
+def build_geo_body_excerpt(body_text: str, *, max_chars: int = 1200) -> str:
+    text = (body_text or "").strip()
+    if not text:
+        return ""
+    normalized_max = max(250, int(max_chars))
+    selected_lines: list[str] = []
+    seen: set[str] = set()
+    total = 0
+    for raw_line in re.split(r"[\r\n]+", text or ""):
+        line = " ".join(raw_line.split()).strip()
+        if not line:
+            continue
+        low = line.lower()
+        if not contains_any_substring(low, rules_data.GEO_BODY_CONTEXT_TERMS):
+            continue
+        key = low
+        if key in seen:
+            continue
+        seen.add(key)
+        chunk = line[:400]
+        extra = len(chunk) + (1 if selected_lines else 0)
+        if selected_lines and total + extra > normalized_max:
+            break
+        selected_lines.append(chunk)
+        total += extra
+        if total >= normalized_max:
+            break
+    return "\n".join(selected_lines)
 
 
 def is_european_scope(target_regions: Iterable[str]) -> bool:
@@ -119,7 +151,7 @@ def assess_geography(
     red_flags = has_region_red_flags(geo_text) or bool(
         location and has_region_red_flags(f"Location: {location}")
     )
-    remote = classify_remote_policy(geo_text)
-    eligibility = classify_eligibility(geo_text)
+    remote = classify_eu_remote_policy(geo_text)
+    eligibility = classify_eu_eligibility(geo_text)
     positive = remote is not None or eligibility is not None or eligibility_hint is not None
     return GeoAssessment(scope, red_flags, remote, eligibility, scope and red_flags and not positive)

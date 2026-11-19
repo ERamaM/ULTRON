@@ -27,12 +27,12 @@ from ultron.core.rules.geo_eu import SPAIN_LOCALITY_TERMS
 from ultron.core.rules.geography import (
     GeoAssessment,
     assess_geography,
+    build_geo_body_excerpt,
     location_scope,
     scoped_eligibility_terms,
     scoped_posting_eligibility,
 )
 from ultron.core.rules.hard_filters import (
-    build_geo_body_excerpt,
     classify_remote_policy,
     location_excluded,
 )

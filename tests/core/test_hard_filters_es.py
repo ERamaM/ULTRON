@@ -54,7 +54,7 @@ def test_empty_target_regions_do_not_imply_european_scope():
 
 
 def test_security_clearance_without_us_context_is_not_a_region_flag():
-    from ultron.core.rules.hard_filters import has_region_red_flags
+    from ultron.core.rules.geo_eu import has_region_red_flags
 
     assert has_region_red_flags("Remote role. Security clearance required.") is False
 

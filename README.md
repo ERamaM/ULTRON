@@ -83,10 +83,19 @@ The `ultron` binary lives inside its dedicated venv (`~/.ultron/venv`) rather th
 
 ### Updating ULTRON
 
-Updates are manual. From a clone, first update the checkout to the branch or tag you want to install. Then run the bootstrap with `--update` and the same installation scope you used originally.
-
 After an interactive search, ULTRON can check for a newer stable GitHub release once every 24 hours
 and show a single note per new version. Set `ULTRON_DISABLE_UPDATE_CHECK=1` to turn off the check.
+
+When the note appears, the agent asks whether to update. If you agree, it runs `ultron update`, which downloads and
+verifies the latest stable release (or the one given with `--to vX.Y.Z`; never `main`) into a temporary folder and
+prints the `install.py --update` command for each installed scope. The agent runs that command as a separate
+process (a running installation cannot replace itself), then runs `ultron doctor` and asks you to restart the
+session. `ultron update --check` only compares versions. The installer records every installation in
+`$ULTRON_HOME/installs.json`, so `ultron update` also finds project installations and skill copies left on an older
+version. Installations made before this record existed are found in the global folders and the current folder; pass
+`--project DIR` for others.
+
+To update by hand instead: from a clone, first update the checkout to the branch or tag you want to install. Then run the bootstrap with `--update` and the same installation scope you used originally.
 
 **macOS / Linux:**
 

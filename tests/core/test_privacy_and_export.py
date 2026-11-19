@@ -78,6 +78,26 @@ def test_redact_keeps_greenhouse_job_token_before_closing_delimiters():
         assert redact(text) == text
     assert redact("https://boards.greenhouse.io/x?token=4567.secret") == f"https://boards.greenhouse.io/x?token={REDACTED}"
     assert redact("https://boards.greenhouse.io/x?token=4567abc") == f"https://boards.greenhouse.io/x?token={REDACTED}"
+    assert redact("https://boards.greenhouse.io/x?token=4567)abcDEF123") == (
+        f"https://boards.greenhouse.io/x?token={REDACTED}"
+    )
+    assert redact(f"See ({link}).") == f"See ({link})."
+    assert redact(f"[Apply]({link}), then wait") == f"[Apply]({link}), then wait"
+
+
+def test_redact_checks_the_host_of_the_containing_url():
+    assert redact("https://api.example.com/(https://boards.greenhouse.io/x?token=4567") == (
+        f"https://api.example.com/(https://boards.greenhouse.io/x?token={REDACTED}"
+    )
+    assert redact("https://api.example.com/x[https://boards.greenhouse.io/x?token=4567") == (
+        f"https://api.example.com/x[https://boards.greenhouse.io/x?token={REDACTED}"
+    )
+    tail = "https://greenhouse.io/".ljust(2048, "x")
+    crafted = "https://api.example.com/" + tail + "?token=4567"
+    assert redact(crafted) == "https://api.example.com/" + tail + f"?token={REDACTED}"
+    # A long text is fine as long as the URL itself starts inside the scanned window.
+    link = "https://boards.greenhouse.io/x?token=4567"
+    assert redact("x" * 5000 + " " + link) == "x" * 5000 + " " + link
 
 
 def test_redact_keeps_greenhouse_job_token_but_redacts_following_urls():

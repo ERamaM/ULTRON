@@ -80,10 +80,13 @@ _URL_SECRET_QUERY = re.compile(r"([?&](?:api[_-]?key|token|access[_-]?token|secr
 # a greenhouse.io URL is kept; every other ``token`` value stays redacted.
 _GREENHOUSE_URL_PREFIX = re.compile(r"https?://(?:[a-z0-9-]+\.)*greenhouse\.io(?::\d+)?/[^\s\"'<>]*", re.IGNORECASE)
 _URL_PREFIX_SCAN_LIMIT = 2048
-_URL_BOUNDARY_CHARS = " \t\r\n\"'<>()[]"
-# The id ends where the URL ends: at the end of the value (``&``, ``#``, end of text), whitespace, a closing
-# delimiter (``)`` of a Markdown link, ``]``, ``>``, quotes, ``<``), or sentence punctuation before whitespace.
-_NUMERIC_URL_VALUE = re.compile(r"[0-9]+(?=[\s)\]>\"'<]|[.,;:!?](?:\s|$)|$)")
+# Characters that can never appear inside a URL, so they always end one.
+_URL_HARD_BOUNDARY_CHARS = " \t\r\n\"'<>"
+# Characters that wrap links in prose (``(url)``, ``[text](url)``) but are also legal inside a URL.
+_URL_SOFT_BOUNDARY_CHARS = "()[]"
+# The id must end the URL: digits, then optional closing brackets or sentence punctuation (legal URL characters,
+# so they only count when nothing but the end of the value or a hard boundary follows them).
+_NUMERIC_URL_VALUE = re.compile(r"[0-9]+(?=[)\].,;:!?]*(?:[\s\"'<>]|$))")
 
 
 def _greenhouse_job_token(match: re.Match[str]) -> str | None:
@@ -95,8 +98,14 @@ def _greenhouse_job_token(match: re.Match[str]) -> str | None:
     if numeric is None:
         return None
     start = match.start()
-    window = match.string[max(0, start - _URL_PREFIX_SCAN_LIMIT) : start]
-    url_start = max(window.rfind(ch) for ch in _URL_BOUNDARY_CHARS) + 1
+    window_start = max(0, start - _URL_PREFIX_SCAN_LIMIT)
+    window = match.string[window_start:start]
+    token_start = max(window.rfind(ch) for ch in _URL_HARD_BOUNDARY_CHARS) + 1
+    if token_start == 0 and window_start > 0:
+        return None  # the containing URL starts before the scanned window: its host is unknown
+    url_start = max(token_start, max(window.rfind(ch, token_start) for ch in _URL_SOFT_BOUNDARY_CHARS) + 1)
+    if "/" in window[token_start:url_start]:
+        return None  # the bracket sits inside another URL's path (``https://other.example/(https://...``)
     return numeric.group(0) if _GREENHOUSE_URL_PREFIX.fullmatch(window, url_start) else None
 
 

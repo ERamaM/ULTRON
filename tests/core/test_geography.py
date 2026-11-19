@@ -1,6 +1,6 @@
 import pytest
 
-from ultron.core.rules.geo_eu import has_region_red_flags
+from ultron.core.rules.geo_eu import _has_us_location_signal, has_region_red_flags
 from ultron.core.rules.geography import assess_geography, is_european_scope
 
 
@@ -73,6 +73,21 @@ def test_us_explicit_terms_do_not_match_inside_words(body):
     assert assessment.conflict is False
 
 
-@pytest.mark.parametrize("body", ["US remote only.", "This is a US-based role.", "This role is U.S. (Remote)."])
+@pytest.mark.parametrize(
+    "body",
+    [
+        "US remote only.",
+        "This is a US-based role.",
+        "This role is U.S. (Remote).",
+        "This is a _US-based_ role.",
+        "Location: U.S.A.",
+        "Location: U.S.A",
+    ],
+)
 def test_us_explicit_terms_still_flag_whole_phrases(body):
     assert has_region_red_flags(f"Remote\n{body}") is True
+
+
+@pytest.mark.parametrize("text", ["Location: U.S.A.", "location: u.s.a", "Location: U.S."])
+def test_dotted_us_location_label_sets_us_location_signal(text):
+    assert _has_us_location_signal(text.lower()) is True

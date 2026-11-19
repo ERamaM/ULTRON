@@ -76,5 +76,32 @@ gh api graphql -F id=<THREAD_ID> -f query='
   mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { isResolved } } }'
 ```
 
+## Code Scanning and SonarCloud
+
+GitHub code scanning (CodeQL, posted by `github-advanced-security[bot]`) and SonarCloud
+(`sonarqubecloud[bot]`) also review every pull request. Their findings must be addressed
+before merging, with the same rigor as CodeRabbit concerns:
+
+- The `main` ruleset blocks merging when a PR introduces CodeQL alerts (errors and
+  warnings, or security alerts of medium severity or higher) and when the
+  `SonarCloud Code Analysis` check fails.
+- Address every alert or issue the PR introduces, including notes and minor Sonar
+  issues: fix it, or explain in the PR why it is a false positive. Do not dismiss an
+  alert in GitHub or mark a Sonar issue as accepted or false positive without stating
+  the reason in the PR.
+- CodeQL comments appear as inline review threads; reply and resolve them like
+  CodeRabbit threads once the fix is pushed and the alert is closed.
+- Pre-existing problems on `main` are not a reason to block a PR, but do not make them
+  worse; fix them in separate PRs.
+
+```sh
+# Open CodeQL alerts on the PR merge ref
+gh api --paginate 'repos/{owner}/{repo}/code-scanning/alerts?state=open&ref=refs/pull/<PR>/merge' --jq '.[] | "\(.number) \(.rule.id) \(.rule.severity) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"'
+
+# Open SonarCloud issues and quality gate status for the PR (public project, no token needed)
+curl -s 'https://sonarcloud.io/api/issues/search?componentKeys=ERamaM_ULTRON&pullRequest=<PR>&resolved=false&ps=500'
+curl -s 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=ERamaM_ULTRON&pullRequest=<PR>'
+```
+
 You can also ask CodeRabbit questions or request a new review by mentioning
 `@coderabbitai` in a PR comment.

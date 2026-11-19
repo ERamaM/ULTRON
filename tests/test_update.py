@@ -115,10 +115,12 @@ def _serve(monkeypatch, payload: bytes, tag="v0.2.0"):
     return seen
 
 
-def _install(path: Path):
+def _install(path: Path, version: str | None = None):
     path.mkdir(parents=True)
     (path / "SKILL.md").write_text("---\nname: ultron\n---\n", encoding="utf-8")
     marker = {"name": "ultron", "installer": "install.py", "path": str(path)}
+    if version:
+        marker["version"] = version
     (path / ".ultron-install.json").write_text(json.dumps(marker), encoding="utf-8")
 
 
@@ -366,6 +368,51 @@ def test_current_recorded_copies_are_up_to_date(monkeypatch, capsys):
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     code, out = _run(capsys)
     assert code == 0 and out["status"] == "up_to_date" and out["commands"] == []
+
+
+def test_cli_ahead_of_latest_release_never_moves_back(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(update, "__version__", "0.3.0")
+    project = (tmp_path / "p").resolve()
+    stale = project / ".claude" / "skills" / "ultron"
+    _install(stale, "0.1.0")
+    _record([{"scope": "project", "project": str(project), "path": str(stale), "platforms": ["claude"],
+              "version": "0.1.0"}])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "up_to_date" and out["commands"] == []
+
+
+def test_marker_version_wins_over_a_lagging_record(monkeypatch, capsys):
+    monkeypatch.setattr(update, "__version__", "0.2.0")
+    copy = Path.home() / ".claude" / "skills" / "ultron"
+    _install(copy, "0.2.0")  # recopied, but the record write failed
+    _record([{"scope": "global", "path": str(copy), "platforms": ["claude"], "version": "0.1.0"}])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "up_to_date"
+
+
+def test_records_written_by_the_real_installer_are_read(monkeypatch, tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("ultron_install_for_update", Path(__file__).parents[1] / "install.py")
+    installer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(installer)
+    monkeypatch.setenv("ULTRON_INSTALL_SKIP_VENV", "1")
+    monkeypatch.setattr(installer, "_skill_version", lambda source=None: "0.1.0")
+    home = Path.home()
+    (home / ".gemini" / "antigravity").mkdir(parents=True)
+    project = (tmp_path / "proyecto con espacios ñ").resolve()
+    project.mkdir()
+    with pytest.MonkeyPatch.context() as quiet:
+        quiet.setattr(installer, "print", lambda *a, **k: None, raising=False)
+        assert installer.main(["--global", "--platforms", "claude,antigravity"]) == 0
+        assert installer.main(["--project", str(project), "--platforms", "codex"]) == 0
+    copies = update.find_copies(home=home, cwd=tmp_path, projects=[])
+    assert {c["found_by"] for c in copies} == {"record"}
+    groups = {(g["scope"], g.get("project")): g["platforms"] for g in update.group_scopes(copies)}
+    assert groups == {("global", None): ["claude", "antigravity"], ("project", str(project)): ["codex"]}
+    assert {c["version"] for c in copies} == {"0.1.0"}
 
 
 def test_missing_recorded_install_falls_back_to_markers(monkeypatch, capsys, tmp_path):

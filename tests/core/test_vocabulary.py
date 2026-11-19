@@ -170,6 +170,11 @@ def test_coarse_prefilter_handles_accented_exclusions_and_punctuation_signals():
 @pytest.mark.parametrize("title", [
     "Materials and Processes Engineer",
     "Ingeniero de Materiales y Procesos",
+    "Ingeniero de Proceso - Zaragoza",
+    "Ingeniera de Proceso - Zaragoza",
+    "Ingeniero/a de Proceso - Zaragoza",
+    "Ing. de Proceso - Zaragoza",
+    "Ing. de Procesos - Zaragoza",
     "Ingeniero/a de Fabricación - Ortuella",
     "Ingeniería de procesos / Process Engineering",
 ])

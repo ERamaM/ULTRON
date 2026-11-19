@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from zipfile import ZipFile
 
 import pytest
 from openpyxl import load_workbook
@@ -52,6 +53,19 @@ def test_workbook_sheets(run_id):
     assert wb["Roles (2)"]["Q2"].hyperlink is not None
     d = wb["Discards (2)"]
     assert [d.cell(row=r, column=1).value for r in (2, 3)] == ["stale", "final_cap"]
+
+
+def test_repeated_cli_exports_preserve_workbook_content_and_format(run_id, capsys, tmp_path):
+    outputs = [tmp_path / "first.xlsx", tmp_path / "second.xlsx"]
+    for output in outputs:
+        assert main(["export", "xlsx", "--run", run_id, "--out", str(output)]) == 0
+        assert json.loads(capsys.readouterr().out)["path"] == str(output)
+
+    with ZipFile(outputs[0]) as first, ZipFile(outputs[1]) as second:
+        assert set(first.namelist()) == set(second.namelist())
+        for part in first.namelist():
+            if part != "docProps/core.xml":  # The workbook timestamps can change.
+                assert first.read(part) == second.read(part), part
 
 
 def test_formula_neutralized(run_id):

@@ -132,7 +132,7 @@ def test_control_characters_are_stripped(run_id, capsys, tmp_path):
     d = runs.run_dir(run_id)
     results = json.loads((d / "results.json").read_text(encoding="utf-8"))
     results["rows"][0]["title"] = "Back\x08end \x1b[1mEngineer\x0b"
-    results["summary"]["discard_counts"] = {"sta\x1ble": 1}
+    results["summary"]["discard_counts"] = {"sta\x1ble": 2, "dup": "1\x08"}
     (d / "results.json").write_text(json.dumps(results), encoding="utf-8")
     runs.write_jsonl(d / "discarded.jsonl", [
         {"apply_url": "https://example.com/a", "reason": "stale", "title": "Old\x08", "company": "Z",
@@ -144,6 +144,7 @@ def test_control_characters_are_stripped(run_id, capsys, tmp_path):
     wb = load_workbook(out)
     assert wb["Roles (2)"]["B2"].value == "Backend [1mEngineer"
     assert wb["Summary"]["A17"].value == "stale"
+    assert (wb["Summary"]["A18"].value, wb["Summary"]["B18"].value) == ("dup", "1")
     discards = wb["Discards (2)"]
     assert discards["D2"].value == "Old"
     assert discards["G2"].value == "posted [0m=1+1"

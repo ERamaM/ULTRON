@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from ultron.core.remote_requirement import remote_required_value
+
 
 def _profile_values(value: object) -> tuple[str, ...]:
     """Normalize profile lists without inventing values for missing fields."""
@@ -107,8 +109,7 @@ class EvaluationProfile:
         specialties = _profile_values(criteria.get("specialties"))
         if not specialties and isinstance(query_templates, dict):
             specialties = _profile_values(query_templates.get("specialties"))
-        remote_raw = criteria.get("remote_policy")
-        remote_policy = str(remote_raw.get("required") or "any") if isinstance(remote_raw, dict) else "any"
+        remote_policy = remote_required_value(criteria)
         seniority_raw = criteria.get("seniority")
         seniority_raw = seniority_raw if isinstance(seniority_raw, dict) else {}
         return cls(

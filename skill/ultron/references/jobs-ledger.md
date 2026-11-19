@@ -33,3 +33,7 @@ The history survives run cleanup (see `references/data-maintenance.md`).
   Use this command for Excel requests on every provider. The CLI owns the sheets, columns, styles, filters, and
   hyperlinks. Agent evaluations can change which rows are exported. Re-exporting the same run with the same ULTRON
   version preserves the workbook content and formatting. File timestamps can differ.
+- `ultron export html --run <run_id> [--out <file.html>]` writes the run's results as one self-contained HTML
+  report (default `results.html` in the run folder) that opens offline in any browser and loads nothing from the
+  network. Use it when the user wants to view or share the shortlist in a browser. The CLI owns the layout,
+  escaping, and links (http(s) job links only); do not edit the file or build your own HTML.

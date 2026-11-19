@@ -20,7 +20,7 @@ _TITLE_NOISE_TOKENS = frozenset(
 _TITLE_PLACE_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(term) for term in (*EU_COUNTRY_TERMS, *SPAIN_LOCALITY_TERMS, *US_CITY_TERMS)) + r")\b"
 )
-_TITLE_TOKEN_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+_TITLE_TOKEN_SPLIT_RE = re.compile(r"[\W_]+")  # Unicode-aware: non-ASCII letters count as words too
 
 
 def _replace_title_parenthetical(match: re.Match[str]) -> str:

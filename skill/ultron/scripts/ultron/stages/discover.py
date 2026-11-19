@@ -171,7 +171,7 @@ def _select_seeds(
     unmeasured = [i for i, (seed, _order, _group) in enumerate(ranked) if not stat(seed).measured]
     reserve = min(max(1, ceil(limit * EXPLORATION_RESERVE)), len(unmeasured)) if len(ranked) > limit else 0
 
-    def fill(explore: list[int], wanted: int) -> tuple[list[int], dict[int, str], int]:
+    def fill(explore: list[int], wanted: int) -> tuple[list[int], dict[int, str]]:
         """Pick up to ``wanted`` of ``explore`` first, then fill the remaining slots in ranked order."""
         hosts: dict[str, int] = {}
         chosen: list[int] = []
@@ -203,15 +203,15 @@ def _select_seeds(
         for i in range(len(ranked)):
             if i not in taken:
                 consider(i)
-        return chosen, reason, picked
+        return chosen, reason
 
-    chosen, reason, reserved = fill([], 0)
-    # Exploration reserve: when the plain order leaves unmeasured seeds short of it, pick the best-ranked
-    # unmeasured seeds it skipped first (they take host and feed slots before the rest), then refill.
-    missing = reserve - len(set(chosen).intersection(unmeasured))
-    if missing > 0:
-        taken = set(chosen)
-        chosen, reason, reserved = fill([i for i in unmeasured if i not in taken], missing)
+    chosen, reason = fill([], 0)
+    plain = set(chosen)
+    # Exploration reserve: when the plain order gives unmeasured seeds fewer slots than the reserve, pick the
+    # best-ranked unmeasured seeds first (they take host and feed slots before the rest), then refill.
+    if reserve > len(plain.intersection(unmeasured)):
+        chosen, reason = fill(unmeasured, reserve)
+    reserved = len(set(chosen).intersection(unmeasured) - plain)
     for i, why in reason.items():
         counts[ranked[i][2]][why] += 1
     selected = [(ranked[i][0], ranked[i][2]) for i in sorted(chosen)]

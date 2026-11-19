@@ -104,6 +104,15 @@ def test_exploration_reserve_keeps_a_slot_for_unmeasured_seeds(pack_dir):
     assert counts["pack"]["capped"] == 4
 
 
+def test_exploration_reserve_above_one_keeps_the_best_ranked_unmeasured_seeds(pack_dir):
+    _write_pack(pack_dir, [f"k{i:02d}" for i in range(19)] + ["u0", "u1", "u2"])
+    yields = {f"lever:k{i:02d}": (5, 5) for i in range(19)}
+    selected, _counts, stats = _select(20, yields)
+    # ceil(10% of 20) = 2 reserved slots: the plain order already gives one to u0, the reserve adds u1.
+    assert _boards(selected) == [f"k{i:02d}" for i in range(18)] + ["u0", "u1"]
+    assert stats["exploration_reserved"] == 1
+
+
 def test_exploration_reserve_is_at_least_one_and_deterministic(pack_dir):
     _write_pack(pack_dir, ["m0", "m1", "m2", "fresh"])
     yields = {"lever:m0": (5, 5), "lever:m1": (5, 4), "lever:m2": (5, 3)}

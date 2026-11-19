@@ -58,7 +58,10 @@ def _verify(args: argparse.Namespace) -> int:
         if result.status == "verified":
             verified.append(result)
         else:
-            failed.append({"company": result.proposal.company, "reason": result.reason, "proposal": row})
+            entry = {"company": result.proposal.company, "reason": result.reason, "proposal": row}
+            if result.candidate:
+                entry["candidate"] = result.candidate
+            failed.append(entry)
     # Companies named by feeds are not agent proposals: label them like the unattended mode does.
     if is_feed_proposals:
         for result in verified:
@@ -79,6 +82,9 @@ def _verify(args: argparse.Namespace) -> int:
         "verified": len(verified),
         "new": new_added,
         "unresolved": len(failed),
+        # Guessed boards that answered but are not provably the company's (never stored).
+        "ownership_unknown": sum(1 for f in failed if f["reason"] == "ownership_unknown"),
+        "wrong_tenant": sum(1 for f in failed if f["reason"] == "wrong_tenant"),
         "unresolved_sample": [{"company": f["company"], "reason": f["reason"]} for f in failed[:5]],
     })
     return 0

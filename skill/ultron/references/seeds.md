@@ -55,12 +55,22 @@ Verify:
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 ```
 
-Output: `{"verified": 7, "new": 6, "unresolved": 3, "unresolved_sample": [{"company": "...", "reason": "..."}]}`.
+Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "...", "reason": "..."}]}`.
 
 When `ats` + `board` or `careers_url` is given, the CLI checks only that board (no slug guessing)
-and reports its failure reason if it does not resolve; when neither is given, it probes slug guesses
-built from the company name and domain on the probed ATSs (below). A company is verified when the
-board's public API answers (even with zero open postings).
+and reports its failure reason if it does not resolve; a given board is verified when its public API
+answers (even with zero open postings). When neither is given, it probes slug guesses built from the
+company name and domain on the probed ATSs (below), and a guessed board must have open postings and
+**provably belong to the company**, because another company may own the same slug:
+
+- a slug equal to the main label of the proposal's `domain` (`acme` for `careers.acme.com`) is accepted;
+- otherwise, for a name with two or more words (legal forms such as GmbH or Inc do not count), the ATS
+  must report the same company name in its postings (Greenhouse, Recruitee and SmartRecruiters do);
+- a one-word or short name ("Acme", "Acme GmbH") needs the domain slug.
+
+A guessed board that answers without that proof is not stored: it comes back as `ownership_unknown`
+(no proof) or `wrong_tenant` (the ATS names another company), with the board it found under
+`candidate` in `seeds_unresolved.jsonl`. Giving `domain` avoids most of these.
 
 ## Supported job boards
 
@@ -100,6 +110,8 @@ next call.
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url`; a careers site on the company's own domain is not an ATS board. |
+| `ownership_unknown` | A guessed board answered (see `candidate`) but nothing ties it to the company. Open the board URL or search the web: if it is the company's own board (same website, same jobs), retry with that `ats` + `board`; if you only lacked the domain, retry with `domain`. Otherwise drop it. |
+| `wrong_tenant` | The guessed board belongs to another company with a similar name. Look for the company's real careers page and retry with its board, or drop it. Never retry the `candidate` board. |
 | `invalid_proposal` | The line had no `company`. Fix it. |
 
 Put retries in a new file (e.g. `agent_proposals_retry.jsonl`) with only the corrected companies.

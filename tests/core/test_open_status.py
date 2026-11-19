@@ -14,3 +14,22 @@ def test_explicit_closed_phrase_still_rejects():
 
 def test_contextual_closed_still_rejects():
     assert is_open_status_ok("This position is now closed.", True, True) is False
+
+
+def test_agency_boilerplate_does_not_close_posting():
+    for body in (
+        "Apply now. Please note we are not accepting applications from recruitment agencies.",
+        "We are no longer accepting CVs from agencies at this time.",
+        "We are not accepting applications from third-party recruiters.",
+        "Ya no aceptamos solicitudes de agencias de selección.",
+    ):
+        assert is_open_status_ok(body, True, True) is True, body
+
+
+def test_closed_phrases_still_close_posting():
+    for body in (
+        "This vacancy is closed and no longer accepting applications.",
+        "We are not accepting applications for this role.",
+        "Applications closed.",
+    ):
+        assert is_open_status_ok(body, True, True) is False, body

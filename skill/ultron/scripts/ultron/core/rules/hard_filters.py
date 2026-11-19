@@ -37,7 +37,12 @@ from ultron.core.rules.role_matching import (
     score_role_family,
 )
 from ultron.core.rules.term_matching import find_terms, normalize_text
-from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary, word_boundary_pattern
+from ultron.core.rules.text_patterns import (
+    contains_any_substring,
+    contains_any_word_boundary,
+    term_boundary_pattern,
+    word_boundary_pattern,
+)
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 
 logger = logging.getLogger(__name__)
@@ -170,6 +175,18 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
     return not _has_contextual_hybrid_conflict(body_low)
 
 
+_CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+
+
+def _has_closed_status_phrase(low: str) -> bool:
+    """Whole-phrase CLOSED_STATUS_PHRASES match, ignoring "not accepting applications from agencies" boilerplate."""
+    for phrase in rules_data.CLOSED_STATUS_PHRASES:
+        for match in term_boundary_pattern(phrase).finditer(low):
+            if not _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end()):
+                return True
+    return False
+
+
 def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool) -> bool:
     """Reject only explicit closed-status phrases.
 
@@ -179,7 +196,7 @@ def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool) -> b
     """
 
     low = normalize_text(text)
-    if contains_any_substring(low, rules_data.CLOSED_STATUS_PHRASES):
+    if _has_closed_status_phrase(low):
         return False
     if _has_closed_status_with_context(low):
         return False

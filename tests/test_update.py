@@ -45,14 +45,15 @@ def _no_network(request):
     raise AssertionError(f"unexpected download {request.url}")
 
 
-def _no_api(url, *, timeout):
+def _no_api(url, *, timeout, trust_env):
     raise AssertionError(f"unexpected API call {url}")
 
 
 def _api(monkeypatch, releases: dict[str, dict] | Exception, latest: str | None = None):
     calls = []
 
-    def get(url, *, timeout):
+    def get(url, *, timeout, trust_env):
+        assert trust_env is False  # proxies from the environment are ignored, as in net.py
         calls.append(url)
         if isinstance(releases, Exception):
             raise releases
@@ -119,6 +120,17 @@ def _install(path: Path):
     (path / "SKILL.md").write_text("---\nname: ultron\n---\n", encoding="utf-8")
     marker = {"name": "ultron", "installer": "install.py", "path": str(path)}
     (path / ".ultron-install.json").write_text(json.dumps(marker), encoding="utf-8")
+
+
+def _record(records: list[dict]):
+    """Write ``installs.json`` the way install.py does (``links`` plus ``installs`` keyed by path)."""
+    home = Path(update.os.environ["ULTRON_HOME"])
+    home.mkdir(parents=True, exist_ok=True)
+    installs = {}
+    for record in records:
+        installs[record["path"]] = {"mode": "copy", "installed_at": "2026-01-01T00:00:00+00:00", "project": None,
+                                    **record}
+    (home / "installs.json").write_text(json.dumps({"links": {}, "installs": installs}), encoding="utf-8")
 
 
 def _run(capsys, *argv):
@@ -309,6 +321,80 @@ def test_scopes_from_global_and_project_markers(monkeypatch, capsys, tmp_path):
     assert ["--update", "--global", "--platforms", "codex"] in tails
     assert ["--update", "--project", str(project), "--platforms", "claude"] in tails
     assert ["--update", "--project", str(other), "--platforms", "codex,opencode,antigravity"] in tails
+
+
+def test_recorded_project_install_outside_cwd_is_found(monkeypatch, capsys, tmp_path):
+    project = (tmp_path / "elsewhere ñ").resolve()
+    agents = project / ".agents" / "skills" / "ultron"
+    _install(agents)
+    _record([{"scope": "project", "project": str(project), "path": str(agents),
+              "platforms": ["codex", "opencode"], "version": "0.1.0"}])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    _serve(monkeypatch, _zip(_source_zip("0.2.0")))
+    code, out = _run(capsys)  # no --project: the record finds it
+    assert code == 0 and out["status"] == "ready" and out["reason"] == "cli_outdated"
+    [command] = out["commands"]
+    assert command["argv"][-4:] == ["--project", str(project), "--platforms", "codex,opencode"]
+    assert out["installs"][0]["versions"] == {str(agents): "0.1.0"}
+
+
+def test_stale_project_copy_gets_a_command_when_cli_is_current(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(update, "__version__", "0.2.0")
+    home = Path.home()
+    global_copy = home / ".claude" / "skills" / "ultron"
+    _install(global_copy)
+    project = (tmp_path / "old project").resolve()
+    stale = project / ".claude" / "skills" / "ultron"
+    _install(stale)
+    _record([
+        {"scope": "global", "path": str(global_copy), "platforms": ["claude"], "version": "0.2.0"},
+        {"scope": "project", "project": str(project), "path": str(stale), "platforms": ["claude"], "version": "0.1.0"},
+    ])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    _serve(monkeypatch, _zip(_source_zip("0.2.0")))
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "ready" and out["reason"] == "stale_skill_copies"
+    [command] = out["commands"]
+    assert command["scope"] == "project" and command["argv"][-4:] == ["--project", str(project), "--platforms", "claude"]
+
+
+def test_current_recorded_copies_are_up_to_date(monkeypatch, capsys):
+    monkeypatch.setattr(update, "__version__", "0.2.0")
+    global_copy = Path.home() / ".claude" / "skills" / "ultron"
+    _install(global_copy)
+    _record([{"scope": "global", "path": str(global_copy), "platforms": ["claude"], "version": "0.2.0"}])
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "up_to_date" and out["commands"] == []
+
+
+def test_missing_recorded_install_falls_back_to_markers(monkeypatch, capsys, tmp_path):
+    home = Path.home()
+    _install(home / ".config" / "opencode" / "skills" / "ultron")  # pre-record install: marker only
+    gone = tmp_path / "deleted project" / ".claude" / "skills" / "ultron"
+    _record([{"scope": "project", "project": str(gone.parents[2]), "path": str(gone), "platforms": ["claude"],
+              "version": "0.1.0"}])
+    installs = update.discover_installs(home=home, cwd=tmp_path, projects=[])
+    assert [(i["scope"], i["platforms"]) for i in installs] == [("global", ["opencode"])]
+
+
+def test_old_format_registry_falls_back_to_markers(tmp_path):
+    home = Path.home()
+    _install(home / ".claude" / "skills" / "ultron")
+    ultron_home = Path(update.os.environ["ULTRON_HOME"])
+    ultron_home.mkdir(parents=True, exist_ok=True)
+    (ultron_home / "installs.json").write_text(json.dumps({"links": {}}), encoding="utf-8")
+    [install] = update.discover_installs(home=home, cwd=tmp_path, projects=[])
+    assert install["scope"] == "global" and install["platforms"] == ["claude"]
+
+
+def test_record_and_marker_for_the_same_folder_count_once(tmp_path):
+    home = Path.home()
+    copy = home / ".claude" / "skills" / "ultron"
+    _install(copy)
+    _record([{"scope": "global", "path": str(copy), "platforms": ["claude"], "version": "0.1.0"}])
+    copies = update.find_copies(home=home, cwd=tmp_path, projects=[])
+    assert [(c["path"], c["found_by"]) for c in copies] == [(str(copy), "record")]
 
 
 def test_project_option_is_repeatable(monkeypatch, capsys, tmp_path):

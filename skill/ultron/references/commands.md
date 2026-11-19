@@ -98,10 +98,11 @@ are ignored; offline it returns the error `update_check_failed`.
 To update, ask the user first. If they agree:
 
 1. Run `ultron update` (or `ultron update --to vX.Y.Z` for a specific stable release; never `main`). Add
-   `--project DIR` for a project installation outside the current folder. It downloads and verifies that
-   release's source into a new temporary folder and returns `commands`: one `install.py --update` per installed
-   scope (global and/or project, with their platforms). It never runs them, because the running installation
-   cannot replace itself.
+   `--project DIR` only for an older project installation outside the current folder (newer ones are recorded in
+   `installs.json`). It downloads and verifies that release's source into a new temporary folder and returns
+   `commands`: one `install.py --update` per installed scope that needs it (global and/or project, with their
+   platforms). `reason` is `cli_outdated`, or `stale_skill_copies` when the CLI is current but some skill copies
+   are older. It never runs them, because the running installation cannot replace itself.
 2. If `status` is `up_to_date`, `no_release`, `no_installs` or `source_checkout`, tell the user (`detail`) and stop. With
    `dev_links`, those linked folders follow their git checkout and are not updated.
    If `downgrade` is true, the requested version is older than the installed one: confirm with the user again.

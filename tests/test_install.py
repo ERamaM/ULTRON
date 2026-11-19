@@ -935,3 +935,71 @@ def test_purge_removes_home_marker_last_so_a_failed_purge_can_be_retried(inst, f
     monkeypatch.setattr(inst.shutil, "rmtree", real_rmtree)
     assert inst._purge_home(home, dry_run=False) == {"status": "removed"}
     assert not home.exists()
+
+
+# ------------------------------------------------------------------ install records in installs.json
+
+
+def _records(fake_home) -> dict:
+    data = json.loads((fake_home / ".ultron" / "installs.json").read_text(encoding="utf-8"))
+    return data.get("installs", {})
+
+
+def test_install_records_scope_path_platforms_version_mode(inst, fake_home, capsys, tmp_path):
+    code, _ = _run_main(inst, capsys, "--platforms", "claude,opencode")
+    assert code == 0
+    project = tmp_path / "mi proyecto ñ"
+    project.mkdir()
+    code, _ = _run_main(inst, capsys, "--project", str(project), "--platforms", "codex,opencode")
+    assert code == 0
+    records = _records(fake_home)
+    claude = records[str(fake_home / ".claude" / "skills" / "ultron")]
+    assert claude["scope"] == "global" and claude["platforms"] == ["claude"] and claude["mode"] == "copy"
+    assert claude["version"] == inst._skill_version() and claude["installed_at"]
+    assert claude["path"] == str(fake_home / ".claude" / "skills" / "ultron") and claude.get("project") is None
+    agents = records[str(project.resolve() / ".agents" / "skills" / "ultron")]
+    assert agents["scope"] == "project" and agents["project"] == str(project.resolve())
+    assert agents["platforms"] == ["codex", "opencode"]
+    assert str(fake_home / ".config" / "opencode" / "skills" / "ultron") in records
+    assert not list((fake_home / ".ultron").glob("*.tmp"))  # atomic write leaves no temp file
+
+
+def test_update_rewrites_record_and_uninstall_removes_it(inst, fake_home, capsys, monkeypatch):
+    _run_main(inst, capsys, "--platforms", "claude")
+    path = str(fake_home / ".claude" / "skills" / "ultron")
+    first = _records(fake_home)[path]
+    monkeypatch.setattr(inst, "_skill_version", lambda source=None: "9.9.9")
+    code, _ = _run_main(inst, capsys, "--update", "--platforms", "claude")
+    assert code == 0
+    assert _records(fake_home)[path]["version"] == "9.9.9" != first["version"]
+    code, _ = _run_main(inst, capsys, "--uninstall", "--platforms", "claude")
+    assert code == 0
+    assert path not in _records(fake_home)
+
+
+def test_old_registry_format_keeps_links_and_migrates(inst, fake_home, capsys):
+    registry = fake_home / ".ultron" / "installs.json"
+    registry.parent.mkdir(parents=True)
+    old_links = {str(fake_home / "proj" / ".claude" / "skills" / "ultron"): str(fake_home / "checkout")}
+    registry.write_text(json.dumps({"links": old_links}), encoding="utf-8")
+    assert inst._read_registry() == old_links
+    code, _ = _run_main(inst, capsys, "--platforms", "claude")
+    assert code == 0
+    data = json.loads(registry.read_text(encoding="utf-8"))
+    assert data["links"] == old_links
+    assert str(fake_home / ".claude" / "skills" / "ultron") in data["installs"]
+
+
+def test_corrupt_registry_does_not_break_install(inst, fake_home, capsys):
+    registry = fake_home / ".ultron" / "installs.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_text("{not json", encoding="utf-8")
+    code, _ = _run_main(inst, capsys, "--platforms", "claude")
+    assert code == 0
+    assert str(fake_home / ".claude" / "skills" / "ultron") in _records(fake_home)
+
+
+def test_dry_run_records_nothing(inst, fake_home, capsys):
+    code, _ = _run_main(inst, capsys, "--platforms", "claude", "--dry-run")
+    assert code == 0
+    assert not (fake_home / ".ultron" / "installs.json").exists()

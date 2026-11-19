@@ -56,6 +56,8 @@ def test_seed_yield_tiers():
     assert SeedYield(3, 0).measured and not SeedYield(4, 0).deprioritized
     assert SeedYield(5, 0).deprioritized and not SeedYield(5, 1).deprioritized
     assert SeedYield(4, 3).rank() < SeedYield(4, 1).rank() < SeedYield(0, 0).rank() < SeedYield(3, 0).rank()
+    # Keeps rank first even before the seed is measured (2 attempts, 2 keeps beats an unused seed).
+    assert SeedYield(2, 2).rank() < SeedYield(0, 0).rank() and not SeedYield(2, 2).measured
 
 
 # --- ranking -----------------------------------------------------------------------------------------
@@ -98,8 +100,9 @@ def test_exploration_reserve_keeps_a_slot_for_unmeasured_seeds(pack_dir):
     selected, counts, stats = _select(10, yields)
     names = _boards(selected)
     assert len(names) == 10
-    assert names[:9] == [f"m{i}" for i in range(9)]
-    assert names[9] == "new1"  # ceil(10% of 10) = 1 reserved slot, filled in ranked order
+    # ceil(10% of 10) = 1 reserved slot. Reserved exploration seeds are queried first, so a higher-ranked board
+    # on the same host cannot use up the host's request budget before them.
+    assert names == ["new1"] + [f"m{i}" for i in range(9)]
     assert stats["exploration_reserved"] == 1
     assert counts["pack"]["capped"] == 4
 
@@ -109,7 +112,7 @@ def test_exploration_reserve_above_one_keeps_the_best_ranked_unmeasured_seeds(pa
     yields = {f"lever:k{i:02d}": (5, 5) for i in range(19)}
     selected, _counts, stats = _select(20, yields)
     # ceil(10% of 20) = 2 reserved slots: the plain order already gives one to u0, the reserve adds u1.
-    assert _boards(selected) == [f"k{i:02d}" for i in range(18)] + ["u0", "u1"]
+    assert _boards(selected) == ["u0", "u1"] + [f"k{i:02d}" for i in range(18)]
     assert stats["exploration_reserved"] == 1
 
 
@@ -117,7 +120,7 @@ def test_exploration_reserve_is_at_least_one_and_deterministic(pack_dir):
     _write_pack(pack_dir, ["m0", "m1", "m2", "fresh"])
     yields = {"lever:m0": (5, 5), "lever:m1": (5, 4), "lever:m2": (5, 3)}
     first = _boards(_select(3, yields)[0])
-    assert first == ["m0", "m1", "fresh"]
+    assert first == ["fresh", "m0", "m1"]
     assert _boards(_select(3, yields)[0]) == first
 
 
@@ -125,7 +128,7 @@ def test_exploration_reserve_respects_host_cap(pack_dir):
     _write_pack(pack_dir, ["m0", "m1", "m2", "fresh"])
     yields = {"lever:m0": (5, 5), "lever:m1": (5, 4), "lever:m2": (5, 3)}
     selected, counts, stats = _select(3, yields, per_host=2)
-    assert _boards(selected) == ["m0", "fresh"]
+    assert _boards(selected) == ["fresh", "m0"]
     assert stats["exploration_reserved"] == 1
     assert counts["pack"]["host_capped"] == 2
 

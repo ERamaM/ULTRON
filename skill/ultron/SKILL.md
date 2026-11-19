@@ -25,7 +25,7 @@ Users may type a short command after the skill name (`/ultron jobs new`, `$ultro
 | `profile` | list profiles | `show`, `cv`, `companies` |
 | `jobs` | list saved jobs | `new`, `mark`, `why` |
 | `runs` | list past runs | `show`, `excel` |
-| `system` | `ultron doctor` | `data` |
+| `system` | `ultron doctor` | `data`, `report` |
 
 Only the skill name, `help` or an unknown command → show the menu. What each command runs, and how to
 present it: `references/commands.md`. Anything else is a normal request (see Other intents).
@@ -87,6 +87,7 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | to start from a CV, or create or edit a profile | `ultron cv extract`; `references/profile.md` |
 | a saved search, or a scheduled or repeated run | `references/scheduling.md` |
 | an Excel file of a run | `ultron export xlsx --run <id>`; `references/jobs-ledger.md` |
+| help preparing or submitting a bug report or GitHub issue | `references/issue-reporting.md` |
 | backup, cleanup, delete runs, purge or restore data | `references/data-maintenance.md` (always preview first) |
 
 ## Rules of thumb

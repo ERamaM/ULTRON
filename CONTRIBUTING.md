@@ -2,6 +2,10 @@
 
 Contributions are welcome. ULTRON aims to keep its skill instructions concise, its heuristics deterministic, and its test suite fast across Linux, macOS, and Windows.
 
+## Reporting an Issue
+
+Use the [GitHub issue forms](https://github.com/ERamaM/ULTRON/issues/new/choose) for bugs, usage questions, and feature requests. For a bug, use a minimal synthetic example and include `ultron doctor --public` if the CLI starts. The skill can prepare and submit a reviewed report with `system report`. Use the [private reporting channel](SECURITY.md#reporting-a-vulnerability) for security vulnerabilities.
+
 ## Development Setup
 
 1. Ensure [uv](https://docs.astral.sh/uv/) and Git are installed (`python >= 3.12` is managed automatically by `uv`).
@@ -34,6 +38,7 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 
 ## Pull Request Guidelines
 
+- Use the [pull request template](.github/pull_request_template.md) to describe the change, link related issues, and record validation.
 - Keep PRs focused and include regression tests for bug fixes or new ATS/feed behaviors.
 - Never commit `.env` files, personal profiles/CVs, `~/.ultron` exports, or hardcoded local filesystem paths.
 - Check GitHub Actions results (`lint`, `secrets`, `test`, and `install-smoke`) after pushing.

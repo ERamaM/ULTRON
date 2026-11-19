@@ -114,6 +114,24 @@ def test_parse_generic_flags_jobposting_with_past_valid_through():
     assert base.parse_generic(_page(page("soon"))).valid_through_expired is False
 
 
+def test_expired_recommendation_does_not_expire_the_page():
+    def page(nodes: str) -> str:
+        return f'<html><head><script type="application/ld+json">[{nodes}]</script></head><body></body></html>'
+
+    other = ('{"@type": "JobPosting", "title": "Data Engineer", "validThrough": "2020-02-01T00:00:00Z", '
+             '"url": "https://boards.greenhouse.io/acme/jobs/999"}')
+    # Only a recommendation with an expired deadline: it may fill in the title, but not expire this page.
+    active = base.parse_generic(_page(page(other)))
+    assert active.valid_through_expired is False
+    # The page's own posting still decides, whichever order the nodes come in.
+    own = ('{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01T00:00:00Z", '
+           '"url": "https://boards.greenhouse.io/acme/jobs/123"}')
+    assert base.parse_generic(_page(page(f"{other}, {own}"))).valid_through_expired is True
+    # A node without a url is still trusted, as before.
+    bare = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01T00:00:00Z"}'
+    assert base.parse_generic(_page(page(bare))).valid_through_expired is True
+
+
 def test_parse_generic_domain_fallback_company_when_no_other_signal():
     html = "<html><head><title>Careers</title></head><body></body></html>"
     job = base.parse_generic(_page(html, final_url="https://acme-corp.example.com/careers/123"))

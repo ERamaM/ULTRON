@@ -455,6 +455,10 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
         node_url = job.get("url")
         if page_key and isinstance(node_url, str) and _comparable_page_url(node_url) == page_key:
             return fields
+        if page_key and isinstance(node_url, str) and node_url.strip():
+            # A node that names another posting (e.g. a recommendation) may still fill in fields, but its
+            # deadline is not evidence that this page has expired.
+            fields = {**fields, "valid_through": ""}
         if fields.get("title"):
             if not page_key:
                 return fields

@@ -447,8 +447,16 @@ def _comparable_page_url(url: str) -> str:
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
 
 
+_MAX_IDENTITY_URL_CHARS = 2048  # posting URLs come from untrusted pages; longer ones are never parsed
+
+
 def _posting_identity(url: str) -> str:
-    """Identity of the posting a URL points at; keeps job-identifying query parameters such as ``gh_jid``."""
+    """Identity of the posting a URL points at; keeps job-identifying query parameters such as ``gh_jid``.
+
+    An overlong URL gets no identity (``""``), so it never matches the page and its query is never parsed.
+    """
+    if len(url) > _MAX_IDENTITY_URL_CHARS:
+        return ""
     try:
         return canonical_job_identity(url).identity_key
     except (ValueError, TypeError):
@@ -463,13 +471,15 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
     never evidence that this page has expired, even when it is used to fill in other fields.
     """
     first_fields: dict[str, str] | None = None
+    urlless: dict[str, str] | None = None
     path_match: dict[str, str] | None = None
     page_key = _comparable_page_url(page_url or "")
     page_identity = _posting_identity(page_url or "") if page_key else ""
     for job in _iter_jobposting_nodes(soup):
         fields = _structured_fields_from_node(job)
         node_url = job.get("url")
-        if page_key and isinstance(node_url, str) and node_url.strip():
+        has_url = isinstance(node_url, str) and bool(node_url.strip())
+        if page_key and has_url:
             resolved = urljoin(page_url or "", node_url.strip())
             if page_identity and _posting_identity(resolved) == page_identity:
                 return fields
@@ -478,6 +488,8 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
                 if path_match is None:
                     path_match = fields  # same path, different job id (e.g. ?gh_jid=...): fields only
                 continue
+        elif page_key and (urlless is None or (fields.get("title") and not urlless.get("title"))):
+            urlless = fields  # may describe this page; preferred over a node that names another posting
         if fields.get("title"):
             if not page_key:
                 return fields
@@ -486,7 +498,8 @@ def _extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None)
             continue
         if first_fields is None:
             first_fields = fields
-    return path_match or first_fields or {}
+    # Exact identity first (returned above), then a node without url, then the same path with another job id.
+    return urlless or path_match or first_fields or {}
 
 
 def extract_text_lines(text: str) -> list[str]:

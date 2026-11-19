@@ -309,3 +309,17 @@ def test_redirect_to_invalid_idna_hostname_is_rejected():
     # httpx already reports a bad Location as a protocol error; either way it must be a handled error type.
     with pytest.raises((HttpError, URLRejected)):
         make_client(handler).get_text("https://x.test/")
+
+
+def test_unicode_host_resolves_the_ascii_name_httpx_connects_to():
+    asked: list[str] = []
+
+    def resolver(hostname: str, port: int) -> list[str]:
+        asked.append(hostname)
+        # The two IDNA encodings of "faß.de" point at different servers.
+        return ["93.184.216.34"] if hostname == "xn--fa-hia.de" else ["198.51.100.7"]
+
+    client = make_client(lambda r: httpx.Response(200, text="ok"), resolver=resolver)
+    assert client.get_text("https://faß.de/")[0] == 200
+    assert asked == ["xn--fa-hia.de"]
+    assert client._validated["faß.de"] == ("93.184.216.34",)

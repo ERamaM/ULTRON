@@ -403,3 +403,23 @@ def test_block_streak_counts_every_403_429_attempt_and_resets():
     client.get_text("https://x.test/c")
     assert client.block_streak("x.test") == 1
     assert client.block_streak("other.test") == 0
+
+
+def test_block_threshold_stops_requests_redirects_and_retries_to_a_blocked_host():
+    hits: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits.append(f"{request.url.host}{request.url.path}")
+        if request.url.host == "blocked.test":
+            return httpx.Response(403)
+        return httpx.Response(302, headers={"Location": "https://blocked.test/r"})
+
+    client = make_client(handler, block_threshold=2)
+    assert client.get_text("https://blocked.test/1")[0] == 403
+    assert client.get_text("https://blocked.test/2")[0] == 403
+    with pytest.raises(net.HostBlocked):
+        client.get_text("https://blocked.test/3")
+    with pytest.raises(net.HostBlocked):  # a redirect hop to the blocked host is not followed
+        client.get_text("https://open.test/x")
+    assert hits == ["blocked.test/1", "blocked.test/2", "open.test/x"]
+    assert make_client(handler).block_threshold is None  # off by default

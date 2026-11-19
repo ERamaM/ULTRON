@@ -1,0 +1,25 @@
+name: General issue or feature request
+description: Suggest an improvement, ask a usage question, or report a documentation gap.
+body:
+  - type: markdown
+    attributes:
+      value: This issue is public. Use synthetic examples and omit personal data, credentials, and private links.
+  - type: textarea
+    id: context
+    attributes:
+      label: What are you trying to do?
+      description: Describe the goal and where you encountered the limitation or question.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What would help?
+      description: Describe the desired behavior or the question you want answered.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example or additional context
+      description: Use a minimal synthetic example when possible.

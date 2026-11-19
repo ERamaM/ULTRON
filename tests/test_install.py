@@ -996,7 +996,7 @@ def test_pending_termination_never_starts_a_data_purge(inst, fake_home, capsys, 
     _run_main(inst, capsys, "--platforms", "claude")
     _ultron_layout(home)
     monkeypatch.setitem(inst._TERMINATION, "code", 143)
-    code, report = _run_main(inst, capsys, "--uninstall", "--purge-data")
+    code, report = _run_main(inst, capsys, "--uninstall", "--purge-data", "--platforms", "codex")
     assert code == 143 and report == {"error": "terminated", "detail": report["detail"]}
     assert (home / "ultron.sqlite3").is_file()
 

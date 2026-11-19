@@ -196,7 +196,7 @@ def test_verify_explicit_careers_url_does_not_probe_other_vendors():
         timeout=5,
     )
     assert custom.status == "unresolved" and custom.reason == "no_board_found"
-    assert seen == []
+    assert seen == ["acme.example"]  # one capped hop to the careers page itself, no slug guessing
 
 
 def test_add_seeds_atomic_and_links_profile():

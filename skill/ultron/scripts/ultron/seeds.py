@@ -24,7 +24,8 @@ import yaml
 from ultron import home
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.identity import seed_identity
-from ultron.core.ats.registry import GENERIC_BOARD_IDENTIFIERS, extract_seed_from_url
+from ultron.core.ats.registry import GENERIC_BOARD_IDENTIFIERS, extract_seed_from_url, is_direct_supported_ats_host
+from ultron.core.feeds.urls import AGGREGATOR_DOMAINS, fetch_page_links, looks_like_company_jobs_url
 from ultron.core.models import AtsBoardSeed
 from ultron.core.sectors import seed_sector_values
 from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
@@ -487,8 +488,90 @@ def as_feed_company(seed: AtsBoardSeed) -> AtsBoardSeed:
     return seed.model_copy(update={"source_type": "feed_company", "source_label": "Feed company (verified)"})
 
 
+# One capped hop from a company careers page (or an aggregator posting page) to the ATS boards it links
+# (MARK II seed discovery expansion pass). Totals are per ``PageHops`` (one per ``seeds verify`` call or stage).
+PAGE_HOP_TOTAL = 10
+PAGE_HOP_PER_HOST = 2
+PAGE_HOP_MAX_BOARDS = 3
+_AGGREGATOR_REGISTRABLE = frozenset(d.removeprefix("www.") for d in AGGREGATOR_DOMAINS)
+
+
+@dataclass
+class PageHops:
+    """Careers/aggregator page fetches left: at most ``total`` pages and ``per_host`` pages per host."""
+
+    total: int = PAGE_HOP_TOTAL
+    per_host: int = PAGE_HOP_PER_HOST
+    used: dict[str, int] = field(default_factory=dict)
+
+    def take(self, host: str) -> bool:
+        if sum(self.used.values()) >= self.total or self.used.get(host, 0) >= self.per_host:
+            return False
+        self.used[host] = self.used.get(host, 0) + 1
+        return True
+
+
+class _DomainScopedPages:
+    """``fetch_page_links`` client whose requests and redirect hops stay on one registrable domain."""
+
+    def __init__(self, client: HttpClient, domain: str) -> None:
+        self._client = client
+        self._domains = (domain,)
+
+    def get_text(self, url: str) -> tuple[int, str, str]:
+        return self._client.get_text(url, allowed_domains=self._domains)
+
+
+def _page_hop_target(p: Proposal, *, explicit: bool) -> tuple[str, str, str] | None:
+    """``(url, registrable domain, kind)`` of the page to follow, kind ``company`` or ``aggregator``.
+
+    With an explicit proposal only a ``careers_url`` that is not an ATS URL qualifies; otherwise the
+    ``source_url`` (a feed posting page) does. A company page must sit on the proposal's domain (or, for an
+    agent's ``careers_url`` without ``domain``, look like a careers page); aggregator pages always qualify.
+    """
+    url = (p.careers_url if explicit else p.source_url).strip()
+    if not url or urlparse(url).scheme not in {"http", "https"} or extract_seed_from_url(url, "") is not None:
+        return None
+    reg = registrable_domain(url)
+    if not reg or is_direct_supported_ats_host(reg):
+        return None
+    if reg in _AGGREGATOR_REGISTRABLE:
+        return url, reg, "aggregator"
+    own = registrable_domain(p.domain)
+    if (own and reg == own) or (explicit and not own and looks_like_company_jobs_url(url)):
+        return url, reg, "company"
+    return None
+
+
+def _aggregator_board_is_company(p: Proposal, board: str, jobs, *, single: bool) -> bool:
+    """An aggregator page links other companies' boards too: accept the only board it links, or one whose slug
+    is the company key; never one whose vendor names another company."""
+    words = _core_company_words(p.company)
+    keys = {"".join(words), "".join(re.findall(r"[a-z0-9]+", ascii_fold(p.company)))} - {""}
+    vendor_names = _vendor_company_names(jobs)
+    if vendor_names and not vendor_names & keys:
+        return False
+    return single or board.lower().replace("-", "") in keys
+
+
+def _linked_boards(links: list[str]) -> list[tuple[str, str]]:
+    """Distinct ATS boards linked from a page: only links on a vendor host, never a slug built from a name."""
+    boards: list[tuple[str, str]] = []
+    for link in links:
+        try:
+            host = (urlparse(link).hostname or "").lower()
+        except ValueError:
+            continue
+        if not host or not is_direct_supported_ats_host(host):
+            continue
+        hit = extract_seed_from_url(link, "")
+        if hit is not None and (hit.ats, hit.board_identifier) not in boards:
+            boards.append((hit.ats, hit.board_identifier))
+    return boards
+
+
 def verify_proposal(
-    p: Proposal, *, client: HttpClient, timeout: int, verify_only: bool = False
+    p: Proposal, *, client: HttpClient, timeout: int, verify_only: bool = False, page_hops: PageHops | None = None,
 ) -> VerifyResult:
     def unresolved(reason: str) -> VerifyResult:
         return VerifyResult(p, "unresolved", None, 0, reason)
@@ -508,50 +591,86 @@ def verify_proposal(
         for slugs in (primary, normalized):
             pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
 
-    unsupported = invalid = host_budget = False
+    unsupported = invalid = host_budget = budget_spent = False
     doubtful: tuple[str, dict] | None = None  # (reason, candidate) of the best guessed board not proven owned
     skipped_vendors: set[str] = set()
     seen: set[tuple[str, str]] = set()
-    for ats, board in pairs:
-        key = seed_identity(ats, board)
-        if key in seen:
-            continue
-        seen.add(key)
-        if ats in skipped_vendors:
-            continue
-        try:
-            if verify_only:
-                jobs = fetch_vendor_jobs(ats, board, client=client, timeout=timeout, verify_only=True)
-            else:
-                jobs = fetch_vendor_jobs(ats, board, client=client, timeout=timeout)
-        except RequestBudgetExceeded as exc:
-            if getattr(exc, "scope", "global") == "host":
-                host_budget = True
-                skipped_vendors.add(ats)
+    answered: dict[tuple[str, str], list] = {}  # boards that answered, with their postings
+
+    def probe(candidates: list[tuple[str, str]], mode: str) -> VerifyResult | None:
+        """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page (single = 1 board)."""
+        nonlocal unsupported, invalid, host_budget, budget_spent, doubtful
+        for ats, board in candidates:
+            key = seed_identity(ats, board)
+            try:
+                if key in seen:
+                    if key not in answered:
+                        continue
+                    jobs = answered[key]  # a guessed board the page now links: judge it again, no new request
+                elif ats in skipped_vendors:
+                    continue
+                else:
+                    seen.add(key)
+                    if verify_only:
+                        jobs = fetch_vendor_jobs(ats, board, client=client, timeout=timeout, verify_only=True)
+                    else:
+                        jobs = fetch_vendor_jobs(ats, board, client=client, timeout=timeout)
+                    answered[key] = jobs
+            except RequestBudgetExceeded as exc:
+                if getattr(exc, "scope", "global") == "host":
+                    host_budget = True
+                    skipped_vendors.add(ats)
+                    continue
+                budget_spent = True
+                return None
+            except AtsClientError as exc:
+                unsupported = unsupported or str(exc) == "vendor_not_supported_yet"
+                invalid = invalid or str(exc) == "invalid_board"
                 continue
-            return unresolved("budget_exhausted")
-        except AtsClientError as exc:
-            unsupported = unsupported or str(exc) == "vendor_not_supported_yet"
-            invalid = invalid or str(exc) == "invalid_board"
-            continue
-        except (HttpError, URLRejected, ValueError, KeyError, TypeError, AttributeError):
-            continue
-        if not has_explicit and not jobs:
-            # MARK II verification_probe rule: when probing guessed slugs, an empty
-            # jobs array alone is never proof that the company owns that board.
-            continue
-        if not has_explicit:
-            verdict = guessed_board_ownership(p, board, jobs)
-            if verdict != "owned":
-                # Keep probing: a later vendor or slug may hold the company's own board.
-                if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
-                    doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
+            except (HttpError, URLRejected, ValueError, KeyError, TypeError, AttributeError):
                 continue
-        try:
-            seed = _build_seed(p, ats, board, len(jobs))
-        except ValueError:  # vendor outside the supported Literal
-            continue
-        return VerifyResult(p, "verified", seed, len(jobs), "", tuple(jobs))
+            if mode in {"guess", "aggregator_page"} and not jobs:
+                # MARK II verification_probe rule: when probing guessed slugs, an empty
+                # jobs array alone is never proof that the company owns that board.
+                continue
+            if mode == "guess":
+                verdict = guessed_board_ownership(p, board, jobs)
+                if verdict != "owned":
+                    # Keep probing: a later vendor or slug may hold the company's own board.
+                    if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
+                        doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
+                    continue
+            if mode == "aggregator_page" and not _aggregator_board_is_company(p, board, jobs, single=len(candidates) == 1):
+                continue
+            try:
+                seed = _build_seed(p, ats, board, len(jobs))
+            except ValueError:  # vendor outside the supported Literal
+                continue
+            return VerifyResult(p, "verified", seed, len(jobs), "", tuple(jobs))
+        return None
+
+    found = probe(pairs, "explicit" if has_explicit else "guess")
+    if found is not None:
+        return found
+    if budget_spent:
+        return unresolved("budget_exhausted")
+    target = _page_hop_target(p, explicit=has_explicit)
+    if target is not None:
+        url, reg, kind = target
+        hops = page_hops if page_hops is not None else PageHops()
+        if hops.take((urlparse(url).hostname or "").lower()):
+            try:
+                links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
+            except RequestBudgetExceeded as exc:
+                if getattr(exc, "scope", "global") != "host":
+                    return unresolved("budget_exhausted")
+                links = []
+            boards = _linked_boards(links)[:PAGE_HOP_MAX_BOARDS]
+            found = probe(boards, f"{kind}_page")
+            if found is not None:
+                return found
+            if budget_spent:
+                return unresolved("budget_exhausted")
     if doubtful is not None:
         return VerifyResult(p, "unresolved", None, 0, doubtful[0], candidate=doubtful[1])
     if invalid:

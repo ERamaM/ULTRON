@@ -267,6 +267,7 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
     verified = []
     prefetched: dict[str, list] = {}
     tried = 0
+    page_hops = seed_store.PageHops()
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -279,7 +280,7 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
         tried += 1
         result = seed_store.verify_proposal(
             seed_store.Proposal(**{k: str(row.get(k) or "").strip() for k in keys}),
-            client=verify_client, timeout=timeout, verify_only=True,
+            client=verify_client, timeout=timeout, verify_only=True, page_hops=page_hops,
         )
         if result.status == "verified" and result.seed:
             known.add(seed_identity(result.seed.ats, result.seed.board_identifier))

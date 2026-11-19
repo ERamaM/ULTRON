@@ -50,11 +50,14 @@ def _verify(args: argparse.Namespace) -> int:
     timeout = run["settings"]["ats_api_timeout"]
     verified: list[seeds.VerifyResult] = []
     failed: list[dict] = []
+    page_hops = seeds.PageHops()
     for row in rows:
         if not isinstance(row, dict) or not str(row.get("company") or "").strip():
             failed.append({"company": None, "reason": "invalid_proposal", "proposal": row})
             continue
-        result = seeds.verify_proposal(_proposal(row), client=client, timeout=timeout, verify_only=True)
+        result = seeds.verify_proposal(
+            _proposal(row), client=client, timeout=timeout, verify_only=True, page_hops=page_hops,
+        )
         if result.status == "verified":
             verified.append(result)
         else:

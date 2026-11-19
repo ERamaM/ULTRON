@@ -68,3 +68,26 @@ def test_disabled_check_does_not_contact_github(monkeypatch):
 
     monkeypatch.setattr(update_notice.httpx, "get", get)
     assert update_notice.release_notice("0.1.0") is None
+
+
+def test_recent_check_with_mtime_slightly_ahead_is_not_repeated(monkeypatch, tmp_path):
+    calls = []
+
+    def get(url, *, timeout):
+        calls.append(url)
+        return httpx.Response(200, json={"tag_name": "v0.10.0"}, request=httpx.Request("GET", url))
+
+    monkeypatch.setenv("ULTRON_HOME", str(tmp_path))
+    monkeypatch.setattr(update_notice.httpx, "get", get)
+    checked = tmp_path / "update-notices" / "last-checked"
+    checked.parent.mkdir()
+    checked.touch()
+    ahead = time.time() + 2
+    os.utime(checked, (ahead, ahead))
+    assert update_notice.release_notice("0.9.0") is None
+    assert not calls
+
+    far_future = time.time() + 3600
+    os.utime(checked, (far_future, far_future))
+    update_notice.release_notice("0.9.0")
+    assert len(calls) == 1

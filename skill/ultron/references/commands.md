@@ -9,15 +9,15 @@ clear (for example `ultron new openings` = `jobs new`).
 Anything that is not a command (for example `ultron find data roles in Madrid`) is a normal request: handle it
 with the matching intent in SKILL.md.
 
-## Menu
+## Shortcut reference
 
-Show this menu, translated into the user's language, when the user gives only the skill name, `help`, `menu`, or an
-unknown command (then say which word was not recognized). A group without an action runs its default (marked
-"default"); `<group> help` lists that group's actions.
+Use this table to interpret shortcuts the user already knows. For general help, follow the
+conversational walkthrough in SKILL.md. Show syntax when the user explicitly asks for it.
+A group without an action runs its default (marked "default").
 
 ```
 ultron search [profile] [preset]      full search with the agent (default)
-       search quick [profile]         heuristic-only search, no web search or evaluation
+       search quick [profile] [preset] heuristic-only search, no web search or evaluation
        search saved [list|run|create|delete] [name]
 ultron profile                        list profiles (default)
        profile show <profile>
@@ -41,10 +41,12 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 
 ### search
 
-- `search [profile] [preset]`: the search loop in SKILL.md. Without a profile, run `ultron profile list` and ask which
-  one (or offer `profile cv`). Preset defaults to `balanced`; also `fast`, `deep`, `seed_boost`.
-- `search quick [profile]`: `ultron run --unattended --profile <slug>`; then summarize the counts and the top of
-  `results.md`. Tell the user it used heuristics only.
+- `search [profile] [preset]`: follow the profile selection steps and search loop in SKILL.md.
+  Preset defaults to `balanced`. Other presets are `fast`, `deep`, and `seed_boost`.
+- `search quick [profile] [preset]`: follow the same profile selection steps. Once the profile is
+  selected, run `ultron run --unattended --profile <slug> [--preset <p>]` with the requested preset
+  and summarize the counts and top matches. Use `balanced` by default.
+  Tell the user it used heuristics only.
 - `search saved ...`: `ultron saved-search list|run|create|delete`; see `references/scheduling.md`.
 
 ### profile

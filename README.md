@@ -149,24 +149,20 @@ Public structured feed and curated remote-company list endpoints are configured 
 | `deep` | 4000 | 400 | 120 | 45 | 60 |
 | `seed_boost` | 4000 | 400 | 220 | 45 | 120 |
 
-## First Use, Commands & Unattended Mode
+## First Use
 
 Open any supported agent and ask naturally:
 
 - *"Create a search profile from my attached CV and find remote backend roles in Europe."*
 - *"Run my saved search again and show only newly posted openings."*
 
-Or invoke short command groups (`<prefix>` = `/ultron` in Claude Code, `$ultron` in Codex, `ultron` in OpenCode/Antigravity):
+If you ask for an interactive search without choosing a profile, ULTRON lists your options and asks
+which one to use. You can also create a profile from a CV or describe the roles, regions, and work
+mode you want.
 
-| Command | Action |
-| --- | --- |
-| `search [profile] [preset]` | Full hybrid search loop (`search quick`, `search saved`) |
-| `profile` | List, inspect (`show`), create from CV (`cv <path>`), or view verified companies |
-| `jobs [filter]` | Browse saved roles (`jobs new`, `jobs mark <job> <state>`, `jobs why <url>`) |
-| `runs` | Inspect past runs (`runs show`, `runs excel`) |
-| `system` | Run diagnostics (`system`) or backup/maintenance (`system data`) |
+Ask “How does ULTRON work?” for a quick walkthrough and examples of what you can ask next.
 
-**Unattended mode (zero tokens, ideal for cron/Task Scheduler):**
+### Unattended Mode
 
 ```sh
 ultron profile install-example

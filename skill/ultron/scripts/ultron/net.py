@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
+from datetime import UTC
+from email.utils import parsedate_to_datetime
 from types import TracebackType
 from typing import Any, Self
 from urllib.parse import urljoin, urlsplit
@@ -20,6 +22,10 @@ MAX_REDIRECTS = 5
 MAX_ATTEMPTS = 3
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 MAX_RETRY_AFTER = 10.0
+# Adaptive per-host delay: a 429 doubles it (at least 5s, at most 15s); each 2xx lowers it by 0.5s.
+HOST_BACKOFF_MIN = 5.0
+HOST_BACKOFF_MAX = 15.0
+HOST_BACKOFF_DECAY = 0.5
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 
 
@@ -41,6 +47,14 @@ class HttpError(RuntimeError):
         self.status_code = status_code
 
 
+class HostBlocked(HttpError):
+    """The host answered 403/429 ``block_threshold`` times in a row; no further request is sent to it."""
+
+    def __init__(self, host: str) -> None:
+        super().__init__(f"host_blocked: {host}")
+        self.host = host
+
+
 def _is_transient(exc: HttpError, method: str) -> bool:
     """Connect failures never reached the server, so any method may retry; read timeouts only for safe methods."""
     cause = exc.__cause__
@@ -49,17 +63,24 @@ def _is_transient(exc: HttpError, method: str) -> bool:
     return isinstance(cause, httpx.ReadTimeout) and method in {"GET", "HEAD"}
 
 
-def _retry_after(response: httpx.Response) -> float | None:
-    raw = response.headers.get("Retry-After")
-    if raw is None:
+def _retry_after(response: httpx.Response, now: float) -> float | None:
+    """Seconds from ``Retry-After`` (delta-seconds or HTTP-date against wall-clock ``now``), capped."""
+    raw = (response.headers.get("Retry-After") or "").strip()
+    if not raw:
         return None
     try:
-        value = float(raw.strip())
+        value = float(raw)
     except ValueError:
+        try:
+            when = parsedate_to_datetime(raw)
+            if when.tzinfo is None:  # "-0000" zone: RFC 5322 says UTC
+                when = when.replace(tzinfo=UTC)
+            value = max(when.timestamp() - now, 0.0)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+    if not value >= 0:  # NaN or negative delta-seconds
         return None
-    if 0 <= value <= MAX_RETRY_AFTER:
-        return value
-    return None
+    return min(value, MAX_RETRY_AFTER)
 
 
 def _decode_body(raw: bytes, declared: str | None) -> str:
@@ -92,7 +113,12 @@ class HttpClient:
         resolver: Resolver | None = None,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
+        block_threshold: int | None = None,
     ) -> None:
+        # With a threshold, a host whose consecutive 403/429 streak reached it gets no more requests from this
+        # client: no retry, no redirect hop and no fallback call to it (they raise HostBlocked instead).
+        self.block_threshold = block_threshold
         self.max_requests = max_requests
         self.max_requests_per_host = max_requests_per_host
         self.max_bytes = max_bytes
@@ -102,8 +128,11 @@ class HttpClient:
         self._resolver = resolver
         self._sleep = sleep
         self._clock = clock
+        self._wall_clock = wall_clock
         self._per_host: dict[str, int] = {}
         self._last_request: dict[str, float] = {}
+        self._host_delay: dict[str, float] = {}
+        self._block_streak: dict[str, int] = {}
         self._validated: dict[str, tuple[str, ...]] = {}  # hostname -> addresses validated for the current hop
         self._client = httpx.Client(
             # An injected transport (tests) sees the logical URL; the pinned addresses travel in the extension.
@@ -138,10 +167,27 @@ class HttpClient:
         self.requests_made += 1
         self._per_host[host] = self._per_host.get(host, 0) + 1
 
+    def host_delay(self, host: str) -> float:
+        """Current minimum spacing between requests to ``host`` (adapts to 429 and 2xx responses)."""
+        return self._host_delay.get(host, self.min_interval_per_host)
+
+    def block_streak(self, host: str) -> int:
+        """Consecutive 403/429 responses from ``host``, counting every attempt (retries included)."""
+        return self._block_streak.get(host, 0)
+
+    def _adapt_host_delay(self, host: str, status: int) -> None:
+        self._block_streak[host] = self._block_streak.get(host, 0) + 1 if status in (403, 429) else 0
+        current = self.host_delay(host)
+        if status == 429:
+            self._host_delay[host] = min(HOST_BACKOFF_MAX, max(HOST_BACKOFF_MIN, current * 2.0))
+        elif 200 <= status < 300 and current > self.min_interval_per_host:
+            self._host_delay[host] = max(self.min_interval_per_host, current - HOST_BACKOFF_DECAY)
+
     def _throttle(self, host: str) -> None:
         last = self._last_request.get(host)
-        if last is not None and self.min_interval_per_host > 0:
-            remaining = self.min_interval_per_host - (self._clock() - last)
+        interval = self.host_delay(host)
+        if last is not None and interval > 0:
+            remaining = interval - (self._clock() - last)
             if remaining > 0:
                 self._sleep(remaining)
         self._last_request[host] = self._clock()
@@ -149,6 +195,8 @@ class HttpClient:
     def _send_once(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
     ) -> tuple[int, httpx.Headers, str]:
+        if self.block_threshold is not None and self.block_streak(host) >= self.block_threshold:
+            raise HostBlocked(host)
         self._charge(host)
         self._throttle(host)
         kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
@@ -169,6 +217,7 @@ class HttpClient:
             raise URLRejected("invalid_url") from exc
         except httpx.HTTPError as exc:
             raise HttpError(f"request failed: {type(exc).__name__}") from exc
+        self._adapt_host_delay(host, status)
         raw = bytes(body)
         return status, headers, _decode_body(raw, encoding)
 
@@ -203,7 +252,7 @@ class HttpClient:
                         continue
                     raise
                 if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-                    delay = _retry_after(httpx.Response(status, headers=headers))
+                    delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
                     self._sleep(0.5 * attempt if delay is None else delay)
                     continue
                 break

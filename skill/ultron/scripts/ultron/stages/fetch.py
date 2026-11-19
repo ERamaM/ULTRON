@@ -18,12 +18,16 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
 _WORKABLE_SHORT_JOB_RE = re.compile(r"^/j/([A-Za-z0-9]{6,})(?:/|$)")
 _SPA_BODY_MIN_CHARS = 400
+# Consecutive 403/429 responses from one host before HttpClient stops sending it requests. Every response
+# counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
+# host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
+HOST_BLOCK_THRESHOLD = 3
 
 
 def _host_is(host: str, domain: str) -> bool:
@@ -395,7 +399,7 @@ def fetch(run_id: str) -> dict:
     out_dir = runs.run_dir(run_id)
     max_pages = run["settings"]["max_pages"]
     # Per-host caps limit seeds per API host in discovery, not page fetching: shared ATS hosts are bounded by max_pages.
-    client = client_for_run(run, max_requests_per_host=max_pages)
+    client = client_for_run(run, max_requests_per_host=max_pages, block_threshold=HOST_BLOCK_THRESHOLD)
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
@@ -424,6 +428,13 @@ def fetch(run_id: str) -> dict:
             continue
         try:
             status, final_url, html = client.get_text(url)
+        except HostBlocked:
+            if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
+                postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
+                                 "identity_key": identity, "ats_fingerprint": True})
+                continue
+            errors.append({"url": url, "error": "host_blocked"})
+            continue
         except RequestBudgetExceeded as exc:
             if exc.scope == "host":
                 skipped_hosts.add(exc.host or candidate.domain)

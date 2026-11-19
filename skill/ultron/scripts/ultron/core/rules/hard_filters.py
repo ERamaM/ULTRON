@@ -47,6 +47,15 @@ def _has_contextual_hybrid_conflict(body_text: str) -> bool:
     return False
 
 
+# "No geographic restriction or office attendance": a negation whose coordinated list (same clause, up to
+# three words before "or"/"nor") ends right before the term negates the term too.
+_COORDINATED_NEGATION_BEFORE_RE = re.compile(r"\b(?:no|without|not)\s+(?:[^\s.;:!?,]+\s+){0,3}(?:or|nor)\s+$")
+
+
+def _negated_by_coordination(text: str, start: int) -> bool:
+    return _COORDINATED_NEGATION_BEFORE_RE.search(text, max(0, start - 60), start) is not None
+
+
 def _has_contextual_onsite_conflict(body_text: str) -> bool:
     low = body_text.lower()
     negation_terms = rules_data.ONSITE_NEGATION_TERMS | rules_data.REMOTE_CONFLICT_NEGATION_TERMS
@@ -65,7 +74,7 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
             context_start = max(0, match.start() - 45)
             context_end = min(len(low), match.end() + 25)
             context = low[context_start:context_end]
-            if any(negation in context for negation in negation_terms):
+            if any(negation in context for negation in negation_terms) or _negated_by_coordination(low, match.start()):
                 continue
             return True
 
@@ -73,7 +82,7 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
         context_start = max(0, match.start() - 60)
         context_end = min(len(low), match.end() + 25)
         context = low[context_start:context_end]
-        if any(negation in context for negation in negation_terms):
+        if any(negation in context for negation in negation_terms) or _negated_by_coordination(low, match.start()):
             continue
         if any(perk in context for perk in rules_data.ONSITE_BENEFIT_CONTEXT_TERMS):
             continue

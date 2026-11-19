@@ -24,3 +24,6 @@ skill/ultron/.ultron-install.json
 *.key
 gitleaks-report.json
 pytest-report.xml
+/.coverage
+/.coverage.*
+/coverage-report/

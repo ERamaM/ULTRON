@@ -45,6 +45,8 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 - Never commit `.env` files, personal profiles/CVs, `~/.ultron` exports, or hardcoded local filesystem paths.
 - Check GitHub Actions results (`lint`, `secrets`, `test`, and `install-smoke`) after pushing.
 
+The Linux/Python 3.13 coverage job measures lines and branches in the `ultron` package. Open its Actions summary for the totals and the changed-line report on PRs. Download the `coverage-report` artifact for the HTML, XML, and JSON reports. The README badge shows combined line and branch coverage from the latest successful `main` measurement.
+
 ## Publishing a Release
 
 1. Bump the package version in `skill/ultron/scripts/pyproject.toml` and `skill/ultron/scripts/ultron/__init__.py`. Refresh `uv.lock` with `uv lock` and submit the changes in a PR.

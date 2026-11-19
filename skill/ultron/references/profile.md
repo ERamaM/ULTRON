@@ -130,7 +130,14 @@ query_templates:
 `criteria.target_titles`), interleaving `site:<domain>` ATS queries when `query_templates.site_scopes`
 is set, capped by the preset.
 
-## Creating a profile from a CV
+## Creating a profile
+
+When the user wants to start from preferences, ask only for the details still missing. Start with
+target roles, eligible regions, and work mode. Draft a profile using the schema above, validate it
+with `ultron profile validate --from <yaml>`, and show the user the criteria for confirmation.
+Save the confirmed profile with `ultron profile save --from <yaml>`.
+
+### From a CV
 
 1. Extract the CV text: `ultron cv extract <path>` (PDF, `.txt` or `.md`) writes
    `<ULTRON_HOME>/cv/<stem>.txt` and prints `{"path", "chars", "pages", "source_cv"}` (never the text; `source_cv` is the absolute path of the original CV). Read that

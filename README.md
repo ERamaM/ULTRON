@@ -156,6 +156,10 @@ Open any supported agent and ask naturally:
 - *"Create a search profile from my attached CV and find remote backend roles in Europe."*
 - *"Run my saved search again and show only newly posted openings."*
 
+If you ask for an interactive search without choosing a profile, ULTRON lists your options and asks
+which one to use. You can also create a profile from a CV or describe the roles, regions, and work
+mode you want.
+
 Or invoke short command groups (`<prefix>` = `/ultron` in Claude Code, `$ultron` in Codex, `ultron` in OpenCode/Antigravity):
 
 | Command | Action |

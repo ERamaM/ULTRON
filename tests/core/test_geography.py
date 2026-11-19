@@ -91,3 +91,74 @@ def test_us_explicit_terms_still_flag_whole_phrases(body):
 @pytest.mark.parametrize("text", ["Location: U.S.A.", "location: u.s.a", "Location: U.S."])
 def test_dotted_us_location_label_sets_us_location_signal(text):
     assert _has_us_location_signal(text.lower()) is True
+
+
+NON_EU_REMOTE_SCOPES = [
+    "Argentina", "Chile", "Colombia", "Perú", "Uruguay", "Brasil", "Vietnam", "South Korea", "Israel", "Turkey",
+    "Saudi Arabia", "Indonesia", "Malaysia", "Thailand", "Nigeria", "Kenya", "South Africa", "Egypt", "LATAM",
+    "Latin America", "APAC", "Estados Unidos", "EE.UU.", "EEUU", "Latinoamérica", "Corea del Sur", "Turquía",
+]
+
+
+@pytest.mark.parametrize("place", NON_EU_REMOTE_SCOPES)
+def test_remote_from_a_non_eu_place_only_is_a_red_flag(place):
+    assert has_region_red_flags(f"Fully remote from {place} only") is True
+    assessment = assess_geography(
+        location="", remote_text=f"Remote from {place} only", body_text="Build ML systems.",
+        target_regions=["Remote EU"],
+    )
+    assert assessment.conflict is True
+
+
+def test_spanish_us_residence_requirement_is_a_red_flag():
+    assert has_region_red_flags("Remoto solo desde Estados Unidos") is True
+    assert has_region_red_flags("Ubicación: EE.UU. (remoto)") is True
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Remote EMEA, APAC, LATAM",
+        "Remote (EMEA or APAC)",
+        "Remote: open to candidates in Spain, Germany or Argentina",
+        "Remote from Portugal or Brazil",
+        "Remote Europe. Customers in Chile and Kenya.",
+        "Remote within Europe; our founders are from Israel.",
+        "We have offices in Bogotá, Colombia. Remote Europe.",
+    ],
+)
+def test_mixed_european_and_non_eu_scopes_are_not_red_flags(text):
+    assert has_region_red_flags(text) is False
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Fully remote from Switzerland only", False),
+        ("Remote from Norway only", False),
+        ("Remote - EEA", False),
+        ("Remote from Germany only", False),
+        ("UK only", True),
+    ],
+)
+def test_european_non_eu_countries_keep_their_existing_handling(text, expected):
+    assert has_region_red_flags(text) is expected
+
+
+@pytest.mark.parametrize(
+    ("location", "remote_text"),
+    [("Neuquén, Argentina", "Fully remote from Argentina only"), ("Estados Unidos", "Remoto solo desde Estados Unidos")],
+)
+def test_hard_filter_discards_non_eu_remote_scope_for_european_targets(location, remote_text):
+    from ultron.core.models import ExtractedJob
+    from ultron.core.rules.hard_filters import apply_hard_filters
+
+    job = ExtractedJob(
+        apply_url="https://boards.greenhouse.io/acme/jobs/1", domain="boards.greenhouse.io",
+        title="Senior ML Engineer", location=location, remote_text=remote_text,
+        body_text="Build machine learning systems. Applications open.",
+    )
+    assert apply_hard_filters(job, ["greenhouse.io"], target_regions=["Spain", "Remote EU"]) == (
+        False, "non_eu_remote"
+    )
+    assert apply_hard_filters(job, ["greenhouse.io"], target_regions=["Remote LATAM"], geo="other") == (True, None)

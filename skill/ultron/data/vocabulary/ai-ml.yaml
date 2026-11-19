@@ -58,6 +58,10 @@ role_terms:
   - "ingeniero de datos"
   - "ingeniero de ia"
   - "ingeniero de inteligencia artificial"
+  - "ingeniera de machine learning"
+  - "ingeniera de aprendizaje automatico"
+  - "ingeniera de ia"
+  - "ingeniera de inteligencia artificial"
 
 # Default discovery title terms when a profile has no titles (was TARGET_TITLE_TERMS).
 title_terms:
@@ -151,8 +155,8 @@ non_family_signals:
 
 # Family-specific title synonym groups (were in core/rules/title_synonyms.py).
 title_synonym_groups:
-  - ["machine learning engineer", "ml engineer", "ingeniero de machine learning", "ingeniero ml"]
-  - ["artificial intelligence engineer", "ai engineer", "ingeniero de ia", "ingeniero de inteligencia artificial"]
+  - ["machine learning engineer", "ml engineer", "ingeniero de machine learning", "ingeniera de machine learning", "ingeniero ml", "ingeniera ml"]
+  - ["artificial intelligence engineer", "ai engineer", "ingeniero de ia", "ingeniera de ia", "ingeniero de inteligencia artificial", "ingeniera de inteligencia artificial"]
   - ["nlp engineer", "natural language processing engineer"]
   - ["mlops engineer", "ml ops engineer"]
   - ["llm engineer", "large language model engineer"]

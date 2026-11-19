@@ -52,6 +52,20 @@ INTENTIONAL_DEVIATIONS = {
         "hard_filter": {"keep": True, "reason": None},
         "pipeline_characterization": {"outcome": "keep", "reason": None, "stage": "completed"},
     },
+    # Spanish word order: "Ingeniero Senior de Machine Learning" and "Ingeniero/a de Machine Learning Senior"
+    # now match the "ingeniero de machine learning" synonym (level word between noun and field dropped, "/a"
+    # folded). MARK III scored the title 0 and discarded both relevant postings as non_matching_role_family.
+    **{
+        case_id: {
+            "classification_signals": {"role_ambiguous": False, "role_score": role_score},
+            "heuristic_evaluator": {
+                "discard_category": None, "discard_reason": None, "is_allowed_family": True, "keep": True,
+                "verdict": "keep",
+            },
+            "pipeline_characterization": {"outcome": "keep", "reason": None, "stage": "completed"},
+        }
+        for case_id, role_score in (("es-positive-shape-01", 6), ("q-es-senior-remoto-espana", 4))
+    },
 }
 
 

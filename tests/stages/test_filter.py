@@ -7,6 +7,13 @@ from stage_helpers import GOLDEN, make_run
 from ultron import profiles, runs
 from ultron.cli import main
 
+# Reviewed deviations from the MARK III golden (see INTENTIONAL_DEVIATIONS in tests/core/test_parity_heuristics.py).
+DEVIATED_OUTCOMES = {"es-positive-shape-01": {"outcome": "keep", "reason": None, "stage": "completed"}}
+
+
+def _expected(cid: str) -> dict:
+    return DEVIATED_OUTCOMES.get(cid) or GOLDEN[cid]["pipeline_characterization"]
+
 
 def test_filter_matches_parity_semantics(capsys):
     ids = ["en-positive-shape-01", "en-negative-shape-02", "en-ambiguous-shape-01", "es-positive-shape-01"]
@@ -21,12 +28,12 @@ def test_filter_matches_parity_semantics(capsys):
     assert len(where) == 4
     assert out["kept"] + out["ambiguous"] + out["discarded"] == 4
     for cid in ids:
-        outcome = GOLDEN[cid]["pipeline_characterization"]["outcome"]
+        outcome = _expected(cid)["outcome"]
         name, row = where[f"id:{cid}"]
         if outcome == "discard":
             assert name == "discarded"
-            assert row["stage"] == GOLDEN[cid]["pipeline_characterization"]["stage"]
-            assert row["reason"] == GOLDEN[cid]["pipeline_characterization"]["reason"]
+            assert row["stage"] == _expected(cid)["stage"]
+            assert row["reason"] == _expected(cid)["reason"]
         elif outcome == "review":
             assert name == "ambiguous"
         else:

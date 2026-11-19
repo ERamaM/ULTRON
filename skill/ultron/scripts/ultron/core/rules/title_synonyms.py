@@ -27,8 +27,9 @@ TITLE_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
 
 
 def normalize_role_title(title: str) -> str:
-    """Keep the written gender when a Spanish title appends its alternative (ingeniero/a)."""
-    return re.sub(r"(?<=\w)(o/a|a/o)\b", lambda match: match[0][0], _normalize_term(title))
+    """Normalize dash separators and appended Spanish gender alternatives."""
+    normalized = re.sub(r"(?<=\w)(o/a|a/o)\b", lambda match: match[0][0], _normalize_term(title))
+    return re.sub(r"\s+[-\u2013\u2014]\s*|\s*[-\u2013\u2014]\s+", " ", normalized).strip()
 
 
 def _normalize_term(term: str) -> str:
@@ -45,13 +46,13 @@ def expand_role_terms(
     seen: set[str] = set()
 
     def _add(term: str) -> None:
-        low = _normalize_term(term)
+        low = normalize_role_title(term)
         if low and low not in seen:
             seen.add(low)
             expanded.append(low)
 
     for term in terms or ():
-        low = _normalize_term(str(term))
+        low = normalize_role_title(str(term))
         _add(low)
         for group in groups:
             if low in group:

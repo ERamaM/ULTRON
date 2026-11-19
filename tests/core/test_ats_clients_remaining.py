@@ -146,6 +146,31 @@ def test_smartrecruiters_empty_first_page_fails_closed():
         fetch("smartrecruiters", "nonexistent-slug", FakeClient({"offset": 0, "totalFound": 0, "content": []}))
 
 
+def test_workable_merges_location_rows_for_the_same_posting():
+    job = {"title": "Support Specialist", "url": "https://apply.workable.com/j/1234AB", "telecommuting": True,
+           "published_on": "2026-09-16", "created_at": "2026-09-12"}
+    rows = [dict(job, locations=[{"country": country, "hidden": hidden}])
+            for country, hidden in [("Poland", False), ("United Kingdom", False), ("Ireland", True)]]
+    posting, = fetch("workable", "acme", FakeClient({"jobs": rows}))
+    assert (posting.location, posting.remote_hint, posting.posted_at) == (
+        "Poland; United Kingdom", "Remote", "2026-09-16",
+    )
+
+
+def test_smartrecruiters_uses_full_location_and_explicit_workplace():
+    rows = [
+        {"name": "Engineer", "id": "123", "location": {
+            "city": "Bundoora", "country": "au", "fullLocation": "Bundoora, Victoria, Australia", "hybrid": True,
+        }},
+        {"name": "Technician", "id": "456", "location": {"city": "Madrid", "remote": True}},
+        {"name": "Technician", "id": "678", "department": {"name": "Operations"}},
+    ]
+    postings = fetch("smartrecruiters", "acme", FakeClient({"content": rows}))
+    assert [(p.location, p.remote_hint) for p in postings] == [
+        ("Bundoora, Victoria, Australia", "Hybrid"), ("Madrid", "Remote"), ("", ""),
+    ]
+
+
 @pytest.mark.parametrize("vendor", ["recruitee", "teamtailor", "homerun", "breezy", "workable"])
 def test_empty_payload_yields_no_postings(vendor):
     assert fetch(vendor, "acme", FakeClient({})) == []

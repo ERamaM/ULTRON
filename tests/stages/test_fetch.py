@@ -144,6 +144,7 @@ def test_fetch_greenhouse_429_falls_back_to_json_api(capsys):
                 "content": "<p>Build production LLM inference pipelines.</p>",
                 "absolute_url": "https://boards.greenhouse.io/helsing/jobs/123",
                 "updated_at": "2026-11-18T10:00:00Z",
+                "first_published": "2026-11-10T10:00:00Z",
             })
         return httpx.Response(404)
 
@@ -155,6 +156,7 @@ def test_fetch_greenhouse_429_falls_back_to_json_api(capsys):
     postings = runs.read_jsonl(d / "postings.jsonl")
     assert len(postings) == 1
     assert postings[0]["job"]["company"] == "Helsing"
+    assert postings[0]["job"]["posting_date"] == "2026-11-10T10:00:00Z"
     assert "production LLM inference" in postings[0]["job"]["body_text"]
 
 
@@ -167,6 +169,7 @@ def test_fetch_workable_spa_enriches_from_v2_api(capsys):
                 "title": "Senior ML Engineer, Voice Agents",
                 "remote": True,
                 "location": {"country": "France", "city": "Paris"},
+                "locations": [{"country": "France", "city": "Paris"}, {"country": "United Kingdom"}],
                 "description": "<p>Own open-source speech-to-speech LLM pipelines at scale.</p>",
                 "requirements": "<ul><li>5+ years PyTorch and GPU serving</li></ul>",
                 "published": "2026-11-15",
@@ -190,6 +193,41 @@ def test_fetch_workable_spa_enriches_from_v2_api(capsys):
     assert "speech-to-speech LLM pipelines" in job["body_text"]
     assert "PyTorch" in job["body_text"]
     assert "Remote" in job["remote_text"]
+    assert job["location"] == "Paris, France; United Kingdom"
+
+
+def test_fetch_workable_closed_job_redirecting_to_live_board(capsys):
+    url = "https://apply.workable.com/acme/j/1234AB"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/acme/j/1234AB":
+            return httpx.Response(302, headers={"Location": "/acme/?not_found=true"})
+        return httpx.Response(200, text="<h1>Acme</h1><p>See our current job openings.</p>")
+
+    run_id = _run(handler)
+    folder = runs.run_dir(run_id)
+    runs.write_jsonl(folder / "candidates.jsonl", [_cand(url)])
+    runs.mark_stage(run_id, "discover_ats")
+    assert main(["fetch", "--run", run_id]) == 0
+    assert not runs.read_jsonl(folder / "postings.jsonl")
+    assert runs.read_jsonl(folder / "fetch_errors.jsonl")[0]["error"] == "expired_or_closed"
+
+
+def test_fetch_smartrecruiters_reads_detail_page_location_and_workplace(capsys):
+    url = "https://jobs.smartrecruiters.com/Acme/1234567"
+    page = """
+    <h1>Process Engineer</h1>
+    <spl-job-location formattedAddress="Madrid, Spain" workplaceType="hybrid"></spl-job-location>
+    <meta itemprop="datePosted" content="2026-10-01">
+    <p>On-site training is available for all departments.</p>
+    """ + "<p>Coordinate manufacturing process improvement and optimize yield.</p>" * 10
+    run_id = _run(lambda request: httpx.Response(200, text=page))
+    folder = runs.run_dir(run_id)
+    runs.write_jsonl(folder / "candidates.jsonl", [_cand(url)])
+    runs.mark_stage(run_id, "discover_ats")
+    assert main(["fetch", "--run", run_id]) == 0
+    job = runs.read_jsonl(folder / "postings.jsonl")[0]["job"]
+    assert (job["location"], job["remote_text"], job["posting_date"]) == ("Madrid, Spain", "Hybrid", "2026-10-01")
 
 
 def test_fetch_greenhouse_custom_domain_spa_enriches_from_api(capsys):

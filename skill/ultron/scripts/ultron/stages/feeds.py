@@ -288,6 +288,7 @@ def discover_feeds(run_id: str) -> dict:
     new_seeds: dict[tuple[str, str], AtsBoardSeed] = {}
     proposals: dict[str, Proposal] = {}
     relevant_boards: set[tuple[str, str]] = set()  # new boards with at least one row that counts
+    mentions: dict[str, int] = {}  # qualifying rows per proposed company (lowercased name)
     counts = {"ok": 0, "failed": 0, "skipped": 0}
     budget_spent = False
 
@@ -351,11 +352,15 @@ def discover_feeds(run_id: str) -> dict:
                     found.append((score, candidate))
             if company and not ats_hit and (company_list or relevant):
                 low = company.lower()
-                if low not in proposals and low not in known_companies:
+                if low not in known_companies:
+                    mentions[low] = mentions.get(low, 0) + 1
                     url = str(row.get("url") or "").strip()
                     domain = _company_domain_from_url(url, company)
-                    source_url = url if urlparse(url).scheme in {"http", "https"} else ""
-                    proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
+                    if low not in proposals:
+                        source_url = url if urlparse(url).scheme in {"http", "https"} else ""
+                        proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
+                    elif domain and not proposals[low].domain:
+                        proposals[low].domain = domain  # a later row may name the company's own site
 
     # Boards seen only in postings this profile would discard are not saved: they would fill the inventory
     # with other professions' boards (seed_yield ranks the saved ones by later keeps).
@@ -380,7 +385,10 @@ def discover_feeds(run_id: str) -> dict:
         candidates.append(candidate)
 
     runs.write_jsonl(out_dir / "candidates.jsonl", [*kept_rows, *candidates])
-    runs.write_jsonl(out_dir / PROPOSALS_FILE, (asdict(p) for p in proposals.values()))
+    # Most-mentioned companies first: `seeds verify` and the unattended mode verify only the first
+    # new_companies_per_run lines (stable sort keeps feed order among ties).
+    ranked = sorted(proposals.items(), key=lambda item: -mentions.get(item[0], 0))
+    runs.write_jsonl(out_dir / PROPOSALS_FILE, (asdict(p) for _low, p in ranked))
     runs.write_jsonl(out_dir / ERRORS_FILE, errors)
     runs.mark_stage(run_id, "discover_feeds")
     return {

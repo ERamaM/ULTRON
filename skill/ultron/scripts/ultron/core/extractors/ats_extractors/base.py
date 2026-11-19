@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
+from datetime import UTC, date, datetime, timedelta
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
@@ -386,8 +387,10 @@ def _structured_fields_from_node(job: dict) -> dict[str, str]:
     remote_text = _dedupe_join(remote_bits, limit=2)
 
     # datePosted is the publication date; validThrough is the application
-    # deadline and must NOT be used as the posting date.
+    # deadline and must NOT be used as the posting date. It is kept separately
+    # and only used to detect expired postings (see _valid_through_expired).
     posting_date = _clean_text(str(job.get("datePosted") or job.get("dateModified") or ""))
+    valid_through = job.get("validThrough")
     description = job.get("description")
     return {
         "title": title,
@@ -395,8 +398,47 @@ def _structured_fields_from_node(job: dict) -> dict[str, str]:
         "location": location,
         "remote_text": remote_text,
         "posting_date": posting_date,
+        "valid_through": valid_through.strip() if isinstance(valid_through, str) else "",
         "description": description if isinstance(description, str) else "",
     }
+
+
+# Dates before this year are placeholders (epoch zero, 1900-01-01), never real deadlines.
+_MIN_VALID_THROUGH_YEAR = 2000
+
+
+def _is_date_only(raw: str) -> bool:
+    try:
+        date.fromisoformat(raw)
+    except ValueError:
+        return False
+    return True
+
+
+def _valid_through_expired(value: str, *, now: datetime | None = None) -> bool:
+    """True only when a JSON-LD ``validThrough`` parses to a deadline in the past.
+
+    A date-only value counts through the end of that UTC day. Naive date-times
+    are read as UTC. Missing, unparseable or placeholder values never expire a
+    posting: bad data must not drop a job.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return False
+    try:
+        deadline = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
+    except ValueError:
+        return False
+    if deadline.year < _MIN_VALID_THROUGH_YEAR:
+        return False
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=UTC)
+    if _is_date_only(raw):
+        try:
+            deadline += timedelta(days=1)
+        except OverflowError:
+            return False
+    return deadline <= (now or datetime.now(UTC))
 
 
 def _comparable_page_url(url: str) -> str:
@@ -672,6 +714,7 @@ def _parse_generic_with_provenance(
         apply_available=apply_available,
         posting_date=posting_date,
         is_open_hint=not closed,
+        valid_through_expired=_valid_through_expired(structured.get("valid_through", "")),
     )
     provenance = {
         "title": title_source if title else "unknown",

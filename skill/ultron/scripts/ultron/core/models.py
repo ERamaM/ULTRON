@@ -154,6 +154,8 @@ class ExtractedJob(BaseModel):
     apply_available: bool = False
     posting_date: str | None = None
     is_open_hint: bool = True
+    # True only when JSON-LD ``validThrough`` parses to a past deadline.
+    valid_through_expired: bool = False
 
 
 class ExtractionMeta(BaseModel):

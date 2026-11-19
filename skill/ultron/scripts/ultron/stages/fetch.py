@@ -195,7 +195,11 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
         return job, False
     if not isinstance(payload, dict) or not payload.get("name"):
         return job, False
-    sections_dict = (payload.get("jobAd") or {}).get("sections") or {}
+    job_ad = payload.get("jobAd") or {}
+    sections_dict = (job_ad.get("sections") or {}) if isinstance(job_ad, dict) else None
+    company_obj = payload.get("company") or {}
+    if not isinstance(sections_dict, dict) or not isinstance(company_obj, dict):
+        return job, False
     ordered = ("jobDescription", "qualifications", "additionalInformation", "companyDescription")
     parts = [
         _html_to_text(str((sections_dict.get(k) or {}).get("text") or ""))
@@ -205,7 +209,7 @@ def _smartrecruiters_api_enrich(candidate: CandidateUrl, job: ExtractedJob, clie
     body_text = "\n\n".join(p for p in parts if p)
     loc_obj = payload.get("location")
     loc_str = smartrecruiters_location(loc_obj)
-    company_name = str((payload.get("company") or {}).get("name") or candidate.ats_company or job.company).strip()
+    company_name = str(company_obj.get("name") or candidate.ats_company or job.company).strip()
     workplace = smartrecruiters_workplace(loc_obj)
     if not workplace and "remote" in str(payload.get("workplace") or "").lower():
         workplace = "Remote"
@@ -293,7 +297,8 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
             payload = client.request_json(detail_url, allowed_domains=("bamboohr.com",))
         except (RequestBudgetExceeded, HttpError, URLRejected, ValueError, TypeError):
             return job, False
-        opening = (payload.get("result") or {}).get("jobOpening") if isinstance(payload, dict) else None
+        result = payload.get("result") if isinstance(payload, dict) else None
+        opening = result.get("jobOpening") if isinstance(result, dict) else None
         if not isinstance(opening, dict):
             return job, False
         desc = _html_to_text(str(opening.get("description") or ""))

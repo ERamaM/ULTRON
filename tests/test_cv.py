@@ -257,6 +257,16 @@ def test_cli_cv_extract_error_json(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["error"] == "unsupported_type"
 
 
+@pytest.mark.parametrize("content", [b"\xff\xfeH\x00i\x00\x00", b"\xff\xfe\x00\xd8"])
+def test_malformed_utf16_is_a_typed_error(tmp_path, capsys, content):
+    src = _write(tmp_path, "bad.txt", content)  # BOM with an odd byte count / a lone surrogate
+    with pytest.raises(cv.CvExtractionError) as err:
+        cv.extract_cv(src)
+    assert err.value.code == "no_extractable_text"
+    assert cli.main(["cv", "extract", str(src)]) == 2
+    assert json.loads(capsys.readouterr().out)["error"] == "no_extractable_text"
+
+
 def _profile(slug="mi-perfil"):
     return {"slug": slug, "name": "Mi perfil", "criteria": {"target_titles": ["Ingeniero de datos"]}}
 

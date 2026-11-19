@@ -6,6 +6,7 @@
 [![CI](https://github.com/ERamaM/ULTRON/actions/workflows/ci.yml/badge.svg)](https://github.com/ERamaM/ULTRON/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FERamaM%2FULTRON%2Fcoverage-badge%2Fbadge.json)](https://github.com/ERamaM/ULTRON/actions/workflows/ci.yml?query=branch%3Amain)
 [![CodeQL](https://github.com/ERamaM/ULTRON/actions/workflows/codeql.yml/badge.svg)](https://github.com/ERamaM/ULTRON/actions/workflows/codeql.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ERamaM_ULTRON&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=ERamaM_ULTRON)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Secret Scanning: Gitleaks](https://img.shields.io/badge/secrets-gitleaks-blueviolet)](.gitleaks.toml)

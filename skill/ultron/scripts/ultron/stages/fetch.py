@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import html as html_lib
 import re
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
 
 from ultron import runs
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
-from ultron.core.discovery.url_filter import domain_of, normalize_url
+from ultron.core.decision.unit import load_allowed_domains
+from ultron.core.discovery.url_filter import canonicalize_url_for_allowlist, domain_of, is_domain_allowed, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
 from ultron.core.extractors.ats_extractors.base import ats_canonical_domain, detect_ats_fingerprint
 from ultron.core.job_identity import canonical_job_identity
@@ -365,6 +366,46 @@ def _round_robin(items: list[tuple[CandidateUrl, str]]) -> list[tuple[CandidateU
     return out
 
 
+def page_canonical_url(html: str, base_url: str) -> str | None:
+    """The page's ``<link rel="canonical">`` resolved against ``base_url``; ``None`` unless it is an http(s) URL."""
+    if not html or "canonical" not in html.lower():
+        return None
+    link = BeautifulSoup(html, "html.parser").find("link", attrs={"rel": "canonical"}, href=True)
+    href = str(link.get("href") or "").strip() if link is not None else ""
+    if not href:
+        return None
+    url = urljoin(base_url, href)
+    parts = urlsplit(url)
+    return url if parts.scheme in {"http", "https"} and parts.hostname else None
+
+
+def _allowlist_url(raw_url: str, candidate: CandidateUrl, allowed_domains: list[str]) -> str:
+    """``raw_url`` normalized; a custom-domain ``?gh_jid=`` URL of a known Greenhouse board becomes its board URL."""
+    source_key = str(candidate.source_key or "")
+    board_label = f"[{source_key}]" if source_key.lower().startswith("greenhouse:") else ""
+    return canonicalize_url_for_allowlist(raw_url, board_label, allowed_domains)
+
+
+def resolve_apply_url(
+    candidate: CandidateUrl, final_url: str, canonical_url: str | None, allowed_domains: list[str]
+) -> str:
+    """First of final URL, rel=canonical and candidate URL that lies on the ATS allowlist; else the final URL.
+
+    The canonical link is page-controlled, so it only counts when it names a vendor job (not a board root, which
+    would merge every posting of the board into one identity).
+    """
+    for raw_url, page_controlled in ((final_url, False), (canonical_url, True), (candidate.normalized_url, False)):
+        if not raw_url:
+            continue
+        url = _allowlist_url(raw_url, candidate, allowed_domains)
+        if not is_domain_allowed(domain_of(url), allowed_domains):
+            continue
+        if page_controlled and canonical_job_identity(url).identity_key.startswith(("url:", "raw:")):
+            continue
+        return url
+    return _allowlist_url(final_url, candidate, allowed_domains)
+
+
 def has_ats_fingerprint(html: str) -> bool:
     """MARK III ``verification_fetch`` condition: a vendor fingerprint with a known canonical domain."""
     vendor = detect_ats_fingerprint(html or "")
@@ -408,6 +449,7 @@ def fetch(run_id: str) -> dict:
     max_pages = run["settings"]["max_pages"]
     # Per-host caps limit seeds per API host in discovery, not page fetching: shared ATS hosts are bounded by max_pages.
     client = client_for_run(run, max_requests_per_host=max_pages, block_threshold=HOST_BLOCK_THRESHOLD)
+    allowed_domains = load_allowed_domains()
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
@@ -492,7 +534,8 @@ def fetch(run_id: str) -> dict:
         if _workable_closed_redirect(url, final_url):
             errors.append({"url": url, "error": "expired_or_closed", "status": status})
             continue
-        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html)
+        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
+                          canonical_url=page_canonical_url(html, final_url))
         # Same hint keys and sources as MARK III's verification_fetch.
         ats_hints = {
             "title": candidate.ats_title,
@@ -516,6 +559,9 @@ def fetch(run_id: str) -> dict:
         job, wd_enriched = _workday_api_enrich(candidate, job, client)
         job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
         enriched = gh_enriched or workable_enriched or sr_described or wd_enriched or bamboo_enriched
+        if job.apply_url == normalize_url(final_url):  # an enricher's posting URL is kept as is
+            job.apply_url = resolve_apply_url(candidate, final_url, page.canonical_url, allowed_domains)
+            job.domain = domain_of(job.apply_url)
         if not enriched and (reason := unusable_page_reason(html, job)):
             errors.append({"url": url, "error": reason, "status": status})  # left for the agent to open manually
             continue

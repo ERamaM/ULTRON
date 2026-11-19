@@ -87,6 +87,19 @@ def test_us_eligibility_does_not_match_the_pronoun_or_incidental_prose():
     assert result["classification_signals"]["eligibility_hint"] == "high"
     assert result["heuristic_evaluator"]["eligibility"] == "high"
 
+    remote_prose = job.model_copy(update={"remote_text": "Work remotely with us from Prague"})
+    assert characterize_job(remote_prose, profile, load_allowed_domains())["classification_signals"]["eligibility_hint"] is None
+    remote_scope = job.model_copy(update={"remote_text": "Remote US only"})
+    assert characterize_job(remote_scope, profile, load_allowed_domains())["classification_signals"]["eligibility_hint"] == "high"
+
+
+def test_scoped_eligibility_keeps_geographic_abbreviations():
+    profile = _with_location_scope("backend-latam", preferred=["St. Louis"], eligibility_terms=["st. louis"])
+    job = _job(body="This role is open to candidates in St. Louis. Applications open.")
+    result = characterize_job(job, profile, load_allowed_domains())
+    assert result["classification_signals"]["eligibility_hint"] == "high"
+    assert prepare_geography(job, profile["criteria"], geo="other")[0].eligibility == "high"
+
 
 def test_preferred_regions_count_as_eligibility_terms():
     assert scoped_eligibility_terms(_profile("backend-latam")) == ("latam", "brazil", "mexico")

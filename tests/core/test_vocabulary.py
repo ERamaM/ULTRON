@@ -13,6 +13,8 @@ from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.prefilter import passes_coarse_prefilter
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.models import ExtractedJob
+from ultron.core.rules.role_matching import score_role_family
+from ultron.core.rules.title_synonyms import expand_role_terms
 from ultron.core.vocabulary import VocabularyPack, active_pack, load_packs
 
 PROFILES = Path(__file__).resolve().parents[1] / "fixtures" / "profiles"
@@ -212,6 +214,21 @@ def test_graduate_role_matches_with_a_dash_separator(separator):
     assert _passes(profile, title) is True
     result = characterize_job(_job(title, "Occupational therapy graduate program."), profile, load_allowed_domains())
     assert result["heuristic_evaluator"]["is_allowed_family"] is True
+
+
+def test_dashed_title_matches_an_active_pack():
+    title = "Occupational Therapist - Graduate Program"
+    pack = VocabularyPack(role_terms=("occupational therapist graduate program",))
+    score, signals = score_role_family(title, "", vocabulary=pack)
+    assert score == score_role_family(title.replace(" - ", " "), "", vocabulary=pack)[0]
+    assert any(signal.startswith("title:occupational therapist") for signal in signals)
+
+
+def test_dashed_synonym_group_uses_normalized_members():
+    term = "Occupational Therapist - Graduate Program"
+    assert expand_role_terms([term], extra_groups=[(term, "Graduate Occupational Therapist")]) == [
+        "occupational therapist graduate program", "graduate occupational therapist",
+    ]
 
 
 @pytest.mark.parametrize(("title", "body", "discard_reason"), [

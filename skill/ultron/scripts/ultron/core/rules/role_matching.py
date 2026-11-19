@@ -251,7 +251,11 @@ def score_role_family(
         )
     )
     title_strong_hit = any(term in t for term in effective_strong_signals)
-    raw_body_hits = [term for term in effective_strong_signals if term in b]
+    normalized_body = normalize_title_separators(b)
+    raw_body_hits = [
+        term for term in effective_strong_signals
+        if normalize_title_separators(term) in normalized_body
+    ]
     allow_custom_body = has_role_noun and (title_strong_hit or len(raw_body_hits) >= 2)
     body_strong_hits = (
         []

@@ -84,6 +84,18 @@ def test_verify_probes_suffix_stripped_slug():
     assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acme"
 
 
+def test_verify_probes_literal_slugs_on_every_vendor_before_normalized_guesses():
+    def handler(request):
+        if "greenhouse" in request.url.host and "/acme/" in request.url.path:
+            return httpx.Response(200, json=GH_JOBS)  # a different company's board
+        if request.url.host == "api.lever.co" and request.url.path.rstrip("/").endswith("/acmegmbh"):
+            return httpx.Response(200, json=[{"text": "Senior ML Engineer", "hostedUrl": "https://jobs.lever.co/acmegmbh/1"}])
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
+    assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acmegmbh"
+
+
 def test_verify_explicit_pair():
     res = verify_proposal(Proposal("Acme", ats="greenhouse", board="acme"), client=make_client(gh_handler), timeout=5)
     assert res.status == "verified" and res.postings == 3

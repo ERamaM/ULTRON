@@ -103,5 +103,22 @@ curl -s 'https://sonarcloud.io/api/issues/search?componentKeys=ERamaM_ULTRON&pul
 curl -s 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=ERamaM_ULTRON&pullRequest=<PR>'
 ```
 
+## Codex Reviews
+
+Codex (`chatgpt-codex-connector[bot]`) also reviews pull requests: a code review and a
+security review. Treat its findings exactly like CodeRabbit's: verify each one, fix it or
+reply with the technical reason, and resolve its threads only after addressing them.
+
+- Codex reacts with 👀 when it starts and keeps its status in a PR comment containing
+  `codex-review-state:v1 {...}`. Wait until both `code_review` and `security_review` report
+  a finished status for your latest commit before merging, and do not merge while either
+  has unresolved findings.
+- Request a new Codex review after pushing fixes by commenting `@codex review`.
+
+```sh
+# Codex review state for a PR
+gh api --paginate 'repos/{owner}/{repo}/issues/<PR>/comments' --jq '.[] | select(.user.login | test("codex"; "i")) | .body' | grep -o 'codex-review-state:v1 {.*}' | tail -1
+```
+
 You can also ask CodeRabbit questions or request a new review by mentioning
 `@coderabbitai` in a PR comment.

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "es",
+  "title": "Junior Ingenieria Frontend 042",
+  "location": "Estados Unidos",
+  "remote_text": "Teletrabajo solo desde Estados Unidos",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia inicial. Es obligatorio residir en Estados Unidos. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-042",
+  "is_open_hint": true
+}

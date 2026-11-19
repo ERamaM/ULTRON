@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-negative-060
+profile: ml-engineering-remote-eu
+language: es
+role_track: negative
+seniority: ambiguous
+remote_mode: unknown
+eligibility_label: unknown
+vendor: empty_dynamic
+fixture: ../fixtures/es-negative-060.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: null
+  remote_fit: null
+  eligibility: unknown
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

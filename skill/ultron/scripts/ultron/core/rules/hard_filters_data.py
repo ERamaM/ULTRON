@@ -48,11 +48,18 @@ AGENCY_EXEMPTABLE_CLOSED_PHRASES = frozenset({
     "applications closed",
     "ya no aceptamos solicitudes",
 })
+# Up to three words before the channel word cover "applications or CVs from agencies".
 CLOSED_STATUS_AGENCY_SUFFIX_PATTERN = (
-    r"\s+(?:[\w-]+\s+){0,2}?(?:from|via|through|de)\s+(?:(?:external|third[- ]party|recruitment|staffing|"
+    r"\s+(?:[\w-]+\s+){0,3}?(?:from|via|through|de)\s+(?:(?:external|third[- ]party|recruitment|staffing|"
     r"unsolicited|recruiting|search)\s+)*(?:recruit\w*|agenc\w*|headhunt\w*|search firms?|seleccion\w*)\b"
 )
 
+# Right after the agency suffix, a coordinated non-agency group ("... from agencies or individual applicants")
+# means the restriction also covers direct applicants, so it is a real closure.
+CLOSED_STATUS_DIRECT_APPLICANT_CONTINUATION_PATTERN = (
+    r"\s*,?\s*(?:or|and|nor|y|o|ni)\s+(?:from\s+|de\s+)?(?:(?:individual|direct|private|other|any)\s+)?"
+    r"(?:applicants?|candidates?|individuals?|anyone|people|candidat\w*|particulares)\b"
+)
 
 LOCATION_CONTEXT_TERMS = {
     "remote",

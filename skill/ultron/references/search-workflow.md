@@ -160,7 +160,8 @@ the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled 
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
-the stage. `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+the stage (`unparseable_board`: the page loaded but no listings could be read, e.g. a script-rendered Taleo
+career section; it is not an empty board). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
 
 Seed order also learns from past runs of the same profile. `finalize` records which boards each run
 queried and how many of their postings it kept. Within each group, boards that have produced kept roles

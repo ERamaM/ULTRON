@@ -233,6 +233,7 @@ US_EXPLICIT_TERMS = {
     "u.s. (remote)",
     "u.s. remote",
     "location: u.s.",
+    "location: u.s.a",
     "location: usa",
     "us-based",
     "us based",

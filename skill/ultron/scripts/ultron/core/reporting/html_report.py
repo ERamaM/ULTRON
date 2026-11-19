@@ -86,6 +86,7 @@ _CSS = """
 --warm-ink:#ffd6a6;--grey:#2a3240;--grey-ink:#cdd5e0;--new:#4a3d0c;--new-ink:#ffe9a3;--ring-track:#273244;
 --focus:#ffb35c}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--sans)}
 a{color:var(--accent)}

@@ -81,19 +81,41 @@ _URL_SECRET_QUERY = re.compile(r"([?&](?:api[_-]?key|token|access[_-]?token|secr
 _GREENHOUSE_URL_PREFIX = re.compile(r"https?://(?:[a-z0-9-]+\.)*greenhouse\.io(?::\d+)?/[^\s\"'<>]*", re.IGNORECASE)
 _URL_PREFIX_SCAN_LIMIT = 2048
 _URL_BOUNDARY_CHARS = " \t\r\n\"'<>()[]"
-_NUMERIC_URL_VALUE = re.compile(r"[0-9]+(?=\s|$)")
+# The id ends where the URL ends: at the end of the value (``&``, ``#``, end of text), whitespace, a closing
+# delimiter (``)`` of a Markdown link, ``]``, ``>``, quotes, ``<``), or sentence punctuation before whitespace.
+_NUMERIC_URL_VALUE = re.compile(r"[0-9]+(?=[\s)\]>\"'<]|[.,;:!?](?:\s|$)|$)")
 
 
-def _url_secret_replacement(match: re.Match[str]) -> str:
+def _greenhouse_job_token(match: re.Match[str]) -> str | None:
+    """The numeric job id of a ``token`` parameter inside a greenhouse.io URL, else ``None``."""
     prefix, value = match.group(1), match.group(2)
-    # The value group can run past the URL into following prose, so only its leading run must be the id.
-    if prefix[1:-1].casefold() == "token" and _NUMERIC_URL_VALUE.match(value):
-        start = match.start()
-        window = match.string[max(0, start - _URL_PREFIX_SCAN_LIMIT) : start]
-        url_start = max(window.rfind(ch) for ch in _URL_BOUNDARY_CHARS) + 1
-        if _GREENHOUSE_URL_PREFIX.fullmatch(window, url_start):
-            return match.group(0)
-    return prefix + REDACTED
+    if prefix[1:-1].casefold() != "token":
+        return None
+    numeric = _NUMERIC_URL_VALUE.match(value)
+    if numeric is None:
+        return None
+    start = match.start()
+    window = match.string[max(0, start - _URL_PREFIX_SCAN_LIMIT) : start]
+    url_start = max(window.rfind(ch) for ch in _URL_BOUNDARY_CHARS) + 1
+    return numeric.group(0) if _GREENHOUSE_URL_PREFIX.fullmatch(window, url_start) else None
+
+
+def _redact_url_secrets(text: str) -> str:
+    # The value group can run past the URL into following prose. For a kept job id only the id itself is
+    # copied, and scanning resumes right after it, so later URLs in the same text are still redacted.
+    parts: list[str] = []
+    pos = 0
+    while (match := _URL_SECRET_QUERY.search(text, pos)) is not None:
+        job_id = _greenhouse_job_token(match)
+        if job_id is None:
+            parts.append(text[pos : match.start()] + match.group(1) + REDACTED)
+            pos = match.end()
+        else:
+            end = match.start(2) + len(job_id)
+            parts.append(text[pos:end])
+            pos = end
+    parts.append(text[pos:])
+    return "".join(parts)
 
 
 def environment_secret_values() -> tuple[str, ...]:
@@ -117,7 +139,7 @@ def _redact_string(value: str, secret_values: tuple[str, ...]) -> str:
     text = str(value)
     for secret in sorted((item for item in secret_values if item), key=len, reverse=True):
         text = text.replace(secret, REDACTED)
-    text = _URL_SECRET_QUERY.sub(_url_secret_replacement, text)
+    text = _redact_url_secrets(text)
     return _TOKEN_PATTERN.sub(_token_replacement, text)
 
 

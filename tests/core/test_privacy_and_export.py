@@ -64,6 +64,33 @@ def test_redact_keeps_greenhouse_job_token_but_redacts_real_secrets():
     )
 
 
+
+def test_redact_keeps_greenhouse_job_token_before_closing_delimiters():
+    link = "https://boards.greenhouse.io/x?token=4567"
+    for text in (
+        f"Apply ({link})",
+        f"[Apply]({link})",
+        f"<{link}>",
+        f'<a href="{link}">Apply</a>',
+        f"Apply at {link}. Thanks",
+        f"Apply at {link}, today",
+    ):
+        assert redact(text) == text
+    assert redact("https://boards.greenhouse.io/x?token=4567.secret") == f"https://boards.greenhouse.io/x?token={REDACTED}"
+    assert redact("https://boards.greenhouse.io/x?token=4567abc") == f"https://boards.greenhouse.io/x?token={REDACTED}"
+
+
+def test_redact_keeps_greenhouse_job_token_but_redacts_following_urls():
+    link = "https://boards.greenhouse.io/x?token=4567"
+    assert redact(f"{link} https://api.example.com/x?password=abcDEF123") == (
+        f"{link} https://api.example.com/x?password={REDACTED}"
+    )
+    # A redacted value still consumes the rest of the text up to ``&``/``#`` (unchanged behavior).
+    assert redact(f"[a]({link}) and [b](https://api.example.com/x?token=4567)") == (
+        f"[a]({link}) and [b](https://api.example.com/x?token={REDACTED}"
+    )
+    assert redact(f"{link} then {link}") == f"{link} then {link}"
+
 def test_render_results_markdown_keeps_greenhouse_token_apply_link():
     link = "https://boards.greenhouse.io/embed/job_app?for=acme&token=4567"
     row = FinalRow(

@@ -23,7 +23,7 @@ import yaml
 from ultron import home
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.identity import seed_identity
-from ultron.core.ats.registry import extract_seed_from_url
+from ultron.core.ats.registry import GENERIC_BOARD_IDENTIFIERS, extract_seed_from_url
 from ultron.core.models import AtsBoardSeed
 from ultron.core.sectors import seed_sector_values
 from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
@@ -291,17 +291,103 @@ def _core_company_words(company: str) -> list[str]:
     return words
 
 
+# Second-level labels of country domains (acme.co.uk, acme.com.au): the registrable name sits one label left.
+COUNTRY_SLDS = frozenset({"co", "com", "org", "net"})
+# Shared hosting and third-party platforms: a subdomain there (acme.github.io) names the platform's
+# customer, and its registrable label (github) names the platform, never the company.
+THIRD_PARTY_DOMAINS = frozenset({
+    "github.com",
+    "github.io",
+    "gitlab.com",
+    "gitlab.io",
+    "linkedin.com",
+    "ycombinator.com",
+    "notion.so",
+    "notion.site",
+    "medium.com",
+    "twitter.com",
+    "x.com",
+    "facebook.com",
+    "google.com",
+    "docs.google.com",
+    "angel.co",
+    "wellfound.com",
+    "lever.co",
+    "greenhouse.io",
+    "wordpress.com",
+    "wixsite.com",
+    "squarespace.com",
+    "webflow.io",
+    "herokuapp.com",
+    "netlify.app",
+    "vercel.app",
+    "pages.dev",
+})
+# Slugs that name no company: generic infrastructure or careers words (careers.acme.com, a company proposed as
+# "Careers"). Probing them would verify whichever tenant owns that generic board (MARK II blocked labels).
+BLOCKED_GENERIC_SLUGS = frozenset(GENERIC_BOARD_IDENTIFIERS) | frozenset({
+    "www",
+    "api",
+    "boards",
+    "board",
+    "hire",
+    "hiring",
+    "join",
+    "work",
+    "talent",
+    "remote",
+    "recruiting",
+    "recruitment",
+})
+
+
+def registrable_domain(domain: str) -> str:
+    """Registrable domain (``acme.com`` for ``careers.acme.com``, ``acme.co.uk`` for ``jobs.acme.co.uk``).
+
+    ``""`` for an empty, single-label or IP host, a bare country second-level domain (``co.uk``) and hosts on a
+    shared-hosting or third-party platform (``acme.github.io``), whose registrable name is not the company's.
+    """
+    text = str(domain or "").strip()
+    if not text:
+        return ""
+    try:
+        host = (urlparse(text if "://" in text else f"//{text}").hostname or "").lower().rstrip(".")
+    except ValueError:
+        return ""
+    labels = [part for part in host.split(".") if part]
+    if len(labels) < 2 or all(part.isdigit() for part in labels):
+        return ""
+    if labels[-2] in COUNTRY_SLDS and len(labels[-1]) == 2:
+        if len(labels) < 3:
+            return ""
+        reg = labels[-3:]
+    else:
+        reg = labels[-2:]
+    registrable = ".".join(reg)
+    if any(host == d or host.endswith("." + d) for d in THIRD_PARTY_DOMAINS):
+        return ""
+    return registrable
+
+
+def domain_slug(domain: str) -> str:
+    """The registrable domain's name label (``acme`` for ``es.acme.com``), ``""`` when it is unusable."""
+    label = registrable_domain(domain).split(".")[0]
+    return "" if label in BLOCKED_GENERIC_SLUGS else label
+
+
 def _slug_candidate_passes(company: str, domain: str) -> tuple[list[str], list[str]]:
-    """(literal name forms + domain label, at most two normalized forms not already in the first list)."""
+    """(literal name forms + domain label, at most two normalized forms not already in the first list).
+
+    Generic slugs (``careers``, ``jobs``, ``remote``...) are never returned: they name no company.
+    """
     words = re.findall(r"[a-z0-9]+", company.lower())
-    literal = ["".join(words), "-".join(words)]
-    host = urlparse(domain if "://" in domain else f"//{domain}").netloc.lower() if domain.strip() else ""
-    host = host.removeprefix("www.")
-    if host:
-        literal.append(host.split(".")[0])
-    primary = list(dict.fromkeys(s for s in literal if s))
+    literal = ["".join(words), "-".join(words), domain_slug(domain)]
+    primary = list(dict.fromkeys(s for s in literal if s and s not in BLOCKED_GENERIC_SLUGS))
     core = _core_company_words(company)
-    normalized = [s for s in dict.fromkeys(("".join(core), "-".join(core))) if s and s not in primary]
+    normalized = [
+        s for s in dict.fromkeys(("".join(core), "-".join(core)))
+        if s and s not in primary and s not in BLOCKED_GENERIC_SLUGS
+    ]
     return primary, normalized
 
 

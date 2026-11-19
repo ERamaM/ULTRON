@@ -213,6 +213,44 @@ def test_fetch_workable_closed_job_redirecting_to_live_board(capsys):
     assert runs.read_jsonl(folder / "fetch_errors.jsonl")[0]["error"] == "expired_or_closed"
 
 
+@pytest.mark.parametrize("host", ["job-boards.greenhouse.io", "boards.greenhouse.io", "job-boards.eu.greenhouse.io"])
+def test_fetch_greenhouse_closed_job_redirecting_to_board_error(capsys, host):
+    url = f"https://{host}/acme/jobs/4012345"
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path == "/acme/jobs/4012345":
+            return httpx.Response(302, headers={"Location": "/acme?error=true"})
+        return httpx.Response(200, text="<h1>Acme</h1><p>Current openings: Senior ML Engineer.</p>")
+
+    run_id = _run(handler)
+    folder = runs.run_dir(run_id)
+    runs.write_jsonl(folder / "candidates.jsonl", [_cand(url)])
+    runs.mark_stage(run_id, "discover_ats")
+    assert main(["fetch", "--run", run_id]) == 0
+    assert not runs.read_jsonl(folder / "postings.jsonl")
+    assert runs.read_jsonl(folder / "fetch_errors.jsonl")[0]["error"] == "expired_or_closed"
+    assert not any("boards-api" in request for request in seen)
+
+
+def test_fetch_greenhouse_board_error_param_without_a_job_redirect_is_not_closed():
+    from ultron.stages.fetch import _greenhouse_closed_redirect
+
+    assert _greenhouse_closed_redirect(
+        "https://job-boards.greenhouse.io/acme/jobs/1", "https://job-boards.greenhouse.io/acme?error=true"
+    )
+    assert not _greenhouse_closed_redirect(
+        "https://job-boards.greenhouse.io/acme", "https://job-boards.greenhouse.io/acme?error=true"
+    )
+    assert not _greenhouse_closed_redirect(
+        "https://job-boards.greenhouse.io/acme/jobs/1", "https://job-boards.greenhouse.io/acme/jobs/1?error=false"
+    )
+    assert not _greenhouse_closed_redirect(
+        "https://careers.acme.example/jobs/1", "https://careers.acme.example/acme?error=true"
+    )
+
+
 def test_fetch_smartrecruiters_reads_detail_page_location_and_workplace(capsys):
     url = "https://jobs.smartrecruiters.com/Acme/1234567"
     page = """

@@ -9,11 +9,11 @@ clear (for example `ultron new openings` = `jobs new`).
 Anything that is not a command (for example `ultron find data roles in Madrid`) is a normal request: handle it
 with the matching intent in SKILL.md.
 
-## Menu
+## Shortcut reference
 
-Show this menu, translated into the user's language, when the user gives only the skill name, `help`, `menu`, or an
-unknown command (then say which word was not recognized). A group without an action runs its default (marked
-"default"); `<group> help` lists that group's actions.
+Use this table to interpret shortcuts the user already knows. For general help, follow the
+conversational walkthrough in SKILL.md. Show syntax when the user explicitly asks for it.
+A group without an action runs its default (marked "default").
 
 ```
 ultron search [profile] [preset]      full search with the agent (default)

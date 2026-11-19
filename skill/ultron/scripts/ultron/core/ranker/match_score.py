@@ -12,6 +12,7 @@ from ultron.core.ranker.contradictions import (
     explicitly_contradicts,
 )
 from ultron.core.ranker.profile_terms import ProfileTermHits, exclusion_lists_configured
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.hard_filters_data import DISALLOWED_REMOTE_TERMS, ONSITE_TERMS
 from ultron.core.rules.term_matching import find_terms
 
@@ -83,7 +84,6 @@ def compute_match_score(
 
     criteria = dict(criteria or {})
     seniority = criteria.get("seniority") if isinstance(criteria.get("seniority"), dict) else {}
-    remote_policy = criteria.get("remote_policy") if isinstance(criteria.get("remote_policy"), dict) else {}
     location_scope = criteria.get("location_scope") if isinstance(criteria.get("location_scope"), dict) else {}
     seniority_required = bool(seniority.get("required", False))
     preferred = seniority.get("preferred_terms")
@@ -92,7 +92,7 @@ def compute_match_score(
         and bool(preferred)
         and all(isinstance(term, str) and term.strip().lower() in _SENIOR_PREFERENCES for term in preferred)
     )
-    remote_required = str(remote_policy.get("required") or "any") == "full_remote"
+    remote_required = is_remote_required(criteria)
     eligibility_required = bool(location_scope.get("preferred"))
     role_sources = (criteria.get("role_focus_terms"), criteria.get("target_titles"))
     role_terms = (

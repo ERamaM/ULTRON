@@ -35,6 +35,17 @@ LONG_POSTING_MENTIONING_SECURITY_CHECK = (
 )
 
 
+SPLIT_CHALLENGE_PAGE = """<html><head><title>One more step</title></head><body>
+<p>Verify you are <b>human</b></p></body></html>"""
+
+
+def _short_posting(sentence: str) -> str:
+    return (
+        "<html><head><title>Backend Engineer - Example Labs</title></head><body><h1>Backend Engineer</h1>"
+        f"<p>Example Labs is hiring a Backend Engineer, fully remote within Spain. {sentence}</p></body></html>"
+    )
+
+
 @pytest.fixture(autouse=True)
 def _no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
@@ -60,7 +71,7 @@ def _fetch_single(html: str) -> tuple[list[dict], list[dict]]:
     return runs.read_jsonl(d / "postings.jsonl"), runs.read_jsonl(d / "fetch_errors.jsonl")
 
 
-@pytest.mark.parametrize("html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE])
+@pytest.mark.parametrize("html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE, SPLIT_CHALLENGE_PAGE])
 def test_challenge_page_recorded_as_blocked(html):
     postings, errors = _fetch_single(html)
     assert postings == []
@@ -77,3 +88,25 @@ def test_js_only_shell_recorded():
 def test_real_postings_still_pass(html):
     postings, errors = _fetch_single(html)
     assert errors == [] and len(postings) == 1
+
+
+@pytest.mark.parametrize("sentence", [
+    "Our signup flow is captchaless.",
+    "You will maintain our security checker service.",
+    "Our forms are protected by reCAPTCHA.",
+])
+def test_challenge_words_inside_other_words_do_not_block(sentence):
+    postings, errors = _fetch_single(_short_posting(sentence))
+    assert errors == [] and len(postings) == 1
+
+
+def test_smartrecruiters_metadata_without_description_does_not_skip_classification(monkeypatch):
+    from ultron.stages import fetch as fetch_stage
+
+    def metadata_only(candidate, job, client):
+        return job.model_copy(update={"title": "Senior Engineer", "company": "Example"}), True
+
+    monkeypatch.setattr(fetch_stage, "_smartrecruiters_api_enrich", metadata_only)
+    postings, errors = _fetch_single(CAPTCHA_PAGE)
+    assert postings == []
+    assert errors == [{"url": "https://careers.example.org/jobs/42", "error": "blocked", "status": 200}]

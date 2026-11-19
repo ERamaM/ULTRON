@@ -48,3 +48,16 @@ def test_finalize_xlsx_missing_openpyxl_keeps_payload(capsys, monkeypatch):
     assert "openpyxl not installed" in out["xlsx_error"]
     assert out["roles"] >= 1 and "results_xlsx" not in out["outputs"]
     assert (runs.run_dir(run_id) / "results.json").is_file()
+
+
+def test_finalize_xlsx_with_control_characters_in_discards(capsys):
+    run_id = _filtered(capsys)
+    path = runs.run_dir(run_id) / "discarded.jsonl"
+    rows = runs.read_jsonl(path)
+    rows.append({"apply_url": "https://example.com/x", "reason": "stale", "title": "Bad\x08 title\x1b",
+                 "detail": "line\x0bbreak", "stage": "filter", "identity_key": "ctrl"})
+    runs.write_jsonl(path, rows)
+    assert main(["finalize", "--run", run_id, "--xlsx"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert "xlsx_error" not in out
+    assert out["outputs"]["results_xlsx"] == str(runs.run_dir(run_id) / "results.xlsx")

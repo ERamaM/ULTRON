@@ -43,6 +43,45 @@ def test_render_results_markdown_prevents_injected_links_and_keeps_plain_url():
     assert "España & Co" in md
 
 
+def test_redact_keeps_greenhouse_job_token_but_redacts_real_secrets():
+    link = "https://boards.greenhouse.io/embed/job_app?for=acme&token=4567"
+    assert redact(link) == link
+    assert redact({"apply_url": link}) == {"apply_url": link}
+    assert redact(f"Apply at {link} today") == f"Apply at {link} today"
+    other = "https://job-boards.greenhouse.io/embed/job_app?token=4567&for=acme"
+    assert redact(other) == other
+
+    assert redact(f"{link}&access_token=abc123") == f"{link}&access_token={REDACTED}"
+    assert redact("https://boards.greenhouse.io/x?api_key=987654") == f"https://boards.greenhouse.io/x?api_key={REDACTED}"
+    # Non-numeric tokens, and numeric tokens on other hosts, stay redacted.
+    assert redact("https://boards.greenhouse.io/x?token=abcDEF123") == f"https://boards.greenhouse.io/x?token={REDACTED}"
+    assert redact("https://api.example.com/x?token=4567") == f"https://api.example.com/x?token={REDACTED}"
+    assert redact("https://greenhouse.io.evil.example/x?token=4567") == (
+        f"https://greenhouse.io.evil.example/x?token={REDACTED}"
+    )
+    assert redact("token=4567 near https://boards.greenhouse.io/x?token=12") == (
+        "token=4567 near https://boards.greenhouse.io/x?token=12"
+    )
+
+
+def test_render_results_markdown_keeps_greenhouse_token_apply_link():
+    link = "https://boards.greenhouse.io/embed/job_app?for=acme&token=4567"
+    row = FinalRow(
+        title="Engineer",
+        company="Acme",
+        apply_url=link,
+        location="Remote",
+        remote_policy="remote_eu",
+        eligibility="high",
+        eligibility_evidence="Remote EU",
+        fit_signals=["Python"],
+        freshness="recent",
+        match_score=90,
+        match_band="strong",
+    )
+    assert link in render_results_markdown([row])
+
+
 def test_privacy_redacts_anthropic_and_google_gemini_env_keys(monkeypatch):
     for name, val in (
         ("ANTHROPIC_API_KEY", "secret-anthropic-value-999"),

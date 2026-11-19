@@ -75,6 +75,25 @@ def _token_replacement(match: re.Match[str]) -> str:
 
 
 _URL_SECRET_QUERY = re.compile(r"([?&](?:api[_-]?key|token|access[_-]?token|secret|password)=)([^&#]*)", re.IGNORECASE)
+# Greenhouse embed links (``boards.greenhouse.io/embed/job_app?for=acme&token=4567``) carry the public,
+# numeric job id in ``token``; redacting it breaks the exported apply link. Only a numeric ``token`` inside
+# a greenhouse.io URL is kept; every other ``token`` value stays redacted.
+_GREENHOUSE_URL_PREFIX = re.compile(r"https?://(?:[a-z0-9-]+\.)*greenhouse\.io(?::\d+)?/[^\s\"'<>]*", re.IGNORECASE)
+_URL_PREFIX_SCAN_LIMIT = 2048
+_URL_BOUNDARY_CHARS = " \t\r\n\"'<>()[]"
+_NUMERIC_URL_VALUE = re.compile(r"[0-9]+(?=\s|$)")
+
+
+def _url_secret_replacement(match: re.Match[str]) -> str:
+    prefix, value = match.group(1), match.group(2)
+    # The value group can run past the URL into following prose, so only its leading run must be the id.
+    if prefix[1:-1].casefold() == "token" and _NUMERIC_URL_VALUE.match(value):
+        start = match.start()
+        window = match.string[max(0, start - _URL_PREFIX_SCAN_LIMIT) : start]
+        url_start = max(window.rfind(ch) for ch in _URL_BOUNDARY_CHARS) + 1
+        if _GREENHOUSE_URL_PREFIX.fullmatch(window, url_start):
+            return match.group(0)
+    return prefix + REDACTED
 
 
 def environment_secret_values() -> tuple[str, ...]:
@@ -98,7 +117,7 @@ def _redact_string(value: str, secret_values: tuple[str, ...]) -> str:
     text = str(value)
     for secret in sorted((item for item in secret_values if item), key=len, reverse=True):
         text = text.replace(secret, REDACTED)
-    text = _URL_SECRET_QUERY.sub(r"\1" + REDACTED, text)
+    text = _URL_SECRET_QUERY.sub(_url_secret_replacement, text)
     return _TOKEN_PATTERN.sub(_token_replacement, text)
 
 

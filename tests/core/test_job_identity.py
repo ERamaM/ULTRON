@@ -166,6 +166,7 @@ def test_ashby_and_workable_canonical_identities():
         "_gl",
         "mtm_campaign",
         "pk_campaign",
+        "pk_cpn",
     ],
 )
 def test_common_tracking_keys_are_ignored(key):

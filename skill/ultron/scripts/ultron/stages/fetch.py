@@ -24,6 +24,7 @@ _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNOREC
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
 _WORKABLE_SHORT_JOB_RE = re.compile(r"^/j/([A-Za-z0-9]{6,})(?:/|$)")
 _SPA_BODY_MIN_CHARS = 400
+HOST_BLOCK_THRESHOLD = 3  # consecutive 403/429 pages from one host before its remaining URLs are skipped
 
 
 def _html_to_text(raw: str) -> str:
@@ -357,6 +358,7 @@ def fetch(run_id: str) -> dict:
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
+    block_strikes: dict[str, int] = {}  # consecutive 403/429 answers per host
     budget_spent = False
     for candidate, identity in selected:
         url = candidate.normalized_url
@@ -365,6 +367,13 @@ def fetch(run_id: str) -> dict:
             continue
         if candidate.domain in skipped_hosts:
             errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
+            continue
+        if block_strikes.get(candidate.domain, 0) >= HOST_BLOCK_THRESHOLD:
+            if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
+                postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
+                                 "identity_key": identity, "ats_fingerprint": True})
+                continue
+            errors.append({"url": url, "error": "host_blocked"})
             continue
         try:
             status, final_url, html = client.get_text(url)
@@ -392,6 +401,7 @@ def fetch(run_id: str) -> dict:
         except URLRejected as exc:
             errors.append({"url": url, "error": f"url_rejected: {exc}"})
             continue
+        block_strikes[candidate.domain] = block_strikes.get(candidate.domain, 0) + 1 if status in {403, 429} else 0
         if status >= 400:
             if status in {403, 429} or status >= 500:
                 fallback = _greenhouse_api_fallback(candidate, client)

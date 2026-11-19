@@ -411,6 +411,11 @@ def _is_date_only(raw: str) -> bool:
     return True
 
 
+# An RFC 3339 / ISO 8601 date-time is at most ~35 characters; longer values come from untrusted pages and are
+# ignored before any string processing.
+_MAX_VALID_THROUGH_CHARS = 64
+
+
 def _valid_through_expired(value: str, *, now: datetime | None = None) -> bool:
     """True only when a JSON-LD ``validThrough`` parses to a deadline in the past.
 
@@ -418,11 +423,15 @@ def _valid_through_expired(value: str, *, now: datetime | None = None) -> bool:
     are read as UTC. Missing, unparseable or placeholder values never expire a
     posting: bad data must not drop a job.
     """
-    raw = str(value or "").strip()
+    if not isinstance(value, str) or len(value) > _MAX_VALID_THROUGH_CHARS:
+        return False
+    raw = value.strip()
     if not raw:
         return False
+    if raw[-1] in "Zz":  # only a terminal UTC designator
+        raw = raw[:-1] + "+00:00"
     try:
-        deadline = datetime.fromisoformat(raw.replace("Z", "+00:00").replace("z", "+00:00"))
+        deadline = datetime.fromisoformat(raw)
     except ValueError:
         return False
     if deadline.year < _MIN_VALID_THROUGH_YEAR:

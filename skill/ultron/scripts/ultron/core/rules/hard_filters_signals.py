@@ -10,7 +10,14 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from ultron.core.rules.hard_filters_data import REMOTE_HINT_TERMS
+from ultron.core.rules.hard_filters_data import (
+    AGENCY_EXEMPTABLE_CLOSED_PHRASES,
+    CLOSED_STATUS_AGENCY_SUFFIX_PATTERN,
+    CLOSED_STATUS_PHRASES,
+    REMOTE_HINT_TERMS,
+)
+from ultron.core.rules.term_matching import normalize_text
+from ultron.core.rules.text_patterns import term_boundary_pattern
 
 _REMOTE_HINT_NEGATION = re.compile(r"(?:\bnot-|\bnon-|\bisn't\b|\bnot\b|\bno\b)\s*$")
 _REMOTE_BENEFIT_SUFFIX = re.compile(
@@ -20,6 +27,10 @@ _REMOTE_BENEFIT_SUFFIX = re.compile(
 _DISTRIBUTED_TEAM_HINT = re.compile(r"\bdistributed teams?\b", re.IGNORECASE)
 _GEORGIA_COUNTRY_CUES = re.compile(r"\b(?:tbilisi|batumi|caucasus)\b")
 _GEORGIA_US_CUES = re.compile(r"\b(?:atlanta|savannah|ga|usa|united states)\b")
+
+
+CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+_TYPOGRAPHIC_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
 
 
 @lru_cache(maxsize=64)
@@ -59,4 +70,19 @@ def has_remote_work_hint(text: str) -> bool:
                 if _REMOTE_BENEFIT_SUFFIX.search(suffix):
                     continue
             return True
+    return False
+
+
+def has_closed_status_phrase(text: str) -> bool:
+    """Whole-phrase ``CLOSED_STATUS_PHRASES`` match, accent- and apostrophe-insensitive.
+
+    "Not accepting applications from agencies" style boilerplate does not count (see
+    ``AGENCY_EXEMPTABLE_CLOSED_PHRASES``). Shared by the hard filters and the extractor's ``is_open_hint``.
+    """
+    low = normalize_text(text).translate(_TYPOGRAPHIC_APOSTROPHES)
+    for phrase in CLOSED_STATUS_PHRASES:
+        exemptable = phrase in AGENCY_EXEMPTABLE_CLOSED_PHRASES
+        for match in term_boundary_pattern(phrase).finditer(low):
+            if not (exemptable and CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
+                return True
     return False

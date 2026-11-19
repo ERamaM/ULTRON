@@ -27,6 +27,22 @@ INTENTIONAL_DEVIATIONS = {
     "en-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
     "es-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
     "q-cet-substring": {"heuristic_evaluator": {"fit_signals": []}},
+    # Explicit closed-status phrases ("the previous research role has been filled"; ES "la oferta esta cerrada",
+    # "la plaza ya ha sido cubierta") now reject the posting as expired_or_closed. Both cases are labelled
+    # not_relevant (closed) in the quality labels, and MARK III kept them open only because its phrase list
+    # missed these forms.
+    **{
+        case_id: {
+            "pre_filter": {"keep": False, "reason": "expired_or_closed"},
+            "heuristic_evaluator": {
+                "discard_category": "closed_or_invalid", "discard_reason": "expired_or_closed", "keep": False,
+                "open_status_ok": False, "verdict": "discard",
+            },
+            "hard_filter": {"keep": False, "reason": "expired_or_closed"},
+            "pipeline_characterization": {"outcome": "discard", "reason": "expired_or_closed", "stage": "pre_filter"},
+        }
+        for case_id in ("en-negative-shape-08", "es-negative-shape-07")
+    },
 }
 
 

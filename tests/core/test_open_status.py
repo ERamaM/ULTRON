@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ultron.core.rules.hard_filters import is_open_status_ok
 
 
@@ -70,3 +72,66 @@ def test_agency_exemption_requires_the_agency_list_to_end_the_sentence():
 
 def test_closed_phrase_inside_another_word_does_not_close_posting():
     assert is_open_status_ok("Create a composition filled with color.", True, True) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "This position has been filled.",
+        "The role has been filled",
+        "This job has already been filled. Thank you for your interest.",
+        "This job is no longer available",
+        "Sorry, this posting is no longer active.",
+        "The deadline for applications has passed",
+        "The application deadline has passed.",
+        "This requisition is no longer active",
+        "La oferta está cerrada desde junio",
+        "La oferta esta cerrada desde junio",
+        "La plaza ya ha sido cubierta",
+        "El puesto ha sido cubierto.",
+        "No se admiten más solicitudes",
+        "No se admiten mas candidaturas.",
+        "Esta oferta ya no está disponible",
+        "Diese Stelle ist bereits besetzt",
+        "Die Stelle wurde besetzt.",
+        "Diese Stellenanzeige ist nicht mehr verfügbar.",
+        "Cette offre n'est plus disponible",
+        "Cette offre n’est plus disponible.",
+        "Le poste est pourvu.",
+        "Ce poste a été pourvu.",
+    ],
+)
+def test_explicit_closed_phrases_reject_in_every_language(body):
+    assert is_open_status_ok(body, True, True) is False
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Once the application form has been filled, we reply within a week.",
+        "The questionnaire is no longer available offline; apply online below.",
+        "Die Stelle soll schnellstmöglich besetzt werden.",
+        "Wir möchten die Position zum 1. Mai besetzen.",
+        "Le poste est à pourvoir dès maintenant.",
+        "La oferta incluye seguro médico y está abierta a candidaturas de toda la UE.",
+        "Our legacy API is no longer available; you will help build its replacement.",
+        "No se admiten más solicitudes de agencias de selección.",
+    ],
+)
+def test_open_postings_with_closed_lookalike_words_stay_open(body):
+    assert is_open_status_ok(body, True, True) is True
+
+
+def test_extractor_open_hint_uses_the_shared_closed_phrase_list():
+    from ultron.core.extractors.ats_extractors import base
+    from ultron.core.models import JobRawPage
+
+    def hint(text: str) -> bool:
+        html = f"<html><body><h1>Senior ML Engineer</h1><p>{text}</p></body></html>"
+        url = "https://boards.greenhouse.io/acme/jobs/1"
+        return base.parse_generic(JobRawPage(url=url, final_url=url, status_code=200, html=html)).is_open_hint
+
+    assert hint("La plaza ya ha sido cubierta.") is False
+    assert hint("Diese Stelle ist bereits besetzt.") is False
+    assert hint("We are not accepting applications from recruitment agencies.") is True
+    assert hint("Apply now.") is True

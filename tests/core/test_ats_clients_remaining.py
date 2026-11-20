@@ -41,9 +41,9 @@ def fetch(vendor, board, client):
     return fetch_vendor_jobs(vendor, board, client=client, timeout=5)
 
 
-def test_all_20_vendors_registered():
+def test_all_22_vendors_registered():
     assert set(FETCHERS) == set(get_args(AtsBoardSeed.model_fields["ats"].annotation))
-    assert len(FETCHERS) == 20
+    assert len(FETCHERS) == 22
 
 
 def test_recruitee_parses_offers():

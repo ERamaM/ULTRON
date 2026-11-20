@@ -7,6 +7,7 @@ from ultron.core.ats.clients.ashby import fetch_ashby_jobs
 from ultron.core.ats.clients.bamboohr import fetch_bamboohr_jobs
 from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting
 from ultron.core.ats.clients.breezy import fetch_breezy_jobs
+from ultron.core.ats.clients.candidatemanager import fetch_candidatemanager_jobs
 from ultron.core.ats.clients.comeet import fetch_comeet_jobs
 from ultron.core.ats.clients.factorial import fetch_factorial_jobs
 from ultron.core.ats.clients.greenhouse import fetch_greenhouse_jobs
@@ -16,6 +17,7 @@ from ultron.core.ats.clients.icims import fetch_icims_jobs
 from ultron.core.ats.clients.jazzhr import fetch_jazzhr_jobs
 from ultron.core.ats.clients.jobvite import fetch_jobvite_jobs
 from ultron.core.ats.clients.lever import fetch_lever_jobs
+from ultron.core.ats.clients.occupop import fetch_occupop_jobs
 from ultron.core.ats.clients.personio import fetch_personio_jobs
 from ultron.core.ats.clients.pinpoint import fetch_pinpoint_jobs
 from ultron.core.ats.clients.recruitee import fetch_recruitee_jobs
@@ -33,6 +35,8 @@ FETCHERS: dict[str, Callable] = {
     "factorial": fetch_factorial_jobs,
     "greenhouse": fetch_greenhouse_jobs,
     "hirehive": fetch_hirehive_jobs,
+    "occupop": fetch_occupop_jobs,
+    "candidatemanager": fetch_candidatemanager_jobs,
     "homerun": fetch_homerun_jobs,
     "icims": fetch_icims_jobs,
     "jazzhr": fetch_jazzhr_jobs,
@@ -79,6 +83,7 @@ __all__ = [
     "fetch_ashby_jobs",
     "fetch_bamboohr_jobs",
     "fetch_breezy_jobs",
+    "fetch_candidatemanager_jobs",
     "fetch_comeet_jobs",
     "fetch_factorial_jobs",
     "fetch_greenhouse_jobs",
@@ -88,6 +93,7 @@ __all__ = [
     "fetch_jazzhr_jobs",
     "fetch_jobvite_jobs",
     "fetch_lever_jobs",
+    "fetch_occupop_jobs",
     "fetch_personio_jobs",
     "fetch_pinpoint_jobs",
     "fetch_recruitee_jobs",

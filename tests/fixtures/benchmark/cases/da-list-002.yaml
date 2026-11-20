@@ -17,4 +17,4 @@ labels:
   eligibility: high
   open_status: true
 expected_stage: keep
-notes: 'Added on 2026-11-20 (owner-delegated labelling, session 7 US-location cases synthesized from session 3-4 postings), labelled from the text against data-analyst-remote-latam: relevant (a fully remote data analyst role based in Buenos Aires, Argentina).'
+notes: 'Added on 2026-11-20 (owner-delegated labelling, session 7 US-location cases: a hand-written look-alike control), labelled from the text against data-analyst-remote-latam: relevant (a fully remote data analyst role based in Buenos Aires, Argentina).'

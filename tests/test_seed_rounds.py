@@ -70,13 +70,13 @@ def _rows(prefix: str, ok: int, missing: int = 0) -> list[dict]:
 
 def test_run_new_reports_the_seed_deficit_of_a_profile_without_a_fitting_pack(requests_log, capsys):
     out = _new_run(capsys)
-    assert (out["seed_target"], out["fitting_seeds"], out["seed_deficit"]) == (45, 0, 45)
+    assert (out["seed_target"], out["fitting_seeds"], out["seed_deficit"]) == (40, 0, 40)
 
 
 def test_a_profile_covered_by_the_bundled_pack_has_no_deficit(capsys):
     profiles.install_example()
     out = _new_run(capsys)
-    assert out["seed_deficit"] == 0 and out["fitting_seeds"] >= out["seed_target"] == 45
+    assert out["seed_deficit"] == 0 and out["fitting_seeds"] >= out["seed_target"] == 40
 
 
 def test_plan_asks_for_the_deficit_over_the_prior_yield_capped_at_the_target(requests_log, capsys):
@@ -84,7 +84,7 @@ def test_plan_asks_for_the_deficit_over_the_prior_yield_capped_at_the_target(req
     code, out = _cli(capsys, "seeds", "plan", "--run", run_id)
     assert code == 0
     assert out["round"] == 1 and out["max_rounds"] == 2 and out["more_rounds"] is True
-    assert out["seed_deficit"] == 45 and out["ask"] == 45  # ceil(45 / 0.5) = 90, capped at the target
+    assert out["seed_deficit"] == 40 and out["ask"] == 40  # ceil(40 / 0.5) = 80, capped at the target
     assert out["proposals_file"] == "agent_seed_round_1.jsonl"
     assert out["schema"] == seed_rounds.PROPOSAL_SCHEMA
     assert requests_log == []  # planning makes no request
@@ -113,9 +113,9 @@ def test_verify_round_records_progress_and_the_next_ask(requests_log, capsys, tm
     code, out = _cli(capsys, "seeds", "verify", "--run", run_id, "--from", src, "--round")
     assert code == 0 and out["verified"] == 8
     info = out["seed_round"]
-    assert info["round"] == 1 and info["fitting_seeds"] == 8 and info["seed_deficit"] == 37
+    assert info["round"] == 1 and info["fitting_seeds"] == 8 and info["seed_deficit"] == 32
     assert info["more_rounds"] is True and info["status"] == "open"
-    assert info["next_ask"] == 45  # ceil(37 / 0.8) = 47, capped at the target
+    assert info["next_ask"] == 40  # ceil(32 / 0.8) = 40
     (record,) = seed_rounds.load_rounds(run_id)
     assert (record["checked"], record["verified"], record["fitting_before"], record["fitting_after"]) == (10, 8, 0, 8)
     assert "greenhouse:gonea0" in record["boards"]
@@ -162,7 +162,7 @@ def test_a_blocked_host_ends_the_rounds():
     record = {"fitting_before": 0, "fitting_after": 4, "host_blocked": 2}
     assert seed_rounds.round_status(run, [record], fitting=4) == "host_blocked"
     assert seed_rounds.round_status(run, [{**record, "host_blocked": 0}], fitting=4) == "open"
-    assert seed_rounds.round_status(run, [], fitting=45) == "target_met"
+    assert seed_rounds.round_status(run, [], fitting=40) == "target_met"
 
 
 def test_the_yield_ignores_unchecked_proposals_and_is_clamped():
@@ -173,7 +173,7 @@ def test_the_yield_ignores_unchecked_proposals_and_is_clamped():
 
 
 def test_runs_created_before_the_round_settings_use_the_preset_values():
-    assert seed_rounds.run_settings({"preset": "balanced", "settings": {"max_pages": 5}})["seed_target"] == 90
+    assert seed_rounds.run_settings({"preset": "balanced", "settings": {"max_pages": 5}})["seed_target"] == 80
     assert seed_rounds.run_settings({"preset": "balanced", "settings": {"seed_target": 7}})["seed_target"] == 7
 
 
@@ -195,7 +195,7 @@ def test_unattended_runs_report_the_seed_coverage(requests_log):
     from ultron.stages.unattended import run_unattended
 
     out = run_unattended(profiles.EXAMPLE_SLUG, "fast")
-    assert out["stages"]["seed_coverage"] == {"seed_target": 45, "fitting_seeds": 0, "seed_deficit": 45}
+    assert out["stages"]["seed_coverage"] == {"seed_target": 40, "fitting_seeds": 0, "seed_deficit": 40}
     assert runs.load_run(out["run_id"])["profile_slug"] == profiles.EXAMPLE_SLUG
 
 

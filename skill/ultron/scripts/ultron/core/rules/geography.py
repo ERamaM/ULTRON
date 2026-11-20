@@ -18,9 +18,11 @@ from ultron.core.rules.geo_eu import (
     EU_COUNTRY_TERMS,
     EU_SCOPE_TERMS,
     EUROPEAN_SCOPE_TOKENS,
+    NON_EU_SCOPED_COUNTRY_TERMS,
     classify_eu_eligibility,
     classify_eu_remote_policy,
     has_region_red_flags,
+    home_locality_terms,
 )
 from ultron.core.rules.term_matching import find_terms, normalize_text
 from ultron.core.rules.text_patterns import contains_any_substring
@@ -126,6 +128,60 @@ def scoped_posting_eligibility(location: str, remote_text: str, body_text: str, 
     if "us" in terms and re.search(r"(?<!\w)US(?!\w)", f"{remote_text}\n{body_excerpt}"):
         return "high"
     return "high" if find_terms(body_excerpt, prose_terms) else None
+
+
+# Regions that span several countries. A posting naming one is open beyond a single country, and a profile's
+# preferred value naming one is a region, not a home country.
+WIDE_REGION_WORDS = frozenset({
+    "europe", "european", "europa", "eu", "ue", "eea", "emea", "schengen", "latam", "apac", "americas",
+    "worldwide", "anywhere", "global", "international", "nordics", "dach", "benelux", "mundo",
+})
+WIDE_REGION_PHRASES = (
+    "latin america", "america latina", "latinoamerica", "north america", "south america", "asia pacific",
+    "any country", "european union", "european economic area", "cualquier pais",
+)
+# Countries a posting may restrict work to. EU and EEA members come from geo_eu; the rest are the other
+# countries that commonly appear in a posting's location field.
+COUNTRY_TERMS = tuple(sorted({
+    *EU_COUNTRY_TERMS, *EEA_NON_EU_COUNTRY_TERMS, *NON_EU_SCOPED_COUNTRY_TERMS,
+    "united kingdom", "uk", "switzerland", "united states", "usa", "canada", "brazil", "brasil", "mexico",
+    "india", "australia", "new zealand", "japan", "singapore", "philippines", "ukraine", "serbia", "costa rica",
+}))
+
+
+def names_wide_region(text: str) -> bool:
+    """True when the text names a region that spans several countries ("Remote EU", "anywhere", "LATAM")."""
+    low = normalize_text(text)
+    return bool(find_terms(low, WIDE_REGION_WORDS) or find_terms(low, WIDE_REGION_PHRASES))
+
+
+def profile_home_places(criteria: Mapping[str, Any] | None) -> tuple[str, ...]:
+    """The single countries or cities in ``location_scope.preferred`` ("Ireland", "Dublin"), without regions.
+
+    A profile that names only regions ("Remote EU", "Remote LATAM") has no home place, and the
+    country-restriction check below does not apply to it.
+    """
+    places: list[str] = []
+    for region in location_scope({"criteria": criteria or {}})["preferred"]:
+        words = [word for word in re.findall(r"\w+", normalize_text(region)) if word not in GENERIC_REGION_TOKENS]
+        if words and not names_wide_region(" ".join(words)):
+            places.append(" ".join(words))
+    return tuple(dict.fromkeys((*places, *home_locality_terms(places))))
+
+
+def other_country_restriction(location: str, remote_text: str, criteria: Mapping[str, Any] | None) -> str | None:
+    """The country a posting is limited to when it is none of the profile's home places, else ``None``.
+
+    Only the structured location and remote fields are read: "Remote - Netherlands" or "Lyon, France" names
+    one place of work, while a body may mention offices anywhere. A posting that also names a home place
+    ("Germany, Ireland or Portugal") or a multi-country region ("Remote EU, Germany preferred") is not limited.
+    """
+    homes = profile_home_places(criteria)
+    text = f"{location}\n{remote_text}"
+    if not homes or names_wide_region(text) or find_terms(text, homes):
+        return None
+    named = find_terms(text, COUNTRY_TERMS)
+    return named[0] if named else None
 
 
 def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:

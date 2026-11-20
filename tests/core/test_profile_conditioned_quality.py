@@ -11,6 +11,7 @@ import pytest
 
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import ExtractedJob
+from ultron.core.rules.geography import other_country_restriction, profile_home_places
 from ultron.core.rules.role_matching import is_allowed_family, role_family_nouns
 
 
@@ -119,3 +120,48 @@ def test_student_levels_stay_when_the_profile_does_not_exclude_them(title):
 @pytest.mark.parametrize("title", ["Senior Data Analyst, Student Success", "Data Analyst, Early Stage Ventures"])
 def test_student_words_that_do_not_name_a_level_are_kept(title):
     assert _outcome(_job(title), _analyst_profile(excluded_terms=["intern"])) == "keep"
+
+# --- (c) a posting limited to one country outside the profile's home places -----------------------
+
+SPAIN_EU = {"location_scope": {"preferred": ["Spain", "Remote EU", "Remote Europe"]}}
+IRELAND = {"location_scope": {"preferred": ["Ireland", "Dublin", "Cork"]}}
+LATAM = {"location_scope": {"preferred": ["Remote LATAM", "Brazil", "Mexico"]}}
+EU_ONLY = {"location_scope": {"preferred": ["Remote EU", "Remote Europe"]}}
+
+
+@pytest.mark.parametrize(
+    "criteria, location, remote, country",
+    [
+        (SPAIN_EU, "Netherlands", "Remote - Netherlands", "netherlands"),
+        (SPAIN_EU, "Germany", "Remote across Germany", "germany"),
+        (SPAIN_EU, "Warsaw, Poland", "Remote (Poland)", "poland"),
+        (IRELAND, "Madrid, Spain", "On-site", "spain"),
+        (LATAM, "Toronto, Canada", "Remote (Canada)", "canada"),
+        (LATAM, "Spain", "Remote - Spain", "spain"),
+    ],
+)
+def test_a_posting_limited_to_another_country_is_flagged(criteria, location, remote, country):
+    assert other_country_restriction(location, remote, criteria) == country
+
+
+@pytest.mark.parametrize(
+    "criteria, location, remote",
+    [
+        (SPAIN_EU, "Madrid, Spain", "Remote within Spain"),
+        (SPAIN_EU, "Germany, Spain or Portugal", "Remote in Germany, Spain or Portugal"),
+        (SPAIN_EU, "Remote EU", "Remote EU (Germany preferred)"),
+        (SPAIN_EU, "Worldwide", "Remote worldwide"),
+        (IRELAND, "Dublin, Ireland", "On-site"),
+        (LATAM, "Lima, Peru", "Fully remote within Latin America"),
+        (SPAIN_EU, "Paris", "On-site"),
+        (EU_ONLY, "Germany", "Remote across Germany"),
+    ],
+)
+def test_home_places_regions_and_profiles_without_a_home_are_not_flagged(criteria, location, remote):
+    assert other_country_restriction(location, remote, criteria) is None
+
+
+def test_home_places_are_the_single_places_of_the_profile():
+    assert profile_home_places(LATAM) == ("brazil", "mexico")
+    assert profile_home_places(EU_ONLY) == ()
+    assert "madrid" in profile_home_places(SPAIN_EU)

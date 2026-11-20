@@ -212,7 +212,9 @@ POSTING = """<!DOCTYPE html><html><head><title>Staff Nurse | Example Care Ltd. |
 <div class="hh-job-information"><div class="hh-job-location">Exampletown, Co. Example, Ireland</div>
 <div class="hh-job-type">Full Time</div></div>
 <div class="ql-editor hh-job-description"><p>Registered nurse (NMBI) for our residential service.</p></div>
-<form class="hh-application-form"></form></body></html>"""
+<form class="hh-application-form"><label>Country<select name="country">
+<option value="1">Ireland</option><option value="245">Zambia </option><option value="246">Zimbabwe </option>
+<option value="495">Work Remotely</option></select></label></form></body></html>"""
 
 
 def test_hirehive_posting_page_is_parsed():
@@ -221,8 +223,19 @@ def test_hirehive_posting_page_is_parsed():
 
     assert job.title == "Staff Nurse"
     assert job.company == "Example Care Ltd."
-    assert "Exampletown" in job.location
     assert "NMBI" in job.body_text
+
+
+def test_hirehive_posting_ignores_the_application_form_and_keeps_the_country():
+    # Session 5, offline replay of a real posting page: the application form's country list ends with a
+    # "Work Remotely" option, which made an on-site nursing job read as remote, and the JSON-LD location
+    # ("<town>, Co. <county> | IE") won over the page's own location line, which names the country.
+    url = "https://examplecare.hirehive.com/staff-nurse-Ab12Cd"
+    job = parse_ats_page(JobRawPage(url=url, final_url=url, status_code=200, html=POSTING))
+
+    assert "remote" not in job.remote_text.lower()
+    assert job.location == "Exampletown, Co. Example, Ireland"
+    assert "Zimbabwe" not in job.body_text
 
 
 def _http_client(handler) -> HttpClient:

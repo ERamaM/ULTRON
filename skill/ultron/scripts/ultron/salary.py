@@ -412,6 +412,27 @@ def _sentence_window(text: str, start: int, end: int, *, radius: int = 75) -> st
     return f"{before}{text[start:end]}{after}".strip()
 
 
+_CLAUSE_SEP_RE = re.compile(
+    r"(?:\n|[.;,][ \t]{1,3}|[ \t]{1,3}\(|\||[ \t]{1,3}[+&][ \t]{1,3}|\b(?:plus|with|and|including|alongside)\b)",
+    re.IGNORECASE,
+)
+
+
+def _clause_window(text: str, start: int, end: int, *, radius: int = 75) -> str:
+    left = max(0, start - radius)
+    right = min(len(text), end + radius)
+    before = text[left:start]
+    last_sep = None
+    for match in _CLAUSE_SEP_RE.finditer(before):
+        last_sep = match
+    if last_sep is not None:
+        before = before[last_sep.end() :]
+    after = text[end:right]
+    if first_sep := _CLAUSE_SEP_RE.search(after):
+        after = after[: first_sep.start()]
+    return f"{before}{text[start:end]}{after}".strip()
+
+
 def _detect_period(text: str, start: int, end: int, window: str) -> SalaryPeriod | None:
     immediate = normalize_text(text[end : min(len(text), end + 24)])
     for period, pattern in _PERIOD_PATTERNS:
@@ -471,7 +492,9 @@ def _build_salary_hit(
 
     window = _sentence_window(text, match.start(), match.end())
     folded_win = normalize_text(window)
-    if any(term in folded_win for term in _FALSE_POSITIVE_CONTEXT):
+    clause = _clause_window(text, match.start(), match.end())
+    folded_clause = normalize_text(clause)
+    if _has_marker(folded_clause, _FALSE_POSITIVE_CONTEXT):
         return None
     period = _detect_period(text, match.start(), match.end(), window)
     has_context = any(term in folded_win for term in _COMPENSATION_CONTEXT)

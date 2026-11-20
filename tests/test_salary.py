@@ -281,3 +281,27 @@ def test_mine_run_salaries_classifies_remote_us_and_separates_unknown_geo(tmp_pa
     assert usd["unknown_geo_count"] == 1
     sample_geos = [s["geo_hint"] for s in comps["samples"]]
     assert sample_geos == ["eu", "unspecified", "us"]
+
+
+def test_extract_salaries_preserves_base_salary_with_benefits_in_same_sentence():
+    hits_reloc = salary.extract_salaries_from_text(
+        "Salary €80,000 - €100,000 annually plus relocation assistance."
+    )
+    assert len(hits_reloc) == 1
+    assert (hits_reloc[0]["currency"], hits_reloc[0]["annual_low"], hits_reloc[0]["annual_high"]) == (
+        "EUR",
+        80000,
+        100000,
+    )
+
+    hits_bonus = salary.extract_salaries_from_text(
+        "Base salary: €80k annually, plus a $5,000 signing bonus."
+    )
+    assert len(hits_bonus) == 1
+    assert (hits_bonus[0]["currency"], hits_bonus[0]["annual_low"], hits_bonus[0]["annual_high"]) == (
+        "EUR",
+        80000,
+        80000,
+    )
+
+    assert salary.extract_salaries_from_text("401(k) match up to $20,000 per year.") == []

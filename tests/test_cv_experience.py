@@ -174,3 +174,44 @@ def test_two_line_role_heading_with_location_on_date_line():
     # 2022-01..2026-01 = 49 months; internship excluded from total_months
     assert res["total_months"] == 49
     assert res["internship_months"] == 7
+
+
+def test_dual_section_headings_with_ampersand_and_slash_after_education():
+    for heading in ("Experience & Projects", "Experience / Projects"):
+        cv_text = f"""
+## Education
+BSc Computer Science | 2015 - 2019
+
+## {heading}
+Senior Engineer | Acme | Jan 2020 - Dec 2024
+- Built distributed systems.
+"""
+        res = cv_experience.analyze_experience(cv_text, as_of=date(2026, 1, 1))
+        assert "experience" in res["sections_present"]
+        assert res["total_months"] == 60
+
+
+def test_profile_relevance_stops_before_next_role_heading():
+    cv_text = """
+## Experience
+Customer Support
+Jan 2022 - Dec 2023
+- Handled customer tickets.
+
+Backend Engineer
+Jan 2020 - Dec 2021
+- Built Python APIs.
+"""
+    profile = {
+        "slug": "backend-eng",
+        "name": "Backend Eng",
+        "criteria": {
+            "role_focus_terms": ["backend engineer"],
+            "target_titles": ["Backend Engineer"],
+        },
+    }
+    res = cv_experience.analyze_experience(cv_text, profile=profile, as_of=date(2026, 1, 1))
+    assert res["roles_count"] == 2
+    assert res["roles"][0]["matches_profile"] is False
+    assert res["roles"][1]["matches_profile"] is True
+    assert res["relevant_months"] == 24

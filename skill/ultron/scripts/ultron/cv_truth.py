@@ -234,21 +234,31 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
         if (val := _scale_number(match.group(1), None)) is not None:
             metrics.setdefault(_metric_key("mult", val), match.group(0).strip())
 
+    currency_spans: list[tuple[int, int]] = []
     for match in _CURRENCY_RE.finditer(masked):
         raw_num = match.group(2) or match.group(4) or ""
         suffix = match.group(3) or match.group(5)
         if (val := _scale_number(raw_num, suffix)) is not None:
             metrics.setdefault(_metric_key("curr", val), match.group(0).strip())
+            currency_spans.append(match.span())
+
+    def _overlaps_currency(span: tuple[int, int]) -> bool:
+        s, e = span
+        return any(not (e <= cs or s >= ce) for cs, ce in currency_spans)
 
     for match in _YEARS_METRIC_RE.finditer(masked):
         if (val := _scale_number(match.group(1), None)) is not None:
             years_claims.append((match.group(0).strip(), val))
 
     for match in _SCALED_NUM_RE.finditer(masked):
+        if _overlaps_currency(match.span()):
+            continue
         if (val := _scale_number(match.group(1), match.group(2))) is not None:
             metrics.setdefault(_metric_key("num", val), match.group(0).strip())
 
     for match in _PLUS_OR_UNIT_NUM_RE.finditer(masked):
+        if _overlaps_currency(match.span()):
+            continue
         raw_num, plus = match.group(1), match.group(2)
         if not plus and re.fullmatch(r"(?:19[6-9]\d|20[0-3]\d)", raw_num):
             continue

@@ -424,8 +424,13 @@ class ExperienceEntry:
     is_internship: bool
     line_index: int
     date_text: str
+    start_line_index: int | None = None
     display_end: YearMonth | None = None
     matches_profile: bool | None = None
+
+    @property
+    def heading_line_index(self) -> int:
+        return self.line_index if self.start_line_index is None else self.start_line_index
 
     @property
     def start_index(self) -> int:
@@ -450,7 +455,7 @@ def _fold_with_offsets(text: str) -> tuple[str, list[int]]:
     return "".join(folded), offsets
 
 
-def _clean_heading_candidate(line: str) -> str:
+def _strip_heading_markup(line: str) -> str:
     stripped = line.strip()
     if not stripped or len(stripped) > _MAX_HEADING_CHARS or _BULLET_PREFIX_RE.match(stripped):
         return ""
@@ -460,21 +465,30 @@ def _clean_heading_candidate(line: str) -> str:
     stripped = stripped.rstrip(":").strip()
     if stripped.endswith(".") and len(stripped.split()) > 3:
         return ""
-    folded = " ".join(re.findall(r"[a-z0-9]+", normalize_text(stripped)))
-    return folded
+    return stripped
+
+
+def _normalize_heading_words(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", normalize_text(text)))
 
 
 def match_section_heading(line: str) -> str | None:
     """Return canonical section name if ``line`` looks like a standalone section heading."""
-    candidate = _clean_heading_candidate(line)
+    raw = _strip_heading_markup(line)
+    if not raw:
+        return None
+    folded_raw = normalize_text(raw)
+    if _RANGE_RE.search(folded_raw):
+        return None
+    candidate = _normalize_heading_words(raw)
     if not candidate:
         return None
     if candidate in _HEADING_MAP:
         return _HEADING_MAP[candidate]
-    # Support Markdown/table-like dual headings such as "Experience & Projects".
-    for sep in (" and ", " & ", " / "):
-        if sep in candidate:
-            first = candidate.split(sep, 1)[0].strip()
+    # Support Markdown/table-like dual headings such as "Experience & Projects" or "Experience / Projects".
+    for sep in ("&", "/", "|", " and ", " y ", " et ", " und "):
+        if sep in folded_raw:
+            first = _normalize_heading_words(folded_raw.split(sep, 1)[0])
             if first in _HEADING_MAP:
                 return _HEADING_MAP[first]
     return None
@@ -553,7 +567,7 @@ def _clean_title_hint(fragment: str) -> str:
     return cleaned if sum(ch.isalpha() for ch in cleaned) >= 2 else ""
 
 
-def _prev_heading_hint(lines: list[str], line_idx: int, *, max_offset: int) -> str:
+def _prev_heading_hint(lines: list[str], line_idx: int, *, max_offset: int) -> tuple[str, int | None]:
     for offset in range(1, max_offset + 1):
         prev_idx = line_idx - offset
         if prev_idx < 0:
@@ -572,21 +586,22 @@ def _prev_heading_hint(lines: list[str], line_idx: int, *, max_offset: int) -> s
             break
         hint = _clean_title_hint(prev)
         if hint:
-            return hint
-    return ""
+            return hint, prev_idx
+    return "", None
 
 
-def _title_hint_for_line(lines: list[str], line_idx: int, span: tuple[int, int]) -> str:
+def _title_hint_for_line(lines: list[str], line_idx: int, span: tuple[int, int]) -> tuple[str, int]:
     line = lines[line_idx]
     before = _clean_title_hint(line[: span[0]])
     after = _clean_title_hint(line[span[1] :])
     same_line = " · ".join(part for part in (before, after) if part)
     if not same_line:
-        return _prev_heading_hint(lines, line_idx, max_offset=2)
-    prev_hint = _prev_heading_hint(lines, line_idx, max_offset=2 if not before else 1)
+        prev_hint, prev_idx = _prev_heading_hint(lines, line_idx, max_offset=2)
+        return prev_hint, prev_idx if prev_idx is not None else line_idx
+    prev_hint, prev_idx = _prev_heading_hint(lines, line_idx, max_offset=2 if not before else 1)
     if prev_hint and prev_hint.casefold() not in same_line.casefold():
-        return f"{prev_hint} · {same_line}"
-    return same_line
+        return f"{prev_hint} · {same_line}", prev_idx if prev_idx is not None else line_idx
+    return same_line, line_idx
 
 
 def _is_internship_line(text: str) -> bool:
@@ -621,7 +636,7 @@ def parse_date_ranges_from_lines(
             orig_start = offsets[match.start()]
             orig_end = offsets[match.end() - 1] + 1
             date_text = line[orig_start:orig_end].strip()
-            title_hint = _title_hint_for_line(lines, idx, (orig_start, orig_end))
+            title_hint, start_line_index = _title_hint_for_line(lines, idx, (orig_start, orig_end))
             entries.append(
                 ExperienceEntry(
                     title_hint=title_hint,
@@ -632,6 +647,7 @@ def parse_date_ranges_from_lines(
                     is_internship=_is_internship_line(f"{title_hint} {line}"),
                     line_index=idx,
                     date_text=date_text,
+                    start_line_index=start_line_index,
                     display_end=end_raw,
                 )
             )
@@ -767,7 +783,10 @@ def _role_matches_profile(
 ) -> bool:
     if not role_terms and not signal_terms:
         return True
-    stop = min(len(lines), next_line_index if next_line_index is not None else entry.line_index + 4, entry.line_index + 6)
+    stop = max(
+        entry.line_index,
+        min(len(lines), next_line_index if next_line_index is not None else entry.line_index + 4, entry.line_index + 6),
+    )
     context = " ".join(lines[entry.line_index : stop])
     title_blob = normalize_text(entry.title_hint)
     full_blob = normalize_text(f"{entry.title_hint} {context}")
@@ -798,7 +817,7 @@ def analyze_experience(
 
     enriched: list[ExperienceEntry] = []
     for idx, entry in enumerate(entries):
-        next_line = entries[idx + 1].line_index if idx + 1 < len(entries) else None
+        next_line = entries[idx + 1].heading_line_index if idx + 1 < len(entries) else None
         matches = (
             _role_matches_profile(entry, work_lines, role_terms, signal_terms, next_line_index=next_line)
             if has_profile
@@ -814,6 +833,7 @@ def analyze_experience(
                 is_internship=entry.is_internship,
                 line_index=entry.line_index,
                 date_text=entry.date_text,
+                start_line_index=entry.start_line_index,
                 display_end=entry.display_end,
                 matches_profile=matches,
             )

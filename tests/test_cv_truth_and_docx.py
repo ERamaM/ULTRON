@@ -265,3 +265,30 @@ def test_verify_truth_allows_tenure_summary_derived_from_confirmed_facts(tmp_pat
     assert report["passed"] is True
     assert report["violations"] == []
     assert any(item["type"] == "derived_tenure_statement" for item in report["info"])
+
+
+def test_verify_truth_allows_equivalent_abbreviated_currency_metric(tmp_path):
+    src = tmp_path / "src.md"
+    opt = tmp_path / "opt.md"
+    src.write_text(
+        "# Jane Example\njane@example.com\n\n## Experience\nEngineer | Acme | Jan 2021 - Present\n- Saved $100000 annually.\n",
+        encoding="utf-8",
+    )
+    opt.write_text(
+        "# Jane Example\njane@example.com\n\n## Experience\nEngineer | Acme | Jan 2021 - Present\n- Saved $100k annually.\n",
+        encoding="utf-8",
+    )
+    rep = cv_truth.verify_truth(src, opt, as_of=datetime.date(2026, 1, 1))
+    assert rep["passed"] is True
+    assert rep["violations"] == []
+
+    # Reverse representation ($100k -> $100,000) also passes, while inflating to $200k fails
+    opt_commas = tmp_path / "opt_commas.md"
+    opt_commas.write_text(opt.read_text(encoding="utf-8").replace("$100k", "$100,000"), encoding="utf-8")
+    assert cv_truth.verify_truth(opt, opt_commas, as_of=datetime.date(2026, 1, 1))["passed"] is True
+
+    opt_bad = tmp_path / "opt_bad.md"
+    opt_bad.write_text(opt.read_text(encoding="utf-8").replace("$100k", "$200k"), encoding="utf-8")
+    bad_rep = cv_truth.verify_truth(src, opt_bad, as_of=datetime.date(2026, 1, 1))
+    assert bad_rep["passed"] is False
+    assert any(v["type"] == "unverified_metric" for v in bad_rep["violations"])

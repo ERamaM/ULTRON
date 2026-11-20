@@ -165,7 +165,7 @@ def test_occupop_token_case_survives_verification_and_discovery():
 
     assert res.status == "verified" and res.seed.ats == "occupop" and res.seed.board_identifier == TOKEN
     assert seen == [FRAME_URL]
-    assert seed_identity("occupop", TOKEN) == ("occupop", TOKEN.lower())  # identity folds; the board does not
+    assert seed_identity("occupop", TOKEN) == ("occupop", TOKEN)  # opaque token: the identity keeps its case too
     fetch_vendor_jobs("occupop", res.seed.board_identifier, client=_http_client(handler), timeout=5)
     assert seen[-1] == FRAME_URL
 

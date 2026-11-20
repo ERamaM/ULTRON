@@ -187,12 +187,19 @@ def profile_home_places(criteria: Mapping[str, Any] | None) -> tuple[str, ...]:
     return tuple(dict.fromkeys((*places, *home_locality_terms(places))))
 
 
-def other_country_restriction(location: str, remote_text: str, criteria: Mapping[str, Any] | None) -> str | None:
+_ANYWHERE_IN_PLACE = re.compile(r"\banywhere\s+in\s+(?:the\s+)?\w+")
+
+
+def other_country_restriction(
+    location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = ""
+) -> str | None:
     """The country a posting is limited to when it is none of the profile's home places, else ``None``.
 
-    Only the structured location and remote fields are read: "Remote - Netherlands" or "Lyon, France" names
-    one place of work, while a body may mention offices anywhere. A posting that also names a home place
-    ("Germany, Ireland or Portugal") or a multi-country region ("Remote EU, Germany preferred") is not limited.
+    The country comes from the structured location and remote fields ("Remote - Netherlands", "Lyon, France").
+    A posting is not limited when those fields also name a home place ("Germany, Ireland or Portugal") or a
+    multi-country region ("Remote EU, Germany preferred"), or when the body does
+    ("work remotely from anywhere in Ireland", "hiring across the EU"): when in doubt, nothing is limited.
+    "Anywhere in the Netherlands" still names one country, so it does not count as a region.
     """
     places = profile_home_places(criteria)
     countries = [spelling for place in places if place in _COUNTRY_NAMES for spelling in _country_spellings(place)]
@@ -202,6 +209,9 @@ def other_country_restriction(location: str, remote_text: str, criteria: Mapping
     homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
     text = f"{location}\n{remote_text}"
     if names_wide_region(text) or find_terms(text, homes):
+        return None
+    excerpt = normalize_text(body_text or "")
+    if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt)):
         return None
     named = find_terms(text, COUNTRY_TERMS)
     return named[0] if named else None

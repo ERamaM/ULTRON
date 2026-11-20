@@ -152,6 +152,17 @@ def test_ashby_reports_unexpected_payload(payload):
         fetch_ashby_jobs("acme", client=FakeClient([payload]))
 
 
+def test_ashby_skips_archived_jobs_even_when_listed():
+    payload = {"jobs": [
+        {"title": "ML Engineer", "jobUrl": "https://jobs.ashbyhq.com/acme/1", "isListed": True},
+        {"title": "Archived", "jobUrl": "https://jobs.ashbyhq.com/acme/2", "isListed": True, "isArchived": True},
+        {"title": "Archived flag only", "jobUrl": "https://jobs.ashbyhq.com/acme/3", "isArchived": True},
+        {"title": "Explicitly active", "jobUrl": "https://jobs.ashbyhq.com/acme/4", "isArchived": False},
+    ]}
+    titles = [p.title for p in fetch_ashby_jobs("acme", client=FakeClient([payload]))]
+    assert titles == ["ML Engineer", "Explicitly active"]
+
+
 def test_ashby_empty_jobs_list_is_valid_empty_board():
     assert fetch_ashby_jobs("acme", client=FakeClient([{"jobs": []}])) == []
 

@@ -135,6 +135,83 @@ def _host_matches(host: str, domain: str) -> bool:
     return normalized == suffix or normalized.endswith(f".{suffix}")
 
 
+def _tenant(host: str, domain: str) -> str:
+    """Labels left of ``domain`` in ``host`` (``acme`` for acme.teamtailor.com); empty for the apex or www host."""
+    if not host.endswith(f".{domain}"):
+        return ""
+    tenant = host[: -len(domain) - 1]
+    return "" if tenant in {"", "www"} else tenant
+
+
+def _pair_value(pairs: list[tuple[str, str]], key: str) -> str:
+    return next((value.strip() for name, value in pairs if name.casefold() == key and value.strip()), "")
+
+
+# A Comeet company or position UID, such as 41.001 or C7.E11.
+_COMEET_UID_RE = re.compile(r"^[0-9a-f]{2}\.[0-9a-f]{2,3}$")
+_UUID_RE = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+
+
+def _hosted_vendor_identity(host: str, path: str, pairs: list[tuple[str, str]]) -> str:
+    """Identity for vendors recognized by their hosted board domain only (never by source key or custom domain).
+
+    Each rule requires a job ID that the vendor puts in the URL; boards, search pages and slug-only URLs keep the
+    URL identity. Jobvite and JazzHR IDs are case-sensitive, so their case is kept.
+    """
+    low_path = path.casefold()
+    if host in {"jobs.smartrecruiters.com", "careers.smartrecruiters.com"}:
+        match = re.match(r"/([^/]+)/([0-9]{6,})(?:-[^/]*)?(?:/|$)", low_path)
+        if match:
+            return f"smartrecruiters:{match.group(1)}:{match.group(2)}"
+    if tenant := _tenant(host, "teamtailor.com"):
+        match = re.match(r"(?:/[a-z]{2}(?:-[a-z]{2})?)?/jobs/([0-9]+)(?:-[^/]*)?(?:/|$)", low_path)
+        if match:
+            return f"teamtailor:{tenant}:{match.group(1)}"
+    if tenant := _tenant(host, "recruitee.com"):
+        match = re.match(r"/o/([a-z0-9][a-z0-9-]*)(?:/|$)", low_path)
+        if match:
+            return f"recruitee:{tenant}:{match.group(1)}"
+    if tenant := _tenant(host, "breezy.hr"):
+        match = re.match(r"/p/([0-9a-f]{8,})(?:-[^/]*)?(?:/|$)", low_path)
+        if match:
+            return f"breezy:{tenant}:{match.group(1)}"
+    if tenant := _tenant(host, "pinpointhq.com"):
+        match = re.match(rf"(?:/[a-z]{{2}}(?:-[a-z]{{2}})?)?/postings/({_UUID_RE})(?:/|$)", low_path)
+        if match:
+            return f"pinpoint:{tenant}:{match.group(1)}"
+    if tenant := _tenant(host, "bamboohr.com"):
+        match = re.match(r"/careers/([0-9]+)(?:/|$)", low_path)
+        job_id = match.group(1) if match else ""
+        if not job_id and low_path == "/jobs/view.php" and _pair_value(pairs, "id").isdigit():
+            job_id = _pair_value(pairs, "id")
+        if job_id:
+            return f"bamboohr:{tenant}:{job_id}"
+    if host in {"jobs.jobvite.com", "jobs.eu.jobvite.com"}:
+        match = re.match(r"/([^/]+)/job/([A-Za-z0-9]{5,})(?:/|$)", path)
+        if match:
+            return f"jobvite:{match.group(1).casefold()}:{match.group(2)}"
+    if tenant := _tenant(host, "icims.com"):
+        match = re.match(r"/jobs/([0-9]+)(?:/|$)", low_path)
+        if match:
+            return f"icims:{tenant}:{match.group(1)}"
+    if tenant := _tenant(host, "taleo.net"):
+        job_id = _pair_value(pairs, "job").casefold()
+        if low_path.endswith("/jobdetail.ftl") and re.fullmatch(r"[a-z0-9-]+", job_id):
+            return f"taleo:{tenant}:{job_id}"
+    if host in {"comeet.co", "www.comeet.co", "comeet.com", "www.comeet.com"}:
+        # /jobs/{slug}/{companyUid}/{positionUid}/{name} or /jobs/{slug}/{companyUid}/{name}/{positionUid}.
+        segments = [segment for segment in low_path.split("/") if segment]
+        if len(segments) >= 4 and segments[0] == "jobs" and _COMEET_UID_RE.match(segments[2]):
+            position_uids = [segment for segment in segments[3:5] if _COMEET_UID_RE.match(segment)]
+            if len(position_uids) == 1:
+                return f"comeet:{segments[2]}:{position_uids[0]}"
+    if tenant := _tenant(host, "applytojob.com"):
+        match = re.match(r"/apply/([A-Za-z0-9]{4,})(?:/|$)", path)
+        if match and match.group(1).casefold() != "jobs":
+            return f"jazzhr:{tenant}:{match.group(1)}"
+    return ""
+
+
 def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], source_type: str, source_key: str) -> str:
     vendor, source_board = _source_vendor(source_type, source_key)
     low_path = path.casefold()
@@ -145,6 +222,11 @@ def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], sour
         job_id = (path_match.group(1) if path_match else "") or query_id
         board_match = re.match(r"/([^/]+)/(?:embed/)?jobs?", low_path)
         board = source_board or (board_match.group(1) if board_match else "") or host
+        if not job_id and _host_matches(host, "greenhouse.io") and low_path == "/embed/job_app":
+            # Embedded application form: boards.greenhouse.io/embed/job_app?for=<board>&token=<job id>.
+            token, embed_board = _pair_value(pairs, "token"), _pair_value(pairs, "for").casefold()
+            if token.isdigit():
+                job_id, board = token, embed_board or source_board or host
         if job_id:
             return f"greenhouse:{board}:{job_id}"
 
@@ -157,6 +239,10 @@ def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], sour
         match = re.match(r"/([^/]+)/([0-9a-f-]{16,})(?:/|$)", low_path)
         if match:
             return f"ashby:{match.group(1)}:{match.group(2)}"
+    ashby_jid = _pair_value(pairs, "ashby_jid").casefold()
+    if re.fullmatch(r"[0-9a-f-]{16,}", ashby_jid):  # Ashby board embedded on the employer's own domain
+        board = source_board if vendor == "ashby" and source_board else host
+        return f"ashby:{board}:{ashby_jid}"
 
     if vendor == "workable" or _host_matches(host, "workable.com"):
         match = re.match(r"/([^/]+)/j/([a-z0-9]{6,})(?:/|$)", low_path)
@@ -168,7 +254,9 @@ def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], sour
             return f"workable:{board}:{short.group(1)}"
 
     if vendor == "workday" or _host_matches(host, "myworkdayjobs.com"):
-        requisitions = re.findall(r"_([a-z]{1,3}-?[0-9]+)(?:/|$)", low_path)
+        # A repost suffix (_R-2048-1) is kept: it is a separate Workday posting, and dropping it would also merge
+        # distinct requisitions such as JR-2024-1 and JR-2024-2.
+        requisitions = re.findall(r"_([a-z]{1,3}-?[0-9]+(?:-[0-9]{1,3})?)(?:/|$)", low_path)
         job_id = (requisitions[-1] if requisitions else "") or query_id
         if job_id:
             return f"workday:{host}:{job_id}"
@@ -180,7 +268,7 @@ def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], sour
             tenant = source_board or host.split(".", 1)[0]
             return f"personio:{tenant}:{job_id}"
 
-    return ""
+    return _hosted_vendor_identity(host, path, pairs)
 
 
 def canonical_job_identity(url: str, *, source_type: str = "", source_key: str = "") -> CanonicalJobIdentity:

@@ -69,7 +69,7 @@ explicit `--profile` argument.
 
 | # | Who | Action | Load |
 |---|---|---|---|
-| 1 | CLI | `ultron run new --profile <slug> --preset <p>` → `run_id`, `query_plan`, `new_companies_target` | `references/search-workflow.md` (read once at start) |
+| 1 | CLI | `ultron run new --profile <slug> --preset <p>` → `run_id`, `query_plan`, `new_companies_target`, `cold_start` (true: propose more companies and add ATS `site:` searches) | `references/search-workflow.md` (read once at start) |
 | 2 | you + CLI | propose companies (JSONL; 19 ATS vendors supported) → `ultron seeds verify --run <id> --from <file>`; retry unresolved | `references/seeds.md` |
 | 3 | CLI (+ you) | `ultron discover feeds --run <id>` (structured job feeds: candidates, ATS boards added as seeds, company names in `seed_proposals_from_feeds.jsonl`); then pass that file directly to `ultron seeds verify --run <id> --from <run>/seed_proposals_from_feeds.jsonl --limit <new_companies_target>` (instead of copying a subset) | `references/search-workflow.md` §3 |
 | 4 | you + CLI | web-search the `query_plan`, write posting URLs (JSONL) → `ultron candidates add --run <id> --from <file>` | `references/search-workflow.md` §4 |

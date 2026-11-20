@@ -185,6 +185,29 @@ def test_small_global_drop_within_tolerance_passes():
     assert result.passed, result.regressions
 
 
+def test_a_global_decline_of_exactly_one_point_passes():
+    base = [(True, "keep")] * 99 + [(False, "discard")] * 10
+    candidate = list(base)
+    candidate[-1] = (False, "keep")  # precision 1.0 -> 99/100 = 0.99; 1.0 - 0.99 > 0.01 in floats
+    result = qb.compare_reports(_synthetic_report(base), _synthetic_report(candidate))
+    assert result.passed, result.regressions
+    candidate[-2] = (False, "keep")  # 99/101: a decline above one point still fails
+    assert not qb.compare_reports(_synthetic_report(base), _synthetic_report(candidate)).passed
+
+
+def test_a_slice_decline_of_exactly_five_points_passes():
+    def cases(extra_false_keep: bool):
+        items = [_case(f"en{i}", True, "keep", language="en") for i in range(19)]
+        items.append(_case("en-neg", False, "keep" if extra_false_keep else "discard", language="en"))
+        items += [_case(f"es{i}", True, "keep", language="es") for i in range(1000)]
+        return qb.build_report(items, corpus_version="t", agent_queue=0)
+
+    base, candidate = cases(False), cases(True)  # slice en precision 1.0 -> 19/20 = 0.95
+    assert candidate["metrics"]["slices"]["language"]["en"]["precision"] == 0.95
+    result = qb.compare_reports(base, candidate)
+    assert result.passed, result.regressions
+
+
 def test_slice_gate_needs_ten_cases():
     base = qb.build_report(
         [_case(f"a{i}", True, "keep", vendor="lever") for i in range(4)]
@@ -210,17 +233,30 @@ def test_compare_rejects_reports_of_another_schema():
         qb.compare_reports({"schema_version": 99}, _synthetic_report(BASE))
 
 
-def test_compare_exit_codes(tmp_path, capsys):
+def test_compare_exit_codes(tmp_path, monkeypatch, reports_dir, capsys):
     base, worse = _synthetic_report(BASE), _synthetic_report([(True, "discard")] * 10 + [(False, "discard")] * 10)
-    paths = {}
-    for name, data in (("base", base), ("worse", worse)):
-        paths[name] = tmp_path / f"{name}.json"
-        paths[name].write_text(qb.dump_report(data), encoding="utf-8")
-    assert qb.main(["compare", str(paths["base"]), str(paths["base"])]) == 0
-    assert qb.main(["compare", str(paths["base"]), str(paths["worse"])]) == 1
-    (tmp_path / "broken.json").write_text("{", encoding="utf-8")
-    assert qb.main(["compare", str(tmp_path / "broken.json"), str(paths["base"])]) == 2
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(qb.dump_report(base), encoding="utf-8")
+    monkeypatch.setattr(qb, "BASELINE_PATH", baseline)
+    reports_dir.mkdir()
+    (reports_dir / "same.json").write_text(qb.dump_report(base), encoding="utf-8")
+    (reports_dir / "worse.json").write_text(qb.dump_report(worse), encoding="utf-8")
+    (reports_dir / "broken.json").write_text("{", encoding="utf-8")
+    assert qb.main(["compare", "same.json"]) == 0
+    assert qb.main(["compare", "worse.json"]) == 1
+    assert qb.main(["compare", "broken.json"]) == 2
+    assert qb.main(["compare", "missing.json"]) == 2
     capsys.readouterr()
+
+
+@pytest.mark.parametrize("name", ["../same.json", "sub/same.json", "..", "/abs/same.json", "C:\\x\\same.json"])
+def test_report_names_must_be_plain_file_names(name, reports_dir, capsys):
+    reports_dir.mkdir()
+    (reports_dir / "same.json").write_text("{}", encoding="utf-8")
+    assert qb.main(["compare", name]) == 2
+    assert qb.main(["run", "--output", name]) == 2
+    errors = [json.loads(line)["error"] for line in capsys.readouterr().out.splitlines() if line.startswith("{")]
+    assert len(errors) == 2 and all("plain file name" in error for error in errors)
 
 
 # --- replay over the real corpus ------------------------------------------------------------------
@@ -258,12 +294,36 @@ def test_committed_baseline_passes_the_gates(report):
     assert result.passed, result.regressions
 
 
-def test_run_writes_json_and_markdown(tmp_path, capsys):
-    output = tmp_path / "candidate.json"
-    assert qb.main(["run", "--output", str(output)]) == 0
-    data = json.loads(output.read_text(encoding="utf-8"))
+def test_run_writes_json_and_markdown(reports_dir, capsys):
+    assert qb.main(["run", "--output", "candidate.json"]) == 0
+    assert json.loads(capsys.readouterr().out)["report"] == str(reports_dir / "candidate.json")
+    data = json.loads((reports_dir / "candidate.json").read_text(encoding="utf-8"))
     assert data["case_count"] == 120
-    markdown = output.with_suffix(".md").read_text(encoding="utf-8")
+    markdown = (reports_dir / "candidate.md").read_text(encoding="utf-8")
     assert "| recall |" in markdown and "First losing stage" in markdown
-    assert qb.main(["compare", str(qb.BASELINE_PATH)]) == 0
+    assert qb.main(["compare", "candidate.json"]) == 0
+    assert qb.main(["compare"]) == 0
     capsys.readouterr()
+
+
+def test_run_refuses_a_symlinked_markdown_target_before_writing(tmp_path, reports_dir, capsys):
+    outside = tmp_path / "outside.md"
+    outside.write_text("keep me", encoding="utf-8")
+    reports_dir.mkdir()
+    try:
+        (reports_dir / "candidate.md").symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks are not available on this system")
+    assert qb.main(["run", "--output", "candidate.json"]) == 2
+    assert "not a regular file" in json.loads(capsys.readouterr().out)["error"]
+    assert outside.read_text(encoding="utf-8") == "keep me"
+    assert not (reports_dir / "candidate.json").exists()
+
+
+def test_update_baseline_writes_only_the_committed_file(tmp_path, monkeypatch, reports_dir, capsys):
+    target = tmp_path / "baseline.json"
+    monkeypatch.setattr(qb, "BASELINE_PATH", target)
+    assert qb.main(["run", "--update-baseline"]) == 0
+    assert json.loads(target.read_text(encoding="utf-8"))["case_count"] == 120
+    assert not reports_dir.exists()
+    assert capsys.readouterr().out == ""

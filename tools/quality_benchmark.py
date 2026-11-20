@@ -3,10 +3,13 @@
 Usage (from the repository root)::
 
     uv run python tools/quality_benchmark.py validate
-    uv run python tools/quality_benchmark.py run --output quality-candidate.json
-    uv run python tools/quality_benchmark.py compare tests/fixtures/benchmark/baseline.json [quality-candidate.json]
+    uv run python tools/quality_benchmark.py run --output candidate.json
+    uv run python tools/quality_benchmark.py compare [candidate.json]
+    uv run python tools/quality_benchmark.py run --update-baseline
 
-``compare`` replays the corpus itself when no candidate report is given. Exit codes: ``0`` all gates
+Report names are plain file names inside ``<system temp>/ultron-eval`` (see ``safe_paths.py``).
+``compare`` gates against the committed ``tests/fixtures/benchmark/baseline.json`` and replays the
+corpus itself when no candidate report is given. Exit codes: ``0`` all gates
 passed, ``1`` regression, ``2`` invalid corpus or report.
 
 The corpus (``tests/fixtures/benchmark``) is synthetic, human-owned ground truth. This tool reads it
@@ -32,7 +35,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_harness import final_status, losing_stage, replay
-from safe_paths import UnsafePathError, contained_path
+from safe_paths import UnsafePathError, check_report_names, read_report, write_report
 
 from ultron import presets
 
@@ -43,6 +46,7 @@ BASELINE_PATH = CORPUS_DIR / "baseline.json"
 REPORT_SCHEMA_VERSION = 1
 PRESET = "balanced"
 GLOBAL_REGRESSION_TOLERANCE = 0.01
+FLOAT_EPSILON = 1e-9
 SLICE_REGRESSION_TOLERANCE = 0.05
 MIN_SLICE_SAMPLE = 10
 GATED_METRICS = ("precision", "recall", "f1")
@@ -348,7 +352,8 @@ def _declines(base: dict[str, Any], candidate: dict[str, Any], tolerance: float,
     return [
         f"{label} {metric} declined by {float(base[metric]) - float(candidate[metric]):.4f}"
         for metric in GATED_METRICS
-        if float(base[metric]) - float(candidate[metric]) > tolerance
+        # A decline of exactly the tolerance passes; the epsilon absorbs float error (1.0 - 0.99 > 0.01).
+        if float(base[metric]) - float(candidate[metric]) > tolerance + FLOAT_EPSILON
     ]
 
 
@@ -428,19 +433,21 @@ def dump_report(report: dict[str, Any]) -> str:
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
-def _safe(raw: Path) -> Path:
+def _read_candidate(name: str) -> dict[str, Any]:
+    """A candidate report by file name from the reports folder."""
     try:
-        return contained_path(raw)
+        return json.loads(read_report(name))
     except UnsafePathError as exc:
         raise CorpusError(str(exc)) from exc
-
-
-def _read_report(raw: Path, label: str) -> dict[str, Any]:
-    path = _safe(raw)
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        raise CorpusError(f"{label} report {path.name} is unreadable: {exc}") from exc
+        raise CorpusError(f"candidate report {name} is unreadable: {exc}") from exc
+
+
+def _read_baseline() -> dict[str, Any]:
+    try:
+        return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise CorpusError(f"baseline report {BASELINE_PATH.name} is unreadable: {exc}") from exc
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -448,10 +455,10 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("validate", help="check the corpus contract")
     run = sub.add_parser("run", help="replay the corpus and print or write the JSON report")
-    run.add_argument("--output", type=Path, help="write the JSON report here (and a .md summary next to it)")
-    cmp_ = sub.add_parser("compare", help="gate a candidate report against a baseline")
-    cmp_.add_argument("baseline", type=Path)
-    cmp_.add_argument("candidate", type=Path, nargs="?", help="candidate report (default: replay the corpus now)")
+    run.add_argument("--output", help="report file name, written with a .md summary into the reports folder")
+    run.add_argument("--update-baseline", action="store_true", help="overwrite the committed baseline.json")
+    cmp_ = sub.add_parser("compare", help="gate a candidate report against the committed baseline")
+    cmp_.add_argument("candidate", nargs="?", help="candidate report name in the reports folder (default: replay now)")
     cmp_.add_argument("--allow-case", action="append", default=[], help="justified new false negative (repeatable)")
     return parser
 
@@ -462,23 +469,37 @@ def _cmd_validate(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _markdown_name(name: str) -> str:
+    return f"{Path(name).stem}.md"
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
-    output = _safe(args.output) if args.output else None
-    report = run_benchmark()
-    if output is not None:
+    if args.output:
         try:
-            output.write_text(dump_report(report), encoding="utf-8", newline="\n")
-            output.with_suffix(".md").write_text(report_markdown(report), encoding="utf-8", newline="\n")
-        except OSError as exc:
-            raise CorpusError(f"{output.name}: cannot write the report: {exc}") from exc
-    else:
-        sys.stdout.write(dump_report(report))
+            check_report_names(args.output, _markdown_name(args.output))
+        except UnsafePathError as exc:
+            raise CorpusError(str(exc)) from exc
+    report = run_benchmark()
+    if args.update_baseline:
+        BASELINE_PATH.write_text(dump_report(report), encoding="utf-8", newline="\n")
+    if not args.output:
+        if not args.update_baseline:
+            sys.stdout.write(dump_report(report))
+        return 0
+    try:
+        path = write_report(args.output, dump_report(report))
+        write_report(_markdown_name(args.output), report_markdown(report))
+    except UnsafePathError as exc:
+        raise CorpusError(str(exc)) from exc
+    except OSError as exc:
+        raise CorpusError(f"cannot write the report: {exc}") from exc
+    print(json.dumps({"report": str(path)}))
     return 0
 
 
 def _cmd_compare(args: argparse.Namespace) -> int:
-    baseline = _read_report(args.baseline, "baseline")
-    candidate = _read_report(args.candidate, "candidate") if args.candidate else run_benchmark()
+    baseline = _read_baseline()
+    candidate = _read_candidate(args.candidate) if args.candidate else run_benchmark()
     result = compare_reports(baseline, candidate, justified_case_ids=set(args.allow_case))
     print(json.dumps({
         "passed": result.passed,

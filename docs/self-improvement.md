@@ -100,20 +100,21 @@ A/B comparisons must change one thing only: the code.
 The tools live in `tools/` at the repository root. They are developer tools: they are not part
 of the `ultron` CLI or the installed skill. None of them uses the network, an agent, the clock
 or the real `ULTRON_HOME`. Replays run the real `filter` and `finalize` stages in a throwaway
-`ULTRON_HOME` that is deleted afterwards. The report files the tools read or write (`--output`
-and the reports given to `compare` and `diff`) must be inside the repository or the system temp
-folder. Anything that resolves outside these folders, through `..` or a symlink, is rejected
-with exit code `2`.
+`ULTRON_HOME` that is deleted afterwards. Reports are always written to and read from one
+fixed folder, `<system temp>/ultron-eval`. On the command line a report is a plain file name
+(`--output candidate.json`), never a path. A name with a folder or `..` is rejected with exit
+code `2`. The tool prints where it wrote the report.
 
 ### Labelled benchmark (120 cases)
 
 ```sh
 uv run python tools/quality_benchmark.py validate
-uv run python tools/quality_benchmark.py run --output quality-candidate.json
-uv run python tools/quality_benchmark.py compare tests/fixtures/benchmark/baseline.json [quality-candidate.json]
+uv run python tools/quality_benchmark.py run --output candidate.json
+uv run python tools/quality_benchmark.py compare [candidate.json]
 ```
 
-`compare` replays the corpus itself when no candidate report is given. Exit codes: `0` all
+`compare` gates against the committed `tests/fixtures/benchmark/baseline.json`. With no
+candidate name it replays the corpus itself. Exit codes: `0` all
 gates passed, `1` regression, `2` invalid corpus or report.
 
 The gates are:
@@ -151,8 +152,8 @@ The labels are human-owned. No tool writes them. Change a label only by hand, wi
 in the PR, and never to match what the code currently outputs.
 
 To update the baseline after an accepted change, run
-`uv run python tools/quality_benchmark.py run --output tests/fixtures/benchmark/baseline.json`,
-delete the `.md` summary it writes next to it, and put the before/after metrics in the PR.
+`uv run python tools/quality_benchmark.py run --update-baseline` and put the before/after
+metrics in the PR.
 
 ### 60-case confusion pin
 
@@ -171,7 +172,8 @@ explain in the PR which cases moved and why. Never edit the labels to make the p
 
 ```sh
 uv run python tools/replay_run.py replay --run <run-id> --output arm-a.json
-uv run python tools/replay_run.py replay --run-dir <snapshot>/runs/<run-id> --output arm-b.json
+# switch to the other branch, then:
+uv run python tools/replay_run.py replay --run <run-id> --output arm-b.json
 uv run python tools/replay_run.py diff arm-a.json arm-b.json
 ```
 
@@ -179,7 +181,9 @@ uv run python tools/replay_run.py diff arm-a.json arm-b.json
 the recorded agent `evaluations.jsonl`. It re-runs the current code's `filter` and `finalize`
 and reports, for each identity, the recorded decision next to the replayed one (`keep`,
 `unsure`, `discard`). `changed_vs_recorded` lists the identities whose decision changed. The
-source run folder and `ULTRON_HOME` are only read.
+run is looked up by id under `ULTRON_HOME/runs`. To replay a run from a snapshot, set
+`ULTRON_HOME` to the snapshot. The run folder and `ULTRON_HOME` are only read. A run file that
+resolves outside its folder through a symlink is rejected.
 
 To compare two code versions, replay the same run on each branch and `diff` the two reports.
 The diff counts transitions such as `keep->discard` and lists each changed identity. Recorded
@@ -187,7 +191,8 @@ agent evaluations are reused only for identities still in the filter output, as 
 An identity that newly becomes ambiguous falls back to its heuristic verdict.
 
 Replay reports name a run's postings by identity key and reason only. They are still run
-artifacts: keep them out of the repository, PRs and issues.
+artifacts: keep them out of the repository, PRs and issues. The reports folder is outside the
+repository for this reason.
 
 ### Current baseline
 

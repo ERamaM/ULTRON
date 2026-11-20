@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 
 import measure_quality
+import pytest
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -67,23 +68,16 @@ def test_measurement_is_deterministic():
     assert ids == sorted(ids), "cases are reported in a stable id order"
 
 
-def test_output_outside_the_allowed_folders_is_rejected(tmp_path, monkeypatch, capsys):
-    import safe_paths
-
-    allowed = tmp_path / "allowed"
-    allowed.mkdir()
-    monkeypatch.setattr(safe_paths, "default_roots", lambda: (str(allowed),))
-    for target in (allowed / ".." / "escape.json", tmp_path / "elsewhere.json"):
-        assert measure_quality.main(["--output", str(target)]) == 2
-        assert "outside the allowed folders" in json.loads(capsys.readouterr().out)["error"]
-    assert not (tmp_path / "escape.json").exists() and not (tmp_path / "elsewhere.json").exists()
-    assert measure_quality.main(["--output", str(allowed / "quality.json")]) == 0
-    assert (allowed / "quality.json").is_file()
+@pytest.mark.parametrize("name", ["../escape.json", "sub/quality.json", "/abs/quality.json", ".."])
+def test_output_must_be_a_plain_file_name(name, reports_dir, capsys):
+    assert measure_quality.main(["--output", name]) == 2
+    assert "plain file name" in json.loads(capsys.readouterr().out)["error"]
+    assert not reports_dir.exists()
 
 
-def test_cli_writes_the_same_report(tmp_path, capsys):
-    output = tmp_path / "quality.json"
-    assert measure_quality.main(["--output", str(output)]) == 0
-    assert json.loads(output.read_text(encoding="utf-8")) == measure_quality.measure()
+def test_cli_writes_the_same_report(reports_dir, capsys):
+    assert measure_quality.main(["--output", "quality.json"]) == 0
+    assert json.loads(capsys.readouterr().out)["report"] == str(reports_dir / "quality.json")
+    assert json.loads((reports_dir / "quality.json").read_text(encoding="utf-8")) == measure_quality.measure()
     assert measure_quality.main([]) == 0
     assert json.loads(capsys.readouterr().out)["counts"] == PINNED_COUNTS

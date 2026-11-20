@@ -200,7 +200,10 @@ def _body_names_region(text: str) -> bool:
     """True when a body names a multi-country scope, not counting company descriptions (see above)."""
     low = normalize_text(text)
     for match in _SCOPE_WORD.finditer(low):
-        following = _WORD.findall(low, match.end(), match.end() + 80)[:_COMPANY_NOUN_WINDOW]
+        window_end = match.end() + 80
+        clause_end = _CLAUSE_BREAK.search(low, match.end(), window_end)  # the window stops at its sentence
+        following = _WORD.findall(low, match.end(), clause_end.start() if clause_end else window_end)
+        following = following[:_COMPANY_NOUN_WINDOW]
         if not _COMPANY_NOUNS.intersection(following):
             return True
     if find_terms(low, _OPEN_SCOPE_PHRASES):
@@ -313,17 +316,28 @@ _US_STATE_NAME_IN_PLACE = re.compile(
 # database") never counts, and a negation in the same clause ("current state licensure is not required") blocks
 # it. Each pattern is a sequence of literal alternatives, so matching stays linear.
 _LICENCE_STATE = rf"(?:(?:{_STATE_NAME})\s)?"
+# Every alternative needs state-specific evidence: a US state name or the word "state" ("must hold a valid
+# nursing license" and "must have a license to drive" are not US evidence).
+_LICENCE_STATE_EVIDENCE = rf"(?:(?:{_STATE_NAME})\s(?:state\s)?|state\s)"
 _LICENCE_KIND = r"(?:(?:rn|nursing|professional)\s)?"
 _LICENCE_NOUN = r"licen[cs](?:e|ure)\b"
 _US_STATE_LICENCE_REQUIREMENT = re.compile(
     r"\b(?:must|required\sto)\s(?:hold|have|possess|maintain|obtain)\s(?:an?\s)?"
-    rf"(?:(?:active|current|valid|unrestricted)\s)?{_LICENCE_STATE}(?:state\s)?{_LICENCE_KIND}{_LICENCE_NOUN}"
+    rf"(?:(?:active|current|valid|unrestricted)\s)?{_LICENCE_STATE_EVIDENCE}{_LICENCE_KIND}{_LICENCE_NOUN}"
     rf"|\b(?:active|current|valid|unrestricted)\s(?:appropriate\s)?{_LICENCE_STATE}state\s{_LICENCE_KIND}"
     rf"{_LICENCE_NOUN}"
     rf"|\blicensed\s(?:to\spractice\s)?in\sthe\sstate\sof\s(?:{_STATE_NAME})\b"
     rf"|\beligible\sfor\s{_LICENCE_KIND}licensure\sin\s(?:the\sstate\sof\s)?(?:{_STATE_NAME})\b",
 )
-_CLAUSE_BREAK = re.compile(r"[.;!?\n]")
+# Clause and sentence ends: single characters, no surrounding whitespace in the pattern, so splitting is linear.
+_CLAUSE_BREAK = re.compile(r"[.;!?\n•·▪●]")
+# Every body path reads at most this many characters, with runs of horizontal whitespace collapsed.
+_MAX_BODY_CHARS = 30_000
+_HORIZONTAL_SPACE = re.compile(r"[^\S\n]+")
+
+
+def _bounded_body(text: str) -> str:
+    return _HORIZONTAL_SPACE.sub(" ", (text or "")[:_MAX_BODY_CHARS])
 _NEGATION_WORDS = frozenset({"no", "not", "never", "without", "cannot", "unable", "none"})
 
 
@@ -381,6 +395,7 @@ def other_country_restriction(
     text = _place_text(fields)
     if names_wide_region(text) or _names_home(fields, homes):
         return None
+    body_text = _bounded_body(body_text)
     excerpt = _place_text(body_text) if remote_job else ""
     body_region = _body_names_region(excerpt)
     if (remote_job and _names_home(body_text, homes)) or body_region:

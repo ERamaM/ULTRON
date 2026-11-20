@@ -24,7 +24,8 @@ API_HOST = "api.occupop.com"
 # Share tokens are long, case-sensitive and alphanumeric; posting refs are a title slug plus a short code.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]{8,128}", re.ASCII)
 _JOB_PATH_RE = re.compile(r"/shared/job/([A-Za-z0-9](?:[A-Za-z0-9-]{0,198}[A-Za-z0-9])?)/?", re.ASCII)
-_WORKPLACE_LABELS = {"onsite": "On-site", "remote": "Remote", "hybrid": "Hybrid"}
+_NO_VACANCIES_RE = re.compile(r"\bno live vacancies\b", re.IGNORECASE)
+_WORKPLACE_LABELS ={"onsite": "On-site", "remote": "Remote", "hybrid": "Hybrid"}
 
 
 def _clean(text: object) -> str:
@@ -93,6 +94,9 @@ def fetch_occupop_jobs(board_identifier: str, timeout: int = 20, *, client: AtsH
     soup = BeautifulSoup(html or "", "html.parser")
     table = soup.select_one(".searchable")
     if table is None:
+        # An embed without openings answers a notice instead of the table (an unknown token answers HTTP 401).
+        if _NO_VACANCIES_RE.search(soup.get_text(" ", strip=True)):
+            return []
         # Not a job list (an error or marketing page): never report it as a verified empty board.
         raise AtsClientError("unparseable_board")
     out: list[AtsPosting] = []

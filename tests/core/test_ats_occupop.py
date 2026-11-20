@@ -99,6 +99,16 @@ def test_occupop_board_with_no_openings_is_empty_not_an_error():
     assert fetch(TOKEN, FakeClient(_frame(""))) == []
 
 
+def test_occupop_board_with_its_no_vacancies_page_is_empty_not_an_error():
+    # Session 6, S5 seed round 3: a real employer embed with no openings answers a page without the job table,
+    # only a notice, and was reported as unparseable_board.
+    page = """<!DOCTYPE html><html><head><title>Cezanne Recruitment</title></head><body>
+    <p>
+        There are no live vacancies currently. Please check back in again soon!    </p>
+</body></html>"""
+    assert fetch(TOKEN, FakeClient(page)) == []
+
+
 def test_occupop_page_without_job_table_is_an_error():
     with pytest.raises(AtsClientError, match="unparseable_board"):
         fetch(TOKEN, FakeClient("<html><body><h1>Hire the best people</h1></body></html>"))

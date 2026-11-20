@@ -25,7 +25,11 @@ def _run(capsys, postings, profile=PROFILE):
             "location": location, "remote_text": remote, "body_text": body, "apply_url": f"https://boards.greenhouse.io/example/jobs/{index}",
             "domain": "boards.greenhouse.io", "apply_available": True, "is_open_hint": True,
         }
-        rows.append({"candidate": {}, "job": job, "identity_key": f"id:{index}"})
+        candidate = {
+            "query_id": "", "query": "", "source_url": job["apply_url"], "normalized_url": job["apply_url"],
+            "domain": "boards.greenhouse.io", "source_type": "ats_api", "source_key": "greenhouse:example",
+        }
+        rows.append({"candidate": candidate, "job": job, "identity_key": f"id:{index}"})
     runs.write_jsonl(runs.run_dir(run_id) / "postings.jsonl", rows)
     runs.mark_stage(run_id, "fetch")
     assert main(["filter", "--run", run_id]) == 0

@@ -178,3 +178,17 @@ def test_offline_replay_uses_ats_fingerprint_for_custom_domains(page, allowed):
     result = diagnose.diagnose("https://careers.example-corp.com/jobs/1", profile_slug=profiles.EXAMPLE_SLUG)
     pre = next(t for t in result.trace if t["label"] == "offline_replay" and t["stage"] == "pre_filter")
     assert (pre["reason"] != "outside_ats_allowlist") is allowed
+
+
+def test_kept_after_fetch_switched_to_the_ats_canonical_url(run_dir):
+    run_id, d = run_dir
+    custom = "https://careers.example.com/jobs/senior-ml-engineer"
+    cand = CandidateUrl(query_id="web:1", query="", source_url=custom, normalized_url=custom,
+                        domain="careers.example.com", source_type="web_search", source_key="web_search")
+    original = canonical_job_identity(custom, source_type="web_search", source_key="web_search").identity_key
+    runs.write_jsonl(d / "candidates.jsonl", [cand])
+    runs.write_jsonl(d / "postings.jsonl", [{"identity_key": original, "job": {"apply_url": URL}, "candidate": {}}])
+    (d / "results.json").write_text(json.dumps({"rows": [{"apply_url": URL, "source_type": "web_search",
+                                                          "source_key": "web_search"}]}), encoding="utf-8")
+    assert _diag(run_id, url=custom).first_failed_stage == "kept"  # the original URL
+    assert _diag(run_id, url=URL).first_failed_stage == "kept"  # the canonical URL fetch switched to

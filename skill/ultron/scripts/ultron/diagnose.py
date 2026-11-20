@@ -58,10 +58,28 @@ def _step(trace: list[dict], stage: str, passed: bool, reason: str = "", label: 
     trace.append({"stage": stage, "label": label, "passed": passed, "reason": reason})
 
 
+def _posting_aliases(out_dir) -> dict[str, str]:
+    """Identity of each posting's final apply URL -> the posting's (candidate) identity key.
+
+    Fetch can replace a custom-domain URL with the ATS canonical URL; results then carry the new URL while the
+    candidate and every stage artifact keep the original identity.
+    """
+    aliases: dict[str, str] = {}
+    for row in runs.read_jsonl(out_dir / "postings.jsonl"):
+        key = row.get("identity_key")
+        apply_url = (row.get("job") or {}).get("apply_url") or ""
+        if key and apply_url:
+            aliases.setdefault(_identity_of(apply_url), key)
+    return aliases
+
+
 def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
     out_dir = runs.run_dir(run_id)
     stages_done = runs.load_run(run_id).get("stages_done") or []
+    aliases = _posting_aliases(out_dir)
     wanted = {identity}
+    if identity in aliases:  # the submitted URL is the canonical URL fetch switched to
+        wanted.add(aliases[identity])
 
     cand_ids: dict[str, set[str]] = {}
     matched: set[str] = set()
@@ -117,8 +135,9 @@ def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
         except ValueError:
             rows = []
         for row in rows:
-            key = _identity_of(row.get("apply_url") or "", row.get("source_type") or "", row.get("source_key") or "")
-            if key in wanted:
+            apply_url = row.get("apply_url") or ""
+            key = _identity_of(apply_url, row.get("source_type") or "", row.get("source_key") or "")
+            if key in wanted or aliases.get(_identity_of(apply_url)) in wanted:
                 _step(trace, "finalize", True)
                 return "kept", "kept"
     in_ambiguous = any(r.get("identity_key") in wanted for r in runs.read_jsonl(out_dir / "ambiguous.jsonl"))

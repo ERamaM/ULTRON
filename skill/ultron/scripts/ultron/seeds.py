@@ -355,7 +355,7 @@ def verify_proposal(
         for slugs in (primary, normalized):
             pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
 
-    unsupported = invalid = host_budget = False
+    unsupported = invalid = unparseable = host_budget = False
     skipped_vendors: set[str] = set()
     seen: set[tuple[str, str]] = set()
     for ats, board in pairs:
@@ -379,6 +379,7 @@ def verify_proposal(
         except AtsClientError as exc:
             unsupported = unsupported or str(exc) == "vendor_not_supported_yet"
             invalid = invalid or str(exc) == "invalid_board"
+            unparseable = unparseable or str(exc) == "unparseable_board"
             continue
         except (HttpError, URLRejected, ValueError, KeyError, TypeError, AttributeError):
             continue
@@ -395,6 +396,8 @@ def verify_proposal(
         return unresolved("invalid_board")
     if unsupported:
         return unresolved("vendor_not_supported_yet")
+    if unparseable:
+        return unresolved("unparseable_board")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
     return unresolved("no_board_found")

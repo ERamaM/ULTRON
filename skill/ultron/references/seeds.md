@@ -100,6 +100,7 @@ next call.
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url`; a careers site on the company's own domain is not an ATS board. |
+| `unparseable_board` | The board page loaded but no listings could be read (e.g. a script-rendered Taleo career section). Drop it; its postings can still arrive through web search. |
 | `invalid_proposal` | The line had no `company`. Fix it. |
 
 Put retries in a new file (e.g. `agent_proposals_retry.jsonl`) with only the corrected companies.

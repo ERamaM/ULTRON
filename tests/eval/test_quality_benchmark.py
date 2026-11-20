@@ -327,3 +327,7 @@ def test_update_baseline_writes_only_the_committed_file(tmp_path, monkeypatch, r
     assert json.loads(target.read_text(encoding="utf-8"))["case_count"] == 120
     assert not reports_dir.exists()
     assert capsys.readouterr().out == ""
+
+
+def test_run_output_must_be_json_so_the_summary_cannot_overwrite_it():
+    assert qb.main(["run", "--output", "candidate.md"]) == 2

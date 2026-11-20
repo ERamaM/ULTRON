@@ -479,6 +479,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
             check_report_names(args.output, _markdown_name(args.output))
         except UnsafePathError as exc:
             raise CorpusError(str(exc)) from exc
+        if not str(args.output).endswith(".json"):
+            raise CorpusError("--output must be a .json file name (a .md summary is written next to it)")
     report = run_benchmark()
     if args.update_baseline:
         BASELINE_PATH.write_text(dump_report(report), encoding="utf-8", newline="\n")

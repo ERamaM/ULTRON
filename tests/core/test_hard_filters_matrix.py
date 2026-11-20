@@ -613,3 +613,16 @@ def test_onsite_benefit_split_across_extracted_lines():
 )
 def test_onsite_perk_wordings(body, remote_only):
     assert h.is_full_remote_only("Remote", body) is remote_only
+
+
+def test_every_supported_vendor_domain_is_on_the_bundled_ats_allowlist():
+    # A vendor domain the clients emit (e.g. comeet.co) but the allowlist lacks would discard that vendor's
+    # postings as outside_ats_allowlist whenever they did not come from a vendor API.
+    from ultron.core.ats.vendors import SUPPORTED_ATS_DOMAINS
+    from ultron.core.decision.unit import load_allowed_domains
+
+    allowed = load_allowed_domains()
+    missing = [d for d in SUPPORTED_ATS_DOMAINS if not any(d == a or d.endswith(f".{a}") for a in allowed)]
+    assert missing == []
+    job = _job(apply_url="https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E11", domain="www.comeet.co")
+    assert h.apply_hard_filters(job, allowed, target_regions=("Spain", "Europe")) == (True, None)

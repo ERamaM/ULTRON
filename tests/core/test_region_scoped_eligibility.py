@@ -64,6 +64,9 @@ def test_global_or_international_in_the_body_does_not_open_a_country_posting(cri
         (LATAM, "Toronto, Canada", "Remote", "This is a global remote role with no travel required."),
         (LATAM, "Toronto, Canada", "Remote", "International applicants may apply."),
         (LATAM, "Toronto, Canada", "Remote", "We accept international applications."),
+        # Round 4: the company-description window stops at the end of the sentence.
+        (LATAM, "Toronto, Canada", "Remote", "We hire worldwide. Our team works asynchronously."),
+        (LATAM, "Toronto, Canada", "Remote", "Open worldwide; team rituals are async."),
     ],
 )
 def test_a_body_that_names_where_the_company_hires_still_opens_the_posting(criteria, location, remote, body):
@@ -228,6 +231,10 @@ def test_us_place_evidence_does_not_flag_a_home_or_look_alike_place(criteria, lo
         "Build software to manage state licenses for our customers.",
         "Build software to manage state licenses for our current customers.",
         "Maintain our state license database and build reporting dashboards.",
+        "Applicants must hold a valid nursing license.",
+        "You must have a license to drive.",
+        "Must hold a current professional license.",
+        "Required to obtain an active RN license within 90 days.",
         "You must not hold an active state license elsewhere.",
         "No state license is required for this non-clinical role.",
         "You do not need a state licensure for this position.",
@@ -249,6 +256,10 @@ def test_body_patterns_run_in_linear_time_on_adversarial_text():
         "not active state license " * 4000,
         "licensed to practice in the state of " * 3000 + "x",
         ("a" * 50 + " ") * 2000,
+        "global" + " " * 30000 + "x",
+        "must hold" + " " * 30000 + "state license",
+        "anywhere" + " \t\r\f\v" * 6000 + "in the world",
+        ". " + " \t" * 15000 + "We hire worldwide.",
     ]
     start = time.perf_counter()
     for body in bodies:

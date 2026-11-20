@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Working Student Data Analyst (f/m/d)",
+  "location": "Brazil",
+  "remote_text": "Remote - Brazil",
+  "body_text": "Support the analytics team with SQL and dashboards. Enrolled university students only. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-stud-001",
+  "is_open_hint": true
+}

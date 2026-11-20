@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Staff Nurse",
+  "location": "Madrid, Spain",
+  "remote_text": "On-site",
+  "body_text": "Deliver patient care on the surgical ward of our Madrid hospital. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-elig-001",
+  "is_open_hint": true
+}

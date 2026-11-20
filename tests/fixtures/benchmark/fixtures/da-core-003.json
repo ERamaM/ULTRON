@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "BI Analyst",
+  "location": "Mexico",
+  "remote_text": "100% remote from Mexico",
+  "body_text": "Own Tableau and Power BI reporting for finance and sales. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-core-003",
+  "is_open_hint": true
+}

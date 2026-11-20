@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Werkstudent Backend Engineer (m/w/d)",
+  "location": "Spain",
+  "remote_text": "Remote - Spain",
+  "body_text": "Support the backend team with Python APIs and own small services during your studies. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-stud-002",
+  "is_open_hint": true
+}

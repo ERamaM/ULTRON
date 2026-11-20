@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-stud-003
+profile: data-analyst-remote-latam
+language: en
+role_track: core
+seniority: junior
+remote_mode: latam
+eligibility_label: confirmed
+vendor: greenhouse
+fixture: ../fixtures/da-stud-003.json
+split: dev
+labels:
+  relevant: false
+  role_fit: true
+  seniority_fit: false
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against data-analyst-remote-latam: not relevant (a trainee programme for graduates, an intern-level role the profile excludes).'

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "France",
+  "remote_text": "Full remote in France",
+  "body_text": "Build Python APIs for the energy platform. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-004",
+  "is_open_hint": true
+}

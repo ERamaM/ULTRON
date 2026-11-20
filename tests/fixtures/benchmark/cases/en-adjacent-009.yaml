@@ -5,16 +5,16 @@ language: en
 role_track: adjacent
 seniority: manager
 remote_mode: eu
-eligibility_label: high
+eligibility_label: confirmed
 vendor: greenhouse
 fixture: ../fixtures/en-adjacent-009.json
 split: dev
 labels:
-  relevant: null
+  relevant: false
   role_fit: null
   seniority_fit: false
   remote_fit: true
-  eligibility: high
+  eligibility: confirmed
   open_status: true
-expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+expected_stage: discard
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (manager-level role (the profile wants senior individual contributors)).'

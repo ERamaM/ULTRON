@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Fullstack Engineer",
+  "location": "Remote LATAM",
+  "remote_text": "Fully remote within Latin America",
+  "body_text": "Build product features in Python and React. Write SQL, maintain internal dashboards and reporting tools. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-001",
+  "is_open_hint": true
+}

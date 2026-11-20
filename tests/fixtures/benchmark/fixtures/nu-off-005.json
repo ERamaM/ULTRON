@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Ward Clerk",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Administer ward records for the clinical nursing team. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-off-005",
+  "is_open_hint": true
+}

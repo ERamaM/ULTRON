@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Clinical Nurse Specialist, Oncology",
+  "location": "Galway, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Lead oncology nursing care and patient education. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-core-003",
+  "is_open_hint": true
+}

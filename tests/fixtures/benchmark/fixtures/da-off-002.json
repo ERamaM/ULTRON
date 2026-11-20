@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "Remote LATAM",
+  "remote_text": "Remote across Latin America",
+  "body_text": "Design APIs, write SQL migrations and feed analytics events into reporting. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-002",
+  "is_open_hint": true
+}

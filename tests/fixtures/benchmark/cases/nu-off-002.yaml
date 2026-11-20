@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-off-002
+profile: nurse-ireland-onsite
+language: en
+role_track: negative
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: confirmed
+vendor: lever
+fixture: ../fixtures/nu-off-002.json
+split: test
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against nurse-ireland-onsite: not relevant (data analysis is not nursing).'

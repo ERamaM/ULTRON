@@ -1,0 +1,21 @@
+schema_version: 1
+id: da-dup-006
+profile: data-analyst-remote-latam
+language: en
+role_track: negative
+seniority: senior
+remote_mode: latam
+eligibility_label: confirmed
+vendor: lever
+fixture: ../fixtures/da-dup-006.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against data-analyst-remote-latam: not relevant (an off-family posting listed once per city).'
+duplicate_group: da-dup-b

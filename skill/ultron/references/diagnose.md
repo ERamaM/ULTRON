@@ -32,8 +32,9 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   Edit profile criteria: role focus terms, seniority terms, role negatives, or the vocabulary pack.
 - `hard_filter`: a hard rule (location/eligibility, closed posting, disallowed domain, post-evaluation geography
   conflict). Revisit the profile's geography scope and remote policy.
-- `dedup`: dropped as a duplicate of another posting of the same company and title; nothing to fix unless
-  the two are genuinely different roles.
+- `dedup`: dropped as a duplicate of another posting of the same company and title (for a full-remote
+  profile, also the same posting listed in another city, merged into one row); nothing to fix unless the
+  two are genuinely different roles.
 - `final_cap`: ranked below `max_roles`. Use a larger preset (or `ultron saved-search create --override max_roles=...`;
   `run new` has no overrides) or sharpen the profile so the role ranks higher.
 - `pending`: a stage has not run yet, so no verdict exists. `not_fetched`: the run has not done `fetch` (run it), or the URL was added after `fetch` ran.

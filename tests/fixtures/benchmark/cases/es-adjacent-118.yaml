@@ -5,7 +5,7 @@ language: es
 role_track: adjacent
 seniority: ambiguous
 remote_mode: unknown
-eligibility_label: high
+eligibility_label: unknown
 vendor: json_api
 fixture: ../fixtures/es-adjacent-118.json
 split: dev
@@ -14,7 +14,7 @@ labels:
   role_fit: null
   seniority_fit: null
   remote_fit: null
-  eligibility: high
+  eligibility: unknown
   open_status: false
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (the posting is closed).'

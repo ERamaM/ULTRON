@@ -5,7 +5,7 @@ language: en
 role_track: negative
 seniority: ambiguous
 remote_mode: us_only
-eligibility_label: high
+eligibility_label: ineligible
 vendor: greenhouse
 fixture: ../fixtures/en-negative-011.json
 split: test
@@ -13,8 +13,8 @@ labels:
   relevant: false
   role_fit: false
   seniority_fit: null
-  remote_fit: false
-  eligibility: high
+  remote_fit: true
+  eligibility: ineligible
   open_status: true
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (frontend engineering is outside the AI/ML family; US residence required (the profile is Spain or EU based)).'

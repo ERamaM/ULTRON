@@ -14,6 +14,7 @@ import pytest
 import quality_benchmark as qb
 
 CORPUS = qb.CORPUS_DIR
+CASE_COUNT = 183
 
 
 def _case(case_id, relevant, status, rank=None, **slices):
@@ -37,8 +38,8 @@ def report():
 
 def test_corpus_is_valid_synthetic_and_complete():
     meta, records = qb.load_corpus()
-    assert len(records) == 120 == meta["minimum_cases"]
-    assert len({case["id"] for case, _ in records}) == 120
+    assert len(records) == CASE_COUNT == meta["minimum_cases"]
+    assert len({case["id"] for case, _ in records}) == CASE_COUNT
     for case, fixture in records:
         assert fixture["synthetic"] is True
         assert fixture["apply_url"] == f"https://jobs.example.test/{case['id']}"
@@ -58,6 +59,39 @@ def _copy_corpus(tmp_path: Path) -> Path:
     root = tmp_path / "benchmark"
     shutil.copytree(CORPUS, root, ignore=shutil.ignore_patterns("baseline.json", "README.md"))
     return root
+
+
+def _edit(path: Path, old: str, new: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert old in text
+    path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "mutate, message",
+    [
+        (lambda r: _edit(r / "cases" / "en-core-001.yaml", "profile: ml-engineering-remote-eu", "profile: nobody"),
+         "profile='nobody'"),
+        (lambda r: _edit(r / "cases" / "da-dup-001.yaml", "relevant: true", "relevant: false"), "duplicate_group"),
+        (lambda r: _edit(r / "cases" / "da-dup-001.yaml", "duplicate_group: da-dup-a", "duplicate_group: ../x"),
+         "duplicate_group must be"),
+        (lambda r: _edit(r / "fixtures" / "da-dup-001.json", '"employer": "analytics-co"', '"employer": "A Co"'),
+         "employer must be"),
+    ],
+)
+def test_profiles_groups_and_employers_are_validated(tmp_path, mutate, message):
+    root = _copy_corpus(tmp_path)
+    mutate(root)
+    with pytest.raises(qb.CorpusError, match=re.escape(message)):
+        qb.load_corpus(root)
+
+
+def test_every_profile_has_a_file_and_enough_labelled_cases():
+    _meta, records = qb.load_corpus()
+    for slug in qb.BENCHMARK_PROFILES:
+        assert qb.load_profile(slug)["slug"] in {slug, "ai-ml-remote-eu"}
+        labelled = [case for case, _ in records if case["profile"] == slug and case["labels"]["relevant"] is not None]
+        assert len(labelled) >= qb.MIN_SLICE_SAMPLE, slug
 
 
 @pytest.mark.parametrize(
@@ -93,7 +127,7 @@ def test_invalid_corpus_is_rejected(tmp_path, mutate, message):
 
 def test_validate_exit_codes(tmp_path, monkeypatch, capsys):
     assert qb.main(["validate"]) == 0
-    assert json.loads(capsys.readouterr().out) == {"valid": True, "cases": 120}
+    assert json.loads(capsys.readouterr().out) == {"valid": True, "cases": CASE_COUNT}
     root = _copy_corpus(tmp_path)
     (root / "corpus.yaml").write_text("schema_version: 9\n", encoding="utf-8")
     monkeypatch.setattr(qb, "CORPUS_DIR", root)
@@ -142,13 +176,44 @@ def test_ranking_metrics_by_hand():
     assert metrics["ndcg_at_10"] == pytest.approx((1 / math.log2(3) + 1 / math.log2(4)) / ideal)
 
 
+def _grouped(case_id, relevant, status, group, rank=None):
+    return {**_case(case_id, relevant, status, rank=rank), "duplicate_group": group}
+
+
+def test_a_duplicate_group_is_scored_as_one_unit():
+    results = [
+        _grouped("a1", True, "keep", "g", rank=1),
+        _grouped("a2", True, "keep", "g", rank=2),
+        _grouped("a3", True, "discard", "g"),
+        _case("b", True, "discard"),
+        _case("c", False, "keep", rank=3),
+    ]
+    metrics = qb.classification_metrics(results)
+    assert metrics["confusion_matrix"] == {"tp": 1, "fp": 1, "tn": 0, "fn": 1}
+    ranking = qb.ranking_metrics(results)
+    assert ranking["duplicate_rows"] == 1 and ranking["relevant_total"] == 2
+    assert ranking["precision_at_5"] == pytest.approx(1 / 5)  # the second row of group g earns no gain
+
+
+def test_merging_a_duplicate_into_a_kept_sibling_is_not_a_new_false_negative():
+    base = qb.build_report([_grouped("a1", True, "keep", "g", 1), _grouped("a2", True, "keep", "g", 2)],
+                           corpus_version="t", agent_queue=0)
+    merged = qb.build_report([_grouped("a1", True, "keep", "g", 1), _grouped("a2", True, "discard", "g")],
+                             corpus_version="t", agent_queue=0)
+    assert qb.compare_reports(base, merged).passed
+    assert merged["metrics"]["duplicate_rows"] == 0 and base["metrics"]["duplicate_rows"] == 1
+    lost = qb.build_report([_grouped("a1", True, "discard", "g"), _grouped("a2", True, "unsure", "g", 1)],
+                           corpus_version="t", agent_queue=0)
+    assert "new false negative: group:g" in qb.compare_reports(base, lost).regressions
+
+
 def test_slices_flag_small_samples():
     results = [_case(str(i), i % 2 == 0, "keep", language="en") for i in range(10)]
     results.append(_case("x", True, "keep", language="es"))
     slices = qb.slice_metrics(results)
     assert slices["language"]["en"]["status"] == "measured"
     assert slices["language"]["es"]["status"] == "insufficient_sample"
-    assert set(slices) == {"language", "region", "vendor", "role_track"}
+    assert set(slices) == {"language", "region", "vendor", "role_track", "profile"}
 
 
 # --- gates ----------------------------------------------------------------------------------------
@@ -281,8 +346,9 @@ def test_tools_never_write_the_labels():
 
 
 def test_every_relevant_miss_has_a_losing_stage(report):
+    units = {id(unit) for unit in qb.scoring_units(report["cases"])}
     for case in report["cases"]:
-        missed = case["truth"]["relevant"] is True and case["prediction"]["status"] != "keep"
+        missed = case["truth"]["relevant"] is True and case["prediction"]["status"] != "keep" and id(case) in units
         assert (case["first_loss_stage"] is not None) == missed, case["id"]
     losses = report["metrics"]["first_loss_counts"]
     assert sum(losses.values()) == report["metrics"]["classification"]["confusion_matrix"]["fn"]
@@ -298,7 +364,7 @@ def test_run_writes_json_and_markdown(reports_dir, capsys):
     assert qb.main(["run", "--output", "candidate.json"]) == 0
     assert json.loads(capsys.readouterr().out)["report"] == str(reports_dir / "candidate.json")
     data = json.loads((reports_dir / "candidate.json").read_text(encoding="utf-8"))
-    assert data["case_count"] == 120
+    assert data["case_count"] == CASE_COUNT
     markdown = (reports_dir / "candidate.md").read_text(encoding="utf-8")
     assert "| recall |" in markdown and "First losing stage" in markdown
     assert qb.main(["compare", "candidate.json"]) == 0
@@ -324,7 +390,7 @@ def test_update_baseline_writes_only_the_committed_file(tmp_path, monkeypatch, r
     target = tmp_path / "baseline.json"
     monkeypatch.setattr(qb, "BASELINE_PATH", target)
     assert qb.main(["run", "--update-baseline"]) == 0
-    assert json.loads(target.read_text(encoding="utf-8"))["case_count"] == 120
+    assert json.loads(target.read_text(encoding="utf-8"))["case_count"] == CASE_COUNT
     assert not reports_dir.exists()
     assert capsys.readouterr().out == ""
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Clinical Research Associate",
+  "location": "Cork, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Monitor clinical trials and patient care documentation across sites. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-off-003",
+  "is_open_hint": true
+}

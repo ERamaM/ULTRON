@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Senior Software Engineer, Analytics Platform",
+  "location": "Remote LATAM",
+  "remote_text": "Fully remote within Latin America",
+  "body_text": "Build the services behind SQL dashboards and reporting. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-005",
+  "is_open_hint": true
+}

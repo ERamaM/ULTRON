@@ -17,8 +17,9 @@ from ultron.core.final_row import _assemble_final_row, fallback_fit_signals, pre
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, DiscardRecord, ExtractedJob, FinalRow, JobEvaluation, RunSummary
 from ultron.core.ranker import dedupe_final_rows, rank_final_rows
+from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
-from ultron.core.rules.geography import geo_scope
+from ultron.core.rules.geography import geo_scope, other_country_restriction
 from ultron.stages.discover import SEED_ATTEMPTS_FILE
 
 TOP_N = 5
@@ -109,6 +110,14 @@ def finalize(run_id: str) -> dict:
         if geo_discard:
             record(_discard(job, geo_discard, "post_eval_geo_conflict"), key, "post_eval_geo")
             continue
+        # Heuristic keeps limited to a country outside the profile's home places need a check: "Remote across
+        # Germany" is not open to someone in Spain. Agent verdicts already answered the eligibility question.
+        limited_to = None if key in agent or evaluation.verdict != "keep" else other_country_restriction(
+            job.location, job.remote_text, criteria, job.body_text
+        )
+        if limited_to:
+            evaluation = evaluation.model_copy(update={"verdict": "unsure", "keep": False, "eligibility": "unknown"})
+            geo_risk_note = f"location limited to {limited_to}"
         row = _assemble_final_row(
             job, evaluation,
             heur_remote_policy=geography.remote_policy,
@@ -120,10 +129,13 @@ def finalize(run_id: str) -> dict:
             profile_criteria=criteria,
             geo=geo,
         )
+        if limited_to:
+            row.eligibility = "unknown"
         row_identity[id(row)] = key
         raw_rows.append(row)
 
-    deduped, duplicates = dedupe_final_rows(raw_rows)
+    # A remote-only profile can work any listed city, so one posting listed once per city is one row.
+    deduped, duplicates = dedupe_final_rows(raw_rows, merge_locations=is_remote_required(criteria))
     for row in duplicates:
         record(DiscardRecord(
             apply_url=row.apply_url, reason="duplicate_role",

@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-off-004
+profile: data-analyst-remote-latam
+language: en
+role_track: negative
+seniority: senior
+remote_mode: latam
+eligibility_label: confirmed
+vendor: greenhouse
+fixture: ../fixtures/da-off-004.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against data-analyst-remote-latam: not relevant (product design is not data analytics).'

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Product Analyst",
+  "location": "Colombia",
+  "remote_text": "Remote within Colombia",
+  "body_text": "Analyse product funnels with SQL and build experiment dashboards. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-core-004",
+  "is_open_hint": true
+}

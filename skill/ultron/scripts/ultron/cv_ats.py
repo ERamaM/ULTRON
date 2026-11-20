@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import re
@@ -89,11 +90,22 @@ DESIGN_TOOL_MARKERS = (
 )
 
 DECORATIVE_GLYPH_RE = re.compile(r"[★☆●○◆◇■□▪▫▶►✓✔✗✘]")
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d[\d\s().-]{6,}\d)(?!\d)")
+_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b"
+)
+_PHONE_PATTERN = (
+    r"(?<![\d$€£¥₹])(?:"
+    r"\+\d{1,3}(?:[\s.-]?\(?\d{2,4}\)?){2,4}"
+    r"|\(\d{2,4}\)[\s.-]?\d{3,4}[\s.-]\d{3,4}"
+    r"|\d{3,4}[\s-]\d{3,4}[\s-]\d{3,4}"
+    r")(?!\d)"
+)
+_PHONE_RE = re.compile(_PHONE_PATTERN)
 _LINK_RE = re.compile(r"(?:https?://|linkedin\.com/|github\.com/)\S+", re.IGNORECASE)
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*•▪▫◦‣]|\d+[.)])\s+")
-_METRIC_RE = re.compile(r"(?:\d+(?:[.,]\d+)?%|\$\s*\d|\€\s*\d|\d+\s*[xX]\b|\b\d{1,4}\+)")
+_METRIC_RE = re.compile(
+    r"(?:(?<!\d)\d{1,9}(?:[.,]\d{1,4})?%|[$€£]\s{0,2}\d|(?<!\d)\d{1,6}\s{0,2}[xX]\b|\b\d{1,4}\+)"
+)
 
 _TEX_COMMENT_RE = re.compile(r"(?<!\\)%[^\n]*")
 _TEX_HREF_RE = re.compile(r"\\href\{([^{}]*)\}\{([^{}]*)\}")
@@ -116,7 +128,16 @@ _ACRONYM_SKIP = frozenset({
     "THE", "FOR", "WITH", "YOU", "OUR", "ALL", "NEW", "JOB", "INC", "LTD", "LLC", "GMBH", "SL", "SA",
 })
 _ACRONYM_RE = re.compile(r"\b[A-Z][A-Z0-9/+.#-]{1,7}\b")
-_MIXED_TECH_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:[A-Z][a-z0-9]+|[.+/#][A-Za-z0-9]+)\b")
+_TECH_CANDIDATE_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]{0,24}(?:[.+/#][A-Za-z0-9]{1,16}){0,2}\b")
+
+
+def is_mixed_tech_token(token: str, *, allow_digit_lower: bool = False) -> bool:
+    """Return True for CamelCase, punctuated tech names (Next.js, CI/CD), or optional k8s-style tokens."""
+    if any(ch in token for ch in ".+/#"):
+        return True
+    if any(ch.isupper() for ch in token[1:]) and any(ch.islower() for ch in token):
+        return True
+    return allow_digit_lower and any(a.isdigit() and b.islower() for a, b in itertools.pairwise(token))
 
 
 def extract_tex_text(content: bytes, *, max_chars: int = cv.MAX_CV_CHARS) -> str:
@@ -624,8 +645,9 @@ def extract_job_keywords(title: str, body: str, *, profile: dict | None = None) 
         if token not in _ACRONYM_SKIP and not token.isdigit():
             add(token)
 
-    for token in _MIXED_TECH_RE.findall(blob):
-        add(token)
+    for token in _TECH_CANDIDATE_RE.findall(blob):
+        if is_mixed_tech_token(token):
+            add(token)
 
     if title.strip():
         add(title.strip())

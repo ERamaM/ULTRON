@@ -37,7 +37,13 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
             payload = fetch_json(url, timeout=timeout)
             used_eu = is_eu
             break
-        except (RequestBudgetExceeded, URLRejected):
+        except RequestBudgetExceeded:
+            raise
+        except URLRejected:
+            # A policy or DNS rejection of the EU fallback (its API host may not resolve) must not replace the
+            # primary host's error: a board removed from Greenhouse would be reported as dns_resolution_failed.
+            if is_eu and last_exc is not None:
+                break
             raise
         except Exception as exc:
             last_exc = exc

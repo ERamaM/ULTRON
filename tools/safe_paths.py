@@ -9,6 +9,7 @@ else. Report files are run artifacts, are redacted before writing, and stay out 
 from __future__ import annotations
 
 import getpass
+import hashlib
 import json
 import os
 import re
@@ -71,14 +72,26 @@ def _private_reports_dir() -> str:
     return REPORTS_DIR
 
 
+def _redact_string(text: str) -> str:
+    """Redact ``text``; when that changes it, append a stable digest of the original.
+
+    Two identities that differ only in a secret value stay distinct (and match across reports, so
+    ``diff`` still pairs them), without revealing the secret.
+    """
+    redacted = str(redact(text))
+    if redacted == text:
+        return text
+    return f"{redacted}#h:{hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]}"
+
+
 def _redact_tree(value: Any) -> Any:
     """Redact every string in a JSON value, dictionary keys included (identity keys are used as keys)."""
     if isinstance(value, dict):
-        return {str(redact(str(key))): _redact_tree(item) for key, item in value.items()}
+        return {_redact_string(str(key)): _redact_tree(item) for key, item in value.items()}
     if isinstance(value, list):
         return [_redact_tree(item) for item in value]
     if isinstance(value, str):
-        return str(redact(value))
+        return _redact_string(value)
     return value
 
 

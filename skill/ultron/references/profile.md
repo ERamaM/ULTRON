@@ -12,7 +12,12 @@ filters, ranking, the query plan and your evaluations all read it.
   edited that copy it stops with `profile_exists` instead of overwriting it; pass `--force` only if the
   user agrees to lose those edits.
 - `ultron profile list` → `{"profiles": [{"slug", "name", "path"}]}` (user profiles override bundled
-  ones with the same slug). `ultron profile show <slug>` prints the whole profile.
+  ones with the same slug). `ultron profile show <slug>` → `{"profile": {...}, "origin": "user" | "bundled",
+  "path"}`.
+- Every write by `profile save`, `profile edit`, `profile undo` and `profile install-example` first keeps the
+  previous file (byte for byte, comments included) in `<ULTRON_HOME>/profiles/.history/<slug>/` (last 20
+  versions). Change profiles through these commands rather than by editing the file, so every change can be
+  previewed and undone.
 
 ## Schema
 
@@ -26,6 +31,7 @@ name: Senior Data Engineer - Remote Spain/EU
 description: one line for humans
 enabled: true
 source_cv: /home/me/cv/cv.pdf        # optional: path of the CV this profile was generated from (metadata only; null/absent otherwise)
+prompt: Salary floor 60k EUR. Avoid gambling companies.   # optional notes for you; the CLI never applies them
 criteria:
   sectors: [technology]              # informative
   role_family_label: Data engineering   # human name of the role family
@@ -43,7 +49,7 @@ criteria:
     preferred: [Spain, Remote EU, Remote Europe]     # target hiring scopes
     eligibility_terms: [spain, remote eu, remote europe, within eu, cet]
     excluded_terms: [us only, uk only, north america only]
-  exclusion_terms: [manager, director, intern]       # lower the score, never reject alone
+  exclusion_terms: [manager, director, intern]       # titles with these are skipped when boards and feeds are listed; later they only lower the score
   specialties: [Spark, dbt, Airflow, streaming]      # shown as fit signals
   fallback_fit_signals: [Data]
   role_signal_terms: [data pipeline, etl, data warehouse, spark, dbt]  # body terms that confirm the family
@@ -133,38 +139,113 @@ queries with `site:<domain>` queries.
 
 ## Creating a profile
 
-When the user wants to start from preferences, ask only for the details still missing. Start with
-target roles, eligible regions, and work mode. Draft a profile using the schema above, validate it
-with `ultron profile validate --from <yaml>`, and show the user the criteria for confirmation.
-Save the confirmed profile with `ultron profile save --from <yaml>`.
+Draft profiles are YAML or JSON files (JSON is valid input everywhere a YAML file is accepted). Write
+the draft as UTF-8 to a scratch file outside `<ULTRON_HOME>/profiles/`; use the schema above or
+`ultron profile show ai-ml-remote-eu` as a template.
+
+- From preferences, with no CV: interview the user as `references/profile-interview.md` describes.
+- From a CV: follow the steps below.
+
+Either way, before saving: `ultron profile validate --from <file>`, then `ultron profile explain --from
+<file>` to check what the draft will do, then `ultron profile save --from <file> --dry-run`. Save only
+after the user confirms.
 
 ### From a CV
 
 1. Extract the CV text: `ultron cv extract <path>` (PDF, `.txt` or `.md`) writes
-   `<ULTRON_HOME>/cv/<stem>.txt` and prints `{"path", "chars", "pages", "source_cv"}` (never the text; `source_cv` is the absolute path of the original CV). Read that
-   file with your file-reading ability. On failure it prints `{"error": <code>}`: `no_extractable_text`
-   (blank or scanned PDF; ask for a text version), `too_many_pages` (over 20), `too_long` (over 60000
-   characters or 2.5 MB), `timeout`, `unsupported_type`, `dependency_missing` (PDF support needs
-   `pip install 'ultron[cv]'`), or `worker_failed` (the PDF helper process exited non-zero; `detail`
-   has the stderr tail). Ask, in the user's
-   language, only what the CV cannot tell you: target roles, seniority, remote/hybrid/onsite,
-   countries or regions where they can work, deal-breakers.
-2. Derive the fields: `role_focus_terms` and `target_titles` from their recent roles and the roles
+   `<ULTRON_HOME>/cv/<stem>.txt` and prints `{"path", "chars", "pages", "source_cv"}` (never the text;
+   `source_cv` is the absolute path of the original CV). Read that file with your file-reading ability.
+   On failure it prints `{"error": <code>}`: `no_extractable_text` (blank or scanned PDF; ask for a text
+   version), `too_many_pages` (over 20), `too_long` (over 60000 characters or 2.5 MB), `timeout`,
+   `unsupported_type` (for example `.docx`: ask the user to export it as PDF or text),
+   `dependency_missing` (PDF support needs `pip install 'ultron[cv]'`), or `worker_failed` (the PDF
+   helper process exited non-zero; `detail` has the stderr tail).
+2. Check the text before trusting it. Two-column PDFs come out column by column (main column, then
+   sidebar). If job titles, dates and skills still look mixed on the same lines, ask the user rather
+   than guess.
+3. Derive the fields: `role_focus_terms` and `target_titles` from their recent roles and the roles
    they want (not every past job); `seniority` from years and scope; `specialties` and
    `query_templates.technologies` from their strongest skills; `location_scope` from where they can
-   legally work. Keep lists focused: 5-12 role terms, 3-6 target titles.
-3. Write the new profile YAML as UTF-8 to a scratch file (outside `<ULTRON_HOME>/profiles/`, e.g. in
-   your working scratch folder; use `ultron profile show ai-ml-remote-eu` or the schema above as a
-   template).
-4. Validate the scratch file: `ultron profile validate --from <yaml>` →
-   `{"slug": "...", "valid": true, "errors": []}`. On failure it exits 1 with `"valid": false` and a
-   list of `errors`; fix them and validate again.
-5. Save it: `ultron profile save --from <yaml> --source-cv <source_cv>` (use the `source_cv` value
+   legally work. Keep lists focused: 5-12 role terms, 3-6 target titles. Do not turn every skill or past
+   task into a term: sidebar keywords, tasks done once (for example data entry) and spoken languages are
+   not role terms.
+4. Summarize the draft for the user in a few lines (roles, seniority, work mode, regions, main skills)
+   and ask only what the CV cannot tell you: roles they want next, roles they do not want, remote,
+   hybrid or onsite, where they can legally work, deal-breakers.
+5. Validate and explain the draft as above. On failure `profile validate` exits 1 with `"valid": false`
+   and a list of `errors`; fix them and validate again.
+6. Save it: `ultron profile save --from <file> --source-cv <source_cv>` (use the `source_cv` value
    printed by `cv extract`; the file must exist, otherwise `{"error": "source_cv_not_found"}`; only the
    path is stored, never the CV content). It validates first and refuses to overwrite an existing
-   profile unless you add `--force`. Output: `{"saved": "<path>", "slug": "..."}`; invalid YAML exits
+   profile unless you add `--force`. Output: `{"saved": "<path>", "slug": "..."}`; an invalid file exits
    1 with `{"error": "profile_invalid", "errors": [...]}`.
-6. Show the user a short summary (roles, seniority, remote, regions) and adjust on request.
+7. Refine it in conversation as the next section describes.
 
-Refining later: edit `<ULTRON_HOME>/profiles/<slug>.yaml` in place and validate with
-`ultron profile validate <slug>`. Runs already made keep their own snapshot.
+## Refining a profile in conversation
+
+Use this when the user corrects a saved profile, for example "I don't want management roles", "add
+Rust", "I'm based in Valencia and can work for EU companies" or "remove data entry".
+
+1. Load it with `ultron profile show <slug>` and find where each request belongs. One request often
+   touches several fields (see the table below).
+2. Ask only what you need to apply the request correctly, for example whether onsite or hybrid roles
+   in Valencia are fine or only remote ones.
+3. Preview: `ultron profile edit <slug> <operations> --dry-run`. Show the user the `changes` and the
+   diff in plain words, and mention every `already_present` or `not_found` status.
+4. Apply the same command without `--dry-run` once the user confirms. Then run `ultron profile explain
+   <slug>` and mention any `warnings`.
+5. If the user wants a change back, preview with `ultron profile undo <slug> --dry-run` and apply with
+   `ultron profile undo <slug>`. Each undo steps one change back. `ultron profile history <slug>` lists
+   versions, and `ultron profile undo <slug> --to <version>` restores one, including a version that an
+   undo replaced (redo).
+
+Operations run in the order given, and nothing is saved if any of them is invalid:
+
+- `--add FIELD=TERM` and `--remove FIELD=TERM` change one term in a term list. Terms compare ignoring
+  case and accents. Adding a present term or removing an absent one changes nothing and is reported.
+- `--set FIELD=VALUE` sets a field. Write lists and `true`/`false` as JSON, for example
+  `--set 'criteria.location_scope.preferred=["Spain", "Remote EU"]'`. `--unset FIELD` removes an
+  optional field.
+- `--from <file>` reads operations from a UTF-8 JSON file. Prefer it for terms with accents or quotes,
+  which shells can mangle:
+
+```json
+{"operations": [
+  {"op": "add", "path": "criteria.exclusion_terms", "value": ["manager", "head of", "director"]},
+  {"op": "remove", "path": "criteria.role_signal_terms", "value": "data entry"},
+  {"op": "set", "path": "criteria.remote_policy.required", "value": "any"}
+]}
+```
+
+Editable fields are the term lists under `criteria` and `query_templates`, plus `name`, `description`,
+`prompt`, `enabled`, `criteria.role_family_label`, `criteria.seniority.required` and
+`criteria.remote_policy.required` (`ultron profile edit --help` lists them). `slug` and `source_cv` never
+change; to rename a profile, save it under a new slug. `worked_examples` change only through `profile save
+--force`. An edit rewrites the file without its comments; the history keeps the original. Editing a
+bundled profile saves a user copy, and undo removes that copy again.
+
+`edit` errors: `edit_invalid` (exit 2, with `errors`, one per bad operation), `profile_invalid` (exit
+1: the result breaks the schema; the diff is included), `profile_not_found`, `profile_unreadable`.
+`undo` errors: `no_history`, `version_not_found`.
+
+| The user says | Operations |
+|---|---|
+| no management roles | add `manager`, `head of`, `director` to `criteria.exclusion_terms` and `query_templates.exclusion_terms`; if `profile explain` lists one under `title_exclusions.ignored`, it overlaps a role term: tell the user |
+| add a skill (Rust) | add it to `criteria.specialties` and `query_templates.technologies`; to `criteria.role_signal_terms` only if the skill defines the role (a Rust developer search) |
+| based in a city, can work for EU companies | add the country and `Remote EU` to `criteria.location_scope.preferred` and their spellings to `eligibility_terms`; add matching `query_templates.regions`; set `criteria.remote_policy.required` to `any` only if onsite or hybrid roles there are fine |
+| remove a term | find every list that holds it in `profile show`, remove it from each, and report any `not_found` |
+| salary, spoken languages, companies to target or avoid | the CLI cannot filter these: record them in `prompt` and apply them yourself when you propose companies and evaluate postings. A required language they lack can also go into `criteria.exclusion_terms` (for example `fluent german`) |
+
+`ultron profile explain <slug>` (or `--from <file>` for a draft) shows what the profile makes the CLI do,
+using the same rules as a run: `role_match` (strict role terms and where they come from), `seniority`,
+`remote`, `geography` (scope and its effect), `title_exclusions` (`applied` ones skip matching titles when
+job boards are listed; `ignored` ones overlap the profile's own role terms), `fit_signals`, the
+`query_plan` for `--preset` (default `balanced`), `agent_notes` (the `prompt` field) and `warnings`
+(duplicated terms, several terms in one, long phrases, oversized lists, missing query regions, empty query
+plan). Add `--run <run_id>` to replay the filter of an earlier fetched run with this profile, without
+writing anything: `replay` gives the new kept, ambiguous and discarded counts and, when that run was
+filtered, the `changes` (for example `"kept -> discarded": 3`) with a few `examples`. Only postings that
+run fetched can appear.
+
+Runs already made keep their own snapshot of the profile.
+

@@ -7,7 +7,7 @@ import yaml
 
 from ultron import seeds
 from ultron.core.sectors import profile_sector_values
-from ultron.stages.discover import eligible_seed_count, seed_scope_fits
+from ultron.stages.discover import _select_seeds, eligible_seed_count, seed_scope_fits
 
 
 def _profile(preferred: list[str], sectors: list[str], eligibility: list[str] | None = None) -> dict:
@@ -99,3 +99,23 @@ def test_eligible_seed_count_picks_region_and_sector_packs(pack_dir):
     assert eligible_seed_count("synthetic", NURSE_IE) == 2
     assert eligible_seed_count("synthetic", NURSE_ES) == 0
     assert eligible_seed_count("synthetic", ANYWHERE) == 8
+
+
+def test_seeds_scoped_to_another_region_are_never_queried_as_filler(pack_dir):
+    # S5 balanced (session 2): with few fitting seeds, US hospital boards filled the leftover slots of an Irish
+    # nursing profile. Legacy EU-scoped seeds keep their old place (last, as filler).
+    rows = (
+        [_row("iehealth", "IE", "pharma_health")]
+        + [_row(f"ushealth{i}", "US", "pharma_health") for i in range(3)]
+        + [_row(f"latamtech{i}", "LATAM", "technology") for i in range(2)]
+        + [_row("eutech", "EU", "technology")]
+    )
+    (pack_dir / "p.yaml").write_text(
+        yaml.safe_dump({"pack": {"id": "p", "usage": "active"}, "seeds": rows}), encoding="utf-8"
+    )
+    selected, _groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
+    assert [seed.board_identifier for seed, _group in selected] == ["iehealth", "eutech"]
+    selected, _groups, _stats = _select_seeds("synthetic", ["technology"], 50, 50, geo="other", profile=LATAM_DATA)
+    boards = [seed.board_identifier for seed, _group in selected]
+    assert boards[:2] == ["latamtech0", "latamtech1"]
+    assert not any(board.startswith("ushealth") for board in boards)

@@ -179,3 +179,36 @@ def test_a_docx_over_the_page_budget_is_rejected_like_a_pdf(tmp_path, max_pages,
         cv.extract_cv(path, max_pages=max_pages)
     assert raised.value.code == "too_many_pages"
     assert cv.extract_cv(path, max_pages=breaks + 1).pages == breaks + 1
+
+def test_a_text_box_inside_a_paragraph_keeps_the_text_around_it_apart(tmp_path):
+    body = (
+        "<w:p><w:r><w:t>Experience</w:t></w:r><w:r><w:drawing><w:txbxContent>"
+        + _paragraph("Skills")
+        + "</w:txbxContent></w:drawing></w:r><w:r><w:t>Education</w:t></w:r></w:p>"
+        + '<w:p><w:r><w:t>Non</w:t><w:noBreakHyphen/><w:t>stop</w:t></w:r></w:p>'
+    )
+    result = cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert result.text.splitlines() == ["Experience", "Skills", "Education", "Non-stop"]
+
+
+def test_many_sibling_elements_fail_fast_with_a_bounded_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(cv_docx, "MAX_XML_ELEMENTS", 1_000)
+    body = "<w:p>" + "<w:r/>" * 5_000 + "</w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert raised.value.code == "too_long"
+
+
+def test_deep_nesting_fails_fast_with_a_bounded_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(cv_docx, "MAX_XML_DEPTH", 50)
+    body = "<w:p>" + "<w:r>" * 200 + "</w:r>" * 200 + "</w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert raised.value.code == "too_long"
+
+
+def test_the_default_budgets_reject_millions_of_empty_siblings():
+    body = _document("<w:p>" + "<w:r/>" * (cv_docx.MAX_XML_ELEMENTS + 10) + "</w:p>").encode()
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv_docx._text(body)
+    assert raised.value.code == "too_long"

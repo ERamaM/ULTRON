@@ -620,6 +620,87 @@ def _looks_generic_title(value: str, page_url: str) -> bool:
     return _looks_domain_placeholder(clean, page_url)
 
 
+# Page titles (<title>, og:title, twitter:title) often append the site or careers name after a separator:
+# "Data Engineer | Lead Your Journey - with Acme." or "Data Engineer - Acme Careers".
+_PAGE_TITLE_SOURCES = frozenset({"meta_og", "meta_twitter", "title_tag"})
+_STRONG_TITLE_SEPARATOR_RE = re.compile(r"\s+(?:\||::|·|•)\s+")
+_DASH_TITLE_SEPARATOR_RE = re.compile(r"\s+[-–—]\s+")
+_SITE_SUFFIX_CAREER_WORDS = frozenset({
+    "career", "careers", "job", "jobs", "hiring", "vacancies", "openings", "karriere", "stellenangebote",
+    "empleo", "empleos", "carreras", "emplois", "vacatures", "lavora",
+})
+# Words that may sit around a site name in a suffix ("Jobs at Acme", "with Acme", "Acme & Co").
+_SITE_SUFFIX_FILLER_WORDS = frozenset({"at", "with", "by", "the", "and", "in", "for", "of", "bei", "en", "chez", "de"})
+
+
+def _title_words(value: str) -> list[str]:
+    return re.findall(r"\w+", _clean_text(value).casefold())
+
+
+def _site_name_phrases(site_names: Iterable[str]) -> list[list[str]]:
+    """Each site name as a word list without careers words ("Acme Career" -> ["acme"])."""
+    phrases: list[list[str]] = []
+    for name in site_names:
+        words = [word for word in _title_words(name) if word not in _SITE_SUFFIX_CAREER_WORDS]
+        if words and len("".join(words)) >= 3 and words not in phrases:
+            phrases.append(words)
+    return phrases
+
+
+def _phrase_spans(words: list[str], phrase: list[str]) -> list[range]:
+    size = len(phrase)
+    return [range(i, i + size) for i in range(len(words) - size + 1) if words[i : i + size] == phrase]
+
+
+def _site_like_suffix(suffix: str, phrases: list[list[str]], *, strict: bool) -> bool:
+    """True when ``suffix`` names the site: its name or a careers word.
+
+    ``strict`` (dash separators, which also join legitimate title parts such as "Engineer - Payments")
+    requires every word to be the site name, a careers word or a filler word; otherwise the suffix only
+    has to contain the site name or end with a careers word.
+    """
+    words = _title_words(suffix)
+    if not words:
+        return False
+    site_positions = {i for phrase in phrases for span in _phrase_spans(words, phrase) for i in span}
+    if not strict:
+        return bool(site_positions) or words[-1] in _SITE_SUFFIX_CAREER_WORDS
+    if not site_positions and not any(word in _SITE_SUFFIX_CAREER_WORDS for word in words):
+        return False
+    return all(
+        i in site_positions or word in _SITE_SUFFIX_CAREER_WORDS or word in _SITE_SUFFIX_FILLER_WORDS
+        for i, word in enumerate(words)
+    )
+
+
+def _strip_page_title_suffix(title: str, *, anchors: Iterable[str], site_names: Iterable[str]) -> str:
+    """Drop a site or careers suffix from a page title; the title is returned unchanged without one.
+
+    A prefix equal to a trusted title (JSON-LD, h1, ATS hint) wins first. Otherwise the earliest strong
+    separator (``|``) whose suffix names the site is cut, then the earliest dash whose suffix is only the
+    site or careers name.
+    """
+    clean = _clean_text(title)
+    if not clean:
+        return clean
+    trusted = [_clean_text(anchor) for anchor in anchors if _clean_text(anchor)]
+    matches = sorted(
+        [*_STRONG_TITLE_SEPARATOR_RE.finditer(clean), *_DASH_TITLE_SEPARATOR_RE.finditer(clean)],
+        key=lambda m: m.start(),
+    )
+    for match in matches:
+        prefix = clean[: match.start()].strip()
+        if prefix and any(_same_text(prefix, anchor) for anchor in trusted):
+            return prefix
+    phrases = _site_name_phrases(site_names)
+    for regex, strict in ((_STRONG_TITLE_SEPARATOR_RE, False), (_DASH_TITLE_SEPARATOR_RE, True)):
+        for match in regex.finditer(clean):
+            prefix = clean[: match.start()].strip()
+            if len(prefix) >= 3 and _site_like_suffix(clean[match.end() :], phrases, strict=strict):
+                return prefix
+    return clean
+
+
 def _fallback_company_from_domain(page_url: str) -> str:
     for label in _host_labels(page_url)[:-1]:
         key = _normalized_key(label)
@@ -692,7 +773,16 @@ def _parse_generic_with_provenance(
     h1 = soup.find("h1")
     if h1:
         h1_text = h1.get_text(" ", strip=True)
-    title_candidates = [
+    hints = _clean_ats_hints(ats_hints)
+    title_anchors = (structured.get("title", ""), h1_text, hints.get("title", ""))
+    site_names = (
+        structured.get("company", ""),
+        _meta_content(soup, property_name="og:site_name"),
+        hints.get("company", ""),
+        _fallback_company_from_domain(page.final_url),
+    )
+    page_title_candidates = [
+        (structured.get("title", ""), "jsonld"),
         (structured.get("title", ""), "jsonld"),
         (_meta_content(soup, property_name="og:title"), "meta_og"),
         (
@@ -701,6 +791,15 @@ def _parse_generic_with_provenance(
         ),
         (h1_text, "h1"),
         ((soup.title.get_text(" ", strip=True) if soup.title else ""), "title_tag"),
+    ]
+    title_candidates = [
+        (
+            _strip_page_title_suffix(value, anchors=title_anchors, site_names=site_names)
+            if source in _PAGE_TITLE_SOURCES
+            else value,
+            source,
+        )
+        for value, source in page_title_candidates
     ]
     title, title_source = _pick_best_candidate_with_source(title_candidates, page_url=page.final_url, field="title")
 

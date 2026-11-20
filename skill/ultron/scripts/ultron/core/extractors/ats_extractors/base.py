@@ -742,7 +742,12 @@ def _clean_ats_hints(ats_hints: dict[str, str] | None) -> dict[str, str]:
     return cleaned
 
 
-def _apply_ats_hints(extracted: ExtractedJob, page: JobRawPage, ats_hints: dict[str, str] | None) -> ExtractedJob:
+def _apply_ats_hints(
+    extracted: ExtractedJob, page: JobRawPage, ats_hints: dict[str, str] | None, *, weak_company: bool = False,
+) -> ExtractedJob:
+    """Fill fields from the ATS hints. ``weak_company``: the company came only from ``og:site_name`` or the host
+    name, which a portal may set to a generic word (an iCIMS hospital portal named "Nurses"), so the seed's
+    company hint wins."""
     hints = _clean_ats_hints(ats_hints)
     if not hints:
         return extracted
@@ -753,7 +758,9 @@ def _apply_ats_hints(extracted: ExtractedJob, page: JobRawPage, ats_hints: dict[
         updates["title"] = title_hint
 
     company_hint = hints.get("company", "")
-    if company_hint and (not extracted.company or _looks_generic_company(extracted.company, page.final_url)):
+    if company_hint and (
+        weak_company or not extracted.company or _looks_generic_company(extracted.company, page.final_url)
+    ):
         updates["company"] = company_hint
 
     location_hint = hints.get("location", "")
@@ -772,6 +779,10 @@ def _apply_ats_hints(extracted: ExtractedJob, page: JobRawPage, ats_hints: dict[
     if not updates:
         return extracted
     return extracted.model_copy(update=updates)
+
+
+# Company sources a seed's company hint beats: a site name or the host name, never JSON-LD or a vendor selector.
+_WEAK_COMPANY_SOURCES = frozenset({"meta_og", "domain_fallback"})
 
 
 def _parse_generic_with_provenance(
@@ -884,7 +895,7 @@ def _parse_generic_with_provenance(
         "location": location_source if location else "unknown",
         "remote_text": remote_source if remote_text else "unknown",
     }
-    final = _apply_ats_hints(extracted, page, ats_hints)
+    final = _apply_ats_hints(extracted, page, ats_hints, weak_company=company_source in _WEAK_COMPANY_SOURCES)
     if final is not extracted:
         for field_name in ("title", "company", "location", "remote_text"):
             if getattr(final, field_name) != getattr(extracted, field_name):

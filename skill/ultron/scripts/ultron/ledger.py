@@ -12,7 +12,7 @@ from ultron import home
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -185,6 +185,26 @@ def _apply_v4(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS seed_yield_runs_run ON seed_yield_runs (run_id)")
 
 
+_IDENTITY_TABLES = ("jobs", "job_occurrences", "job_feedback", "diagnostics")
+
+
+def _apply_v5(conn: sqlite3.Connection) -> None:
+    """Re-key jobs stored under a URL identity that now has a vendor identity (e.g. SmartRecruiters, Teamtailor).
+
+    Review state, notes, feedback, occurrences and diagnostics move with the job, so a rediscovered posting is
+    not recorded as a new, unreviewed job. A job whose new key already exists is left as it is (never merged).
+    """
+    rows = conn.execute("SELECT identity_key, canonical_url FROM jobs WHERE identity_key LIKE 'url://%'").fetchall()
+    for old, url in rows:
+        new = canonical_job_identity(url or "").identity_key
+        if not new or new == old or new.startswith("url://"):
+            continue
+        if conn.execute("SELECT 1 FROM jobs WHERE identity_key = ?", (new,)).fetchone():
+            continue
+        for table in _IDENTITY_TABLES:
+            conn.execute(f"UPDATE {table} SET identity_key = ? WHERE identity_key = ?", (new, old))
+
+
 def migrate(conn: sqlite3.Connection) -> int:
     """Bring the ledger up to ``SCHEMA_VERSION`` (forward only); backs up first. Returns the final version.
 
@@ -218,6 +238,9 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version == 3:
                 _apply_v4(conn)
                 version = 4
+            if version == 4:
+                _apply_v5(conn)
+                version = 5
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:

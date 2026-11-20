@@ -324,7 +324,7 @@ def test_a_rate_limited_board_does_not_block_another_tenant_host_of_the_same_ven
                         careers_url="https://newco.recruitee.com/")
     result = verify_proposal(proposal, client=make_client(handler, block_threshold=3), timeout=5, verify_only=True)
     assert result.status == "verified" and result.seed.board_identifier == "newco"
-    assert "newco.recruitee.com" in seen
+    assert {"oldco.recruitee.com", "newco.recruitee.com"} <= set(seen)
 
 
 def test_a_single_rate_limited_answer_does_not_skip_the_next_board_on_that_host():

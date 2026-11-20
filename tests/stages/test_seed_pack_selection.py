@@ -50,6 +50,45 @@ def test_seed_scope_fits_profile_regions(scope, profile, fits):
     assert seed_scope_fits(scope, profile) is fits
 
 
+@pytest.mark.parametrize(("preferred", "fits"), [
+    (["New York"], True),
+    (["Texas"], True),
+    (["Houston", "Austin"], True),
+    (["Austin, TX"], True),  # a state code after a comma
+    (["Washington DC"], True),
+    (["North Carolina"], True),
+    (["Georgia"], False),  # also a country: left out on purpose
+    (["Tbilisi, Georgia"], False),
+    (["Remote Portugal"], False),
+    (["San José, Costa Rica"], False),
+    (["Madrid, ES"], False),  # a two-letter code that is not a US state
+])
+def test_us_scope_matches_states_and_major_cities(preferred, fits):
+    assert seed_scope_fits("US", _profile(preferred, ["healthcare"])) is fits
+
+
+@pytest.mark.parametrize(("preferred", "scope", "fits"), [
+    (["Ciudad de México"], "LATAM", True),
+    (["Belo Horizonte"], "LATAM", True),
+    (["Porto Alegre"], "LATAM", True),
+    (["New Mexico"], "LATAM", False),  # the US state is not Mexico
+    (["Albuquerque, New Mexico"], "US", True),
+    (["Athlone"], "IE", True),
+    (["County Kildare"], "IE", True),
+    (["Tralee"], "IE", True),
+])
+def test_region_scopes_match_main_cities(preferred, scope, fits):
+    assert seed_scope_fits(scope, _profile(preferred, ["technology"])) is fits
+
+
+def test_a_us_city_profile_selects_the_us_healthcare_seeds(pack_dir):
+    rows = [_row(f"ushealth{i}", "US", "pharma_health") for i in range(3)]
+    (pack_dir / "p.yaml").write_text(
+        yaml.safe_dump({"pack": {"id": "p", "usage": "active"}, "seeds": rows}), encoding="utf-8"
+    )
+    assert eligible_seed_count("synthetic", _profile(["New York"], ["healthcare"], ["new york"])) == 3
+
+
 def test_latam_scope_matches_country_and_city_names_without_the_word_latam():
     assert seed_scope_fits("LATAM", _profile(["Bogotá", "Medellín"], ["technology"]))
     assert seed_scope_fits("LATAM", _profile(["Remote"], ["technology"], ["são paulo"]))

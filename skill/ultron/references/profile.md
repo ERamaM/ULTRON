@@ -83,8 +83,10 @@ pack's companies when the pack fits the profile:
   `finance_insurance`). Any other value matches no pack.
 - **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
   another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
-  region, one of its countries or a main city (`Remote LATAM`, `Brazil`, `Bogotá`; `Ireland`, `Dublin`;
-  `Remote US`). A profile without preferred regions fits every pack.
+  region, one of its countries, states or counties, or a main city (`Remote LATAM`, `Brazil`, `Bogotá`;
+  `Ireland`, `Dublin`, `County Kildare`; `Remote US`, `Texas`, `New York`, `Austin, TX`). Names shared with
+  another place are not matched: write `Georgia, USA` or `Atlanta` rather than `Georgia`, and `Washington DC`
+  or `Seattle` rather than `Washington`. A profile without preferred regions fits every pack.
 
 `ultron run new` prints how many boards fit (`eligible_seeds`).
 

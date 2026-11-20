@@ -140,3 +140,15 @@ def test_extractor_open_hint_uses_the_shared_closed_phrase_list():
     assert hint("Diese Stelle ist bereits besetzt.") is False
     assert hint("We are not accepting applications from recruitment agencies.") is True
     assert hint("Apply now.") is True
+
+
+def test_introductory_clause_does_not_exempt_a_closure():
+    for body in (
+        "After careful review, we are not accepting applications for this role.",
+        "After careful review we are not accepting applications for this role.",
+        "If you reached this page, we are no longer accepting applications.",
+        "When you read this, the position has been filled.",
+    ):
+        assert is_open_status_ok(body, True, True) is False, body
+    # A condition in the same clause still describes the future.
+    assert is_open_status_ok("Applications accepted until the position has been filled.", True, True) is True

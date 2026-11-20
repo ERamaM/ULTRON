@@ -167,3 +167,11 @@ def test_hard_filter_discards_non_eu_remote_scope_for_european_targets(location,
         False, "non_eu_remote"
     )
     assert apply_hard_filters(job, ["greenhouse.io"], target_regions=["Remote LATAM"], geo="other") == (True, None)
+
+
+def test_worldwide_eligibility_overrides_scoped_non_eu_countries():
+    from ultron.core.rules.geo_eu import has_region_red_flags
+
+    assert has_region_red_flags("Remote worldwide, including Argentina.") is False
+    assert has_region_red_flags("Location: Remote worldwide; candidates in Israel welcome.") is False
+    assert has_region_red_flags("Location: Fully remote from Argentina only.") is True

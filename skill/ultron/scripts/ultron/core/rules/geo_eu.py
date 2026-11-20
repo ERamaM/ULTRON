@@ -149,7 +149,8 @@ NON_EU_SCOPED_COUNTRY_TERMS = {
     "egypt",
     "egipto",
 }
-NON_EU_SCOPED_COUNTRY_OVERRIDE_TERMS = {"emea", "europe", "europa", "eu", "ue", "eea"}
+# "worldwide" keeps a posting open to anyone: "Remote worldwide, including Argentina" is not restricted.
+NON_EU_SCOPED_COUNTRY_OVERRIDE_TERMS = {"emea", "europe", "europa", "eu", "ue", "eea", "worldwide"}
 # Multi-country regions outside Europe, flagged only when no region that includes Europe is named:
 # "Remote (EMEA or APAC)" and "Remote worldwide, APAC preferred" stay eligible.
 NON_EU_REGION_TERMS = {

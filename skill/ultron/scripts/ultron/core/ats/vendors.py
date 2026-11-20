@@ -23,6 +23,7 @@ AtsVendorName = Literal[
     "workday",
     "icims",
     "taleo",
+    "hirehive",
 ]
 
 
@@ -183,6 +184,13 @@ VENDOR_DATA: tuple[AtsVendorData, ...] = (
         domains=("taleo.net",),
         fingerprint_terms=("taleo", "taleo.net", "requisitiondescriptioninterface"),
         supports_dynamic_fallback=True,
+    ),
+    AtsVendorData(
+        name="hirehive",
+        label="HireHive",
+        canonical_domain="hirehive.com",
+        domains=("hirehive.com",),
+        fingerprint_terms=("hirehive.com", "hh-job-listings", "hh-job-title"),
     ),
 )
 

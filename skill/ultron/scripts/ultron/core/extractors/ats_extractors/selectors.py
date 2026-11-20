@@ -144,6 +144,12 @@ VENDOR_SELECTORS: dict[str, SelectorSet] = {
         "location": (".titlepage .location", ".job-location"),
         "remote": (".titlepage .location", ".job-location"),
     },
+    "hirehive": {
+        "title": (".hh-job-title", "h1"),
+        "company": (".hh-company-name", ".company-name"),
+        "location": (".hh-job-location",),
+        "remote": (".hh-job-location", ".hh-job-type"),
+    },
 }
 
 

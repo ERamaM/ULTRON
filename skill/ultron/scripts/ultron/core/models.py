@@ -108,6 +108,7 @@ class AtsBoardSeed(BaseModel):
         "workday",
         "icims",
         "taleo",
+        "hirehive",
     ]
     board_identifier: str
     enabled: bool = True

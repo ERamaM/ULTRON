@@ -122,6 +122,33 @@ def filter_negatives_against_focus(
     return kept
 
 
+def role_family_nouns(allowed_terms: Iterable[str] | None) -> set[str]:
+    """The family noun of each role term: its last word once trailing level words are dropped.
+
+    "Senior Data Analyst" -> "analyst", "clinical nurse" -> "nurse", "design lead" -> "design". A level word
+    ("senior") or a qualifier ("clinical", "data") shared with a title does not make it the same family.
+    """
+    nouns: set[str] = set()
+    for term in allowed_terms or ():
+        # Each part of a compound term ("Occupational Therapist - Graduate Program", "Engineer, Backend") has its
+        # own head.
+        for part in re.split(r"\s[-–—|]\s|[,;/()]", str(term or "").lower()):
+            words = re.findall(r"\w+", part)
+            # Romance titles name the role before its field ("ingeniero de software", "analista de datos").
+            preposition = next((i for i, word in enumerate(words) if word in rules_data.ROLE_FIELD_PREPOSITIONS), None)
+            if preposition:
+                words = words[:preposition]
+            while len(words) > 1 and words[-1] in rules_data.ROLE_LEVEL_WORDS:
+                words.pop()
+            if words and len(words[-1]) >= 3 and words[-1] not in rules_data.ROLE_LEVEL_WORDS:
+                nouns.add(words[-1])
+    return nouns
+
+
+def _title_has_family_noun(title_low: str, nouns: set[str]) -> bool:
+    return any(re.search(r"(?<!\w)" + re.escape(noun) + r"(?:s|es)?(?!\w)", title_low) for noun in nouns)
+
+
 def is_senior_title(
     title: str,
     allowed_terms: Iterable[str] | None = None,
@@ -185,6 +212,7 @@ def score_role_family(
     ``allowed_terms`` changes the role vocabulary; the returned score is a
     heuristic signal for ranking, not a final keep/discard decision.
     """
+    raw_terms = tuple(allowed_terms or ())
     if allowed_terms:
         allowed_terms = expand_role_terms(allowed_terms, extra_groups=vocabulary.title_synonym_groups)
     t = (title or "").lower()
@@ -240,15 +268,13 @@ def score_role_family(
     effective_strong_signals = {
         str(term).strip().casefold() for term in (strong_signal_terms or allowed_terms or ()) if str(term).strip()
     }
-    focus_tokens = _role_focus_words(allowed_terms)
+    # Without a vocabulary pack, body signals only count for a title that names the profile's family noun
+    # (from role_focus_terms / target_titles): signal terms alone never pass an off-family title.
     has_role_noun = bool(
         score >= 0
         and custom_role_terms
         and not vocabulary.role_terms
-        and (
-            any(term in t for term in rules_data.ROLE_BRIDGE_TITLE_TERMS)
-            or any(len(w) >= 4 and w in focus_tokens for w in re.findall(r"\w+", t))
-        )
+        and _title_has_family_noun(normalize_role_title(t), role_family_nouns((*raw_terms, *(allowed_terms or ()))))
     )
     title_strong_hit = any(term in t for term in effective_strong_signals)
     normalized_body = normalize_title_separators(b)
@@ -266,7 +292,12 @@ def score_role_family(
         score += min(4, 1 + len(body_strong_hits))
         signals.append("body:ai_ml_signals")
 
-    bridge_title = [term for term in rules_data.ROLE_BRIDGE_TITLE_TERMS if term in t]
+    # Without a pack, a bridge title ("Software Engineer, Analytics Platform") outside the profile's family earns
+    # no bonus from a signal term: only a title with the family noun or an exact role term does.
+    packless_off_family = (
+        custom_role_terms and not vocabulary.role_terms and not custom_exact_title_match and not has_role_noun
+    )
+    bridge_title = [term for term in rules_data.ROLE_BRIDGE_TITLE_TERMS if term in t and not packless_off_family]
     if bridge_title and (body_strong_hits or any(term in t for term in effective_strong_signals)):
         score += 2
         signals.append("bridge_title+ai")

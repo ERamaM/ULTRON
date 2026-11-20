@@ -37,9 +37,12 @@ _CLOSED_STATUS_PHRASES_RE = re.compile(
     + r")(?![^\W_]))"
 )
 # "Applications accepted until the position has been filled" describes the future, not a closed posting.
+# Only a condition in the same clause counts: a comma ends it, so an introductory clause ("If you reached this
+# page, we are no longer accepting applications") never exempts the closure that follows. "after" is not a
+# condition word ("After careful review we are not accepting applications" is a closure).
 _CLOSED_STATUS_CONDITION_BEFORE_RE = re.compile(
-    r"\b(?:until|till|once|when|whenever|if|after|unless|before|hasta que|una vez que|cuando|sobald|bis|wenn"
-    r"|jusqu'a ce que|des que|lorsque|quand)\b[^.;:!?\n]{0,40}$"
+    r"\b(?:until|till|once|when|whenever|if|unless|before|hasta que|una vez que|cuando|sobald|bis|wenn"
+    r"|jusqu'a ce que|des que|lorsque|quand)\b[^.;:!?\n,]{0,40}$"
 )
 # French "pourvu de/d'" means "provided with" ("le poste est pourvu d'un vehicule").
 _PROVIDED_WITH_AFTER_RE = re.compile(r"\s+(?:d'|de\b|du\b|des\b)")

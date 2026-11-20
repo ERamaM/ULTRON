@@ -92,9 +92,10 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
 
 _ONSITE_BENEFIT_TERMS_RE = "|".join(re.escape(term) for term in sorted(rules_data.ONSITE_BENEFIT_CONTEXT_TERMS))
 # Up to two modifier words may sit between the term and the perk noun ("on-site fully equipped gym",
-# "on-site mental-health counseling"), but not a conjunction or verb that starts another clause.
+# "on-site mental-health counseling"), but not a conjunction or verb that starts another clause. Any
+# whitespace counts, since extracted HTML can break "on-site <b>gym</b>" into "on-site\ngym".
 _ONSITE_BENEFIT_AFTER_RE = re.compile(
-    r"[ \t-]*(?:(?!(?:and|or|but|with|is|are|was|were|be|to|for)\b)[\w-]+[ \t]+){0,2}?"
+    r"[\s-]*(?:(?!(?:and|or|but|with|is|are|was|were|be|to|for)\b)[\w-]+\s+){0,2}?"
     r"(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b"
 )
 _ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*(?:,|\band|\bor)\s+$")

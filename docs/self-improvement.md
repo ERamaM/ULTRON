@@ -255,10 +255,12 @@ Session 7 accepted two quality changes. The deferred "global" and "international
 followed, which brought the corpus to 216 cases at 0.833 / 0.851 / 0.842 (tp 40, fp 8, fn 7, tn 144).
 Two of the six are Irish towns that the European pre-filter already loses: it reads "Virginia" and
 ", CO." as US places. The second change treats a US place that names no country as outside a non-US
-home: a state code at the end of a location ("Austin, TX"; a code that is also an ISO country code
-needs a ZIP code), a state name after a comma or before "(Any City)", or a US state licence in the body
-("current state licensure"). It measures 0.930 / 0.851 / 0.889 (tp 40, fp 3, fn 7, tn 149). Neither
-change created a new false negative, and the 60-case pin did not move.
+home. The evidence is a state code at the end of a location ("Austin, TX"), a state name after a
+comma or before "(Any City)", or a US state licence in the body ("current state licensure"). A code
+that a country or another region also uses ("CA", "PR", "MI") needs a ZIP code. It measures 0.930 /
+0.851 / 0.889 (tp 40, fp 3, fn 7, tn 149). Of the five cases it fixes, three were written for this
+change, so read that number as a regression gate. Neither change created a new false negative, and
+the 60-case pin did not move.
 
 The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
 fn 7, tn 60). The pull request that applies a quality change records its before and after

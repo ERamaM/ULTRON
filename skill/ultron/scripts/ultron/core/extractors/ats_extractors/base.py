@@ -683,7 +683,13 @@ def _strip_page_title_suffix(title: str, *, anchors: Iterable[str], site_names: 
     clean = _clean_text(title)
     if not clean:
         return clean
-    trusted = [_clean_text(anchor) for anchor in anchors if _clean_text(anchor)]
+    phrases = _site_name_phrases(site_names)
+    # An anchor that is only the site name or a careers word ("<h1>Acme</h1>", "<h1>Careers</h1>") is no title.
+    trusted = [
+        _clean_text(anchor)
+        for anchor in anchors
+        if (words := [w for w in _title_words(anchor) if w not in _SITE_SUFFIX_CAREER_WORDS]) and words not in phrases
+    ]
     matches = sorted(
         [*_STRONG_TITLE_SEPARATOR_RE.finditer(clean), *_DASH_TITLE_SEPARATOR_RE.finditer(clean)],
         key=lambda m: m.start(),
@@ -692,7 +698,6 @@ def _strip_page_title_suffix(title: str, *, anchors: Iterable[str], site_names: 
         prefix = clean[: match.start()].strip()
         if prefix and any(_same_text(prefix, anchor) for anchor in trusted):
             return prefix
-    phrases = _site_name_phrases(site_names)
     for regex, strict in ((_STRONG_TITLE_SEPARATOR_RE, False), (_DASH_TITLE_SEPARATOR_RE, True)):
         for match in regex.finditer(clean):
             prefix = clean[: match.start()].strip()

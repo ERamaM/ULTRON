@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import html as html_lib
+import json
 import re
 from urllib.parse import parse_qs, urljoin, urlsplit
 
@@ -11,7 +12,14 @@ import yaml
 from bs4 import BeautifulSoup
 
 from ultron import http_factory, runs
+from ultron.core.ats.board_policy import vendor_domains
 from ultron.core.ats.clients.bamboohr import bamboohr_workplace
+from ultron.core.ats.clients.occupop import (
+    occupop_detail_url,
+    occupop_job_from_detail,
+    occupop_job_ref,
+    occupop_posting_url,
+)
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
 from ultron.core.data_paths import data_dir
@@ -376,6 +384,26 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
     return job, False
 
 
+def get_posting_page(client, url: str) -> tuple[int, str, str]:
+    """``(status, final_url, body)`` of a posting. An Occupop posting link answers a redirect to a script-only page
+    on another host, so its body is the vendor's job JSON instead (requested on the vendor's domain only)."""
+    if ref := occupop_job_ref(url):
+        return client.get_text(occupop_detail_url(ref), allowed_domains=vendor_domains("occupop"))
+    return client.get_text(url)
+
+
+def occupop_posting_job(url: str, body: str, *, company_hint: str = "") -> tuple[ExtractedJob | None, str]:
+    """``(job, "")`` from the Occupop job JSON fetched by :func:`get_posting_page`, or ``(None, reason)``."""
+    try:
+        payload = json.loads(body or "")
+    except ValueError:
+        return None, "extract_failed: invalid Occupop job JSON"
+    job = occupop_job_from_detail(payload, occupop_posting_url(occupop_job_ref(url)), company_hint=company_hint)
+    if job is None:  # {"job": null}, or a job marked closed or inactive
+        return None, "expired_or_closed"
+    return job, ""
+
+
 def _lane(candidate: CandidateUrl) -> str:
     """Round-robin lane: the ATS board or feed (``source_key``); web-search hits get one lane per submitted query."""
     if candidate.source_type == "web_search" or not candidate.source_key:
@@ -541,8 +569,9 @@ def fetch(run_id: str) -> dict:
             slots -= 1
             continue
         attempted += 1
+        occupop_ref = occupop_job_ref(url)
         try:
-            status, final_url, html = client.get_text(url)
+            status, final_url, html = get_posting_page(client, url)
         except VendorBlocked as exc:
             # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
             errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
@@ -609,6 +638,14 @@ def fetch(run_id: str) -> dict:
             continue
         if _workable_closed_redirect(url, final_url) or _greenhouse_closed_redirect(url, final_url):
             errors.append({"url": url, "error": "expired_or_closed", "status": status})
+            continue
+        if occupop_ref:
+            job, reason = occupop_posting_job(url, html, company_hint=candidate.ats_company)
+            if job is None:
+                errors.append({"url": url, "error": reason, "status": status})
+                continue
+            postings.append({"candidate": candidate.model_dump(mode="json"), "job": job.model_dump(mode="json"),
+                             "identity_key": identity, "ats_fingerprint": True})
             continue
         page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
                           canonical_url=page_canonical_url(html, final_url))

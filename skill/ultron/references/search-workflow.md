@@ -160,7 +160,7 @@ Output: `{"added": 18, "duplicates": 3, "rejected": 1, "seed_proposals": 2}`
 
 You can call `candidates add` several times; it appends.
 
-## 5. Query ATS boards (20 vendors)
+## 5. Query ATS boards (22 vendors)
 
 ```
 ultron discover ats --run <run_id>
@@ -178,7 +178,7 @@ Workday verification samples up to two pages, so discovery queries those boards 
 budget. When a Workday board offers a country facet matching a preferred location, discovery interleaves
 pages for those countries with unfiltered pages within the same budget.
 
-Seeds can be on any of the 20 supported ATS vendors (`references/seeds.md`). Order: companies you
+Seeds can be on any of the 22 supported ATS vendors (`references/seeds.md`). Order: companies you
 verified for the profile (and ATS boards discovered via web search) first, then bundled pack seeds in
 the profile's sectors, then other seeds linked to the profile, then seeds found in feeds (feed seeds
 never take more than half of the seed slots while curated seeds are left). Pack seeds for another sector
@@ -197,7 +197,7 @@ below). `seeds_skipped` counts selected boards not queried because a request bud
 `*.myworkdayjobs.com` host), so per-host limits alone do not bound them. All hosts of one ATS vendor share, per run
 and across every stage and `seeds verify` call of that run, one request cap (the preset's `max_requests_per_vendor`:
 120 `fast`, 400 `balanced`, 1200 `deep` and `seed_boost`), a minimum spacing between requests (1 second for Workday,
-3 seconds for HireHive, 0.5 seconds for the others) and one breaker. Two rate-limited requests (HTTP 429), or two "forbidden" answers
+3 seconds for HireHive and Occupop, 10 seconds for CandidateManager, 0.5 seconds for the others) and one breaker. Two rate-limited requests (HTTP 429), or two "forbidden" answers
 (HTTP 403) with no success between them, block the vendor for the rest of the run: its remaining boards and
 postings are recorded as `vendor_blocked` and get no request. Verification and discover stop at half of the cap,
 so fetch keeps the rest; discover splits its part evenly between the run's Workday boards. Boards or postings left

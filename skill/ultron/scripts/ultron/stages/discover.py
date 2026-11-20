@@ -57,6 +57,8 @@ _VENDOR_HOSTS = {
     "lever": "jobs.lever.co",
     "workable": "apply.workable.com",
     "smartrecruiters": "jobs.smartrecruiters.com",
+    "occupop": "api.occupop.com",
+    "candidatemanager": "www.candidatemanager.net",
 }
 
 

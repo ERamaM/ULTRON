@@ -21,8 +21,9 @@ HOST_BLOCK_THRESHOLD = 3
 # (each 429, or 403 answers with no 2xx between them) block the vendor for the rest of the run, in every stage.
 VENDOR_BLOCK_THRESHOLD = 2
 VENDOR_MIN_INTERVAL = 0.5
-# Workday serves every customer from its own tenant host but rate-limits them together (session 3).
-VENDOR_MIN_INTERVALS = {"workday": 1.0}
+# Workday serves every customer from its own tenant host but rate-limits them together (session 3). HireHive does
+# too, and more tightly: ten tenant boards 0.5 s apart were followed by HTTP 429 (session 5).
+VENDOR_MIN_INTERVALS = {"workday": 1.0, "hirehive": 3.0}
 # Ceiling on the run's total per vendor for the stages before fetch: verification (``seeds verify`` rounds, feed
 # companies, search proposals) and discover stop once the run has spent half the vendor cap, so fetch (posting pages
 # and enrichment calls) always keeps at least half. Fetch and ``diagnose`` may use the whole cap.

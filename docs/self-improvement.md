@@ -265,6 +265,9 @@ are unaffected.
 | iCIMS search | not added | No public unauthenticated API and no permissive terms |
 | Rezoomo | not added (2026-11-20) | Its terms of use forbid any systematic or automated data scraping, extraction or collection |
 
+The Rezoomo row is a terms decision from self-improvement session 6, not part of the MARK II review: its public
+company boards would be technically simple to read.
+
 Reopen a decision only with evidence of a public, unauthenticated, bounded API and terms that
 allow automated access.
 

@@ -30,6 +30,7 @@ from ultron.core.rules.hard_filters_data import (
     STUDENT_LEVEL_TITLE_TERMS,
     STUDENT_LEVEL_TRIGGER_TERMS,
     STUDENT_PROGRAMME_ROLE_NOUNS,
+    STUDENT_PROGRAMME_WORDS,
 )
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,
@@ -66,6 +67,23 @@ def _specialty_pattern(term: str) -> re.Pattern[str]:
         stem = stem[:-1]
     tail = r"s?(?!\w)" if len(stem) <= 3 else ""
     return re.compile(r"(?<!\w)" + re.escape(stem) + tail)
+
+
+_PROGRAMME_TAIL = re.compile(r"\s*((?:programmes?|programs?|scheme)\s+)?(\w+)")
+# A trainee word names a programme only through an explicit "programme" ("Trainee Program Lead"); a bare
+# "Trainee Manager" is a manager in training.
+_PROGRAMME_ONLY_WITH_NOUN = frozenset({"trainee", "trainees"})
+
+
+def _names_a_programme(term: str, rest: str) -> bool:
+    """True when a programme word ("internship") is directly followed by a role that runs it ("coordinator")."""
+    with_noun_only = term in _PROGRAMME_ONLY_WITH_NOUN
+    if term not in STUDENT_PROGRAMME_WORDS and not with_noun_only:
+        return False
+    match = _PROGRAMME_TAIL.match(rest)
+    if not match or (with_noun_only and not match.group(1)):
+        return False
+    return match.group(2) in STUDENT_PROGRAMME_ROLE_NOUNS
 
 
 @dataclass(slots=True)
@@ -202,9 +220,10 @@ class HeuristicEvaluator:
         low = normalize_text(title)
         for term in find_terms(title, STUDENT_LEVEL_TITLE_TERMS):
             match = re.search(r"(?<!\w)" + re.escape(normalize_text(term)) + r"(?!\w)", low)
-            # "Internship Coordinator", "Apprenticeship Programme Manager": the word names the programme a role
-            # runs, not the level of the role.
-            if match is None or not find_terms(low[match.end():], STUDENT_PROGRAMME_ROLE_NOUNS):
+            # "Internship Coordinator", "Apprenticeship Programme Manager": a programme word directly followed by
+            # the role that runs it names the programme, not the level. "Working Student Data Analyst - Reporting
+            # Specialist" stays a student level.
+            if match is None or not _names_a_programme(normalize_text(term), low[match.end():]):
                 return True
         return bool(_LEADING_STAGE.match(title))
 

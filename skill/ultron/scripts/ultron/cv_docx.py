@@ -64,6 +64,8 @@ def _read_body(content: bytes) -> bytes:
             raise _error("The Word document body is too large", code="too_long")
         # LZMA and BZIP2 members buffer their whole output before read() returns, so the streamed cap could not
         # bound memory; Word writes stored or deflated parts only.
+        if info.flag_bits & 0x1:  # an encrypted member: zipfile would raise RuntimeError asking for a password
+            raise _error("The Word document body is encrypted")
         if info.compress_type not in _ALLOWED_COMPRESSION:
             raise _error("The Word document body uses an unsupported compression method")
         data = bytearray()
@@ -73,7 +75,7 @@ def _read_body(content: bytes) -> bytes:
                     data += chunk
                     if len(data) > MAX_DOCUMENT_XML_BYTES:
                         raise _error("The Word document body is too large", code="too_long")
-        except (zipfile.BadZipFile, zlib.error, OSError, ValueError, EOFError, NotImplementedError) as exc:
+        except (zipfile.BadZipFile, zlib.error, OSError, ValueError, EOFError, NotImplementedError, RuntimeError) as exc:
             raise _error("The Word document body cannot be read") from exc
     return bytes(data)
 

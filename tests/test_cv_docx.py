@@ -281,3 +281,21 @@ def test_buffered_zip_codecs_are_rejected_before_the_body_is_opened(tmp_path, me
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv(_write(tmp_path, "cv.docx", buffer.getvalue()))
     assert raised.value.code == "no_extractable_text"
+
+
+def test_an_encrypted_body_member_is_an_extraction_error(tmp_path):
+    # PR #59 review: zipfile raises RuntimeError for an encrypted member; it must be a CV extraction error.
+    content = bytearray(build_docx(_document(_paragraph("Experience"))))
+    info = zipfile.ZipFile(io.BytesIO(bytes(content))).getinfo("word/document.xml")
+    content[info.header_offset + 6] |= 0x1  # local header flag: encrypted
+    name = b"word/document.xml"
+    central = bytes(content).find(b"PK\x01\x02")
+    while central != -1:
+        name_length = int.from_bytes(content[central + 28:central + 30], "little")
+        if content[central + 46:central + 46 + name_length] == name:
+            content[central + 8] |= 0x1  # central directory flag: encrypted
+        central = bytes(content).find(b"PK\x01\x02", central + 4)
+    assert zipfile.ZipFile(io.BytesIO(bytes(content))).getinfo("word/document.xml").flag_bits & 0x1
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", bytes(content)))
+    assert raised.value.code == "no_extractable_text"

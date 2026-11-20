@@ -300,3 +300,15 @@ def test_irregular_and_german_plurals_name_the_family(terms, title):
 def test_a_german_plural_title_keeps_its_body_evidence():
     body = "Backend services in Python."
     assert is_allowed_family("Software Architekten (m/w/d)", body, ["Software Architekt"], ["backend", "python"])
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Working Student Data Analyst - Reporting Specialist", "Trainee Data Analyst / Reporting Specialist",
+     "Internship Data Analyst - Team Lead Support", "Trainee Manager"],
+)
+def test_student_level_titles_with_ordinary_role_nouns_stay_student_levels(title):
+    # PR #59 review: the programme exception applies only when the role directly follows the programme word.
+    profile = _stage_profile(role_focus_terms=["data analyst", "manager"], target_titles=["Data Analyst"],
+                             role_signal_terms=["sql", "dashboards"])
+    assert _outcome(_job(title, body="Build SQL dashboards and reporting."), profile) != "keep"

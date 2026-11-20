@@ -458,6 +458,9 @@ _CHALLENGE_RE = re.compile(r"(?<![a-z])(?:captchas?|verify you are human|just a 
 # together with browser-challenge wording.
 _SECURITY_CHECK_RE = re.compile(r"(?<![a-z])security check(?![a-z])")
 _CHALLENGE_CONTEXT_RE = re.compile(r"(?<![a-z])(?:browser|javascript|cookies|cloudflare|ray id|robot)(?![a-z])")
+# A "Client Challenge" interstitial asks to enable JavaScript; "client challenge" alone is ordinary posting prose.
+_CLIENT_CHALLENGE_RE = re.compile(r"(?<![a-z])client challenge(?![a-z])")
+_JAVASCRIPT_RE = re.compile(r"(?<![a-z])javascript(?![a-z])")
 _SCRIPT_TAG_RE = re.compile(r"<script\b", re.IGNORECASE)
 
 
@@ -469,7 +472,9 @@ def unusable_page_reason(html: str, job: ExtractedJob) -> str | None:
     visible = _html_to_text(html)
     low = " ".join(visible.lower().split())  # text nodes are joined with newlines: "verify you are\nhuman"
     if len(visible) < _CHALLENGE_MAX_VISIBLE_CHARS and (
-        _CHALLENGE_RE.search(low) or (_SECURITY_CHECK_RE.search(low) and _CHALLENGE_CONTEXT_RE.search(low))
+        _CHALLENGE_RE.search(low)
+        or (_SECURITY_CHECK_RE.search(low) and _CHALLENGE_CONTEXT_RE.search(low))
+        or (_CLIENT_CHALLENGE_RE.search(low) and _JAVASCRIPT_RE.search(low))
     ):
         return "blocked"
     shell = len(visible) < _SHELL_MAX_VISIBLE_CHARS and len(body) < _SHELL_MAX_VISIBLE_CHARS

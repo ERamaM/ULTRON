@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 
 from ultron import runs, seed_rounds, seeds
-from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.http_factory import HOST_BLOCK_THRESHOLD, VERIFY_VENDOR_SHARE, client_for_run
 from ultron.output import emit, fail
 
 
@@ -92,6 +92,7 @@ def _verify(args: argparse.Namespace) -> int:
     # R14: verification probes many slugs on few ATS hosts; only the global budget bounds it (like fetch).
     client = client_for_run(
         run, max_requests_per_host=run["settings"]["max_pages"], block_threshold=HOST_BLOCK_THRESHOLD,
+        vendor_share=VERIFY_VENDOR_SHARE,
     )
     timeout = run["settings"]["ats_api_timeout"]
     verified: list[seeds.VerifyResult] = []

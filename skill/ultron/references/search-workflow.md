@@ -190,7 +190,20 @@ you verify and find matter: they are queried first. Postings are pre-filtered by
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
 the stage (`unparseable_board`: the page loaded but no listings could be read, e.g. a script-rendered Taleo
 career section; it is not an empty board; `host_blocked`: the vendor host kept answering 403/429, so its
-remaining boards were skipped in this run). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+remaining boards were skipped in this run; `vendor_blocked` and `vendor_budget_exhausted`: see the vendor budget
+below). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+
+**Vendor budget.** Some vendors serve every company from its own host (each Workday company has its own
+`*.myworkdayjobs.com` host), so per-host limits alone do not bound them. All hosts of one ATS vendor share, per run
+and across every stage and `seeds verify` call of that run, one request cap (the preset's `max_requests_per_vendor`:
+120 `fast`, 400 `balanced`, 1200 `deep` and `seed_boost`), a minimum spacing between requests (1 second for Workday,
+0.5 seconds for the others) and one breaker. Two rate-limited requests (HTTP 429), or two "forbidden" answers
+(HTTP 403) with no success between them, block the vendor for the rest of the run: its remaining boards and
+postings are recorded as `vendor_blocked` and get no request. Verification and discover stop at half of the cap,
+so fetch keeps the rest; discover splits its part evenly between the run's Workday boards. Boards or postings left
+out by the cap are recorded as `vendor_budget_exhausted`. The `discover ats` and `fetch` outputs add
+`requests_by_vendor` and `vendors_blocked`; the run folder keeps the state in `vendor_budget.json`. A blocked
+vendor is not a ULTRON failure: run again later.
 
 Seed order also learns from past runs of the same profile. `finalize` records which boards each run
 queried and how many of their postings it kept. Within each group, boards that have produced kept roles
@@ -208,15 +221,19 @@ ultron fetch --run <run_id>
 ```
 
 Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250,
-"requests_by_domain": [{"host": "boards.greenhouse.io", "requests": 40}, ...]}`
+"requests_by_domain": [{"host": "boards.greenhouse.io", "requests": 40}, ...], "requests_by_vendor": {"greenhouse": 80},
+"vendors_blocked": []}`
 
 Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
 submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
-in `fetch_capped.jsonl`. `requests_by_domain` (also in the `discover feeds` and `discover ats` outputs) lists
+in `fetch_capped.jsonl`. A posting skipped without a request because its vendor is blocked or out of budget does not
+use a page slot. `requests_by_domain` (also in the `discover feeds` and `discover ats` outputs) lists
 the five domains with most requests, busiest first, to show where the request budget went.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
-`host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
+`host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run;
+`vendor_blocked` rows are URLs of a vendor whose hosts did so (see the vendor budget in step 5), and
+`vendor_budget_exhausted` / `skipped_vendor_budget_exhausted` rows are URLs left out by the vendor's request cap.
 If at least 50 URLs failed to load at all (DNS failures, connection errors, timeouts) and they are at least half of the URLs
 tried, fetch stops early: the output has `"stopped": "navigation_failures"` and the remaining URLs are recorded as
 `skipped_navigation_failures`. Check the network or proxy, then run a new search.

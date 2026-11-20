@@ -29,8 +29,8 @@ from ultron.core.rules.term_matching import contains_term, normalize_text
 from ultron.core.sectors import profile_sector_values
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
-from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
-from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
+from ultron.http_factory import DISCOVER_VENDOR_SHARE, HOST_BLOCK_THRESHOLD, VERIFY_VENDOR_SHARE, client_for_run
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.seeds import load_inventory
 
 
@@ -366,15 +366,15 @@ def _candidate(seed, posting) -> CandidateUrl | None:
 
 def _verify_search_proposals(
     run: dict, out_dir, *, timeout: int
-) -> tuple[int, int, dict[str, list], dict[str, int]]:
+) -> tuple[int, int, dict[str, list], dict[str, int], dict[str, int]]:
     """Verify new ATS boards from ``seed_proposals_from_search.jsonl``, save them, and cache their postings.
 
-    The last item is the verification client's requests per host.
+    The last two items are the verification client's requests per host and per vendor.
     """
     rows = runs.read_jsonl(out_dir / seed_store.SEARCH_PROPOSALS_FILE)
     if not rows:
-        return 0, 0, {}, {}
-    verify_client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
+        return 0, 0, {}, {}, {}
+    verify_client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD, vendor_share=VERIFY_VENDOR_SHARE)
     known = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     limit = run["settings"]["new_companies_per_run"]
@@ -418,7 +418,15 @@ def _verify_search_proposals(
             added = seed_store.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seed_store.SeedFileError:
             added = 0
-    return len(verified), added, prefetched, verify_client.requests_by_host()
+    return len(verified), added, prefetched, verify_client.requests_by_host(), verify_client.requests_by_vendor()
+
+
+def _merge_counts(*counts: dict[str, int]) -> dict[str, int]:
+    merged: dict[str, int] = {}
+    for count in counts:
+        for key, value in count.items():
+            merged[key] = merged.get(key, 0) + value
+    return dict(sorted(merged.items()))
 
 
 def discover_ats(run_id: str) -> dict:
@@ -434,8 +442,10 @@ def discover_ats(run_id: str) -> dict:
     title_vocabulary = build_title_vocabulary(criteria, vocabulary=pack)
     per_seed = settings["ats_api_max_jobs_per_seed"]
     timeout = settings["ats_api_timeout"]
-    search_verified, search_added, prefetched, verify_requests = _verify_search_proposals(run, out_dir, timeout=timeout)
-    client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
+    search_verified, search_added, prefetched, verify_requests, verify_vendor_requests = _verify_search_proposals(
+        run, out_dir, timeout=timeout,
+    )
+    client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD, vendor_share=DISCOVER_VENDOR_SHARE)
     seeds, groups, yield_stats = _select_seeds(
         run["profile_slug"], criteria.get("sectors"),
         settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
@@ -447,6 +457,8 @@ def discover_ats(run_id: str) -> dict:
     errors: list[dict] = []
     queried = 0
     budget_spent = False
+    # Workday boards paginate: each one gets an equal share of what the vendor budget leaves for this stage.
+    workday_left = sum(1 for seed, _group in seeds if seed.ats == "workday" and seed.seed_id not in prefetched)
 
     for seed, _group in seeds:
         if seed.seed_id in prefetched:
@@ -458,7 +470,13 @@ def discover_ats(run_id: str) -> dict:
                 continue
             queried += 1
             try:
-                options = {"preferred_locations": scope["preferred"]} if seed.ats == "workday" else {}
+                options = {}
+                if seed.ats == "workday":
+                    options["preferred_locations"] = scope["preferred"]
+                    allowance = client.vendor_allowance("workday")
+                    if allowance is not None:
+                        options["max_pages"] = max(1, allowance // max(1, workday_left))
+                    workday_left -= 1
                 postings = [_clean_posting(p) for p in fetch_vendor_jobs(
                     seed.ats, seed.board_identifier, client=client, timeout=timeout, **options)]
             except RequestBudgetExceeded as exc:
@@ -466,12 +484,22 @@ def discover_ats(run_id: str) -> dict:
                     errors.append({
                         "seed_id": seed.seed_id, "error": "host_budget_exhausted", "host": exc.host, "skipped": True,
                     })
+                elif exc.scope == "vendor":
+                    errors.append({
+                        "seed_id": seed.seed_id, "error": "vendor_budget_exhausted", "vendor": exc.vendor,
+                        "skipped": True,
+                    })
                 else:
                     budget_spent = True
                     errors.append({"seed_id": seed.seed_id, "error": "request_budget_exhausted", "skipped": True})
                 continue
             except AtsClientError as exc:
                 errors.append({"seed_id": seed.seed_id, "error": str(exc)})
+                continue
+            except VendorBlocked as exc:
+                # Hosts of this vendor (any tenant) answered 429/403 too often in this run: no request was sent.
+                errors.append({"seed_id": seed.seed_id, "error": "vendor_blocked", "vendor": exc.vendor,
+                               "host": exc.host, "skipped": True})
                 continue
             except HostBlocked as exc:
                 # The host kept answering 429/403: no request was sent for this board.
@@ -549,6 +577,8 @@ def discover_ats(run_id: str) -> dict:
         "candidates": len(candidates),
         "requests": client.requests_made + sum(verify_requests.values()),
         "requests_by_domain": top_hosts(client.requests_by_host(), verify_requests),
+        "requests_by_vendor": _merge_counts(client.requests_by_vendor(), verify_vendor_requests),
+        "vendors_blocked": client.vendors_blocked(),
         "seed_groups": groups,
         "seeds_deprioritized": yield_stats["deprioritized"],
         "seeds_exploration_reserved": yield_stats["exploration_reserved"],

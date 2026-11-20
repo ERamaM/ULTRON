@@ -6,6 +6,7 @@ from collections import deque
 from urllib.parse import urlparse
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
@@ -15,7 +16,7 @@ from ultron.core.ats.clients.base import (
 )
 from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.rules.term_matching import normalize_text
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ def fetch_workday_jobs(
     api_url = locator_url(host, api_path, "jobs")
     _WD_PAGE_LIMIT = 20
     _WD_MAX_PAGES = 100  # Safety cap: max 2000 jobs per board
-    page_cap = _WD_MAX_PAGES if max_pages is None else max(1, int(max_pages))
+    page_cap = _WD_MAX_PAGES if max_pages is None else max(1, min(_WD_MAX_PAGES, int(max_pages)))
     out: list[AtsPosting] = []
     seen: set[str] = set()
     pages: deque[tuple[dict[str, list[str]], int, int | None]] = deque([({}, 0, None)])
@@ -132,13 +133,19 @@ def fetch_workday_jobs(
                 json_body={"appliedFacets": facets, "limit": _WD_PAGE_LIMIT, "offset": offset, "searchText": ""},
             )
         except RequestBudgetExceeded as exc:
-            if exc.scope == "host" and out:
+            if exc.scope in {"host", "vendor"} and out:
                 logger.warning(
-                    "workday pagination stopped on host budget board=%s page=%d; returning partial results (%d postings)",
+                    "workday pagination stopped on %s budget board=%s page=%d; returning partial results (%d postings)",
+                    exc.scope,
                     board_identifier,
                     page,
                     len(out),
                 )
+                return out
+            raise
+        except HostBlocked:
+            # The host or the whole vendor is blocked for this run: keep what was collected, no HTML fallback.
+            if out:
                 return out
             raise
         except HttpError as exc:
@@ -210,7 +217,7 @@ def fetch_workday_jobs(
     html = ""
     try:
         html = fetch_text(base_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception:
         if initial_cxs_error is not None:

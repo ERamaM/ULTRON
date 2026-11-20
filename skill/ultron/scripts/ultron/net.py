@@ -32,13 +32,15 @@ REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 class RequestBudgetExceeded(RuntimeError):
     """Raised when the global or per-host request budget is spent.
 
-    ``scope`` is ``"global"`` or ``"host"`` (then ``host`` names the host).
+    ``scope`` is ``"global"``, ``"host"`` (then ``host`` names the host) or ``"vendor"`` (then ``vendor`` names
+    the ATS vendor whose run budget is spent and ``host`` the tenant host that was about to be called).
     """
 
-    def __init__(self, message: str = "", *, scope: str = "global", host: str = "") -> None:
+    def __init__(self, message: str = "", *, scope: str = "global", host: str = "", vendor: str = "") -> None:
         super().__init__(message)
         self.scope = scope
         self.host = host
+        self.vendor = vendor
 
 
 class HttpError(RuntimeError):
@@ -50,9 +52,97 @@ class HttpError(RuntimeError):
 class HostBlocked(HttpError):
     """The host answered 403/429 ``block_threshold`` times in a row; no further request is sent to it."""
 
-    def __init__(self, host: str) -> None:
-        super().__init__(f"host_blocked: {host}")
+    def __init__(self, host: str, message: str = "") -> None:
+        super().__init__(message or f"host_blocked: {host}")
         self.host = host
+
+
+class VendorBlocked(HostBlocked):
+    """Hosts of this ATS vendor answered 403/429 too often in this run; no host of the vendor is called again.
+
+    ``host`` is the host that was about to be called; ``vendor`` names the blocked vendor."""
+
+    def __init__(self, vendor: str, host: str) -> None:
+        super().__init__(host, f"vendor_blocked: {vendor}")
+        self.vendor = vendor
+
+
+class VendorBudget:
+    """Requests and blocked answers per ATS vendor for one run, shared by every client (and stage) of that run.
+
+    A multi-tenant vendor serves each customer from its own host (``acme.wd5.myworkdayjobs.com``), so per-host caps
+    and breakers never bound the vendor as a whole. Here every host of a vendor counts toward one cap
+    (``max_requests``) and one breaker. Strikes count per request, not per retry attempt: a request that met a 429 is
+    a strike for the rest of the run; a request that ended in 403 is a strike until the vendor next answers 2xx (a
+    single private tenant must not block the vendor). ``block_threshold`` strikes block the vendor. ``on_change`` is
+    called after every change (persistence).
+    """
+
+    def __init__(
+        self, *, max_requests: int | None, block_threshold: int = 2, state: Mapping[str, Any] | None = None,
+        on_change: Callable[[VendorBudget], None] | None = None,
+    ) -> None:
+        self.max_requests = max_requests
+        self.block_threshold = block_threshold
+        self.on_change = on_change
+        state = state if isinstance(state, Mapping) else {}
+        self.requests: dict[str, int] = _int_map(state.get("requests"))
+        self.rate_limited: dict[str, int] = _int_map(state.get("rate_limited"))
+        self.forbidden_streak: dict[str, int] = _int_map(state.get("forbidden_streak"))
+        blocked = state.get("blocked")
+        self.blocked: set[str] = {v for v in blocked if isinstance(v, str)} if isinstance(blocked, list) else set()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "requests": dict(sorted(self.requests.items())),
+            "rate_limited": dict(sorted(self.rate_limited.items())),
+            "forbidden_streak": dict(sorted(self.forbidden_streak.items())),
+            "blocked": sorted(self.blocked),
+        }
+
+    def strikes(self, vendor: str) -> int:
+        return self.rate_limited.get(vendor, 0) + self.forbidden_streak.get(vendor, 0)
+
+    def is_blocked(self, vendor: str) -> bool:
+        return vendor in self.blocked
+
+    def remaining(self, vendor: str) -> int | None:
+        if self.max_requests is None:
+            return None
+        return max(0, self.max_requests - self.requests.get(vendor, 0))
+
+    def charge(self, vendor: str) -> None:
+        self.requests[vendor] = self.requests.get(vendor, 0) + 1
+        self._changed()
+
+    def record(self, vendor: str, status: int, *, rate_limited: bool = False) -> None:
+        """Count one request's outcome: its final ``status``, and ``rate_limited`` if any attempt got a 429."""
+        changed = False
+        if rate_limited or status == 429:
+            self.rate_limited[vendor] = self.rate_limited.get(vendor, 0) + 1
+            changed = True
+        if status == 403:
+            self.forbidden_streak[vendor] = self.forbidden_streak.get(vendor, 0) + 1
+            changed = True
+        elif 200 <= status < 300 and self.forbidden_streak.get(vendor):
+            # Any final success clears the 403 streak, also when an earlier attempt of this request met a 429.
+            self.forbidden_streak[vendor] = 0
+            changed = True
+        if not changed:
+            return
+        if self.strikes(vendor) >= self.block_threshold:
+            self.blocked.add(vendor)
+        self._changed()
+
+    def _changed(self) -> None:
+        if self.on_change is not None:
+            self.on_change(self)
+
+
+def _int_map(value: object) -> dict[str, int]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(k): v for k, v in value.items() if isinstance(v, int) and not isinstance(v, bool) and v >= 0}
 
 
 def _is_transient(exc: HttpError, method: str) -> bool:
@@ -101,6 +191,7 @@ def _decode_body(raw: bytes, declared: str | None) -> str:
 
 
 TOP_HOSTS_REPORTED = 5
+_VENDOR_KEY = "vendor:"  # throttle/delay key prefix for a vendor; never a hostname (hostnames have no colon)
 
 
 def top_hosts(*counts: Mapping[str, int], limit: int = TOP_HOSTS_REPORTED) -> list[dict[str, Any]]:
@@ -128,6 +219,11 @@ class HttpClient:
         clock: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], float] = time.time,
         block_threshold: int | None = None,
+        vendor_of: Callable[[str], str | None] | None = None,
+        vendor_budget: VendorBudget | None = None,
+        vendor_share: float = 1.0,
+        min_interval_per_vendor: float = 0.0,
+        vendor_intervals: Mapping[str, float] | None = None,
     ) -> None:
         # With a threshold, a host whose consecutive 403/429 streak reached it gets no more requests from this
         # client: no retry, no redirect hop and no fallback call to it (they raise HostBlocked instead).
@@ -147,6 +243,15 @@ class HttpClient:
         self._host_delay: dict[str, float] = {}
         self._block_streak: dict[str, int] = {}
         self._validated: dict[str, tuple[str, ...]] = {}  # hostname -> addresses validated for the current hop
+        # Vendor level (``vendor_of`` maps a host to its ATS vendor, or None): the run-wide ``vendor_budget`` caps and
+        # blocks every tenant host of a vendor together; this client stops at ``vendor_share`` of the run's cap.
+        # Requests to hosts of one vendor are also spaced by the vendor's interval, whichever tenant they go to.
+        self._vendor_of = vendor_of
+        self.vendor_budget = vendor_budget
+        self.vendor_share = vendor_share
+        self.min_interval_per_vendor = min_interval_per_vendor
+        self._vendor_intervals = dict(vendor_intervals or {})
+        self._vendor_spent: dict[str, int] = {}
         self._client = httpx.Client(
             # An injected transport (tests) sees the logical URL; the pinned addresses travel in the extension.
             transport=PinnedTransport() if transport is None else transport,
@@ -180,13 +285,41 @@ class HttpClient:
         self.requests_made += 1
         self._per_host[host] = self._per_host.get(host, 0) + 1
 
+    def vendor_for(self, host: str) -> str | None:
+        """The ATS vendor ``host`` belongs to, when a vendor budget applies to this client."""
+        return self._vendor_of(host) if self._vendor_of is not None and self.vendor_budget is not None else None
+
+    def vendor_allowance(self, vendor: str) -> int | None:
+        """Requests this client may still send to ``vendor`` (``None``: no vendor budget applies).
+
+        ``vendor_share`` is a ceiling on the run's total: this client sends nothing more to the vendor once the run
+        has spent ``vendor_share`` of the cap (stages before fetch stop at half, so fetch always keeps a part)."""
+        budget = self.vendor_budget
+        if budget is None or budget.max_requests is None:
+            return None
+        ceiling = int(budget.max_requests * self.vendor_share)
+        return max(0, ceiling - budget.requests.get(vendor, 0))
+
+    def requests_by_vendor(self) -> dict[str, int]:
+        """Requests this client sent to each ATS vendor (a copy)."""
+        return dict(self._vendor_spent)
+
+    def vendors_blocked(self) -> list[str]:
+        """Vendors the run's breaker has blocked so far."""
+        return sorted(self.vendor_budget.blocked) if self.vendor_budget is not None else []
+
     def requests_by_host(self) -> dict[str, int]:
         """Requests charged so far, per host (a copy)."""
         return dict(self._per_host)
 
     def host_delay(self, host: str) -> float:
         """Current minimum spacing between requests to ``host`` (adapts to 429 and 2xx responses)."""
-        return self._host_delay.get(host, self.min_interval_per_host)
+        return self._host_delay.get(host, self._base_interval(host))
+
+    def _base_interval(self, key: str) -> float:
+        if key.startswith(_VENDOR_KEY):
+            return self._vendor_intervals.get(key[len(_VENDOR_KEY):], self.min_interval_per_vendor)
+        return self.min_interval_per_host
 
     def block_streak(self, host: str) -> int:
         """Consecutive 403/429 responses from ``host``, counting every attempt (retries included)."""
@@ -194,28 +327,50 @@ class HttpClient:
 
     def _adapt_host_delay(self, host: str, status: int) -> None:
         self._block_streak[host] = self._block_streak.get(host, 0) + 1 if status in (403, 429) else 0
+        self._adapt_delay(host, status)
+
+    def _adapt_delay(self, host: str, status: int) -> None:
         current = self.host_delay(host)
         if status == 429:
             self._host_delay[host] = min(HOST_BACKOFF_MAX, max(HOST_BACKOFF_MIN, current * 2.0))
-        elif 200 <= status < 300 and current > self.min_interval_per_host:
-            self._host_delay[host] = max(self.min_interval_per_host, current - HOST_BACKOFF_DECAY)
+        elif 200 <= status < 300 and current > self._base_interval(host):
+            self._host_delay[host] = max(self._base_interval(host), current - HOST_BACKOFF_DECAY)
 
-    def _throttle(self, host: str) -> None:
-        last = self._last_request.get(host)
-        interval = self.host_delay(host)
-        if last is not None and interval > 0:
-            remaining = interval - (self._clock() - last)
-            if remaining > 0:
-                self._sleep(remaining)
-        self._last_request[host] = self._clock()
+    def _throttle(self, *keys: str) -> None:
+        """One wait until every key's spacing has passed (host and vendor), then stamp all keys with the send time."""
+        now = self._clock()
+        wait = 0.0
+        for key in keys:
+            last = self._last_request.get(key)
+            interval = self.host_delay(key)
+            if last is not None and interval > 0:
+                wait = max(wait, interval - (now - last))
+        if wait > 0:
+            self._sleep(wait)
+        sent = self._clock()
+        for key in keys:
+            self._last_request[key] = sent
 
     def _send_once(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
     ) -> tuple[int, httpx.Headers, str]:
+        vendor = self.vendor_for(host)
+        if vendor is not None:
+            if self.vendor_budget.is_blocked(vendor):
+                raise VendorBlocked(vendor, host)
+            if self.vendor_allowance(vendor) == 0:
+                raise RequestBudgetExceeded(
+                    f"request budget exhausted for vendor {vendor}", scope="vendor", host=host, vendor=vendor,
+                )
         if self.block_threshold is not None and self.block_streak(host) >= self.block_threshold:
             raise HostBlocked(host)
         self._charge(host)
-        self._throttle(host)
+        if vendor is not None:
+            self._vendor_spent[vendor] = self._vendor_spent.get(vendor, 0) + 1
+            self.vendor_budget.charge(vendor)
+            self._throttle(host, _VENDOR_KEY + vendor)
+        else:
+            self._throttle(host)
         kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
@@ -235,6 +390,8 @@ class HttpClient:
         except httpx.HTTPError as exc:
             raise HttpError(f"request failed: {type(exc).__name__}") from exc
         self._adapt_host_delay(host, status)
+        if vendor is not None:
+            self._adapt_delay(_VENDOR_KEY + vendor, status)
         raw = bytes(body)
         return status, headers, _decode_body(raw, encoding)
 
@@ -258,21 +415,33 @@ class HttpClient:
                 connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
-            for attempt in range(1, MAX_ATTEMPTS + 1):
-                try:
-                    status, headers, text = self._send_once(
-                        method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
-                    )
-                except HttpError as exc:
-                    if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
-                        self._sleep(0.5 * attempt)
+            vendor = self.vendor_for(admitted.hostname)
+            rate_limited = False
+            try:
+                for attempt in range(1, MAX_ATTEMPTS + 1):
+                    try:
+                        status, headers, text = self._send_once(
+                            method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
+                        )
+                    except HttpError as exc:
+                        if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
+                            self._sleep(0.5 * attempt)
+                            continue
+                        raise
+                    rate_limited = rate_limited or status == 429
+                    if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
+                        delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
+                        self._sleep(0.5 * attempt if delay is None else delay)
                         continue
-                    raise
-                if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-                    delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
-                    self._sleep(0.5 * attempt if delay is None else delay)
-                    continue
-                break
+                    break
+            except Exception:
+                # Any interruption of the retries (a transport error, a spent budget, a block) keeps a 429 the
+                # request already met as a vendor strike.
+                if vendor is not None and rate_limited:
+                    self.vendor_budget.record(vendor, 429, rate_limited=True)
+                raise
+            if vendor is not None:
+                self.vendor_budget.record(vendor, status, rate_limited=rate_limited)
             location = headers.get("Location")
             if status in REDIRECT_STATUSES and location:
                 current = urljoin(current, location)
@@ -318,4 +487,4 @@ class HttpClient:
             raise HttpError("response was not valid JSON", status_code=status) from exc
 
 
-__all__ = ["HttpClient", "HttpError", "RequestBudgetExceeded", "URLRejected"]
+__all__ = ["HttpClient", "HttpError", "RequestBudgetExceeded", "URLRejected", "VendorBlocked", "VendorBudget"]

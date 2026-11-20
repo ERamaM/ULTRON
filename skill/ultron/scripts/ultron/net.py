@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -100,6 +100,19 @@ def _decode_body(raw: bytes, declared: str | None) -> str:
         return raw.decode("cp1252", errors="replace")
 
 
+TOP_HOSTS_REPORTED = 5
+
+
+def top_hosts(*counts: Mapping[str, int], limit: int = TOP_HOSTS_REPORTED) -> list[dict[str, Any]]:
+    """The ``limit`` hosts with most requests over one or more per-host counts, busiest first (ties by name)."""
+    merged: dict[str, int] = {}
+    for count in counts:
+        for host, requests in count.items():
+            merged[host] = merged.get(host, 0) + requests
+    ranked = sorted(merged.items(), key=lambda item: (-item[1], item[0]))
+    return [{"host": host, "requests": requests} for host, requests in ranked[:limit]]
+
+
 class HttpClient:
     def __init__(
         self,
@@ -166,6 +179,10 @@ class HttpClient:
             raise RequestBudgetExceeded(f"request budget of {self.max_requests_per_host} exhausted for {host}", scope="host", host=host)
         self.requests_made += 1
         self._per_host[host] = self._per_host.get(host, 0) + 1
+
+    def requests_by_host(self) -> dict[str, int]:
+        """Requests charged so far, per host (a copy)."""
+        return dict(self._per_host)
 
     def host_delay(self, host: str) -> float:
         """Current minimum spacing between requests to ``host`` (adapts to 429 and 2xx responses)."""

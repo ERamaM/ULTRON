@@ -31,7 +31,7 @@ from ultron.core.rules.geography import geo_scope, location_scope, scoped_eligib
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.seeds import (
     COUNTRY_SLDS,
     FEED_PROPOSALS_FILE,
@@ -187,11 +187,61 @@ def is_aggregator_host(host: str) -> bool:
     return len(labels) == 1 or (len(labels) == 2 and labels[0] in _COUNTRY_SLDS)
 
 
+# Path segments of a company's careers index ("/careers", "/company/careers", "/en/jobs"), never of a posting.
+_LANDING_SEGMENTS = frozenset({
+    "about", "career", "careers", "company", "hiring", "job", "jobs", "join", "join-us", "joinus", "openings",
+    "open-positions", "team", "vacancies", "work-with-us",
+})
+_LOCALE_SEGMENT_RE = re.compile(r"[a-z]{2}(?:[-_][a-z]{2})?")
+# ATS hosts whose first path segment is the board (a posting always adds more segments).
+_PATH_BOARD_HOSTS = frozenset({
+    "apply.workable.com", "boards.greenhouse.io", "careers.smartrecruiters.com", "job-boards.greenhouse.io",
+    "jobs.ashbyhq.com", "jobs.eu.jobvite.com", "jobs.eu.lever.co", "jobs.jobvite.com", "jobs.lever.co",
+    "jobs.smartrecruiters.com",
+})
+
+
+def feed_link_kind(url: str) -> str:
+    """``posting``, ``board_root`` (a whole ATS board), ``company_page`` (home page or careers index) or ``unknown``.
+
+    Only ``posting`` and ``unknown`` links are fetched as postings. A posting has a vendor job identity
+    (``canonical_job_identity``); a board root is an ATS URL with no path, only the board segment, only a
+    careers index word, or a Workable company page; a company page is a bare host or a path made only of careers words and locales.
+    """
+    parsed = urlparse(str(url or "").strip())
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or not host:
+        return "unknown"
+    if not canonical_job_identity(url).identity_key.startswith("url:"):
+        return "posting"
+    segments = [segment.lower() for segment in parsed.path.split("/") if segment]
+    if is_direct_supported_ats_host(host):
+        if not segments or (domain_matches(host, "workable.com") and segments[0] == "company"):
+            return "board_root"
+        # One segment is the board on path-style hosts (jobs.lever.co/<board>); on tenant subdomains it may be
+        # a posting slug (Homerun), so only a careers index word ("/careers", "/jobs") counts there.
+        if len(segments) == 1 and (host in _PATH_BOARD_HOSTS or segments[0] in _LANDING_SEGMENTS):
+            return "board_root"
+        return "unknown"
+    if parsed.query:
+        return "unknown"
+    if all(segment in _LANDING_SEGMENTS or _LOCALE_SEGMENT_RE.fullmatch(segment) for segment in segments):
+        return "company_page"
+    return "unknown"
+
+
+def _is_listing_link(url: str) -> bool:
+    return feed_link_kind(url) in {"board_root", "company_page"}
+
+
 def _direct_ats_url(row: dict) -> str:
-    """First URL of the row on a supported ATS host (MARK III ``harvest_ats_urls_from_rows``), else ``""``."""
+    """The row's first ATS posting URL (MARK III ``harvest_ats_urls_from_rows``), else ``""``.
+
+    Board roots are skipped: the seed loop already turns them into seeds for ``discover ats``.
+    """
     for url in candidate_urls_from_row(row):
         host = urlparse(url).netloc.lower()
-        if host and is_direct_supported_ats_host(host):
+        if host and is_direct_supported_ats_host(host) and not _is_listing_link(url):
             return url
     return ""
 
@@ -290,6 +340,7 @@ def discover_feeds(run_id: str) -> dict:
     relevant_boards: set[tuple[str, str]] = set()  # new boards with at least one row that counts
     mentions: dict[str, int] = {}  # qualifying rows per proposed company (lowercased name)
     counts = {"ok": 0, "failed": 0, "skipped": 0}
+    non_postings = 0  # board roots and company pages routed to seeds and hints instead of fetch
     budget_spent = False
 
     for source in load_sources():
@@ -338,6 +389,11 @@ def discover_feeds(run_id: str) -> dict:
                 )
             ):
                 candidate = _candidate(source, row, posting)
+                if candidate is not None and _is_listing_link(candidate.source_url):
+                    # A board root or company page is not one posting: its board became a seed above and
+                    # its company a hint below, so it is not fetched as a posting.
+                    non_postings += 1
+                    candidate = None
                 if candidate is not None:
                     score = posting_rank_score(
                         posting,
@@ -399,5 +455,7 @@ def discover_feeds(run_id: str) -> dict:
         "seeds_added": seeds_added,
         "feed_boards_irrelevant": len(new_seeds) - len(to_save),
         "company_hints": len(proposals),
+        "feed_links_not_postings": non_postings,
         "requests": client.requests_made,
+        "requests_by_domain": top_hosts(client.requests_by_host()),
     }

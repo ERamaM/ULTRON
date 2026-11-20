@@ -196,6 +196,10 @@ EU_COUNTRY_TERMS = {
     "sweden",
 }
 EU_SCOPE_TERMS = {"eea", "european economic area", "schengen", "european union"}
+# EEA members outside the EU: a profile targeting them is European too. In a posting they never count as EU
+# locations, but they do give European eligibility ("remote from anywhere in Norway"). "Norge" is Norway's
+# own name; Iceland's ("Island") is left out because it is an ordinary English word.
+EEA_NON_EU_COUNTRY_TERMS = {"iceland", "liechtenstein", "norway", "norge"}
 EU_TIMEZONE_TERMS = {"cet", "cest", "gmt+1", "gmt+2", "utc+1", "utc+2"}
 EU_DIRECT_REMOTE_TERMS = {
     "remote eu",
@@ -478,6 +482,10 @@ def _has_eu_country_in_location_context(text: str) -> bool:
     return _has_term_in_location_context(text, EU_COUNTRY_TERMS, radius=80, word_boundary=True)
 
 
+def _has_eea_country_in_location_context(text: str) -> bool:
+    return _has_term_in_location_context(text, EEA_NON_EU_COUNTRY_TERMS, radius=80, word_boundary=True)
+
+
 def _has_non_eu_location_in_context(text: str) -> bool:
     return _has_term_in_location_context(
         text,
@@ -555,7 +563,7 @@ def _has_eu_eligibility_signal(text: str) -> bool:
         return True
     if _has_term_in_location_context(text, EU_SCOPE_TERMS, word_boundary=True):
         return True
-    if _has_eu_country_in_location_context(text):
+    if _has_eu_country_in_location_context(text) or _has_eea_country_in_location_context(text):
         return True
     if contains_any_substring(text, EMEA_DIRECT_TERMS):
         return True
@@ -636,6 +644,8 @@ def classify_eu_remote_policy(text: str) -> RemotePolicy | None:
         return "remote_eu"
     if _has_eu_country_in_location_context(low):
         return "remote_eu"
+    if _has_eea_country_in_location_context(low):
+        return "remote_europe"  # in Europe, not in the EU
     if contains_any_substring(low, EMEA_DIRECT_TERMS):
         return "remote_emea"
     if contains_any_word_boundary(low, EU_TIMEZONE_TERMS) and contains_any_substring(low, REMOTE_HINT_TERMS):
@@ -660,7 +670,7 @@ def classify_eu_eligibility(text: str) -> Eligibility | None:
         return "high"
     if _has_term_in_location_context(low, EU_SCOPE_TERMS, word_boundary=True):
         return "high"
-    if _has_eu_country_in_location_context(low):
+    if _has_eu_country_in_location_context(low) or _has_eea_country_in_location_context(low):
         return "high"
     if contains_any_substring(low, EMEA_DIRECT_TERMS) and (
         contains_any_word_boundary(low, {"cet", "cest"}) or "european hours" in low or "eu entity" in low

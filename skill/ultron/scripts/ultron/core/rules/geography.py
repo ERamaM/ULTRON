@@ -14,6 +14,9 @@ from typing import Any
 from ultron.core.models import Eligibility, GeoScope, RemotePolicy
 from ultron.core.rules import hard_filters_data as rules_data
 from ultron.core.rules.geo_eu import (
+    EEA_NON_EU_COUNTRY_TERMS,
+    EU_COUNTRY_TERMS,
+    EU_SCOPE_TERMS,
     EUROPEAN_SCOPE_TOKENS,
     classify_eu_eligibility,
     classify_eu_remote_policy,
@@ -64,12 +67,17 @@ def build_geo_body_excerpt(body_text: str, *, max_chars: int = 1200) -> str:
     return "\n".join(selected_lines)
 
 
+# Any EU or EEA member country (multi-word names such as "Czech Republic" included) names a European scope.
+_EUROPEAN_COUNTRY_TERMS = tuple(sorted(EU_COUNTRY_TERMS | EEA_NON_EU_COUNTRY_TERMS | EU_SCOPE_TERMS))
+
+
 def is_european_scope(target_regions: Iterable[str]) -> bool:
+    regions = [str(region or "") for region in target_regions]
     return any(
         token in EUROPEAN_SCOPE_TOKENS
-        for region in target_regions
+        for region in regions
         for token in re.findall(r"\w+", normalize_text(region))
-    )
+    ) or any(find_terms(region, _EUROPEAN_COUNTRY_TERMS) for region in regions)
 
 
 def location_scope(profile: Mapping[str, Any] | None) -> dict[str, tuple[str, ...]]:

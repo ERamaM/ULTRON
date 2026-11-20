@@ -157,7 +157,7 @@ def test_candidatemanager_posting_identity_ignores_the_extra_token_and_stays_fet
     plain = canonical_job_identity(DETAIL.format(jid="ABCDE"))
     tokened = canonical_job_identity(DETAIL.format(jid="ABCDE") + "&a=t0KeN%253d")
     other = canonical_job_identity(DETAIL.format(jid="FGHIJ"))
-    assert plain.identity_key == tokened.identity_key == "candidatemanager:qwert-zxcv:abcde"
+    assert plain.identity_key == tokened.identity_key == "candidatemanager:QwErT-ZxCv:ABCDE"
     assert other.identity_key != plain.identity_key
     normalized = normalize_url(DETAIL.format(jid="ABCDE"))
     assert normalized.startswith("https://www.candidatemanager.net/cm/p/pJobDetails.aspx?")
@@ -254,3 +254,11 @@ def test_run_client_honours_candidatemanager_crawl_delay():
     for _ in range(3):
         fetch_vendor_jobs("candidatemanager", BOARD, client=client, timeout=5)
     assert clock["slept"] == [http_factory.VENDOR_MIN_INTERVALS["candidatemanager"]] * 2
+
+
+def test_candidatemanager_ids_that_differ_only_in_case_are_different_postings():
+    # PR #66 review: the mid/sid/jid ids are opaque and case-sensitive, so case variants must not merge.
+    upper = canonical_job_identity(DETAIL.format(jid="ABCDE"))
+    lower = canonical_job_identity(DETAIL.format(jid="abcde"))
+    other_board = canonical_job_identity(DETAIL.format(jid="ABCDE").replace("mid=QwErT", "mid=qwert"))
+    assert len({upper.identity_key, lower.identity_key, other_board.identity_key}) == 3

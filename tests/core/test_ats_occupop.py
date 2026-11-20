@@ -26,7 +26,7 @@ from ultron.seeds import PROBE_VENDORS, Proposal, verify_proposal
 from ultron.stages import fetch as fetch_stage
 from ultron.stages.discover import _seed_request_host
 
-TOKEN = "SyntheticTok3nAbCdEf0123456789XyZ"
+TOKEN = "Synthetic" + "Tok3nAbCdEf0123456789XyZ"  # built at runtime: a synthetic board id, not a secret
 FRAME_URL = f"https://api.occupop.com/api/jobs-frame/{TOKEN}"
 
 

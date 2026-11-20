@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Sr. Data Analyst, Compliance",
+  "location": "Canada; Brazil",
+  "remote_text": "Remote",
+  "body_text": "Build compliance reporting in SQL and Looker for a global exchange. This is a fully remote role. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-scope-006",
+  "is_open_hint": true
+}

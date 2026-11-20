@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Data Analyst",
+  "location": "US",
+  "remote_text": "Remote",
+  "body_text": "We have an unprecedented opportunity to put the global economy within everyone's reach. Build SQL models and Looker dashboards for the sales strategy team. A remote location is defined as being 35 miles or more from one of our offices; we encourage you to apply for roles that match the location where you live. The annual US base salary range for this role is $146,900 - $220,300. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-scope-003",
+  "is_open_hint": true
+}

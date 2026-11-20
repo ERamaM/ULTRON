@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Staff Nurse",
+  "location": "Tralee",
+  "remote_text": "",
+  "body_text": "Join the surgical ward of our hospital in Tralee. Registered with the Nursing & Midwifery Board of Ireland, with 12 months of acute care experience. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-008",
+  "is_open_hint": true
+}

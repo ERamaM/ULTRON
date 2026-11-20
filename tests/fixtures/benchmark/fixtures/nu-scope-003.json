@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Staff Nurse",
+  "location": "Limerick, Munster, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Synthetic Health Ireland careers. Join our Limerick clinic. We operate across Europe, including clinics in Northern Ireland. NMBI registration required. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-003",
+  "is_open_hint": true
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Staff Nurse",
+  "location": "Roscommon",
+  "remote_text": "",
+  "body_text": "Join our nurse-led residential service in Co Roscommon. NMBI registration required. Salary 40,000 - 48,000 € per year. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-010",
+  "is_open_hint": true
+}

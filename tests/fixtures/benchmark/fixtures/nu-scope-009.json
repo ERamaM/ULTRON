@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Candidate Advanced Nurse Practitioner",
+  "location": "Riverside",
+  "remote_text": "",
+  "body_text": "Riverside Hospital, Dublin 9, is a teaching hospital. Candidates apply through our international recruitment team. Salary 70,000 - 80,000 € per year. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-009",
+  "is_open_hint": true
+}

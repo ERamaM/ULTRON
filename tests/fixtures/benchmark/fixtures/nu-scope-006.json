@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Clinical Research Nurse II",
+  "location": "Prague, Czechia",
+  "remote_text": "Fully Onsite Prague, Czechia",
+  "body_text": "Support clinical trials at our Prague research unit as part of a leading global clinical research organization that improves patient outcomes worldwide. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-006",
+  "is_open_hint": true
+}

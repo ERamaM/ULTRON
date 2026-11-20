@@ -270,3 +270,11 @@ def test_feed_seeds_do_not_count_toward_the_target(requests_log, capsys):
     seeds.add_seeds([*feed, *agent], profile_slug=profiles.EXAMPLE_SLUG)
     out = _new_run(capsys)
     assert (out["fitting_seeds"], out["seed_deficit"]) == (1, 34)
+
+
+def test_lines_beyond_the_ask_are_reported_not_verified(requests_log, capsys, tmp_path):
+    run_id = _new_run(capsys)["run_id"]
+    code, out = _cli(capsys, "seeds", "verify", "--run", run_id, "--from",
+                     _write(tmp_path, "agent_seed_round_1.jsonl", _rows("A", 38)), "--round")
+    assert code == 0 and out["verified"] == 35 and out["seed_round"]["over_ask_ignored"] == 3
+    assert seed_rounds.load_rounds(run_id)[0]["received"] == 38

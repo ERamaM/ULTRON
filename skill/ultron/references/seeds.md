@@ -53,7 +53,7 @@ gets the rest from you, in rounds:
 3. `ultron seeds verify --run <run_id> --from <run folder>/<proposals_file> --round` rejects the whole
    file, before any request, if a line does not match the schema (fix the lines it names and run it
    again). Otherwise it verifies the companies, skips repeats (a company the profile already has, or a
-   board or careers URL tried before), and adds
+   board or careers URL tried before) and lines beyond `ask` (`over_ask_ignored`), and adds
    `seed_round` to its output: `fitting_seeds`, `seed_deficit`, `status`, `more_rounds` and `next_ask`.
 4. While `more_rounds` is true, go back to 1. Rounds end when the target is met (`target_met`), after
    the preset's `seed_rounds` rounds (`max_rounds`), after a round that added no fitting board

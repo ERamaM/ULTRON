@@ -7,9 +7,9 @@ DEFAULT_PRESET = "balanced"
 # ``seed_target``: fitting seeds a run should have before discover (``ultron seeds plan`` asks the agent for the
 # rest, in up to ``seed_rounds`` rounds). It is about what a profile covered by the bundled technology pack queries
 # per run under the same seed and per-host caps (40 fast, 83 balanced, 113 deep, measured in session 3), so a
-# profile without a matching pack aims at about the same coverage. It stays about 10% below those counts so a pack
-# profile needs no round even after a few dead boards are pruned or capped; seed_boost aims
-# higher to grow the inventory.
+# profile without a matching pack aims at about the same coverage. It stays about 10% below those counts so a
+# technology-pack profile needs no round even after a few dead boards are pruned or capped (the smaller regional
+# packs do not reach it, so their profiles run rounds too); seed_boost aims higher to grow the inventory.
 
 PRESETS: dict[str, dict] = {
     "fast": {

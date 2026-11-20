@@ -380,6 +380,13 @@ EXTRACTOR_COMPENSATION_OVERRIDE_TERMS = ("eu", "europe", "emea", "spain", "espan
 # --- rules (was rules/hard_filters.py) -------------------------------------------------------
 
 
+def home_locality_terms(home_places: Iterable[str]) -> tuple[str, ...]:
+    """Places that belong to a profile's home country: Spain's localities for a Spain-based profile."""
+    if any(place in SPAIN_TERMS for place in home_places):
+        return (*SPAIN_TERMS, *SPAIN_LOCALITY_TERMS)
+    return ()
+
+
 @lru_cache(maxsize=128)
 def _fold_accents(text: str) -> str:
     """Strip combining marks so accented geo terms match ASCII vocabulary.

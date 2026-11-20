@@ -173,13 +173,15 @@ pages for those countries with unfiltered pages within the same budget.
 Seeds can be on any of the 19 supported ATS vendors (`references/seeds.md`). Order: companies you
 verified for the profile (and ATS boards discovered via web search) first, then bundled pack seeds in
 the profile's sectors, then other seeds linked to the profile, then seeds found in feeds (feed seeds
-never take more than half of the seed slots while curated seeds are left). Each ATS API gets at most
+never take more than half of the seed slots while curated seeds are left). Pack seeds for another region
+(a US or Latin America pack for a European profile) are never queried. Each ATS API gets at most
 the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled in that order; boards
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
 the stage (`unparseable_board`: the page loaded but no listings could be read, e.g. a script-rendered Taleo
-career section; it is not an empty board). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+career section; it is not an empty board; `host_blocked`: the vendor host kept answering 403/429, so its
+remaining boards were skipped in this run). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
 
 Seed order also learns from past runs of the same profile. `finalize` records which boards each run
 queried and how many of their postings it kept. Within each group, boards that have produced kept roles

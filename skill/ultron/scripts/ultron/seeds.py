@@ -32,7 +32,7 @@ from ultron.core.ats.vendors import SUPPORTED_ATS_DOMAINS
 from ultron.core.feeds.urls import AGGREGATOR_DOMAINS, fetch_page_links, looks_like_company_jobs_url
 from ultron.core.models import AtsBoardSeed
 from ultron.core.sectors import seed_sector_values
-from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpClient, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
 
@@ -759,7 +759,7 @@ def verify_proposal(
     # Past its domain slug, no guess can prove a short name's board: keep the first one that answers and stop.
     stop_at_first_hit = not has_explicit and _is_short_name(p.company)
 
-    unsupported = invalid = unparseable = host_budget = budget_spent = False
+    unsupported = invalid = unparseable = host_budget = budget_spent = rate_limited = False
     # (reason, candidate, seed) of the best guessed board not proven owned; its seed is still stored, tagged.
     doubtful: tuple[str, dict, AtsBoardSeed | None] | None = None
     skipped_vendors: set[str] = set()
@@ -768,7 +768,7 @@ def verify_proposal(
 
     def probe(candidates: list[tuple[str, str]], mode: str) -> VerifyResult | None:
         """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page."""
-        nonlocal unsupported, invalid, unparseable, host_budget, budget_spent, doubtful
+        nonlocal unsupported, invalid, unparseable, host_budget, budget_spent, rate_limited, doubtful
         for ats, board in candidates:
             key = seed_identity(ats, board)
             try:
@@ -797,7 +797,13 @@ def verify_proposal(
                 invalid = invalid or str(exc) == "invalid_board"
                 unparseable = unparseable or str(exc) == "unparseable_board"
                 continue
-            except (HttpError, URLRejected, ValueError, KeyError, TypeError, AttributeError):
+            except HttpError as exc:
+                # 403/429 (or a host the client stopped calling): this board was never really checked. Other
+                # boards still get their request; the client's host-scoped breaker decides what is blocked.
+                if isinstance(exc, HostBlocked) or exc.status_code in (403, 429):
+                    rate_limited = True
+                continue
+            except (URLRejected, ValueError, KeyError, TypeError, AttributeError):
                 continue
             if mode in {"guess", "aggregator_page"} and not jobs:
                 # MARK II verification_probe rule: when probing guessed slugs, an empty
@@ -855,6 +861,8 @@ def verify_proposal(
         return unresolved("vendor_not_supported_yet")
     if unparseable:
         return unresolved("unparseable_board")
+    if has_explicit and rate_limited:
+        return unresolved("host_blocked")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
     return unresolved("no_board_found")

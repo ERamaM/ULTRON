@@ -30,3 +30,10 @@ def test_no_enabled_pack_seed_uses_a_generic_board_identifier():
 def test_pack_seeds_are_unique_per_vendor_and_board():
     keys = [(name, row["ats"], str(row["board_identifier"]).lower()) for name, row in _rows()]
     assert len(keys) == len(set(keys))
+
+
+def test_a_board_appears_in_one_pack_only():
+    # The inventory keeps the first copy of a board (pack files in name order), so a second copy in another
+    # pack would be silently shadowed, together with its region scope.
+    keys = [(row["ats"], str(row["board_identifier"]).lower()) for _name, row in _rows()]
+    assert len(keys) == len(set(keys))

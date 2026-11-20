@@ -631,3 +631,19 @@ def test_page_title_suffix_stripping_is_bounded(monkeypatch):
     assert base._strip_page_title_suffix("Data Engineer | Acme Careers", anchors=(), site_names=("Acme",)) == (
         "Data Engineer"
     )
+
+
+def test_jsonld_placeholder_values_are_treated_as_missing():
+    # iCIMS fills unknown schema.org fields with "UNAVAILABLE" (scenario S5, session 2): the shortlist showed
+    # "UNAVAILABLE" as the employer of an Irish hospital posting.
+    node = {
+        "@type": "JobPosting", "title": "Staff Nurse",
+        "hiringOrganization": {"@type": "Organization", "name": "UNAVAILABLE", "sameAs": "UNAVAILABLE"},
+        "jobLocation": [{"@type": "Place", "address": {
+            "addressCountry": "IE", "addressLocality": "Dublin", "addressRegion": "UNAVAILABLE",
+            "postOfficeBoxNumber": "UNAVAILABLE"}}],
+    }
+    fields = base._structured_fields_from_node(node)
+    assert fields["company"] == ""
+    assert "UNAVAILABLE" not in fields["location"] and "Dublin" in fields["location"]
+    assert base._extract_company_from_jobposting({"hiringOrganization": "n/a"}) == ""

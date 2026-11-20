@@ -326,11 +326,21 @@ def _iter_jobposting_nodes(soup: BeautifulSoup) -> Iterable[dict]:
                 yield node
 
 
+# Values some ATSs (iCIMS: "UNAVAILABLE") write into schema.org fields they have no data for.
+_SCHEMA_PLACEHOLDERS = frozenset({"unavailable", "not available", "n/a", "na", "none", "null", "undefined", "-"})
+
+
+def _schema_text(value: object) -> str:
+    """Cleaned schema.org text; ``""`` for a placeholder that stands for a missing value."""
+    text = _clean_text(str(value or ""))
+    return "" if text.casefold() in _SCHEMA_PLACEHOLDERS else text
+
+
 def _extract_company_from_jobposting(job: dict) -> str:
     hiring_org = job.get("hiringOrganization")
     if isinstance(hiring_org, dict):
-        return _clean_text(str(hiring_org.get("name") or ""))
-    return _clean_text(str(hiring_org or ""))
+        return _schema_text(hiring_org.get("name"))
+    return _schema_text(hiring_org)
 
 
 def _extract_location_parts(value: object) -> list[str]:
@@ -343,17 +353,17 @@ def _extract_location_parts(value: object) -> list[str]:
                 # schema.org allows typed values such as {"@type": "Country", "name": "ES"}.
                 if isinstance(raw, dict):
                     raw = raw.get("name")
-                data = _clean_text(str(raw or ""))
+                data = _schema_text(raw)
                 if data:
                     parts.append(data)
-        name = _clean_text(str(value.get("name") or ""))
+        name = _schema_text(value.get("name"))
         if name:
             parts.append(name)
     elif isinstance(value, list):
         for item in value:
             parts.extend(_extract_location_parts(item))
-    elif value:
-        parts.append(_clean_text(str(value)))
+    elif value and (data := _schema_text(value)):
+        parts.append(data)
     return parts
 
 

@@ -262,6 +262,87 @@ def test_seeds_verify_cli(monkeypatch, capsys, tmp_path):
     assert load_inventory(profiles.EXAMPLE_SLUG)[0].board_identifier == "acme"
 
 
+def test_seeds_verify_stops_probing_a_rate_limited_vendor_host(capsys, tmp_path):
+    # Slug guessing sends many requests to few vendor hosts (the per-host cap is the whole page budget): a host
+    # that keeps answering 429 must get no more probes in this call.
+    profiles.install_example()
+    run_id = runs.new_run(profiles.EXAMPLE_SLUG, "fast")
+    hits: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits[request.url.host] = hits.get(request.url.host, 0) + 1
+        return httpx.Response(429 if request.url.host == "apply.workable.com" else 404)
+
+    http_factory.set_test_overrides(
+        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+        sleep=lambda s: None, min_interval_per_host=0.0,
+    )
+    src = tmp_path / "proposals.jsonl"
+    src.write_text("".join(json.dumps({"company": f"Example Health {i}", "domain": f"example-health{i}.test"}) + "\n"
+                           for i in range(4)), encoding="utf-8")
+    try:
+        assert main(["seeds", "verify", "--run", run_id, "--from", str(src)]) == 0
+    finally:
+        http_factory.reset_test_overrides()
+    assert json.loads(capsys.readouterr().out)["unresolved"] == 4
+    assert hits["apply.workable.com"] <= 3
+
+
+def test_rate_limited_explicit_board_is_reported_as_host_blocked_not_missing(capsys, tmp_path):
+    # "no_board_found" tells the agent to drop the company; a board we could not ask about must say so instead.
+    profiles.install_example()
+    run_id = runs.new_run(profiles.EXAMPLE_SLUG, "fast")
+    http_factory.set_test_overrides(
+        transport=httpx.MockTransport(lambda request: httpx.Response(429)), resolver=lambda h, p: ["93.184.216.34"],
+        sleep=lambda s: None, min_interval_per_host=0.0,
+    )
+    src = tmp_path / "proposals.jsonl"
+    src.write_text("".join(json.dumps({"company": f"Example {i}", "ats": "workable", "board": f"example{i}"}) + "\n"
+                           for i in range(3)), encoding="utf-8")
+    try:
+        assert main(["seeds", "verify", "--run", run_id, "--from", str(src)]) == 0
+    finally:
+        http_factory.reset_test_overrides()
+    capsys.readouterr()
+    reasons = [row["reason"] for row in runs.read_jsonl(runs.run_dir(run_id) / "seeds_unresolved.jsonl")]
+    assert reasons == ["host_blocked"] * 3
+
+
+def test_a_rate_limited_board_does_not_block_another_tenant_host_of_the_same_vendor():
+    # PR #57 review: a 403 from the explicit board's host must not skip the careers_url board on another host of
+    # the same vendor; only the client's host-scoped breaker decides what is blocked.
+    offers = {"offers": [{"title": "Staff Nurse", "careers_url": "https://newco.recruitee.com/o/staff-nurse"}]}
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        if request.url.host == "oldco.recruitee.com":
+            return httpx.Response(403)
+        return httpx.Response(200, json=offers)
+
+    proposal = Proposal(company="Example Hospital", ats="recruitee", board="oldco",
+                        careers_url="https://newco.recruitee.com/")
+    result = verify_proposal(proposal, client=make_client(handler, block_threshold=3), timeout=5, verify_only=True)
+    assert result.status == "verified" and result.seed.board_identifier == "newco"
+    assert {"oldco.recruitee.com", "newco.recruitee.com"} <= set(seen)
+
+
+def test_a_single_rate_limited_answer_does_not_skip_the_next_board_on_that_host():
+    # Below the breaker threshold the next board on the same host is still asked (the breaker needs 3 answers).
+    calls: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        board = request.url.path.split("/")[3]
+        calls[board] = calls.get(board, 0) + 1
+        if board == "first" and calls[board] == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(200, json=GH_JOBS)
+
+    client = make_client(handler, block_threshold=3)
+    result = verify_proposal(Proposal(company="Acme", ats="greenhouse", board="first"), client=client, timeout=5)
+    assert result.status == "verified"
+
+
 def test_seeds_verify_unknown_run(capsys, tmp_path):
     assert main(["seeds", "verify", "--run", "nope", "--from", str(tmp_path / "x.jsonl")]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "run_not_found"

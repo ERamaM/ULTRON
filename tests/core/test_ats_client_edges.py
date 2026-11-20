@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from ultron.core.ats.clients import (
+    AtsClientError,
     bamboohr,
     comeet,
     factorial,
@@ -120,7 +121,35 @@ def test_jobvite_eu_host_retry_and_exhaustion():
     with pytest.raises(RuntimeError, match="down"):
         jobvite.fetch_jobvite_jobs("acme", client=FC(text_fn=boom("down")))
     assert jobvite._extract_text_between('data-title="unterminated', 'data-title="') == ""
-    assert jobvite.fetch_jobvite_jobs("empty", client=FC(text_fn=lambda u: "<html>empty</html>")) == []
+    empty_board = '<div class="jv-page-body"><p class="jv-no-jobs">No open jobs</p></div>'
+    assert jobvite.fetch_jobvite_jobs("empty", client=FC(text_fn=lambda u: empty_board)) == []
+
+
+def test_jobvite_reads_the_job_table_of_current_career_sites():
+    # Current career sites list jobs in a table: the title is the anchor text, the location a sibling cell.
+    html = """
+    <style>.jv-job-list .jv-job-list-name { padding: 0 }</style>
+    <table class="jv-job-list"><tbody>
+    <tr><td class="jv-job-list-name"><h3 class="h2 jv-underline"><a href="/acme/job/oAbc1">Data Analyst</a></h3></td>
+        <td class="jv-job-list-location">Analytics |
+            São Paulo,
+            Brazil</td></tr>
+    <tr><td class="jv-job-list-name"><h3><a href="https://jobs.jobvite.com/acme/job/oAbc2">Support Engineer</a></h3></td>
+        <td class="jv-job-list-location">Remote</td></tr>
+    </tbody></table>"""
+    jobs = jobvite.fetch_jobvite_jobs("acme", client=FC(text_fn=lambda u: html))
+    assert [(j.title, j.apply_url, j.location) for j in jobs] == [
+        ("Data Analyst", "https://jobs.jobvite.com/acme/job/oAbc1", "Analytics | São Paulo, Brazil"),
+        ("Support Engineer", "https://jobs.jobvite.com/acme/job/oAbc2", "Remote"),
+    ]
+
+
+def test_jobvite_unknown_tenant_is_not_an_empty_board():
+    # An unknown tenant redirects to the vendor's support site: no Jobvite career page markup on either host.
+    # It used to come back as a board with zero jobs, so `seeds verify` verified any made-up slug.
+    support = "<html><title>Job Seeker FAQs and Support</title><body>Help center</body></html>"
+    with pytest.raises(AtsClientError, match="board_not_found"):
+        jobvite.fetch_jobvite_jobs("made-up", client=FC(text_fn=lambda u: support))
 
 
 def test_icims_html():

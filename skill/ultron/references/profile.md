@@ -36,7 +36,7 @@ enabled: true
 source_cv: /home/me/cv/cv.pdf        # optional: path of the CV this profile was generated from (metadata only; null/absent otherwise)
 prompt: Salary floor 60k EUR. Avoid gambling companies.   # optional notes for you; the CLI never applies them
 criteria:
-  sectors: [technology]              # bundled seed packs of these sectors are queried first; see "Sectors"
+  sectors: [technology]              # picks the bundled seed packs (see below)
   role_family_label: Data engineering   # human name of the role family
   role_focus_terms: [data engineer, analytics engineer, etl engineer]   # core role family (STRICT)
   target_titles: [Senior Data Engineer, Staff Data Engineer]           # ideal titles
@@ -72,15 +72,28 @@ worked_examples:                     # optional; guide your evaluations
     output: {verdict: keep, keep: true, is_allowed_family: true, is_senior: true, is_full_remote: true, eligibility: high}
 ```
 
-### Sectors
+### Sectors and regions pick the bundled seed packs
 
-`criteria.sectors` picks which bundled seed packs are queried first. Use only these values:
-`technology`, `finance_insurance`, `pharma_health`, `consumer_retail`, `energy_utilities`,
-`manufacturing_industrial`, `automotive`, `aerospace_defense`, `logistics_transport`,
-`construction_engineering`, `telecom_media`, `marketing_advertising`, `public_education`,
-`professional_services`, `other`. An unknown value (`fintech`, `healthcare`) matches no pack, so every
-pack seed ranks last. Leave the list out when no sector fits. Niches such as fintech go into `prompt`
-and into the companies you propose.
+The skill ships seed packs (companies with a verified job board) for a sector and region, such as
+technology in Europe, technology in Latin America, or healthcare in the US or Ireland. A run queries a
+pack's companies when the pack fits the profile:
+
+- **Sector**: `sectors` uses this vocabulary: `technology`, `pharma_health`, `finance_insurance`,
+  `public_education`, `consumer_retail`, `logistics_transport`, `energy_utilities`, `telecom_media`,
+  `manufacturing_industrial`, `automotive`, `aerospace_defense`, `construction_engineering`,
+  `marketing_advertising`, `professional_services`, `other`. Common names map to it (`healthcare`,
+  `nursing` and `medical` mean `pharma_health`, `software` means `technology`, `finance` means
+  `finance_insurance`). Any other value (`fintech`) matches no pack, so its seeds rank last and
+  `profile explain` warns. Leave the list out when no sector fits; niches such as fintech go into `prompt`
+  and into the companies you propose.
+- **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
+  another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
+  region, one of its countries, states or counties, or a main city (`Remote LATAM`, `Brazil`, `Bogotá`;
+  `Ireland`, `Dublin`, `County Kildare`; `Remote US`, `Texas`, `New York`, `Austin, TX`). Names shared with
+  another place are not matched: write `Georgia, USA` or `Atlanta` rather than `Georgia`, and `Washington DC`
+  or `Seattle` rather than `Washington`. A profile without preferred regions fits every pack.
+
+`ultron run new` prints how many boards fit (`eligible_seeds`).
 
 ### Title exclusions
 

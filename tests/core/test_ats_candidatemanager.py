@@ -262,3 +262,22 @@ def test_candidatemanager_ids_that_differ_only_in_case_are_different_postings():
     lower = canonical_job_identity(DETAIL.format(jid="abcde"))
     other_board = canonical_job_identity(DETAIL.format(jid="ABCDE").replace("mid=QwErT", "mid=qwert"))
     assert len({upper.identity_key, lower.identity_key, other_board.identity_key}) == 3
+
+
+def test_case_distinct_opaque_boards_stay_separate_in_the_seed_inventory():
+    # PR #66 review: seed_identity lowercased every non-Workday board, so case-distinct CandidateManager or
+    # Occupop boards collapsed into one inventory entry and one employer's vacancies were never queried.
+    from ultron import profiles, seeds
+    from ultron.core.ats.identity import seed_identity
+    from ultron.core.models import AtsBoardSeed
+
+    assert seed_identity("candidatemanager", "QwErT-ZxCv") != seed_identity("candidatemanager", "qwert-ZxCv")
+    assert seed_identity("occupop", "AbCdEf123") != seed_identity("occupop", "abcdef123")
+    assert seed_identity("greenhouse", "Acme") == seed_identity("greenhouse", "acme")
+    boards = ["QwErT-ZxCv", "qwert-ZxCv"]
+    rows = [AtsBoardSeed(seed_id=f"candidatemanager:{board}", company=f"Example Care {i}", ats="candidatemanager",
+                         board_identifier=board, source_type="agent_generated", verification={"postings": 2})
+            for i, board in enumerate(boards)]
+    seeds.add_seeds(rows, profile_slug=profiles.EXAMPLE_SLUG)
+    stored = {s.board_identifier for s in seeds.load_inventory(profiles.EXAMPLE_SLUG) if s.ats == "candidatemanager"}
+    assert stored == set(boards)

@@ -25,6 +25,7 @@ MAX_ARCHIVE_ENTRIES = 2_000
 MAX_DOCUMENT_XML_BYTES = 25_000_000
 MAX_XML_ELEMENTS = 300_000  # a long CV has a few tens of thousands
 MAX_XML_DEPTH = 128
+MAX_RAW_TEXT_CHARS = 60_000 * 8 + 65_536  # the PDF worker raw-output budget at the default CV limit
 MAX_XML_TAG_BYTES = 64 * 1024  # a whole markup tag with its attributes; Word writes a few hundred bytes
 _CHUNK = 64 * 1024
 _BODY = "word/document.xml"
@@ -74,7 +75,9 @@ def _read_body(content: bytes) -> bytes:
 class _BodyText:
     """Streaming expat handlers: no tree is built, so memory stays bounded by the nesting depth."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_chars: int) -> None:
+        self.max_chars = max_chars  # raw text budget, enforced while parsing (before any normalization)
+        self.chars = 0
         self.lines: list[str] = []
         self.stack: list[list[str]] = []  # one text buffer per open w:p (text boxes nest paragraphs)
         self.loose: list[str] = []  # text outside any paragraph
@@ -86,6 +89,19 @@ class _BodyText:
 
     def _buffer(self) -> list[str]:
         return self.stack[-1] if self.stack else self.loose
+
+    def _count(self, size: int) -> None:
+        self.chars += size
+        if self.chars > self.max_chars:
+            raise _error("The Word document body has too much text", code="too_long")
+
+    def _append(self, text: str) -> None:
+        self._count(len(text))
+        self._buffer().append(text)
+
+    def _line(self, parts: list[str]) -> None:
+        self._count(1)  # the line separator
+        self.lines.append("".join(parts))
 
     def start(self, name: str, attributes: dict[str, str]) -> None:
         self.elements += 1
@@ -99,20 +115,20 @@ class _BodyText:
         if name == _W_P:
             # A paragraph nested in another (a text box) ends the outer paragraph's text so far.
             if self.stack and self.stack[-1]:
-                self.lines.append("".join(self.stack[-1]))
+                self._line(self.stack[-1])
                 self.stack[-1] = []
             self.stack.append([])
         elif name == _W_T:
             self.in_text += 1
         elif name == _W_TAB:
-            self._buffer().append("\t")
+            self._append("\t")
         elif name == _W_NO_BREAK_HYPHEN:
-            self._buffer().append("-")
+            self._append("-")
         elif name in _W_BREAKS:
             if attributes.get(_W_TYPE) == "page":
                 self.pages += 1
             # Every break (line, column or page) separates the text on its two sides.
-            self._buffer().append("\n")
+            self._append("\n")
 
     def end(self, name: str) -> None:
         self.depth -= 1
@@ -122,13 +138,13 @@ class _BodyText:
         if self.skipped:
             return
         if name == _W_P and self.stack:
-            self.lines.append("".join(self.stack.pop()))
+            self._line(self.stack.pop())
         elif name == _W_T:
             self.in_text -= 1
 
     def characters(self, data: str) -> None:
         if self.in_text and not self.skipped:
-            self._buffer().append(data)
+            self._append(data)
 
 
 def _reject_declaration(*_args) -> None:
@@ -161,7 +177,7 @@ def _check_tag_sizes(body: bytes) -> None:
         raise _error("The Word document body has an oversized tag", code="too_long")
 
 
-def _text(body: bytes) -> tuple[str, int]:
+def _text(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, int]:
     """Paragraph text and the page count (explicit page breaks plus one)."""
     # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
     if b"\x00" in body or body.startswith((b"\xff\xfe", b"\xfe\xff")):
@@ -169,7 +185,7 @@ def _text(body: bytes) -> tuple[str, int]:
     if _DOCTYPE.search(body):
         _reject_declaration()
     _check_tag_sizes(body)
-    handlers = _BodyText()
+    handlers = _BodyText(max_chars)
     parser = expat.ParserCreate(encoding="UTF-8", namespace_separator=" ")
     parser.StartElementHandler = handlers.start
     parser.EndElementHandler = handlers.end
@@ -187,6 +203,10 @@ def _text(body: bytes) -> tuple[str, int]:
     lines = handlers.lines + (["".join(handlers.loose)] if handlers.loose else [])
     return "\n".join(lines), handlers.pages
 
-def extract_docx_text(content: bytes) -> tuple[str, int]:
-    """Return the raw body text of a ``.docx`` file and its page count, or raise a CV extraction error."""
-    return _text(_read_body(content))
+def extract_docx_text(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, int]:
+    """Return the raw body text of a ``.docx`` file and its page count, or raise a CV extraction error.
+
+    ``max_chars`` bounds the raw text (separators included) while it is parsed, so a crafted body cannot
+    build an unbounded string or line list before the CV character budget is checked.
+    """
+    return _text(_read_body(content), max_chars)

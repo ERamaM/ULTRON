@@ -787,8 +787,12 @@ _WEAK_COMPANY_SOURCES = frozenset({"meta_og", "domain_fallback"})
 
 def _parse_generic_with_provenance(
     page: JobRawPage, ats_hints: dict[str, str] | None = None, *, use_jsonld_description: bool = False,
+    defer_weak_company: bool = False,
 ) -> tuple[ExtractedJob, dict[str, str]]:
     """Like parse_generic, but also returns the winning source per field.
+
+    ``defer_weak_company``: keep a site-name or host-name company for the caller, which runs vendor selectors
+    first and only then lets the company hint replace what is still weak (``parse_with_overrides``).
 
     The provenance dict maps field name ("title"/"company"/"location"/"remote_text")
     to a SOURCE_PRIORITY key (e.g. "jsonld", "h1", "line_heuristic", "ats_hint"),
@@ -895,7 +899,8 @@ def _parse_generic_with_provenance(
         "location": location_source if location else "unknown",
         "remote_text": remote_source if remote_text else "unknown",
     }
-    final = _apply_ats_hints(extracted, page, ats_hints, weak_company=company_source in _WEAK_COMPANY_SOURCES)
+    weak_company = company_source in _WEAK_COMPANY_SOURCES and not defer_weak_company
+    final = _apply_ats_hints(extracted, page, ats_hints, weak_company=weak_company)
     if final is not extracted:
         for field_name in ("title", "company", "location", "remote_text"):
             if getattr(final, field_name) != getattr(extracted, field_name):
@@ -922,7 +927,7 @@ def parse_with_overrides(
 ) -> ExtractedJob:
     """Extract a job using vendor selectors, preserving field provenance."""
     base, base_sources = _parse_generic_with_provenance(
-        page, ats_hints=ats_hints, use_jsonld_description=use_jsonld_description,
+        page, ats_hints=ats_hints, use_jsonld_description=use_jsonld_description, defer_weak_company=True,
     )
     hints = _clean_ats_hints(ats_hints)
     soup = BeautifulSoup(page.html, "html.parser")
@@ -940,8 +945,13 @@ def parse_with_overrides(
         page_url=page.final_url,
         field="title",
     )
+    # With a company hint, a site-name or host-name company is only a placeholder the hint replaces below, so it
+    # must not outrank a real company element found by the vendor selectors.
+    base_company_source = base_sources.get("company", "unknown")
+    if hints.get("company") and base_company_source in _WEAK_COMPANY_SOURCES:
+        base_company_source = "unknown"
     chosen_company = _pick_best_candidate(
-        [(company, "selector"), (base.company, base_sources.get("company", "unknown"))],
+        [(company, "selector"), (base.company, base_company_source)],
         page_url=page.final_url,
         field="company",
     )
@@ -978,10 +988,10 @@ def parse_with_overrides(
     if any(_same_text(remote_candidate, value) for value, _source in remote_candidates):
         provenance["remote_text"] = "selector"
 
-    if not updates:
-        final = _apply_ats_hints(base, page, ats_hints)
-    else:
-        final = _apply_ats_hints(base.model_copy(update=updates), page, ats_hints)
+    # Only now, after the vendor selectors, may the company hint replace a site name or host name.
+    weak_company = provenance.get("company") in _WEAK_COMPANY_SOURCES
+    candidate = base.model_copy(update=updates) if updates else base
+    final = _apply_ats_hints(candidate, page, ats_hints, weak_company=weak_company)
     for field_name in ("title", "company", "location", "remote_text"):
         hint_key = "remote_hint" if field_name == "remote_text" else field_name
         if hint_key in hints and (

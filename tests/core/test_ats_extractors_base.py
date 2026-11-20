@@ -674,6 +674,21 @@ def test_ats_company_hint_beats_a_portal_site_name():
     assert base.parse_generic(_page(_PORTAL_PAGE, final_url=url)).company == "Nurses"
 
 
+def test_a_vendor_selector_company_still_beats_the_ats_company_hint():
+    # The hint replaces only a site name or host name: a real company element on the page keeps its precedence.
+    html = _PORTAL_PAGE.replace("<h1>Staff Nurse</h1>", '<h1>Staff Nurse</h1><div class="iCIMS_CompanyName">'
+                                "Example Hospital Group</div>")
+    url = "https://nurses-examplehospital.icims.com/jobs/1234/staff-nurse/job"
+    job = base.parse_with_overrides(_page(html, final_url=url), ats_hints={"company": "Example Hospital"},
+                                    company_selectors=(".iCIMS_CompanyName",))
+    assert job.company == "Example Hospital Group"
+    assert job._field_provenance["company"] == "selector"
+    # No selector match: the portal site name still gives way to the hint.
+    job = base.parse_with_overrides(_page(_PORTAL_PAGE, final_url=url), ats_hints={"company": "Example Hospital"},
+                                    company_selectors=(".iCIMS_CompanyName",))
+    assert job.company == "Example Hospital"
+
+
 def test_jsonld_company_still_beats_the_ats_company_hint():
     html = _PORTAL_PAGE.replace('"UNAVAILABLE"', '"Example Hospital Group"')
     job = base.parse_generic(_page(html), ats_hints={"company": "Example Hospital"})

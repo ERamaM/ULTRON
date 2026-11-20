@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
@@ -185,15 +186,28 @@ def _noun_stem(word: str) -> str:
     return stem[:-3] + "or" if stem.endswith("eur") and len(stem) > 5 else stem
 
 
+def _shares_stem(word_stem: str, stem: str) -> bool:
+    """Irregular plural or inflected forms (Architekt/Architekten, actuary/actuaries) share all but a short tail.
+
+    Deliberately tolerant: this gate only ever rejects, so a near match keeps the posting for body evidence.
+    """
+    if len(stem) < 5:
+        return False
+    common = len(os.path.commonprefix([word_stem, stem]))
+    return common >= max(5, len(stem) - 1)
+
+
 def _title_has_family_noun(title_low: str, nouns: set[str]) -> bool:
-    """True when a title word is the family noun or one of its gender or plural forms.
+    """True when a title word is the family noun or one of its gender, plural or inflected forms.
 
     Compound German titles ("Softwareentwicklerin") name the noun at the end of the word.
     """
     stems = {_noun_stem(noun) for noun in nouns}
     for word in re.findall(r"\w+", normalize_text(title_low)):
         word_stem = _noun_stem(word)
-        if word_stem in stems or any(len(stem) >= 6 and word_stem.endswith(stem) for stem in stems):
+        if word_stem in stems or any(
+            (len(stem) >= 6 and word_stem.endswith(stem)) or _shares_stem(word_stem, stem) for stem in stems
+        ):
             return True
     return False
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
+import zlib
 from xml.parsers import expat
 
 MAX_ARCHIVE_ENTRIES = 2_000
@@ -28,6 +29,7 @@ MAX_XML_DEPTH = 128
 MAX_RAW_TEXT_CHARS = 60_000 * 8 + 65_536  # the PDF worker raw-output budget at the default CV limit
 MAX_XML_TAG_BYTES = 64 * 1024  # a whole markup tag with its attributes; Word writes a few hundred bytes
 _CHUNK = 64 * 1024
+_ALLOWED_COMPRESSION = frozenset({zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED})
 _BODY = "word/document.xml"
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
 _MC_FALLBACK = "http://schemas.openxmlformats.org/markup-compatibility/2006 Fallback"
@@ -60,6 +62,10 @@ def _read_body(content: bytes) -> bytes:
             raise _error("The Word document has no body") from exc
         if info.file_size > MAX_DOCUMENT_XML_BYTES:
             raise _error("The Word document body is too large", code="too_long")
+        # LZMA and BZIP2 members buffer their whole output before read() returns, so the streamed cap could not
+        # bound memory; Word writes stored or deflated parts only.
+        if info.compress_type not in _ALLOWED_COMPRESSION:
+            raise _error("The Word document body uses an unsupported compression method")
         data = bytearray()
         try:
             with archive.open(info) as stream:
@@ -67,7 +73,7 @@ def _read_body(content: bytes) -> bytes:
                     data += chunk
                     if len(data) > MAX_DOCUMENT_XML_BYTES:
                         raise _error("The Word document body is too large", code="too_long")
-        except (zipfile.BadZipFile, OSError, ValueError, EOFError, NotImplementedError) as exc:
+        except (zipfile.BadZipFile, zlib.error, OSError, ValueError, EOFError, NotImplementedError) as exc:
             raise _error("The Word document body cannot be read") from exc
     return bytes(data)
 

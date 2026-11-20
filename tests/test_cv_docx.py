@@ -237,3 +237,25 @@ def test_ordinary_tags_stay_under_the_tag_size_budget(tmp_path):
     body = f"<w:p {attributes}><w:r><w:t>Experience</w:t></w:r></w:p>"
     result = cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
     assert result.text.strip() == "Experience"
+
+
+def test_a_text_run_of_millions_of_separators_fails_while_parsing(tmp_path):
+    # PR #59 security review: 14 million newlines in one w:t must not reach normalization (split("\n")).
+    body = "<w:p><w:r><w:t>" + "\n" * 2_000_000 + "</w:t></w:r></w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert raised.value.code == "too_long"
+
+
+def test_many_empty_paragraphs_count_toward_the_raw_text_budget():
+    body = _document("<w:p/>" * 1_000).encode()
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv_docx._text(body, max_chars=500)
+    assert raised.value.code == "too_long"
+
+
+def test_the_raw_text_budget_follows_the_callers_character_limit(tmp_path):
+    body = "<w:p><w:r><w:t>" + "x" * 5_000 + "</w:t></w:r></w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))), max_chars=100)
+    assert raised.value.code == "too_long"

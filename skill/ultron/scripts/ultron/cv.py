@@ -259,7 +259,8 @@ def extract_cv(
     if suffix == DOCX_SUFFIX:
         from ultron.cv_docx import extract_docx_text
 
-        text, page_count = extract_docx_text(content)
+        # The same raw-text budget as the PDF worker output, enforced while the body is parsed.
+        text, page_count = extract_docx_text(content, max_chars=max_chars * 8 + 65536)
         if page_count > max_pages:  # the same page budget as a PDF
             raise CvPdfTooManyPages(max_pages)
         return CvText(_clean_text(text, max_chars), page_count)

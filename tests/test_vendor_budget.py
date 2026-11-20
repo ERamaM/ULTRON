@@ -201,3 +201,41 @@ def test_vendor_blocked_is_a_host_blocked_with_both_names():
     exc = VendorBlocked("workday", "acme.wd1.myworkdayjobs.com")
     assert exc.host == "acme.wd1.myworkdayjobs.com" and exc.vendor == "workday"
     assert str(exc) == "vendor_blocked: workday" and exc.status_code is None
+
+
+def test_a_429_strike_is_kept_when_the_budget_interrupts_its_retries():
+    # Codex review round 2: the 429 on the last allowed request, whose retry hit the vendor cap, was never recorded.
+    budget = VendorBudget(max_requests=1, block_threshold=2)
+    client = make_client(lambda r: httpx.Response(429), budget=budget)
+    with pytest.raises(RequestBudgetExceeded):
+        client.get_text(tenant(0))
+    assert budget.rate_limited == {"workday": 1}
+
+
+def test_a_429_strike_is_kept_when_the_global_budget_interrupts_its_retries():
+    budget = VendorBudget(max_requests=100, block_threshold=2)
+    client = make_client(lambda r: httpx.Response(429), budget=budget, max_requests=1)
+    with pytest.raises(RequestBudgetExceeded):
+        client.get_text(tenant(0))
+    assert budget.rate_limited == {"workday": 1}
+
+
+def test_vendor_spacing_counts_from_the_actual_send_after_a_host_wait():
+    # Codex review round 2: the vendor timestamp was taken before the host wait, so the next tenant went at once.
+    clock = FakeClock()
+    sends: list[tuple[str, float]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sends.append((request.url.host, clock.now))
+        return httpx.Response(200, text="ok")
+
+    budget = VendorBudget(max_requests=100)
+    client = make_client(handler, budget=budget, clock=clock, vendor_intervals={"workday": 1.0},
+                         min_interval_per_host=5.0)
+    client.get_text(tenant(0))
+    client.get_text(tenant(0))  # same host: waits 5 s (the host interval)
+    client.get_text(tenant(1))  # other tenant: must still wait the vendor's 1 s after the previous send
+    times = [t for _host, t in sends]
+    assert times[1] - times[0] >= 5.0
+    assert times[2] - times[1] >= 1.0
+    assert clock.slept == [5.0, 1.0]  # one combined wait per request

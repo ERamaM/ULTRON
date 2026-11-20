@@ -189,3 +189,36 @@ def test_careers_page_redirecting_into_a_blocked_vendor_is_unchecked_not_boardle
     res = verify_proposal(Proposal("Acme", careers_url="https://acme.example/careers"), client=client, timeout=5)
     assert res.reason == "host_blocked"
     assert all("myworkdayjobs" not in url for url in seen)
+
+
+def test_careers_page_redirecting_into_a_vendor_out_of_budget_is_unchecked_not_boardless():
+    # Codex review round 2: the vendor-budget refusal on a page hop read as an empty page (no_board_found).
+    from ultron.net import VendorBudget
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.host == "acme.example":
+            return httpx.Response(302, headers={"Location": "https://acme.wd3.myworkdayjobs.com/External"})
+        return httpx.Response(200, text="unexpected")
+
+    budget = VendorBudget(max_requests=4, state={"requests": {"workday": 4}})
+    client = HttpClient(max_requests=300, max_requests_per_host=300, min_interval_per_host=0.0,
+                        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+                        sleep=lambda s: None, vendor_budget=budget,
+                        vendor_of=lambda h: "workday" if h.endswith(".myworkdayjobs.com") else None)
+    res = verify_proposal(Proposal("Acme", careers_url="https://acme.example/careers"), client=client, timeout=5)
+    assert res.reason == "vendor_budget_exhausted"
+    assert all("myworkdayjobs" not in url for url in seen)
+
+
+def test_careers_page_out_of_host_budget_is_unchecked_not_boardless():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html><body>careers</body></html>", headers={"content-type": "text/html"})
+
+    client = HttpClient(max_requests=300, max_requests_per_host=0, min_interval_per_host=0.0,
+                        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+                        sleep=lambda s: None)
+    res = verify_proposal(Proposal("Acme", careers_url="https://acme.example/careers"), client=client, timeout=5)
+    assert res.reason == "host_budget_exhausted"

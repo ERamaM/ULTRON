@@ -42,10 +42,14 @@ gets the rest from you, in rounds:
    run folder), `schema` (a JSON Schema every line must match), `exclude_companies` (already tried: do
    not propose them again), `full_hosts` (ATS hosts already at the preset's per-host limit: more boards
    there add nothing this run, so prefer other vendors) and `more_rounds`.
-2. Write exactly `ask` lines to `<run folder>/<proposals_file>`, one object per line, matching `schema`.
+2. Write up to `ask` lines (aim for `ask`) to `<run folder>/<proposals_file>`, one object per line, matching `schema`.
    Every line needs `company` plus `ats` + `board` or `careers_url`: look the board up (web search
    "<company> careers", the company's careers page) rather than guessing it. Spread the companies over
-   employers that fit the profile's roles, sector and region, as in "How many and which".
+   employers that fit the profile's roles, sector and region, as in "How many and which". Prefer
+   employers whose openings in the profile's region are mostly in its role family (hospitals and care
+   providers for a nurse, not a global pharma board where nursing is a handful among thousands): every
+   verified board counts toward the target, but a large off-family board mostly adds postings the filter
+   has to discard. Fewer fitting boards is better than padding the round.
 3. `ultron seeds verify --run <run_id> --from <run folder>/<proposals_file> --round` rejects the whole
    file, before any request, if a line does not match the schema (fix the lines it names and run it
    again). Otherwise it verifies the companies, skips repeats (a company the profile already has, or a

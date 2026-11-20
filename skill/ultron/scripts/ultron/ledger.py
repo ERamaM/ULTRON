@@ -194,9 +194,12 @@ def _apply_v5(conn: sqlite3.Connection) -> None:
     Review state, notes, feedback, occurrences and diagnostics move with the job, so a rediscovered posting is
     not recorded as a new, unreviewed job. A job whose new key already exists is left as it is (never merged).
     """
-    rows = conn.execute("SELECT identity_key, canonical_url FROM jobs WHERE identity_key LIKE 'url://%'").fetchall()
-    for old, url in rows:
-        new = canonical_job_identity(url or "").identity_key
+    rows = conn.execute(
+        "SELECT identity_key, canonical_url, source_type, source_key FROM jobs WHERE identity_key LIKE 'url://%'"
+    ).fetchall()
+    for old, url, source_type, source_key in rows:
+        # The stored source hints give the same identity the job gets when it is recorded again.
+        new = canonical_job_identity(url or "", source_type=source_type or "", source_key=source_key or "").identity_key
         if not new or new == old or new.startswith("url://"):
             continue
         if conn.execute("SELECT 1 FROM jobs WHERE identity_key = ?", (new,)).fetchone():

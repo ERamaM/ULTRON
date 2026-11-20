@@ -17,12 +17,27 @@ def _now() -> str:
     return datetime.now(UTC).isoformat()
 
 
-def resolve_key(key_or_url: str) -> str:
-    """Accept an identity key or a URL (canonicalised)."""
+def resolve_key(key_or_url: str, conn=None) -> str:
+    """Accept an identity key or a URL (canonicalised).
+
+    A job may have been recorded with source hints (``source_key="ashby:acme"``) that give it a different
+    identity than the bare URL. With ``conn``, a URL whose bare identity is not in the ledger resolves to the
+    stored job with the same canonical URL.
+    """
     text = key_or_url.strip()
-    if text.lower().startswith(("http://", "https://")):
-        return canonical_job_identity(text).identity_key
-    return text
+    if not text.lower().startswith(("http://", "https://")):
+        return text
+    ident = canonical_job_identity(text)
+    if conn is not None and conn.execute(
+        "SELECT 1 FROM jobs WHERE identity_key = ?", (ident.identity_key,)
+    ).fetchone() is None:
+        row = conn.execute(
+            "SELECT identity_key FROM jobs WHERE canonical_url = ? ORDER BY last_seen DESC LIMIT 1",
+            (ident.canonical_url,),
+        ).fetchone()
+        if row is not None:
+            return row[0]
+    return ident.identity_key
 
 
 def _require(conn, key: str) -> None:
@@ -78,37 +93,41 @@ def list_jobs(
         return _rows(conn, sql, (*params, max(0, limit)))
 
 
-def set_state(identity_key: str, state: str) -> None:
+def set_state(identity_key: str, state: str) -> str:
+    """Set the review state; returns the resolved identity key."""
     if state not in STATES:
         raise ValueError(f"invalid state {state!r}; expected one of {', '.join(STATES)}")
-    key = resolve_key(identity_key)
     with closing(ledger.connect()) as conn, conn:
+        key = resolve_key(identity_key, conn)
         _require(conn, key)
         conn.execute(
             "UPDATE jobs SET review_state = ?, review_changed_at = ? WHERE identity_key = ?", (state, _now(), key)
         )
+    return key
 
 
-def add_note(identity_key: str, text: str) -> None:
-    key = resolve_key(identity_key)
+def add_note(identity_key: str, text: str) -> str:
+    """Append a timestamped note; returns the resolved identity key."""
     line = f"[{_now()}] {text}"
     with closing(ledger.connect()) as conn, conn:
+        key = resolve_key(identity_key, conn)
         _require(conn, key)
         conn.execute(
             "UPDATE jobs SET notes = CASE WHEN notes = '' THEN ? ELSE notes || char(10) || ? END"
             " WHERE identity_key = ?",
             (line, line, key),
         )
+    return key
 
 
-def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note: str = "") -> None:
+def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note: str = "") -> str:
     if relevance not in RELEVANCE:
         raise ValueError(f"invalid relevance {relevance!r}; expected one of {', '.join(RELEVANCE)}")
     if reason_code not in REASON_CODES:
         valid = ", ".join(c for c in REASON_CODES if c)
         raise ValueError(f"invalid reason_code {reason_code!r}; expected one of {valid}")
-    key = resolve_key(identity_key)
     with closing(ledger.connect()) as conn, conn:
+        key = resolve_key(identity_key, conn)
         _require(conn, key)
         conn.execute(
             "INSERT INTO job_feedback (identity_key, relevance, reason_code, note, labeled_at) VALUES (?, ?, ?, ?, ?)"
@@ -116,6 +135,7 @@ def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note:
             " reason_code = excluded.reason_code, note = excluded.note, labeled_at = excluded.labeled_at",
             (key, relevance, reason_code, note, _now()),
         )
+    return key
 
 
 def new_since(run_id: str) -> list[dict]:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -10,9 +10,11 @@ from ultron.core.ats.clients.base import (
     AtsPosting,
     refuse_browser_fallback,
 )
+from ultron.core.ats.vendors import domain_matches
 from ultron.net import RequestBudgetExceeded
 
 _COMEET_HOST = "https://www.comeet.co"
+_COMEET_DOMAINS = ("comeet.com", "comeet.co")
 
 
 def _parse_positions(html: str, slug: str) -> list[AtsPosting]:
@@ -27,9 +29,12 @@ def _parse_positions(html: str, slug: str) -> list[AtsPosting]:
         href = str(anchor["href"]).strip()
         path = href.lower()
         if path.startswith("http"):
-            if "comeet.co" not in path:
+            # Hosted positions live on www.comeet.com (www.comeet.co redirects there). Match the parsed host:
+            # "comeet.co" is a substring of "comeet.com", so splitting the URL text on it breaks the path.
+            parsed = urlparse(path)
+            if not any(domain_matches(parsed.hostname or "", domain) for domain in _COMEET_DOMAINS):
                 continue
-            path = path.split("comeet.co", 1)[1]
+            path = parsed.path
         if not path.startswith(prefix):
             continue
         # Require at least company-uid + position segments beyond the slug.

@@ -79,3 +79,34 @@ def test_icims_dedupes_and_rejects_hostless_locator():
         icims.fetch_icims_jobs("/missing-host", client=FC(text_fn=lambda u: ""))
     dup = '<a href="/job/1"><span class="iCIMS_JobsTable_title">One</span></a>' * 2
     assert len(icims.fetch_icims_jobs("acme.example", client=FC(text_fn=lambda u: dup))) == 1
+
+
+def test_comeet_parse_positions_keeps_absolute_links_on_the_hosted_com_domain():
+    # Hosted Comeet positions live on www.comeet.com; "comeet.co" is a substring of that host, so the
+    # path must be taken from the parsed URL, not by splitting the string on "comeet.co".
+    html = (
+        '<a href="https://www.comeet.com/jobs/acme/41.001/data-scientist/C7.E11">Data Scientist</a>'
+        '<a href="https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E12">ML Engineer</a>'
+        '<a href="https://comeet.com.evil.example/jobs/acme/41.001/fake/C7.E13">Fake</a>'
+    )
+    postings = comeet._parse_positions(html, "acme")
+    assert [(p.title, p.apply_url) for p in postings] == [
+        ("Data Scientist", "https://www.comeet.com/jobs/acme/41.001/data-scientist/C7.E11"),
+        ("ML Engineer", "https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E12"),
+    ]
+
+
+def test_personio_bare_slug_reports_the_vendor_404_not_a_host_rejection():
+    # A removed board answers 404 on both Personio hosts. The bare slug is not a host, so the client must not
+    # request "https://<slug>/xml" (rejected as domain_not_allowed) and hide the real reason.
+    requested = []
+
+    def t(url):
+        requested.append(url)
+        if url.startswith("https://acme.jobs.personio."):
+            raise RuntimeError(f"HTTP 404 for {url.split('/')[2]} (status=404)")
+        raise RuntimeError("domain_not_allowed")
+
+    with pytest.raises(AtsClientError, match="status=404"):
+        personio.fetch_personio_jobs("acme", client=FC(text_fn=t))
+    assert requested == ["https://acme.jobs.personio.de/xml", "https://acme.jobs.personio.com/xml"]

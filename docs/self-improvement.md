@@ -263,6 +263,7 @@ are unaffected.
 | Taleo pagination | not added | No permissive terms; may require a login; limited HTML coverage |
 | Oracle Recruiting Cloud | not added | Its REST endpoint is documented for Oracle's internal use only |
 | iCIMS search | not added | No public unauthenticated API and no permissive terms |
+| Rezoomo | not added (2026-11-20) | Its terms of use forbid any systematic or automated data scraping, extraction or collection |
 
 Reopen a decision only with evidence of a public, unauthenticated, bounded API and terms that
 allow automated access.

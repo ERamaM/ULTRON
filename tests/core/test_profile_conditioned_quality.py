@@ -12,7 +12,8 @@ import pytest
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import ExtractedJob
 from ultron.core.rules.geography import other_country_restriction, profile_home_places
-from ultron.core.rules.role_matching import is_allowed_family, role_family_nouns
+from ultron.core.rules.role_matching import _title_has_family_noun, is_allowed_family, role_family_nouns
+from ultron.core.rules.title_synonyms import normalize_role_title
 
 
 def _analyst_profile(**seniority) -> dict:
@@ -248,3 +249,37 @@ def test_without_derivable_family_nouns_the_family_noun_rule_does_not_apply():
     assert role_family_nouns(["QA", "L4"]) == set()
     body = "Own QA automation and testing for the platform."
     assert is_allowed_family("Senior Software Engineer", body, ["QA", "L4"], ["qa", "testing", "automation"])
+
+@pytest.mark.parametrize(
+    "terms, title",
+    [
+        (["ingeniero de software"], "Ingeniera de Software Senior"),
+        (["ingeniero de software"], "Ingeniero/a de Software"),
+        (["desarrollador backend"], "Desarrolladora Backend (m/f/d)"),
+        (["programador"], "Programadora Senior"),
+        (["enfermero"], "Enfermera de Quirófano"),
+        (["diseñador de producto"], "Diseñadora de Producto"),
+        (["Diseñador UX"], "Disenador UX Senior"),
+        (["Softwareentwickler"], "Softwareentwicklerin (m/w/d)"),
+        (["Entwickler"], "Entwickler:in Backend"),
+        (["Ingenieur"], "Ingenieurin Software"),
+        (["développeur"], "Développeuse Full Stack"),
+        (["infirmier"], "Infirmière de bloc"),
+        (["analista de datos"], "Analistas de Datos"),
+        (["registered nurse"], "Nurses, Surgical Ward"),
+        (["sviluppatore"], "Sviluppatrice Software"),
+        (["director"], "Directrice financière"), (["directeur"], "Director Financiero"),
+        (["engenheiro de software"], "Engenheira de Software"),
+        (["desenvolvedor"], "Desenvolvedora Pleno"),
+    ],
+)
+def test_gender_and_plural_forms_of_a_family_noun_name_the_family(terms, title):
+    assert _title_has_family_noun(normalize_role_title(title.lower()), role_family_nouns(terms))
+
+@pytest.mark.parametrize(
+    "terms, title",
+    [(["data analyst"], "Nursery Teacher"), (["registered nurse"], "Senior Data Analyst"),
+     (["Diseñador UX"], "Senior Backend Engineer"), (["ingeniero de software"], "Product Manager")],
+)
+def test_gender_forms_do_not_widen_the_family_to_other_nouns(terms, title):
+    assert not _title_has_family_noun(normalize_role_title(title.lower()), role_family_nouns(terms))

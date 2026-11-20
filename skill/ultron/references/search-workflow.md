@@ -226,7 +226,8 @@ Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, 
 
 Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
 submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
-in `fetch_capped.jsonl`. `requests_by_domain` (also in the `discover feeds` and `discover ats` outputs) lists
+in `fetch_capped.jsonl`. A posting skipped without a request because its vendor is blocked or out of budget does not
+use a page slot. `requests_by_domain` (also in the `discover feeds` and `discover ats` outputs) lists
 the five domains with most requests, busiest first, to show where the request budget went.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.

@@ -163,3 +163,32 @@ def test_seeds_verify_reports_a_spent_vendor_budget_as_unchecked():
     )
     assert result.reason == "vendor_budget_exhausted"
     assert "vendor_budget_exhausted" in seed_rounds._UNCHECKED
+
+
+def test_postings_skipped_by_the_vendor_budget_leave_their_page_slot_to_capped_candidates(pack_dir):
+    # Session 4, S6 balanced: 222 Workday postings skipped by the vendor cap (no request) still used page slots,
+    # while 31 postings of other vendors were left out by max_pages.
+    hits: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits.append(request.url.host)
+        return httpx.Response(200, text=PAGE)
+
+    _overrides(handler)
+    run_id = runs.new_run(profiles.EXAMPLE_SLUG, "balanced", {"max_requests_per_vendor": 1, "max_pages": 3})
+    cands = []
+    for i in range(4):  # four lanes listed first: they lead the round robin
+        host = f"tenant{i}.wd1.myworkdayjobs.com"
+        url = f"https://{host}/External/job/Remote-EU/ML_R-{i}"
+        cands.append(CandidateUrl(query_id="ats:x", query="", source_url=url, normalized_url=url, domain=host,
+                                  source_type="ats_api", source_key=f"ats:workday:{i}").model_dump(mode="json"))
+    url = "https://employer.example.org/jobs/1"
+    cands.append(CandidateUrl(query_id="web:1", query="", source_url=url, normalized_url=url,
+                              domain="employer.example.org", source_type="web_search",
+                              source_key="web:employer").model_dump(mode="json"))
+    runs.write_jsonl(runs.run_dir(run_id) / "candidates.jsonl", cands)
+    runs.mark_stage(run_id, "discover_ats")
+    result = fetch_stage.fetch(run_id)
+    assert "employer.example.org" in hits
+    assert runs.read_jsonl(runs.run_dir(run_id) / "fetch_capped.jsonl") == []
+    assert result["capped"] == 0

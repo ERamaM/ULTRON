@@ -511,21 +511,22 @@ def fetch(run_id: str) -> dict:
         unique.append((candidate, identity))
 
     ordered = _round_robin(unique)
-    selected, capped = ordered[:max_pages], ordered[max_pages:]
-    # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
-    runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
-        {"url": candidate.normalized_url, "identity_key": identity, "source_key": candidate.source_key,
-         "error": "max_pages_limit"}
-        for candidate, identity in capped
-    ])
+    capped: list[tuple[CandidateUrl, str]] = []
+    # Page slots: every candidate takes one, except those skipped without a request because their ATS vendor is
+    # blocked or out of budget for this run; their slot goes to the next candidate instead of being wasted.
+    slots = 0
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
     skipped_vendors: set[str] = set()
     budget_spent = nav_stopped = False
     attempted = nav_failures = 0
-    for candidate, identity in selected:
+    for candidate, identity in ordered:
         url = candidate.normalized_url
+        if slots >= max_pages:
+            capped.append((candidate, identity))
+            continue
+        slots += 1
         if nav_stopped:
             errors.append({"url": url, "error": "skipped_navigation_failures"})
             continue
@@ -537,6 +538,7 @@ def fetch(run_id: str) -> dict:
             continue
         if (vendor := client.vendor_for(candidate.domain)) in skipped_vendors:
             errors.append({"url": url, "error": "skipped_vendor_budget_exhausted", "vendor": vendor})
+            slots -= 1
             continue
         attempted += 1
         try:
@@ -544,6 +546,7 @@ def fetch(run_id: str) -> dict:
         except VendorBlocked as exc:
             # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
             errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
+            slots -= 1
             continue
         except HostBlocked:
             if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
@@ -559,6 +562,7 @@ def fetch(run_id: str) -> dict:
             elif exc.scope == "vendor":
                 skipped_vendors.add(exc.vendor)
                 errors.append({"url": url, "error": f"vendor_budget_exhausted: {exc.vendor}", "vendor": exc.vendor})
+                slots -= 1
             else:
                 budget_spent = True
                 errors.append({"url": url, "error": "request_budget_exhausted"})
@@ -641,6 +645,12 @@ def fetch(run_id: str) -> dict:
             "ats_fingerprint": gh_enriched or sr_enriched or wd_enriched or bamboo_enriched or has_ats_fingerprint(html),
         })
 
+    # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
+    runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
+        {"url": candidate.normalized_url, "identity_key": identity, "source_key": candidate.source_key,
+         "error": "max_pages_limit"}
+        for candidate, identity in capped
+    ])
     runs.write_jsonl(out_dir / "postings.jsonl", postings)
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")

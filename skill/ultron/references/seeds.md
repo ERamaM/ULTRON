@@ -63,8 +63,8 @@ When `ats` + `board` or `careers_url` is given, the CLI checks only that board (
 a `careers_url` that is the company's own careers page is opened once and the ATS boards it links are
 checked) and reports its failure reason if it does not resolve; a given board is verified when its public API
 answers (even with zero open postings). When neither is given, it probes slug guesses built from the
-company name and domain on the probed ATSs (below), and a guessed board must have open postings and
-**provably belong to the company**, because another company may own the same slug:
+company name and domain on the probed ATSs (below). A guessed board must have open postings, and it is
+**verified** for the company only when it provably belongs to it (another company may own the same slug):
 
 - a slug equal to the main label of the proposal's `domain` (`acme` for `careers.acme.com`) is accepted;
 - otherwise, for a name with two or more words (legal forms such as GmbH or Inc do not count), the ATS
@@ -72,9 +72,13 @@ company name and domain on the probed ATSs (below), and a guessed board must hav
   `company_name` field);
 - a one-word or short name ("Acme", "Acme GmbH") needs the domain slug.
 
-A guessed board that answers without that proof is not stored: it comes back as `ownership_unknown`
-(no proof) or `wrong_tenant` (the ATS names another company), with the board it found under
-`candidate` in `seeds_unresolved.jsonl`. Giving `domain` avoids most of these.
+A guessed board that answers without that proof is **still stored** (its postings are real, and each
+result's company comes from the posting, not from the seed), but it is not counted as verified: it comes
+back as `ownership_unknown` (no proof; stored under the proposal's name, tagged `ownership:unknown`) or
+`wrong_tenant` (the ATS names another company; stored under that company's name, tagged
+`discovered_via:<your proposal>`). Both are stored with a low priority (900) so their later yield decides
+how often they are queried; `seeds_unresolved.jsonl` shows the board under `candidate` and how it was
+stored under `stored_as`. Giving `domain` gets the company's own board verified instead.
 
 ## Supported job boards
 
@@ -114,8 +118,8 @@ next call.
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
-| `ownership_unknown` | A guessed board answered (see `candidate`) but nothing ties it to the company. Open the board URL or search the web: if it is the company's own board (same website, same jobs), retry with that `ats` + `board`; if you only lacked the domain, retry with `domain`. Otherwise drop it. |
-| `wrong_tenant` | The guessed board belongs to another company with a similar name. Look for the company's real careers page and retry with its board, or drop it. Never retry the `candidate` board. |
+| `ownership_unknown` | A guessed board answered (see `candidate`) and was stored tagged `ownership:unknown`, but nothing ties it to the company. Optional: if you know the company's domain or real board, retry with `domain` or `ats` + `board` to get it verified. |
+| `wrong_tenant` | The guessed board belongs to another company (stored under that company's name). To find the proposed company's own board, look for its careers page and retry with that board; do not retry the `candidate` board. |
 | `invalid_proposal` | The line had no `company`. Fix it. |
 
 Put retries in a new file (e.g. `agent_proposals_retry.jsonl`) with only the corrected companies.

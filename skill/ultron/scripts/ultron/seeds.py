@@ -519,6 +519,62 @@ def _is_short_name(company: str) -> bool:
     return len(words) < 2 or len("".join(words)) < _SHORT_COMPANY_KEY
 
 
+def _vendor_company_display(jobs) -> str:
+    """The first company name the vendor reports in its postings, as written ("" when none)."""
+    for job in list(jobs)[:20]:
+        raw = getattr(job, "raw_payload", None)
+        if not isinstance(raw, dict):
+            continue
+        company = raw.get("company")
+        for value in (raw.get("company_name"), raw.get("companyName"),
+                      company.get("name") if isinstance(company, dict) else company):
+            if isinstance(value, str) and value.strip() and company_key(value):
+                return " ".join(value.split())
+    return ""
+
+
+# Guessed boards not proven to be the proposal's are still stored (their postings are real and every result's
+# company comes from the posting), but last in their group: seed_yield then decides whether they stay useful.
+UNCONFIRMED_SEED_PRIORITY = 900
+UNCONFIRMED_SOURCE_TYPE = "guessed_unconfirmed"
+OTHER_COMPANY_SOURCE_TYPE = "guessed_other_company"
+
+
+def unconfirmed_seed(p: Proposal, ats: str, board: str, jobs, verdict: str) -> AtsBoardSeed | None:
+    """Seed for a guessed board that answered without proof of ownership.
+
+    ``wrong_tenant`` with a vendor-reported name: the board is stored under that company, tagged
+    ``discovered_via:<proposal>``. Otherwise (``ownership_unknown``) it keeps the proposal's name, tagged
+    ``ownership:unknown``. Both get ``UNCONFIRMED_SEED_PRIORITY``.
+    """
+    try:
+        seed = _build_seed(p, ats, board, len(jobs))
+    except ValueError:  # vendor outside the supported Literal
+        return None
+    vendor_name = _vendor_company_display(jobs) if verdict == "wrong_tenant" else ""
+    if vendor_name:
+        update = {
+            "company": vendor_name,
+            "tags": [f"discovered_via:{p.company}"],
+            "source_type": OTHER_COMPANY_SOURCE_TYPE,
+            "source_label": f"Guessed board of another company (via {p.company})",
+        }
+    else:
+        update = {
+            "tags": ["ownership:unknown"],
+            "source_type": UNCONFIRMED_SOURCE_TYPE,
+            "source_label": "Guessed board (ownership unknown)",
+        }
+    return seed.model_copy(update={**update, "priority": UNCONFIRMED_SEED_PRIORITY})
+
+
+def stored_seed(result: VerifyResult) -> AtsBoardSeed | None:
+    """The seed a verification stores: the verified board, or a tagged unconfirmed guessed board."""
+    if result.status == "verified" or result.reason in {"ownership_unknown", "wrong_tenant"}:
+        return result.seed
+    return None
+
+
 def _build_seed(p: Proposal, ats: str, board: str, postings: int) -> AtsBoardSeed:
     return AtsBoardSeed(
         seed_id=make_seed_id(ats, board),
@@ -651,17 +707,19 @@ def verify_proposal(
         # Literal and domain slugs are probed on every vendor before any normalized guess, so "acme" on an
         # early vendor cannot preempt the company's literal "acmegmbh" board on a later one.
         primary, normalized = _slug_candidate_passes(p.company, p.domain)
+        passes = [primary, normalized]
         own_slug = domain_slug(p.domain)
         if own_slug and _is_short_name(p.company):
-            # Only the domain slug can prove a short name's board, so the other guesses would only spend requests.
-            primary, normalized = [own_slug], []
-        for slugs in (primary, normalized):
+            # Only the domain slug can prove a short name's board: probe it on every vendor first.
+            passes = [[own_slug], [s for s in primary if s != own_slug], [s for s in normalized if s != own_slug]]
+        for slugs in passes:
             pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
-    # A short name without a domain slug can never be proven by guessing: report the first board that answers.
-    stop_at_first_hit = not has_explicit and _is_short_name(p.company) and not domain_slug(p.domain)
+    # Past its domain slug, no guess can prove a short name's board: keep the first one that answers and stop.
+    stop_at_first_hit = not has_explicit and _is_short_name(p.company)
 
     unsupported = invalid = host_budget = budget_spent = False
-    doubtful: tuple[str, dict] | None = None  # (reason, candidate) of the best guessed board not proven owned
+    # (reason, candidate, seed) of the best guessed board not proven owned; its seed is still stored, tagged.
+    doubtful: tuple[str, dict, AtsBoardSeed | None] | None = None
     skipped_vendors: set[str] = set()
     seen: set[tuple[str, str]] = set()
     answered: dict[tuple[str, str], list] = {}  # boards that answered, with their postings
@@ -707,7 +765,10 @@ def verify_proposal(
                 if verdict != "owned":
                     # Keep probing: a later vendor or slug may hold the company's own board.
                     if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
-                        doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
+                        doubtful = (
+                            verdict, {"ats": ats, "board": board, "postings": len(jobs)},
+                            unconfirmed_seed(p, ats, board, jobs, verdict),
+                        )
                     if stop_at_first_hit:
                         return None
                     continue
@@ -743,7 +804,8 @@ def verify_proposal(
             if budget_spent:
                 return unresolved("budget_exhausted")
     if doubtful is not None:
-        return VerifyResult(p, "unresolved", None, 0, doubtful[0], candidate=doubtful[1])
+        reason, candidate, seed = doubtful
+        return VerifyResult(p, "unresolved", seed, candidate["postings"], reason, candidate=candidate)
     if invalid:
         return unresolved("invalid_board")
     if unsupported:

@@ -50,6 +50,7 @@ def _verify(args: argparse.Namespace) -> int:
     timeout = run["settings"]["ats_api_timeout"]
     verified: list[seeds.VerifyResult] = []
     failed: list[dict] = []
+    unconfirmed: list[seeds.AtsBoardSeed] = []
     page_hops = seeds.PageHops()
     for row in rows:
         if not isinstance(row, dict) or not str(row.get("company") or "").strip():
@@ -64,6 +65,10 @@ def _verify(args: argparse.Namespace) -> int:
             entry = {"company": result.proposal.company, "reason": result.reason, "proposal": row}
             if result.candidate:
                 entry["candidate"] = result.candidate
+            seed = seeds.stored_seed(result)
+            if seed is not None:
+                unconfirmed.append(seed)
+                entry["stored_as"] = {"company": seed.company, "tags": seed.tags}
             failed.append(entry)
     # Companies named by feeds are not agent proposals: label them like the unattended mode does.
     if is_feed_proposals:
@@ -71,7 +76,9 @@ def _verify(args: argparse.Namespace) -> int:
             if result.seed:
                 result.seed = seeds.as_feed_company(result.seed)
     try:
-        new_added = seeds.add_seeds([r.seed for r in verified if r.seed], profile_slug=run["profile_slug"])
+        new_added = seeds.add_seeds(
+            [*(r.seed for r in verified if r.seed), *unconfirmed], profile_slug=run["profile_slug"],
+        )
     except seeds.SeedFileError as exc:
         return fail("seed_file_corrupt", str(exc))
     out = runs.run_dir(args.run)
@@ -85,7 +92,7 @@ def _verify(args: argparse.Namespace) -> int:
         "verified": len(verified),
         "new": new_added,
         "unresolved": len(failed),
-        # Guessed boards that answered but are not provably the company's (never stored).
+        # Guessed boards that answered but are not provably the company's: stored tagged, at low priority.
         "ownership_unknown": sum(1 for f in failed if f["reason"] == "ownership_unknown"),
         "wrong_tenant": sum(1 for f in failed if f["reason"] == "wrong_tenant"),
         "unresolved_sample": [{"company": f["company"], "reason": f["reason"]} for f in failed[:5]],

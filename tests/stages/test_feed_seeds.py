@@ -7,6 +7,7 @@ import pytest
 
 from ultron import http_factory, profiles, runs, seeds
 from ultron.stages import feeds as feeds_stage
+from ultron.stages.unattended import verify_feed_companies
 
 
 @pytest.fixture(autouse=True)
@@ -81,3 +82,15 @@ def test_company_list_boards_are_still_saved(monkeypatch):
     run_id = _run_with(monkeypatch, sources, {"raw.githubusercontent.com": readme})
     assert feeds_stage.discover_feeds(run_id)["seeds_added"] == 1
     assert {s.board_identifier for s in seeds.load_inventory(profiles.EXAMPLE_SLUG)} == {"listco"}
+
+
+def test_unattended_stores_unconfirmed_guessed_boards_tagged(monkeypatch):
+    gh = {"jobs": [{"id": 1, "title": ML, "absolute_url": "https://boards.greenhouse.io/novaco/jobs/1",
+                    "location": {"name": "Remote"}}]}
+    run_id = _run_with(monkeypatch, [], {"boards-api.greenhouse.io": gh})
+    runs.write_jsonl(runs.run_dir(run_id) / seeds.FEED_PROPOSALS_FILE, [{"company": "Novaco"}])
+    out = verify_feed_companies(run_id)
+    assert (out["verified"], out["unconfirmed"], out["seeds_added"]) == (0, 1, 1)
+    (stored,) = [s for s in seeds.load_inventory(profiles.EXAMPLE_SLUG) if profiles.EXAMPLE_SLUG in s.profiles]
+    assert (stored.board_identifier, stored.tags, stored.priority) == (
+        "novaco", ["ownership:unknown"], seeds.UNCONFIRMED_SEED_PRIORITY)

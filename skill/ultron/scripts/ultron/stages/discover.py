@@ -278,6 +278,7 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
     limit = run["settings"]["new_companies_per_run"]
     verified = []
     prefetched: dict[str, list] = {}
+    unconfirmed_seeds = []
     tried = 0
     page_hops = seed_store.PageHops()
     for row in rows:
@@ -301,12 +302,16 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
             # discovery budget and location preferences, just like an existing seed.
             if result.seed.ats != "workday":
                 prefetched[result.seed.seed_id] = [_clean_posting(p) for p in result.jobs]
+        elif (unconfirmed := seed_store.stored_seed(result)) is not None:
+            # A guessed board not proven to be the proposal's: stored tagged at low priority (seed_yield decides).
+            known.add(seed_identity(unconfirmed.ats, unconfirmed.board_identifier))
+            unconfirmed_seeds.append(unconfirmed)
         elif result.reason == "budget_exhausted":
             break
     added = 0
-    if verified:
+    if verified or unconfirmed_seeds:
         try:
-            added = seed_store.add_seeds(verified, profile_slug=run["profile_slug"])
+            added = seed_store.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seed_store.SeedFileError:
             added = 0
     return len(verified), added, prefetched, verify_client.requests_made

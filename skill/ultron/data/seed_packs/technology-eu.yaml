@@ -553,7 +553,7 @@ seeds:
   - ml
   - ai
   - fintech
-  country_scope: EU
+  country_scope: GLOBAL
   sectors:
   - technology
 - company: Elastic
@@ -564,7 +564,7 @@ seeds:
   tags:
   - ml
   - ai
-  country_scope: EU
+  country_scope: GLOBAL
   sectors:
   - technology
 - company: Grafana Labs
@@ -781,7 +781,7 @@ seeds:
   tags:
   - ml
   - ai
-  country_scope: EU
+  country_scope: GLOBAL
   sectors:
   - technology
 - company: Miro
@@ -1268,7 +1268,7 @@ seeds:
   - ml
   - ai
   - fintech
-  country_scope: EU
+  country_scope: GLOBAL
   sectors:
   - technology
 - company: Ramp

@@ -1,0 +1,622 @@
+pack:
+  id: technology-latam
+  usage: active
+  sector: technology
+  region: LATAM
+  max_size: 60
+seeds:
+- company: Bluelight Consulting
+  ats: lever
+  board_identifier: bluelightconsulting
+  enabled: true
+  priority: 10
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 714
+    region_postings: 600
+    role_postings: 613
+    verified_at: '2026-11-20T04:44:22+00:00'
+- company: Sezzle
+  ats: greenhouse
+  board_identifier: sezzle
+  enabled: true
+  priority: 12
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 268
+    region_postings: 226
+    role_postings: 136
+    verified_at: '2026-11-20T04:44:15+00:00'
+- company: CI&T
+  ats: lever
+  board_identifier: ciandt
+  enabled: true
+  priority: 14
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 110
+    region_postings: 101
+    role_postings: 75
+    verified_at: '2026-11-20T04:45:02+00:00'
+- company: Truelogic
+  ats: ashby
+  board_identifier: truelogic
+  enabled: true
+  priority: 16
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 59
+    region_postings: 43
+    role_postings: 49
+    verified_at: '2026-11-20T04:44:30+00:00'
+- company: Canonical
+  ats: greenhouse
+  board_identifier: canonical
+  enabled: true
+  priority: 18
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 317
+    region_postings: 76
+    role_postings: 145
+    verified_at: '2026-11-20T04:42:14+00:00'
+- company: QuintoAndar
+  ats: greenhouse
+  board_identifier: quintoandar
+  enabled: true
+  priority: 20
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 89
+    region_postings: 88
+    role_postings: 29
+    verified_at: '2026-11-20T04:43:11+00:00'
+- company: Kraken
+  ats: ashby
+  board_identifier: kraken.com
+  enabled: true
+  priority: 22
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 95
+    region_postings: 50
+    role_postings: 33
+    verified_at: '2026-11-20T04:44:27+00:00'
+- company: Coderio
+  ats: lever
+  board_identifier: coderio
+  enabled: true
+  priority: 24
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 43
+    region_postings: 37
+    role_postings: 21
+    verified_at: '2026-11-20T04:46:31+00:00'
+- company: Despegar
+  ats: lever
+  board_identifier: despegar
+  enabled: true
+  priority: 26
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 111
+    region_postings: 58
+    role_postings: 26
+    verified_at: '2026-11-20T04:42:56+00:00'
+- company: Wellhub
+  ats: greenhouse
+  board_identifier: gympass
+  enabled: true
+  priority: 28
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 92
+    region_postings: 48
+    role_postings: 18
+    verified_at: '2026-11-20T04:41:29+00:00'
+- company: Nortal
+  ats: greenhouse
+  board_identifier: nortal
+  enabled: true
+  priority: 30
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 23
+    region_postings: 22
+    role_postings: 15
+    verified_at: '2026-11-20T04:44:16+00:00'
+- company: EBANX
+  ats: greenhouse
+  board_identifier: ebanx
+  enabled: true
+  priority: 32
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 35
+    region_postings: 23
+    role_postings: 14
+    verified_at: '2026-11-20T04:41:32+00:00'
+- company: Wizeline
+  ats: greenhouse
+  board_identifier: wizeline
+  enabled: true
+  priority: 34
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 32
+    region_postings: 15
+    role_postings: 25
+    verified_at: '2026-11-20T04:41:11+00:00'
+- company: Getnet
+  ats: greenhouse
+  board_identifier: getnet
+  enabled: true
+  priority: 36
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 45
+    region_postings: 35
+    role_postings: 10
+    verified_at: '2026-11-20T04:44:18+00:00'
+- company: VTEX
+  ats: greenhouse
+  board_identifier: vtex
+  enabled: true
+  priority: 38
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 31
+    region_postings: 18
+    role_postings: 11
+    verified_at: '2026-11-20T04:41:28+00:00'
+- company: Nimble Gravity
+  ats: greenhouse
+  board_identifier: nimblegravity
+  enabled: true
+  priority: 40
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 15
+    region_postings: 14
+    role_postings: 9
+    verified_at: '2026-11-20T04:40:36+00:00'
+- company: Factored
+  ats: greenhouse
+  board_identifier: factored
+  enabled: true
+  priority: 42
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 12
+    region_postings: 10
+    role_postings: 8
+    verified_at: '2026-11-20T04:40:34+00:00'
+- company: Airbnb
+  ats: greenhouse
+  board_identifier: airbnb
+  enabled: true
+  priority: 44
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 202
+    region_postings: 16
+    role_postings: 59
+    verified_at: '2026-11-20T04:42:29+00:00'
+- company: Wildlife Studios
+  ats: greenhouse
+  board_identifier: wildlifestudios
+  enabled: true
+  priority: 46
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 15
+    region_postings: 15
+    role_postings: 7
+    verified_at: '2026-11-20T04:41:26+00:00'
+- company: Databricks
+  ats: greenhouse
+  board_identifier: databricks
+  enabled: true
+  priority: 48
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 900
+    region_postings: 13
+    role_postings: 340
+    verified_at: '2026-11-20T04:42:23+00:00'
+- company: Xepelin
+  ats: lever
+  board_identifier: xepelin
+  enabled: true
+  priority: 50
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 11
+    region_postings: 11
+    role_postings: 5
+    verified_at: '2026-11-20T04:41:50+00:00'
+- company: Coinbase
+  ats: greenhouse
+  board_identifier: coinbase
+  enabled: true
+  priority: 52
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 253
+    region_postings: 5
+    role_postings: 123
+    verified_at: '2026-11-20T04:42:26+00:00'
+- company: Welo Global
+  ats: lever
+  board_identifier: weloglobal
+  enabled: true
+  priority: 54
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 449
+    region_postings: 31
+    role_postings: 65
+    verified_at: '2026-11-20T04:44:23+00:00'
+- company: Twilio
+  ats: greenhouse
+  board_identifier: twilio
+  enabled: true
+  priority: 56
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 107
+    region_postings: 14
+    role_postings: 37
+    verified_at: '2026-11-20T04:42:32+00:00'
+- company: OKX
+  ats: greenhouse
+  board_identifier: okx
+  enabled: true
+  priority: 58
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 391
+    region_postings: 8
+    role_postings: 112
+    verified_at: '2026-11-20T04:45:59+00:00'
+- company: Kavak
+  ats: lever
+  board_identifier: kavak
+  enabled: true
+  priority: 60
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 5
+    region_postings: 5
+    role_postings: 3
+    verified_at: '2026-11-20T04:41:14+00:00'
+- company: Cuesta Partners
+  ats: ashby
+  board_identifier: cuesta-partners
+  enabled: true
+  priority: 62
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 13
+    region_postings: 4
+    role_postings: 8
+    verified_at: '2026-11-20T04:44:24+00:00'
+- company: Cloudbeds
+  ats: greenhouse
+  board_identifier: cloudbeds
+  enabled: true
+  priority: 64
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 47
+    region_postings: 15
+    role_postings: 4
+    verified_at: '2026-11-20T04:40:33+00:00'
+- company: Turing
+  ats: greenhouse
+  board_identifier: turing
+  enabled: true
+  priority: 66
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 35
+    region_postings: 4
+    role_postings: 20
+    verified_at: '2026-11-20T04:42:39+00:00'
+- company: Docplanner
+  ats: ashby
+  board_identifier: docplanner
+  enabled: true
+  priority: 68
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 35
+    region_postings: 5
+    role_postings: 14
+    verified_at: '2026-11-20T04:44:35+00:00'
+- company: doola
+  ats: lever
+  board_identifier: doola
+  enabled: true
+  priority: 70
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 7
+    region_postings: 5
+    role_postings: 1
+    verified_at: '2026-11-20T04:40:43+00:00'
+- company: Fintual
+  ats: lever
+  board_identifier: fintual
+  enabled: true
+  priority: 72
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 4
+    region_postings: 4
+    role_postings: 1
+    verified_at: '2026-11-20T04:41:51+00:00'
+- company: Belvo
+  ats: ashby
+  board_identifier: belvo
+  enabled: true
+  priority: 74
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 3
+    region_postings: 3
+    role_postings: 1
+    verified_at: '2026-11-20T04:41:13+00:00'
+- company: RD Station
+  ats: greenhouse
+  board_identifier: rdstation
+  enabled: true
+  priority: 76
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 1
+    region_postings: 1
+    role_postings: 1
+    verified_at: '2026-11-20T04:44:35+00:00'
+- company: Traackr
+  ats: lever
+  board_identifier: traackr
+  enabled: true
+  priority: 78
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 1
+    region_postings: 1
+    role_postings: 1
+    verified_at: '2026-11-20T04:41:07+00:00'
+- company: Agent
+  ats: ashby
+  board_identifier: Agent
+  enabled: true
+  priority: 80
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 23
+    region_postings: 20
+    role_postings: 0
+    verified_at: '2026-11-20T04:44:26+00:00'
+- company: Payoneer
+  ats: greenhouse
+  board_identifier: payoneer
+  enabled: true
+  priority: 82
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 100
+    region_postings: 7
+    role_postings: 28
+    verified_at: '2026-11-20T04:42:51+00:00'
+- company: Yuno
+  ats: lever
+  board_identifier: yuno
+  enabled: true
+  priority: 84
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 7
+    region_postings: 4
+    role_postings: 1
+    verified_at: '2026-11-20T04:43:23+00:00'
+- company: Hopper
+  ats: ashby
+  board_identifier: hopper
+  enabled: true
+  priority: 86
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 29
+    region_postings: 2
+    role_postings: 12
+    verified_at: '2026-11-20T04:47:13+00:00'
+- company: Pinterest
+  ats: greenhouse
+  board_identifier: pinterest
+  enabled: true
+  priority: 88
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 175
+    region_postings: 2
+    role_postings: 72
+    verified_at: '2026-11-20T04:42:30+00:00'
+- company: Teramind
+  ats: lever
+  board_identifier: teramind
+  enabled: true
+  priority: 90
+  tags:
+  - latam
+  country_scope: LATAM
+  sectors:
+  - technology
+  verification:
+    postings: 1
+    region_postings: 1
+    role_postings: 0
+    verified_at: '2026-11-20T04:46:47+00:00'

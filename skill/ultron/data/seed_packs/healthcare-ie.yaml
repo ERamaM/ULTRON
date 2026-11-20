@@ -1,0 +1,37 @@
+pack:
+  id: healthcare-ie
+  usage: active
+  sector: pharma_health
+  region: IE
+  max_size: 60
+seeds:
+- company: HSE Dublin and North East
+  ats: icims
+  board_identifier: careers-hsedne.icims.com
+  enabled: true
+  priority: 10
+  tags:
+  - nursing
+  country_scope: IE
+  sectors:
+  - pharma_health
+  verification:
+    postings: 16
+    region_postings: 16
+    role_postings: 7
+    verified_at: '2026-11-20T04:47:20+00:00'
+- company: Beaumont Hospital
+  ats: icims
+  board_identifier: nurses-beaumonthospital.icims.com
+  enabled: true
+  priority: 12
+  tags:
+  - nursing
+  country_scope: IE
+  sectors:
+  - pharma_health
+  verification:
+    postings: 4
+    region_postings: 0
+    role_postings: 3
+    verified_at: '2026-11-20T04:47:22+00:00'

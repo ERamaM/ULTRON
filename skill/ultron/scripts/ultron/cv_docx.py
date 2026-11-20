@@ -9,7 +9,9 @@ and footers (often contact details) are left out. The archive and the XML are un
   parsing (and again by the parser's handlers), so no entity is ever defined or expanded and nothing
   outside the archive is fetched;
 - the body is parsed as a stream (expat handlers, no tree), with at most ``MAX_XML_ELEMENTS`` elements
-  and ``MAX_XML_DEPTH`` levels of nesting.
+  and ``MAX_XML_DEPTH`` levels of nesting;
+- no single tag may exceed ``MAX_XML_TAG_BYTES`` (checked before parsing, quotes included), because the
+  parser materializes all of a tag's attributes before any handler can count them.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ MAX_ARCHIVE_ENTRIES = 2_000
 MAX_DOCUMENT_XML_BYTES = 25_000_000
 MAX_XML_ELEMENTS = 300_000  # a long CV has a few tens of thousands
 MAX_XML_DEPTH = 128
+MAX_XML_TAG_BYTES = 64 * 1024  # a whole markup tag with its attributes; Word writes a few hundred bytes
 _CHUNK = 64 * 1024
 _BODY = "word/document.xml"
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
@@ -31,6 +34,8 @@ _W_P, _W_T, _W_TAB, _W_TYPE = f"{_W}p", f"{_W}t", f"{_W}tab", f"{_W}type"
 _W_NO_BREAK_HYPHEN = f"{_W}noBreakHyphen"
 _W_BREAKS = frozenset({f"{_W}br", f"{_W}cr"})
 _DOCTYPE = re.compile(rb"<!\s*(?:DOCTYPE|ENTITY)", re.IGNORECASE)
+# Characters that open or close a markup tag or a quoted attribute value.
+_TAG_TOKENS = re.compile(rb"[<>\"']")
 
 
 def _error(message: str, code: str = "no_extractable_text"):
@@ -130,6 +135,32 @@ def _reject_declaration(*_args) -> None:
     raise _error("The Word document declares a document type, which is not supported")
 
 
+def _check_tag_sizes(body: bytes) -> None:
+    """Reject a tag longer than ``MAX_XML_TAG_BYTES``; a quoted ``>`` does not end a tag.
+
+    A linear scan over the few significant characters, so a crafted tag cannot make the check itself costly.
+    """
+    start = -1  # offset of the open tag's "<", or -1 outside markup
+    quote = 0
+    for match in _TAG_TOKENS.finditer(body):
+        position, char = match.start(), body[match.start()]
+        if start < 0:
+            if char == 0x3C:  # "<"
+                start = position
+            continue
+        if position - start > MAX_XML_TAG_BYTES:
+            break
+        if quote:
+            if char == quote:
+                quote = 0
+        elif char in (0x22, 0x27):  # '"' or "'"
+            quote = char
+        elif char == 0x3E:  # ">"
+            start = -1
+    if start >= 0 and len(body) - start > MAX_XML_TAG_BYTES:
+        raise _error("The Word document body has an oversized tag", code="too_long")
+
+
 def _text(body: bytes) -> tuple[str, int]:
     """Paragraph text and the page count (explicit page breaks plus one)."""
     # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
@@ -137,6 +168,7 @@ def _text(body: bytes) -> tuple[str, int]:
         raise _error("The Word document body is not UTF-8")
     if _DOCTYPE.search(body):
         _reject_declaration()
+    _check_tag_sizes(body)
     handlers = _BodyText()
     parser = expat.ParserCreate(encoding="UTF-8", namespace_separator=" ")
     parser.StartElementHandler = handlers.start

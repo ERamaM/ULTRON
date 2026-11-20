@@ -212,3 +212,28 @@ def test_the_default_budgets_reject_millions_of_empty_siblings():
     with pytest.raises(cv.CvExtractionError) as raised:
         cv_docx._text(body)
     assert raised.value.code == "too_long"
+
+def test_a_tag_with_huge_attribute_volume_is_rejected_before_parsing(tmp_path, monkeypatch):
+    # PR #59 security review: expat materializes every attribute of a tag before a handler can count it.
+    monkeypatch.setattr(cv_docx, "MAX_XML_TAG_BYTES", 2_000)
+    attributes = " ".join(f'a{i}="v"' for i in range(1_000))
+    body = f"<w:p {attributes}><w:r><w:t>ok</w:t></w:r></w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert raised.value.code == "too_long"
+
+
+def test_a_quoted_greater_than_sign_does_not_split_the_tag_size_check(tmp_path, monkeypatch):
+    monkeypatch.setattr(cv_docx, "MAX_XML_TAG_BYTES", 2_000)
+    attributes = " ".join(f'a{i}=">"' for i in range(1_000))
+    body = f"<w:p {attributes}><w:r><w:t>ok</w:t></w:r></w:p>"
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert raised.value.code == "too_long"
+
+
+def test_ordinary_tags_stay_under_the_tag_size_budget(tmp_path):
+    attributes = " ".join(f'a{i}="value"' for i in range(50))
+    body = f"<w:p {attributes}><w:r><w:t>Experience</w:t></w:r></w:p>"
+    result = cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert result.text.strip() == "Experience"

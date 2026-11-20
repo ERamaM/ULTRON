@@ -35,6 +35,7 @@ from ultron.core.ats.registry import (
         ("https://acme.wd1.myworkdayjobs.com/en-US/External/job/1", "workday"),
         ("https://acme.icims.com/jobs/1", "icims"),
         ("https://acme.taleo.net/careersection/acme/job/1", "taleo"),
+        ("https://acme.hirehive.com/staff-nurse-Ab12Cd", "hirehive"),
     ],
 )
 def test_extract_seed_supports_each_registered_vendor(url, vendor):

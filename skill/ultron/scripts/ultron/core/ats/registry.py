@@ -484,6 +484,10 @@ VENDOR_SPECS: tuple[AtsVendorSpec, ...] = (
     ),
     AtsVendorSpec(VENDOR_DATA_BY_NAME["icims"], _icims_seed),
     AtsVendorSpec(VENDOR_DATA_BY_NAME["taleo"], _taleo_seed),
+    AtsVendorSpec(
+        VENDOR_DATA_BY_NAME["hirehive"],
+        lambda url, hint: _subdomain_seed(url, hint, "hirehive.com"),
+    ),
 )
 
 SPEC_BY_NAME = {spec.name: spec for spec in VENDOR_SPECS}

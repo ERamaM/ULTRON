@@ -1,0 +1,472 @@
+pack:
+  id: healthcare-us
+  usage: active
+  sector: pharma_health
+  region: US
+  max_size: 60
+seeds:
+- company: HSHS
+  ats: workday
+  board_identifier: hshs.wd1.myworkdayjobs.com/hshscareers
+  enabled: true
+  priority: 10
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 470
+    region_postings: 445
+    role_postings: 206
+    verified_at: '2026-11-20T04:52:55+00:00'
+- company: Northeast Georgia Health System
+  ats: workday
+  board_identifier: nghs.wd1.myworkdayjobs.com/External
+  enabled: true
+  priority: 12
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 38
+    role_postings: 17
+    verified_at: '2026-11-20T04:58:30+00:00'
+- company: Midi Health
+  ats: greenhouse
+  board_identifier: midihealth
+  enabled: true
+  priority: 14
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 53
+    region_postings: 20
+    role_postings: 24
+    verified_at: '2026-11-20T04:49:56+00:00'
+- company: NYU Langone Health
+  ats: workday
+  board_identifier: nyuhs.wd12.myworkdayjobs.com/nyuhscareers1
+  enabled: true
+  priority: 16
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 35
+    role_postings: 13
+    verified_at: '2026-11-20T04:58:40+00:00'
+- company: UMass Memorial Health
+  ats: workday
+  board_identifier: ummh.wd1.myworkdayjobs.com/Careers
+  enabled: true
+  priority: 18
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 28
+    role_postings: 12
+    verified_at: '2026-11-20T04:58:17+00:00'
+- company: Lyra Health
+  ats: lever
+  board_identifier: lyrahealth
+  enabled: true
+  priority: 20
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 453
+    region_postings: 75
+    role_postings: 99
+    verified_at: '2026-11-20T04:48:51+00:00'
+- company: Lurie Children's
+  ats: workday
+  board_identifier: luriechildrens.wd1.myworkdayjobs.com/externalportal
+  enabled: true
+  priority: 22
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 38
+    role_postings: 7
+    verified_at: '2026-11-20T04:58:32+00:00'
+- company: Strive Health
+  ats: greenhouse
+  board_identifier: strivehealth
+  enabled: true
+  priority: 24
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 37
+    region_postings: 36
+    role_postings: 6
+    verified_at: '2026-11-20T04:50:04+00:00'
+- company: Two Chairs
+  ats: greenhouse
+  board_identifier: twochairs
+  enabled: true
+  priority: 26
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 42
+    region_postings: 41
+    role_postings: 4
+    verified_at: '2026-11-20T04:49:30+00:00'
+- company: Workit Health
+  ats: greenhouse
+  board_identifier: workithealth
+  enabled: true
+  priority: 28
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 12
+    region_postings: 12
+    role_postings: 4
+    verified_at: '2026-11-20T04:49:51+00:00'
+- company: Cohere Health
+  ats: greenhouse
+  board_identifier: coherehealth
+  enabled: true
+  priority: 30
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 63
+    region_postings: 30
+    role_postings: 4
+    verified_at: '2026-11-20T04:50:10+00:00'
+- company: Shriners Children's
+  ats: workday
+  board_identifier: shrinerschildrens.wd12.myworkdayjobs.com/Shriners
+  enabled: true
+  priority: 32
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 33
+    role_postings: 4
+    verified_at: '2026-11-20T04:58:44+00:00'
+- company: Folx Health
+  ats: greenhouse
+  board_identifier: folxhealth
+  enabled: true
+  priority: 34
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 8
+    region_postings: 8
+    role_postings: 1
+    verified_at: '2026-11-20T04:50:37+00:00'
+- company: Nest Health
+  ats: ashby
+  board_identifier: nest-health
+  enabled: true
+  priority: 36
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 11
+    region_postings: 5
+    role_postings: 1
+    verified_at: '2026-11-20T04:50:58+00:00'
+- company: Sprinter Health
+  ats: ashby
+  board_identifier: sprinter-health
+  enabled: true
+  priority: 38
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 66
+    region_postings: 66
+    role_postings: 1
+    verified_at: '2026-11-20T04:50:20+00:00'
+- company: Twin Health
+  ats: greenhouse
+  board_identifier: twinhealth
+  enabled: true
+  priority: 40
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 31
+    role_postings: 1
+    verified_at: '2026-11-20T04:50:31+00:00'
+- company: St. Lawrence Health
+  ats: workday
+  board_identifier: rrhs.wd5.myworkdayjobs.com/RRH
+  enabled: true
+  priority: 42
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 1326
+    region_postings: 0
+    role_postings: 522
+    verified_at: '2026-11-20T04:54:35+00:00'
+- company: Endeavor Health
+  ats: workday
+  board_identifier: nshs.wd1.myworkdayjobs.com/ns-eeh
+  enabled: true
+  priority: 44
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 1355
+    region_postings: 0
+    role_postings: 395
+    verified_at: '2026-11-20T04:56:56+00:00'
+- company: Children's Healthcare of Atlanta
+  ats: workday
+  board_identifier: choa.wd12.myworkdayjobs.com/externalcareers
+  enabled: true
+  priority: 46
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 536
+    region_postings: 0
+    role_postings: 92
+    verified_at: '2026-11-20T04:55:15+00:00'
+- company: Memorial Hermann
+  ats: workday
+  board_identifier: memorialhermann.wd5.myworkdayjobs.com/external
+  enabled: true
+  priority: 48
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 32
+    verified_at: '2026-11-20T04:58:19+00:00'
+- company: MUSC
+  ats: workday
+  board_identifier: musc.wd1.myworkdayjobs.com/MUSC
+  enabled: true
+  priority: 50
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 18
+    verified_at: '2026-11-20T04:58:51+00:00'
+- company: University Health Kansas City
+  ats: workday
+  board_identifier: trumed.wd1.myworkdayjobs.com/TMC_External_Career_Site
+  enabled: true
+  priority: 52
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 14
+    verified_at: '2026-11-20T04:58:26+00:00'
+- company: Houston Methodist
+  ats: workday
+  board_identifier: houstonmethodist.wd12.myworkdayjobs.com/GTI
+  enabled: true
+  priority: 54
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 12
+    verified_at: '2026-11-20T04:58:33+00:00'
+- company: Mercy Medical Center Cedar Rapids
+  ats: workday
+  board_identifier: mercycare.wd5.myworkdayjobs.com/Mercy_Cedar_Rapids_Careers
+  enabled: true
+  priority: 56
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 11
+    verified_at: '2026-11-20T04:58:38+00:00'
+- company: Banner Health
+  ats: workday
+  board_identifier: bannerhealth.wd108.myworkdayjobs.com/Careers
+  enabled: true
+  priority: 58
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 10
+    verified_at: '2026-11-20T04:58:21+00:00'
+- company: Wyandot Memorial Hospital
+  ats: workday
+  board_identifier: wyandotmemorial.wd1.myworkdayjobs.com/WMH_Careers
+  enabled: true
+  priority: 60
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 24
+    region_postings: 0
+    role_postings: 10
+    verified_at: '2026-11-20T04:52:20+00:00'
+- company: Baptist Health Jacksonville
+  ats: workday
+  board_identifier: baptistjax.wd1.myworkdayjobs.com/External_Careers
+  enabled: true
+  priority: 62
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 9
+    verified_at: '2026-11-20T04:58:42+00:00'
+- company: Ohio State University
+  ats: workday
+  board_identifier: osu.wd1.myworkdayjobs.com/OSUCareers
+  enabled: true
+  priority: 64
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 0
+    role_postings: 9
+    verified_at: '2026-11-20T04:58:36+00:00'
+- company: Clover Health
+  ats: greenhouse
+  board_identifier: cloverhealth
+  enabled: true
+  priority: 66
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 54
+    region_postings: 36
+    role_postings: 5
+    verified_at: '2026-11-20T04:48:59+00:00'
+- company: Oscar Health
+  ats: greenhouse
+  board_identifier: oscar
+  enabled: true
+  priority: 68
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 188
+    region_postings: 137
+    role_postings: 5
+    verified_at: '2026-11-20T04:48:54+00:00'
+- company: Trinity Health
+  ats: workday
+  board_identifier: trinityhealth.wd1.myworkdayjobs.com/Jobs
+  enabled: true
+  priority: 70
+  tags:
+  - nursing
+  country_scope: US
+  sectors:
+  - pharma_health
+  verification:
+    postings: 40
+    region_postings: 2
+    role_postings: 5
+    verified_at: '2026-11-20T04:58:24+00:00'

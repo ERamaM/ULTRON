@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Senior Machine Learning Engineer 109",
+  "location": "Berlin or Madrid",
+  "remote_text": "Hybrid, office attendance required",
+  "body_text": "Build machine learning services and model evaluation; senior-level experience. Office attendance is required on selected days. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-core-109",
+  "is_open_hint": true
+}

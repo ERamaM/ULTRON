@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "es",
+  "title": "Junior Ingenieria Frontend 114",
+  "location": "Paris",
+  "remote_text": "Presencial cinco dias por semana",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia inicial. El trabajo se realiza desde la oficina. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-114",
+  "is_open_hint": true
+}

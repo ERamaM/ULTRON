@@ -10,6 +10,7 @@ from ultron.core.ats.clients.breezy import fetch_breezy_jobs
 from ultron.core.ats.clients.comeet import fetch_comeet_jobs
 from ultron.core.ats.clients.factorial import fetch_factorial_jobs
 from ultron.core.ats.clients.greenhouse import fetch_greenhouse_jobs
+from ultron.core.ats.clients.hirehive import fetch_hirehive_jobs
 from ultron.core.ats.clients.homerun import fetch_homerun_jobs
 from ultron.core.ats.clients.icims import fetch_icims_jobs
 from ultron.core.ats.clients.jazzhr import fetch_jazzhr_jobs
@@ -31,6 +32,7 @@ FETCHERS: dict[str, Callable] = {
     "comeet": fetch_comeet_jobs,
     "factorial": fetch_factorial_jobs,
     "greenhouse": fetch_greenhouse_jobs,
+    "hirehive": fetch_hirehive_jobs,
     "homerun": fetch_homerun_jobs,
     "icims": fetch_icims_jobs,
     "jazzhr": fetch_jazzhr_jobs,
@@ -80,6 +82,7 @@ __all__ = [
     "fetch_comeet_jobs",
     "fetch_factorial_jobs",
     "fetch_greenhouse_jobs",
+    "fetch_hirehive_jobs",
     "fetch_homerun_jobs",
     "fetch_icims_jobs",
     "fetch_jazzhr_jobs",

@@ -88,6 +88,7 @@ ATS_VENDOR_HOST_LABELS = (
     "myworkdayjobs",
     "icims",
     "taleo",
+    "hirehive",
 )
 LOCATION_VERB_HINTS = (
     "build",

@@ -23,7 +23,7 @@ def _head(og_title: str, *, site_name: str = "", title_tag: str = "") -> str:
 def test_og_title_slogan_with_company_is_stripped_and_seniority_not_inferred():
     # Modelled on a live Greenhouse page whose og:title appends the employer's careers slogan.
     html = _head(
-        "Data Platform Engineer (m/f/d) | Lead Your Journey - with ExampleBus.", site_name="ExampleBus Career"
+        "Data Platform Engineer (m/f/d) | Lead The Way - with ExampleBus.", site_name="ExampleBus Career"
     ) + "<body><p>Job Detail - ExampleBus Career</p></body></html>"
     hints = {"title": "Data Platform Engineer (m/f/d)", "company": "ExampleBus"}
     job = parse_ats_page(_page(html), ats_hints=hints)
@@ -32,7 +32,7 @@ def test_og_title_slogan_with_company_is_stripped_and_seniority_not_inferred():
 
 
 def test_og_title_suffix_stripped_without_ats_hint_when_it_names_the_site():
-    html = _head("Backend Engineer | Lead Your Journey - with ExampleBus.", site_name="ExampleBus Career")
+    html = _head("Backend Engineer | Lead The Way - with ExampleBus.", site_name="ExampleBus Career")
     job = base.parse_generic(_page(html + "<body></body></html>", final_url="https://careers.examplebus.test/jobs/7"))
     assert job.title == "Backend Engineer"
 
@@ -79,6 +79,13 @@ def test_jsonld_title_is_never_stripped():
     """
     job = base.parse_generic(_page(html, final_url="https://jobs.acme.test/openings/42"))
     assert job.title == "Platform Engineer - Acme Cloud"
+
+
+@pytest.mark.parametrize("h1", ["Acme", "Careers", "Acme Careers"])
+def test_site_name_or_careers_h1_is_not_a_title_anchor(h1):
+    html = _head("Acme | Senior Data Engineer", site_name="Acme") + f"<body><h1>{h1}</h1></body></html>"
+    job = base.parse_generic(_page(html, final_url="https://jobs.acme.test/openings/42"))
+    assert job.title == "Acme | Senior Data Engineer"
 
 
 def test_generic_page_title_left_after_stripping_yields_to_the_ats_title():

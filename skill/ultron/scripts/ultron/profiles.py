@@ -64,6 +64,93 @@ def list_profiles() -> list[dict]:
     return sorted(found.values(), key=lambda p: p["slug"])
 
 
+# Every term list a profile can hold. Each must be a YAML list of strings: a bare string would be read
+# character by character by the stages (single-letter role terms, a query plan made of letters).
+TERM_LIST_FIELDS = (
+    "criteria.sectors",
+    "criteria.role_focus_terms",
+    "criteria.target_titles",
+    "criteria.seniority.preferred_terms",
+    "criteria.seniority.excluded_terms",
+    "criteria.remote_policy.positive_terms",
+    "criteria.remote_policy.negative_terms",
+    "criteria.location_scope.preferred",
+    "criteria.location_scope.eligibility_terms",
+    "criteria.location_scope.excluded_terms",
+    "criteria.exclusion_terms",
+    "criteria.specialties",
+    "criteria.fallback_fit_signals",
+    "criteria.role_signal_terms",
+    "criteria.role_ambiguity_terms",
+    "criteria.data_scientist_signal_terms",
+    "criteria.vocabulary_packs",
+    "query_templates.core_titles",
+    "query_templates.titles",
+    "query_templates.regions",
+    "query_templates.site_scopes",
+    "query_templates.technologies",
+    "query_templates.specialties",
+    "query_templates.exclusion_terms",
+)
+# Sections that the stages read only when they are mappings (anything else is silently ignored).
+MAPPING_FIELDS = ("criteria.seniority", "criteria.remote_policy", "criteria.location_scope", "query_templates")
+FLAG_FIELDS = ("enabled", "criteria.seniority.required")
+# Every field some code reads or writes; any other key is ignored by the CLI (``profile explain`` warns about it).
+KNOWN_FIELDS = frozenset({
+    "slug", "name", "description", "enabled", "source_cv", "prompt", "criteria", "query_templates",
+    "worked_examples", "examples", "role_family_label", "criteria.role_family_label",
+    "source_kind", "created_at",  # metadata written by the bundled example and the MARK III import
+    "criteria.seniority.required", "criteria.remote_policy.required", *MAPPING_FIELDS, *TERM_LIST_FIELDS,
+})
+
+
+def _lookup(data: dict, path: str) -> tuple[bool, object]:
+    """``(present, value)`` of a dotted ``path``; absent when a parent is missing or not a mapping."""
+    node: object = data
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return False, None
+        node = node[part]
+    return True, node
+
+
+def _shape_errors(data: dict) -> list[str]:
+    errors: list[str] = []
+    for path in MAPPING_FIELDS:
+        present, value = _lookup(data, path)
+        if present and value is not None and not isinstance(value, dict):
+            errors.append(f"{path} must be a mapping of its fields (see the profile schema)")
+    for path in FLAG_FIELDS:
+        present, value = _lookup(data, path)
+        if present and value is not None and not isinstance(value, bool):
+            errors.append(f"{path} must be true or false")
+    for path in TERM_LIST_FIELDS:
+        present, value = _lookup(data, path)
+        if present and isinstance(value, str):
+            errors.append(f"{path} must be a list of strings, not a single text: write [{value!r}]")
+        elif present and value is not None and not isinstance(value, list):
+            errors.append(f"{path} must be a list of strings")
+    return errors
+
+
+def unknown_fields(data: dict) -> list[str]:
+    """Dotted paths of keys the CLI never reads (typos, or preferences such as salary that belong in ``prompt``)."""
+    found: list[str] = []
+
+    def walk(node: object, prefix: str) -> None:
+        if not isinstance(node, dict):
+            return
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if path not in KNOWN_FIELDS:
+                found.append(path)
+            elif path in MAPPING_FIELDS or path == "criteria":
+                walk(value, path)
+
+    walk(data, "")
+    return found
+
+
 def _term_list_errors(value, where: str) -> list[str]:
     errors: list[str] = []
     if isinstance(value, list):
@@ -96,6 +183,9 @@ def validate_profile(data: dict) -> list[str]:
     if isinstance(policy, dict) and "required" in policy and policy["required"] not in {"full_remote", "any"}:
         errors.append("criteria.remote_policy.required must be 'full_remote' or 'any'")
     errors.extend(_term_list_errors(criteria, "criteria"))
+    if isinstance(data.get("query_templates"), dict):
+        errors.extend(_term_list_errors(data["query_templates"], "query_templates"))
+    errors.extend(_shape_errors(data))
     errors.extend(_vocabulary_pack_errors(criteria.get("vocabulary_packs")))
     return errors
 

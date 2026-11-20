@@ -17,6 +17,7 @@ can refine it later.
 | Locations | Where do you live? In which countries or regions can you legally work? Which time zones work? | `criteria.location_scope.preferred`, `eligibility_terms` (every spelling postings use, such as `spain`, `españa`, `cet`), `excluded_terms` (such as `us only`); `query_templates.regions` |
 | Must-have and nice-to-have terms | Which skills, tools or domains should a good match mention? Which ones make the role clearly yours? | nice-to-have: `criteria.specialties`, `query_templates.technologies`; must-have for the family: `criteria.role_signal_terms` |
 | Exclusions | Which words in a title mean "not for me" (manager, sales, intern)? | `criteria.exclusion_terms`, `query_templates.exclusion_terms` |
+| Industry | Which industries or company types (fintech, hospitals, startups)? | `criteria.sectors` only with the fixed values in `references/profile.md` ("Sectors", such as `finance_insurance`); niches such as fintech or "no crypto" also go into `prompt` |
 | Companies | Companies you want included, or avoided? | not a CLI filter: record them in `prompt`; propose the wanted ones as seeds during a search and discard postings from avoided ones when you evaluate |
 | Salary | A minimum salary or currency? | not a CLI filter (postings rarely state it): record it in `prompt` and mention it when you evaluate |
 | Languages | Which languages do you speak at work? | not a CLI filter: record them in `prompt`; a required language they lack can go into `criteria.exclusion_terms` (such as `fluent german`) |
@@ -31,9 +32,11 @@ to replace it.
    the schema in `references/profile.md`. Fill only what the interview gave; leave other fields out.
 2. `ultron profile validate --from <file>`: fix every listed error.
 3. `ultron profile explain --from <file>`: read `role_match`, `geography.scope`, `remote`,
-   `title_exclusions` and the `query_plan`, and fix anything in `warnings`. If the user ran a search
-   before, add `--run <run_id>` to show how many earlier postings the draft keeps or discards
-   (`replay`).
+   `title_exclusions` and the `query_plan`, and fix anything in `warnings`. Check that no title the
+   user wants contains a `title_exclusions.effective` term (`references/profile.md`, "Title
+   exclusions"). Never invent fields for preferences the CLI cannot filter: they go into `prompt`.
+   If the user ran a search before, add `--run <run_id>` to show how many earlier postings the
+   draft keeps or discards (`replay`).
 4. Summarize the draft for the user in plain words: the roles it matches, the level, the work mode,
    where they must be eligible, what it excludes, the first few search queries, and the notes that you,
    not the CLI, will apply (`prompt`). Ask for corrections and update the draft.

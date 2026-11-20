@@ -71,6 +71,19 @@ def test_the_body_opens_a_remote_job_but_not_an_onsite_one(capsys):
     assert rows["Berlin, Germany"]["evaluation_verdict"] == "keep"
 
 
+def test_a_us_state_licence_limits_an_onsite_job_that_names_no_country(capsys):
+    profile = json.loads(json.dumps(PROFILE))
+    profile["criteria"]["remote_policy"] = {"required": "any"}
+    licence = " Current state licensure and compliance with federal and state regulations are required."
+    rows = _run(capsys, [
+        ("Senior Machine Learning Engineer", "Riverside Campus", "On-site", ML_BODY + licence),
+        ("Senior Machine Learning Engineer", "Valencia", "On-site", ML_BODY),
+    ], profile)
+    assert rows["Riverside Campus"]["evaluation_verdict"] == "unsure"
+    assert "united states" in rows["Riverside Campus"]["eligibility_evidence"].lower()
+    assert rows["Valencia"]["evaluation_verdict"] == "keep"
+
+
 def test_a_remote_profile_sees_one_row_for_a_posting_listed_per_city(capsys):
     title = "Senior Machine Learning Engineer - Remote EU"
     rows = _run(capsys, [

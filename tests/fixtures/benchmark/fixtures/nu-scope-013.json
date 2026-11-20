@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Registered Nurse - Dialysis",
+  "location": "Clinic 2041 - Riverside",
+  "remote_text": "Onsite",
+  "body_text": "Deliver dialysis patient care. Current state licensure as a Registered Nurse is required, and you must meet the practice requirements of the state in which you are employed. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-013",
+  "is_open_hint": true
+}

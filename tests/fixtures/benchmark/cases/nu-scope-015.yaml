@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-scope-015
+profile: nurse-ireland-onsite
+language: en
+role_track: core
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: high
+vendor: generic_html
+fixture: ../fixtures/nu-scope-015.json
+split: dev
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: high
+  open_status: true
+expected_stage: keep
+notes: 'Added on 2026-11-20 (owner-delegated labelling, session 7 US-location cases: a hand-written look-alike control), labelled from the text against nurse-ireland-onsite: relevant (staff nurse role in Mullingar, County Westmeath, with NMBI registration).'

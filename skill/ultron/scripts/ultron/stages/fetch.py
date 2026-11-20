@@ -24,7 +24,7 @@ from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.core.urlpolicy import admit_url
 from ultron.http_factory import client_for_run
-from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.stages.feeds import is_aggregator_host
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -521,6 +521,7 @@ def fetch(run_id: str) -> dict:
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
+    skipped_vendors: set[str] = set()
     budget_spent = nav_stopped = False
     attempted = nav_failures = 0
     for candidate, identity in selected:
@@ -534,9 +535,16 @@ def fetch(run_id: str) -> dict:
         if candidate.domain in skipped_hosts:
             errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
             continue
+        if (vendor := client.vendor_for(candidate.domain)) in skipped_vendors:
+            errors.append({"url": url, "error": "skipped_vendor_budget_exhausted", "vendor": vendor})
+            continue
         attempted += 1
         try:
             status, final_url, html = client.get_text(url)
+        except VendorBlocked as exc:
+            # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
+            errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
+            continue
         except HostBlocked:
             if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
                 postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
@@ -548,6 +556,9 @@ def fetch(run_id: str) -> dict:
             if exc.scope == "host":
                 skipped_hosts.add(exc.host or candidate.domain)
                 errors.append({"url": url, "error": f"host_budget_exhausted: {exc.host}"})
+            elif exc.scope == "vendor":
+                skipped_vendors.add(exc.vendor)
+                errors.append({"url": url, "error": f"vendor_budget_exhausted: {exc.vendor}", "vendor": exc.vendor})
             else:
                 budget_spent = True
                 errors.append({"url": url, "error": "request_budget_exhausted"})
@@ -635,7 +646,9 @@ def fetch(run_id: str) -> dict:
     runs.mark_stage(run_id, "fetch")
     summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
                "navigation_failures": nav_failures, "requests": client.requests_made,
-               "requests_by_domain": top_hosts(client.requests_by_host())}
+               "requests_by_domain": top_hosts(client.requests_by_host()),
+               "requests_by_vendor": dict(sorted(client.requests_by_vendor().items())),
+               "vendors_blocked": client.vendors_blocked()}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
     return summary

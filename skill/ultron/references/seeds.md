@@ -63,7 +63,8 @@ gets the rest from you, in rounds:
 
 Read `seeds_unresolved.jsonl` after each round. A company that failed may come back in the next round
 only with a different, real board (see the reason table below); `budget_exhausted`, `host_blocked`,
-`host_budget_exhausted` and `page_budget_exhausted` companies were never checked and may come back unchanged.
+`host_budget_exhausted`, `vendor_budget_exhausted` and `page_budget_exhausted` companies were never checked and may
+come back unchanged.
 
 ## Proposal format (JSONL)
 
@@ -158,8 +159,9 @@ next call.
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `host_budget_exhausted` | The call's request budget for that ATS host ran out before the board was checked. Verify the company again in a new call. |
+| `vendor_budget_exhausted` | The run's request cap for that ATS vendor (all its hosts together) left no room for verification: verification may use half of it, and fetch keeps the rest. Keep the company: it can be verified in a later run. |
 | `page_budget_exhausted` | The company's careers page was not opened: one call opens at most 10 careers pages (2 per site). Verify the company again in a new call, or give its ATS board as `ats` + `board`. |
-| `host_blocked` | The ATS host kept answering "too many requests" (or "forbidden"), so the board was not checked; the CLI stops calling that host for the rest of the call. Keep the company and verify it again in a later run; do not drop it. |
+| `host_blocked` | The ATS host, or other hosts of the same vendor, kept answering "too many requests" (or "forbidden"), so the board was not checked; the CLI stops calling that host for the rest of the call, and that vendor for the rest of the run. Keep the company and verify it again in a later run; do not drop it. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
 | `unparseable_board` | The board page loaded but no listings could be read (e.g. a script-rendered Taleo career section). Drop it; its postings can still arrive through web search. |
 | `ownership_unknown` | A guessed board answered (see `candidate`) and was stored tagged `ownership:unknown`, but nothing ties it to the company. Optional: if you know the company's domain or real board, retry with `domain` or `ats` + `board` to get it verified. |

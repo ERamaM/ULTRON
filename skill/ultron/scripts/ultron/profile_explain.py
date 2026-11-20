@@ -207,6 +207,7 @@ def replay_run(profile: dict, run_id: str) -> dict:
         "kept": len(kept),
         "ambiguous": len(ambiguous),
         "discarded": len(discarded),
+        "rescued_discards": sum(1 for item in ambiguous if "rescued_discard" in item),
         "discard_reasons": dict(reasons.most_common()),
         "compared_with_run": bool(before),
         "changes": dict(transitions.most_common()),

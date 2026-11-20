@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ultron.core.models import ClassificationSignals, ExtractedJob
 from ultron.core.rules import geo_eu, geography
 from ultron.core.rules import hard_filters as h
@@ -518,3 +520,96 @@ def test_in_office_matches_whole_phrase_only():
     assert ineligible("Berlin Office") is False
     assert ineligible("Lisbon Office") is False
     assert ineligible("Berlin, in office") is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Build RAG pipelines. No geographic restriction or office attendance. Applications remain open.",
+        "No relocation or office attendance required.",
+        "Fully distributed, without travel or office attendance.",
+    ],
+)
+def test_negated_office_attendance_in_a_list_keeps_full_remote(body):
+    assert h.is_full_remote_only("Remote worldwide", body) is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Office attendance is required twice a month.",
+        "No visa sponsorship. Office attendance required on Mondays.",
+        "No geographic restriction, but office attendance is expected weekly.",
+    ],
+)
+def test_office_attendance_without_negation_is_still_a_conflict(body):
+    assert h.is_full_remote_only("Remote worldwide", body) is False
+
+
+@pytest.mark.parametrize(
+    ("body", "full_remote"),
+    [
+        ("Remote-friendly interviews. The position is onsite; gym membership included.", False),
+        ("This is an on-site role at our Madrid HQ with free lunch. Remote interviews available.", False),
+        ("This role is fully onsite in Berlin (catering provided). We work remote on Fridays.", False),
+        ("We offer on-site therapy sessions. This is a remote position.", True),
+        ("Remote role. Perks: on-site gym at every hub, in-office lunch on Fridays.", True),
+        ("Remote role. Benefits include counseling, therapy placement, on-site support and legal guidance.", True),
+        ("Remote interviews available. We provide meals and the position is onsite.", False),
+        ("Remote interviews. Free lunch, and you work on-site in Madrid.", False),
+    ],
+)
+def test_onsite_perk_exemption_needs_the_perk_attached_to_the_onsite_term(body, full_remote):
+    assert h.is_full_remote_only("", body) is full_remote
+
+
+@pytest.mark.parametrize(
+    ("body", "remote_only"),
+    [
+        ("Remote work. Benefits include an on-site fully equipped gym.", True),
+        ("Remote work. Benefits include on-site mental-health counseling.", True),
+        ("Remote. The position is on-site and gym access is included.", False),
+        ("Remote. You will work on-site with gym access.", False),
+        ("Remote. The position is onsite; gym membership included.", False),
+    ],
+)
+def test_onsite_benefit_allows_modifiers_but_not_another_clause(body, remote_only):
+    assert h.is_full_remote_only("Remote", body) is remote_only
+
+
+def test_onsite_benefit_split_across_extracted_lines():
+    from ultron.core.extractors.ats_extractors.base import parse_generic
+    from ultron.core.models import JobRawPage
+
+    url = "https://boards.greenhouse.io/acme/jobs/1"
+    html = ("<html><body><h1>Engineer</h1><p>Remote work. Benefits include an on-site <b>gym</b> and "
+            "<i>fully equipped</i> on-site <span>fitness</span> room.</p></body></html>")
+    body = parse_generic(JobRawPage(url=url, final_url=url, status_code=200, html=html)).body_text
+    assert "on-site\ngym" in body  # the extractor joins text nodes with newlines
+    assert h.is_full_remote_only("Remote", body) is True
+    assert h.is_full_remote_only("Remote", "Remote work. Benefits include an on-site\ngym.") is True
+    assert h.is_full_remote_only("Remote", "Remote. The position is on-site\nand gym access is included.") is False
+
+
+@pytest.mark.parametrize(
+    ("body", "remote_only"),
+    [
+        # Perk after the term.
+        ("Remote work. Benefits include an on-site gym.", True),
+        ("Remote work. Benefits include an on-site fully equipped gym.", True),
+        ("Remote work. Benefits include on-site mental-health counseling.", True),
+        ("Remote work. Benefits include an on-site\ngym.", True),
+        # Perk before the term.
+        ("Remote work. Benefits include a gym on-site.", True),
+        ("Remote work. Free meals are provided on-site.", True),
+        ("Remote work. Parking is available on-site for office visits.", True),
+        ("Remote work. Lunch offered onsite on Fridays.", True),
+        # Another clause: still onsite.
+        ("Remote. The position is onsite; gym membership included.", False),
+        ("Remote. You will work on-site with gym access.", False),
+        ("Remote. The role is on-site and meals are provided.", False),
+        ("Remote. The position is on-site and gym access is included.", False),
+    ],
+)
+def test_onsite_perk_wordings(body, remote_only):
+    assert h.is_full_remote_only("Remote", body) is remote_only

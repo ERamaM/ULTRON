@@ -47,6 +47,15 @@ def _has_contextual_hybrid_conflict(body_text: str) -> bool:
     return False
 
 
+# "No geographic restriction or office attendance": a negation whose coordinated list (same clause, up to
+# three words before "or"/"nor") ends right before the term negates the term too.
+_COORDINATED_NEGATION_BEFORE_RE = re.compile(r"\b(?:no|without|not)\s+(?:[^\s.;:!?,]+\s+){0,3}(?:or|nor)\s+$")
+
+
+def _negated_by_coordination(text: str, start: int) -> bool:
+    return _COORDINATED_NEGATION_BEFORE_RE.search(text, max(0, start - 60), start) is not None
+
+
 def _has_contextual_onsite_conflict(body_text: str) -> bool:
     low = body_text.lower()
     negation_terms = rules_data.ONSITE_NEGATION_TERMS | rules_data.REMOTE_CONFLICT_NEGATION_TERMS
@@ -65,7 +74,7 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
             context_start = max(0, match.start() - 45)
             context_end = min(len(low), match.end() + 25)
             context = low[context_start:context_end]
-            if any(negation in context for negation in negation_terms):
+            if any(negation in context for negation in negation_terms) or _negated_by_coordination(low, match.start()):
                 continue
             return True
 
@@ -73,12 +82,49 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
         context_start = max(0, match.start() - 60)
         context_end = min(len(low), match.end() + 25)
         context = low[context_start:context_end]
-        if any(negation in context for negation in negation_terms):
+        if any(negation in context for negation in negation_terms) or _negated_by_coordination(low, match.start()):
             continue
-        if any(perk in context for perk in rules_data.ONSITE_BENEFIT_CONTEXT_TERMS):
+        if _is_onsite_benefit(low, match):
             continue
         return True
     return False
+
+
+_ONSITE_BENEFIT_TERMS_RE = "|".join(re.escape(term) for term in sorted(rules_data.ONSITE_BENEFIT_CONTEXT_TERMS))
+# Up to two modifier words may sit between the term and the perk noun ("on-site fully equipped gym",
+# "on-site mental-health counseling"), but not a conjunction or verb that starts another clause. Any
+# whitespace counts, since extracted HTML can break "on-site <b>gym</b>" into "on-site\ngym".
+_ONSITE_BENEFIT_AFTER_RE = re.compile(
+    r"[\s-]*(?:(?!(?:and|or|but|with|is|are|was|were|be|to|for)\b)[\w-]+\s+){0,2}?"
+    r"(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b"
+)
+_ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*(?:,|\band|\bor)\s+$")
+# The perk noun right before the term ("gym on-site"), optionally with "is/are" and one participle
+# ("meals are provided on-site", "parking is available on-site").
+_ONSITE_BENEFIT_PRECEDES_RE = re.compile(
+    r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")(?:\s+(?:is|are))?(?:\s+(?:provided|available|offered|included))?\s+$"
+)
+
+
+def _is_onsite_benefit(text: str, match: re.Match[str]) -> bool:
+    """True when the onsite term describes a perk, not the work mode.
+
+    Recognized (deliberately bounded; other perk wordings are a known limitation and count as onsite):
+    - the perk noun after the term, at most two modifier words later: "on-site gym", "on-site fully equipped
+      gym", "in-office lunch" (line breaks from extracted HTML allowed; no conjunction or verb in between);
+    - the perk noun right before the term, optionally with "is/are" plus provided/available/offered/included:
+      "gym on-site", "meals are provided on-site", "parking is available on-site";
+    - the term as the next item of a perk list in the same clause, after a comma/"and"/"or": "counseling,
+      therapy placement, on-site support".
+    Not recognized, so still onsite: a perk in another clause ("The position is onsite; gym membership
+    included", "The role is on-site and meals are provided", "You will work on-site with gym access").
+    """
+    if _ONSITE_BENEFIT_AFTER_RE.match(text, match.end()):
+        return True
+    window_start = max(0, match.start() - 60)
+    if _ONSITE_BENEFIT_PRECEDES_RE.search(text, window_start, match.start()):
+        return True
+    return _ONSITE_BENEFIT_BEFORE_RE.search(text, window_start, match.start()) is not None
 
 
 _ONSITE_TERM_PRODUCT_SUFFIX_RE = re.compile(rules_data.ONSITE_TERM_PRODUCT_SUFFIX_PATTERN, re.IGNORECASE)
@@ -143,21 +189,11 @@ def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
     return not _has_contextual_hybrid_conflict(body_low)
 
 
-_CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(rules_data.CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+_CLOSED_STATUS_AGENCY_SUFFIX_RE = signals.CLOSED_STATUS_AGENCY_SUFFIX_RE
 # The agency exemption for a bare "closed" only covers the application channel ("applications closed via ...").
 _APPLICATIONS_BEFORE_RE = re.compile(
     r"\bapplications?\s+(?:(?:are|is|were|was|have|has|been|now|currently)\s+)*$"
 )
-
-
-def _has_closed_status_phrase(low: str) -> bool:
-    """Whole-phrase CLOSED_STATUS_PHRASES match, ignoring "not accepting applications from agencies" boilerplate."""
-    for phrase in rules_data.CLOSED_STATUS_PHRASES:
-        exemptable = phrase in rules_data.AGENCY_EXEMPTABLE_CLOSED_PHRASES
-        for match in term_boundary_pattern(phrase).finditer(low):
-            if not (exemptable and _CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, match.end())):
-                return True
-    return False
 
 
 def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool, *, expired: bool = False) -> bool:
@@ -173,7 +209,7 @@ def is_open_status_ok(text: str, apply_available: bool, is_open_hint: bool, *, e
     if expired:
         return False
     low = normalize_text(text)
-    if _has_closed_status_phrase(low):
+    if signals.has_closed_status_phrase(low):
         return False
     if _has_closed_status_with_context(low):
         return False

@@ -210,11 +210,16 @@ tried, fetch stops early: the output has `"stopped": "navigation_failures"` and 
 ultron filter --run <run_id>
 ```
 
-Output (the geography rules follow the profile's scope, see `references/profile.md`): `{"kept": 0, "ambiguous": 65, "discarded": 145, "discard_reasons": {"seniority_not_senior": 60, "non_matching_role_family": 50, "hybrid_or_not_explicit_remote": 35}}`
+Output (the geography rules follow the profile's scope, see `references/profile.md`): `{"kept": 0, "ambiguous": 65, "discarded": 145, "rescued_discards": 4, "discard_reasons": {"seniority_not_senior": 60, "non_matching_role_family": 50, "hybrid_or_not_explicit_remote": 35}}`
 
 - `discarded`: failed a strict rule (seniority, role family, remote, location, closed...). Final.
 - `ambiguous`: every posting that survived the strict rules (heuristic `keep` or `unsure`). This is
-  your evaluation queue.
+  your evaluation queue. It also holds borderline heuristic discards (`rescued_discards` in the
+  output, at most 20 per run, highest ambiguity first): postings that passed the domain, remote,
+  geography and open-status gates but that the heuristic evaluator rejected (role family, seniority,
+  remote policy) with an ambiguity score at or above the preset threshold. Their row has
+  `rescued_discard: {"reason", "stage"}` and the heuristic verdict is `discard`; closed, expired,
+  profile-excluded and non-ATS postings are never rescued. Unevaluated, they stay discarded at finalize.
 - `kept`: postings that skip the queue; with default presets this is always 0, because every heuristic
   keep scores above the ambiguity threshold and goes to the ambiguous queue.
 
@@ -245,17 +250,18 @@ Output: `{"recorded": 10, "pending": 40, "pending_ambiguous": 35}`
 
 Rules:
 
-- `pending` returns unrecorded items with heuristic `unsure` first, then the heuristic keeps (file
-  order within each group). The queue only moves when you record: record every item of a batch
+- `pending` returns unrecorded items with heuristic `unsure` first, then the rescued discards
+  (`heuristic.verdict: "discard"`), then the heuristic keeps (file order within each group). The queue only moves when you record: record every item of a batch
   before asking for the next one.
 - `record` is all-or-nothing: one bad line rejects the whole file with
   `{"error": "invalid_evaluation", "line": N, "identity_key": "...", "reason": "..."}`. Fix that line
   and record the same file again. Recording the same `identity_key` again replaces the earlier verdict.
-- Budget: evaluate at least all the `unsure` items (they come first). Then evaluate heuristic keeps as
-  far as the preset allows: `fast` unsure only; `balanced` about 5 batches in total; `deep` /
-  `seed_boost` until done or the user's patience runs out. Heuristic keeps usually need only a quick
-  confirmation. Items you never record keep their heuristic verdict at finalize (keeps stay keeps,
-  unsure stays unsure). Tell the user how many were left to the heuristic.
+- Budget: evaluate at least all the `unsure` items (they come first). Then evaluate the rescued
+  discards and heuristic keeps as far as the preset allows: `fast` unsure only; `balanced` about 5
+  batches in total; `deep` / `seed_boost` until done or the user's patience runs out. Heuristic keeps
+  usually need only a quick confirmation. Items you never record keep their heuristic verdict at
+  finalize (keeps stay keeps, unsure stays unsure, rescued discards stay discarded). Tell the user how
+  many were left to the heuristic.
 - Keep evaluations out of the conversation: write them to the file, do not echo them back.
 
 ## 9. Finalize

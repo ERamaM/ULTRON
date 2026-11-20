@@ -55,3 +55,77 @@ def seed_sector_values(value: object, *, seed_id: str, logger: logging.Logger) -
         if sector not in result:
             result.append(sector)
     return result
+
+
+# Free-text sector names a profile may use, mapped to the fixed vocabulary that seeds carry.
+SECTOR_ALIASES: dict[str, Sector] = {
+    "tech": Sector.TECHNOLOGY,
+    "software": Sector.TECHNOLOGY,
+    "saas": Sector.TECHNOLOGY,
+    "it": Sector.TECHNOLOGY,
+    "information technology": Sector.TECHNOLOGY,
+    "internet": Sector.TECHNOLOGY,
+    "healthcare": Sector.PHARMA_HEALTH,
+    "health care": Sector.PHARMA_HEALTH,
+    "health": Sector.PHARMA_HEALTH,
+    "nursing": Sector.PHARMA_HEALTH,
+    "medical": Sector.PHARMA_HEALTH,
+    "hospital": Sector.PHARMA_HEALTH,
+    "hospitals": Sector.PHARMA_HEALTH,
+    "pharma": Sector.PHARMA_HEALTH,
+    "pharmaceutical": Sector.PHARMA_HEALTH,
+    "pharmaceuticals": Sector.PHARMA_HEALTH,
+    "life sciences": Sector.PHARMA_HEALTH,
+    "biotech": Sector.PHARMA_HEALTH,
+    "finance": Sector.FINANCE_INSURANCE,
+    "banking": Sector.FINANCE_INSURANCE,
+    "insurance": Sector.FINANCE_INSURANCE,
+    "financial services": Sector.FINANCE_INSURANCE,
+    "public sector": Sector.PUBLIC_EDUCATION,
+    "government": Sector.PUBLIC_EDUCATION,
+    "education": Sector.PUBLIC_EDUCATION,
+    "retail": Sector.CONSUMER_RETAIL,
+    "ecommerce": Sector.CONSUMER_RETAIL,
+    "e-commerce": Sector.CONSUMER_RETAIL,
+    "logistics": Sector.LOGISTICS_TRANSPORT,
+    "transport": Sector.LOGISTICS_TRANSPORT,
+    "energy": Sector.ENERGY_UTILITIES,
+    "utilities": Sector.ENERGY_UTILITIES,
+    "telecom": Sector.TELECOM_MEDIA,
+    "telecommunications": Sector.TELECOM_MEDIA,
+    "media": Sector.TELECOM_MEDIA,
+    "manufacturing": Sector.MANUFACTURING_INDUSTRIAL,
+    "construction": Sector.CONSTRUCTION_ENGINEERING,
+    "consulting": Sector.PROFESSIONAL_SERVICES,
+    "marketing": Sector.MARKETING_ADVERTISING,
+    "advertising": Sector.MARKETING_ADVERTISING,
+    "aerospace": Sector.AEROSPACE_DEFENSE,
+    "defense": Sector.AEROSPACE_DEFENSE,
+}
+_LABEL_TO_SECTOR = {label.casefold(): sector for sector, label in SECTOR_LABELS.items()}
+
+
+def profile_sector_values(value: object) -> set[str]:
+    """A profile's ``criteria.sectors`` in the seed vocabulary.
+
+    Profile sectors are free text. A value equal to a sector value, its label ("Pharma and health") or an alias
+    ("healthcare", "software") becomes that sector; any other value is kept as written (it then matches no
+    bundled pack seed, as before).
+    """
+    if not isinstance(value, (list, tuple, set)):
+        return set()
+    result: set[str] = set()
+    for raw in value:
+        text = " ".join(str(raw or "").split())
+        if not text:
+            continue
+        key = text.casefold()
+        sector = SECTOR_ALIASES.get(key) or _LABEL_TO_SECTOR.get(key)
+        if sector is None:
+            try:
+                sector = Sector(key.replace(" ", "_").replace("-", "_"))
+            except ValueError:
+                result.add(text)
+                continue
+        result.add(sector.value)
+    return result

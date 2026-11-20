@@ -33,7 +33,7 @@ enabled: true
 source_cv: /home/me/cv/cv.pdf        # optional: path of the CV this profile was generated from (metadata only; null/absent otherwise)
 prompt: Salary floor 60k EUR. Avoid gambling companies.   # optional notes for you; the CLI never applies them
 criteria:
-  sectors: [technology]              # informative
+  sectors: [technology]              # picks the bundled seed packs (see below)
   role_family_label: Data engineering   # human name of the role family
   role_focus_terms: [data engineer, analytics engineer, etl engineer]   # core role family (STRICT)
   target_titles: [Senior Data Engineer, Staff Data Engineer]           # ideal titles
@@ -68,6 +68,25 @@ worked_examples:                     # optional; guide your evaluations
   - input: Senior Data Engineer, Remote EU, Spark pipelines, accepting applications.
     output: {verdict: keep, keep: true, is_allowed_family: true, is_senior: true, is_full_remote: true, eligibility: high}
 ```
+
+### Sectors and regions pick the bundled seed packs
+
+The skill ships seed packs (companies with a verified job board) for a sector and region, such as
+technology in Europe, technology in Latin America, or healthcare in the US or Ireland. A run queries a
+pack's companies when the pack fits the profile:
+
+- **Sector**: `sectors` uses this vocabulary: `technology`, `pharma_health`, `finance_insurance`,
+  `public_education`, `consumer_retail`, `logistics_transport`, `energy_utilities`, `telecom_media`,
+  `manufacturing_industrial`, `automotive`, `aerospace_defense`, `construction_engineering`,
+  `marketing_advertising`, `professional_services`, `other`. Common names map to it (`healthcare`,
+  `nursing` and `medical` mean `pharma_health`, `software` means `technology`, `finance` means
+  `finance_insurance`). Any other value matches no pack.
+- **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
+  another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
+  region, one of its countries or a main city (`Remote LATAM`, `Brazil`, `Bogotá`; `Ireland`, `Dublin`;
+  `Remote US`). A profile without preferred regions fits every pack.
+
+`ultron run new` prints how many boards fit (`eligible_seeds`).
 
 ### Vocabulary packs
 

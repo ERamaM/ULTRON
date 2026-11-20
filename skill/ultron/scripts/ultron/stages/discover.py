@@ -24,6 +24,8 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, GeoScope
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope
+from ultron.core.rules.term_matching import contains_term
+from ultron.core.sectors import profile_sector_values
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
@@ -108,8 +110,51 @@ def load_seed_yields(profile_slug: str) -> dict[str, tuple[int, int]]:
         return {}
 
 
-def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> tuple[int, str]:
-    """``(order, group)``: agent → pack matching sectors & geo → other auto → feed → non-matching pack."""
+# Pack seed scopes beyond the legacy ``EU``, and the words of a profile's preferred regions or eligibility terms
+# that select them. A scoped pack never competes for the seed slots of a profile in another region.
+SCOPE_REGION_TERMS: dict[str, tuple[str, ...]] = {
+    "LATAM": (
+        "latam", "latin america", "latinoamerica", "south america", "central america", "americas", "brazil", "brasil",
+        "mexico", "argentina", "colombia", "chile", "peru", "uruguay", "paraguay", "bolivia", "ecuador", "venezuela",
+        "costa rica", "panama", "guatemala", "honduras", "el salvador", "nicaragua", "dominican republic",
+        "puerto rico", "sao paulo", "rio de janeiro", "buenos aires", "bogota", "medellin", "cali", "mexico city",
+        "cdmx", "guadalajara", "monterrey", "lima", "montevideo", "quito", "curitiba",
+    ),
+    "IE": ("ireland", "irish", "dublin", "cork", "galway", "limerick", "waterford", "kilkenny", "sligo", "drogheda"),
+    "US": ("united states", "usa", "us", "u.s.", "north america"),
+}
+# Scopes that fit every profile.
+GLOBAL_SCOPES = frozenset({"GLOBAL", "WORLDWIDE"})
+
+
+def _profile_region_text(profile: dict | None) -> str:
+    scope = location_scope(profile)
+    return " | ".join((*scope["preferred"], *scope["eligibility_terms"]))
+
+
+def seed_scope_fits(scope: str, profile: dict | None, *, geo: GeoScope | None = None,
+                    region_text: str | None = None) -> bool:
+    """Whether a pack seed's ``country_scope`` fits the profile's regions.
+
+    ``EU`` (also a missing scope) fits European and region-free profiles, as before. ``GLOBAL`` fits every
+    profile. A scope from ``SCOPE_REGION_TERMS`` fits a region-free profile, or one whose preferred regions or
+    eligibility terms name it (a country, a city or the region itself). Any other scope fits every profile.
+    """
+    scope = str(scope or "").strip().upper() or "EU"
+    geo = geo or geo_scope(profile)
+    if scope == "EU":
+        return geo != "other"
+    if scope in GLOBAL_SCOPES or geo == "global":
+        return True
+    terms = SCOPE_REGION_TERMS.get(scope)
+    if terms is None:
+        return True
+    text = _profile_region_text(profile) if region_text is None else region_text
+    return any(contains_term(text, term) for term in terms)
+
+
+def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu", region_text: str = "") -> tuple[int, str]:
+    """``(order, group)``: agent → pack matching sectors & region → other auto → feed → non-matching pack."""
     if profile_slug in seed.profiles:
         if seed.source_type == "agent_generated":
             return 0, "agent"
@@ -117,8 +162,7 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> t
             return 3, "feed"
         return 2, "other"
     sector_match = not sectors or not seed.sectors or bool(sectors.intersection(seed.sectors))
-    seed_scope = str(getattr(seed, "country_scope", "") or "").strip().upper()
-    geo_match = geo != "other" or seed_scope != "EU"
+    geo_match = seed_scope_fits(getattr(seed, "country_scope", ""), None, geo=geo, region_text=region_text)
     return (1, "pack") if (sector_match and geo_match) else (4, "other")
 
 
@@ -129,14 +173,17 @@ COLD_START_SEEDS = 15
 
 def eligible_seed_count(profile_slug: str, profile: dict) -> int:
     """Inventory seeds that fit the profile: its linked auto seeds plus packs matching its sectors and region."""
-    sectors = {str(s) for s in (profile.get("criteria") or {}).get("sectors") or ()}
+    sectors = profile_sector_values((profile.get("criteria") or {}).get("sectors"))
     geo = geo_scope(profile)
-    return sum(1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo)[0] < 4)
+    region_text = _profile_region_text(profile)
+    return sum(
+        1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo, region_text)[0] < 4
+    )
 
 
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
-    yields: dict[str, tuple[int, int]] | None = None,
+    yields: dict[str, tuple[int, int]] | None = None, profile: dict | None = None,
 ) -> tuple[list[tuple[object, str]], dict[str, dict[str, int]], dict[str, int]]:
     """Curated seeds first, then ``limit`` with a non-feed reserve, then the MARK III per-host cap.
 
@@ -153,7 +200,8 @@ def _select_seeds(
     in query order, per-group counts (``host_capped``, ``capped``) and yield stats
     (``deprioritized``, ``exploration_reserved``).
     """
-    sectors = {str(s) for s in profile_sectors or ()}
+    sectors = profile_sector_values(profile_sectors)
+    region_text = _profile_region_text(profile)
     history = yields or {}
 
     def stat(seed) -> SeedYield:
@@ -161,7 +209,7 @@ def _select_seeds(
         return SeedYield(max(0, int(attempts)), max(0, int(keeps or 0)))
 
     ranked = sorted(
-        ((seed, *_rank(seed, profile_slug, sectors, geo)) for seed in load_inventory(profile_slug)),
+        ((seed, *_rank(seed, profile_slug, sectors, geo, region_text)) for seed in load_inventory(profile_slug)),
         key=lambda item: (
             stat(item[0]).deprioritized,
             item[1],
@@ -342,7 +390,7 @@ def discover_ats(run_id: str) -> dict:
     seeds, groups, yield_stats = _select_seeds(
         run["profile_slug"], criteria.get("sectors"),
         settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
-        yields=load_seed_yields(run["profile_slug"]),
+        yields=load_seed_yields(run["profile_slug"]), profile=profile,
     )
 
     candidates: list[CandidateUrl] = []

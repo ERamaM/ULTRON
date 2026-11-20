@@ -124,9 +124,12 @@ def _edit(args: argparse.Namespace) -> int:
         return fail("slug_mismatch", f"{args.slug}.yaml declares slug {data.get('slug')!r}; fix the file first "
                     "(`ultron profile validate` and `ultron profile save --force`)")
     try:
-        operations = [profile_edit.parse_cli_operation(op, raw) for op, raw in (args.ops or [])]
-        if args.source:
-            operations.extend(profile_edit.load_operations(args.source))
+        operations = []
+        for op, raw in args.ops or []:  # flags and --from files run in the order they were given
+            if op == "from":
+                operations.extend(profile_edit.load_operations(raw))
+            else:
+                operations.append(profile_edit.parse_cli_operation(op, raw))
         edited, changes = profile_edit.apply_operations(data, operations)
     except profile_edit.EditError as exc:
         emit({"error": "edit_invalid", "detail": str(exc), "errors": exc.errors})
@@ -241,7 +244,8 @@ def register(subparsers) -> None:
                       help="set a field (true/false as is; a JSON list works, but prefer --from for lists)")
     edit.add_argument("--unset", dest="ops", action="append", type=_op("unset"), metavar="FIELD",
                       help="remove an optional field")
-    edit.add_argument("--from", dest="source", help='JSON file with {"operations": [{"op", "path", "value"}]}')
+    edit.add_argument("--from", dest="ops", action="append", type=_op("from"), metavar="FILE",
+                      help='JSON file with {"operations": [{"op", "path", "value"}]}, run at its place in the order')
     edit.add_argument("--dry-run", action="store_true", help="show the changes and diff without saving")
     edit.set_defaults(func=_edit)
 

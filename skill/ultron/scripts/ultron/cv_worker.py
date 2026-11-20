@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections import Counter
 from io import BytesIO
 
 
@@ -93,6 +94,10 @@ def reorder_columns(layout_text: str) -> str | None:
     return "\n\n".join("\n".join(block) for block in blocks if block)
 
 
+def _words(text: str) -> Counter:
+    return Counter(re.findall(r"\w+", text.casefold()))
+
+
 def _page_text(page) -> str:
     plain = page.extract_text() or ""
     try:
@@ -100,7 +105,10 @@ def _page_text(page) -> str:
         reordered = reorder_columns(layout) if isinstance(layout, str) else None
     except Exception:  # older pypdf, odd fonts or a stub page: keep plain extraction
         return plain
-    return reordered or plain
+    # Layout mode skips rotated text: the reordered page is used only if it keeps every word of the plain one.
+    if reordered and not (_words(plain) - _words(reordered)):
+        return reordered
+    return plain
 
 
 def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) -> list[str]:

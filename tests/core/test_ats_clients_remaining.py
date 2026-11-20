@@ -272,6 +272,25 @@ def test_taleo_parses_cards():
     assert [(p.title, p.apply_url) for p in out] == [("Dev", "https://acme.taleo.net/job/1")]
 
 
+@pytest.mark.parametrize("html", [
+    "<html><body><p>There are currently no open positions.</p></body></html>",
+    "<html><body><div class='empty'>No jobs correspond to your search criteria.</div></body></html>",
+])
+def test_taleo_empty_board_is_an_empty_list(html):
+    assert fetch("taleo", "acme.taleo.net", FakeClient(text_value=html)) == []
+
+
+@pytest.mark.parametrize("html", [
+    "",
+    "<html><head><script src='/careersection/app.js'></script></head><body><div id='app'></div></body></html>",
+    "<html><body><a class='other-link' href='/job/1'>Dev</a></body></html>",
+])
+def test_taleo_markup_without_listings_is_unparseable_not_empty(html):
+    # A script-rendered or changed career section must not look like a board with no jobs.
+    with pytest.raises(AtsClientError, match="unparseable_board"):
+        fetch("taleo", "acme.taleo.net", FakeClient(text_value=html))
+
+
 @pytest.mark.parametrize("vendor", ["icims", "taleo"])
 def test_browser_only_fetch_failure_is_an_error_not_an_empty_board(vendor):
     with pytest.raises(AtsClientError, match="browser_fallback_unavailable"):

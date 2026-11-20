@@ -759,7 +759,7 @@ def verify_proposal(
     # Past its domain slug, no guess can prove a short name's board: keep the first one that answers and stop.
     stop_at_first_hit = not has_explicit and _is_short_name(p.company)
 
-    unsupported = invalid = host_budget = budget_spent = False
+    unsupported = invalid = unparseable = host_budget = budget_spent = False
     # (reason, candidate, seed) of the best guessed board not proven owned; its seed is still stored, tagged.
     doubtful: tuple[str, dict, AtsBoardSeed | None] | None = None
     skipped_vendors: set[str] = set()
@@ -768,7 +768,7 @@ def verify_proposal(
 
     def probe(candidates: list[tuple[str, str]], mode: str) -> VerifyResult | None:
         """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page."""
-        nonlocal unsupported, invalid, host_budget, budget_spent, doubtful
+        nonlocal unsupported, invalid, unparseable, host_budget, budget_spent, doubtful
         for ats, board in candidates:
             key = seed_identity(ats, board)
             try:
@@ -795,6 +795,7 @@ def verify_proposal(
             except AtsClientError as exc:
                 unsupported = unsupported or str(exc) == "vendor_not_supported_yet"
                 invalid = invalid or str(exc) == "invalid_board"
+                unparseable = unparseable or str(exc) == "unparseable_board"
                 continue
             except (HttpError, URLRejected, ValueError, KeyError, TypeError, AttributeError):
                 continue
@@ -852,6 +853,8 @@ def verify_proposal(
         return unresolved("invalid_board")
     if unsupported:
         return unresolved("vendor_not_supported_yet")
+    if unparseable:
+        return unresolved("unparseable_board")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
     return unresolved("no_board_found")

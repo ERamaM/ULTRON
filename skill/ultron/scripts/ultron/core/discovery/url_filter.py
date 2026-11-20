@@ -34,8 +34,9 @@ def domain_of(url: str) -> str:
     return urlparse(url).netloc.lower()
 
 
-def _is_domain_allowed(domain: str, allowed_domains: list[str]) -> bool:
+def is_domain_allowed(domain: str, allowed_domains: list[str]) -> bool:
     return any(domain == d or domain.endswith(f".{d}") for d in allowed_domains)
+
 
 
 def _is_domain_blocked(domain: str, blocked_domains: set[str]) -> bool:
@@ -82,7 +83,7 @@ def _canonicalize_greenhouse_from_custom(url: str, query: str) -> str | None:
 def canonicalize_url_for_allowlist(url: str, query: str, allowed_domains: list[str]) -> str:
     normalized = normalize_url(url)
     domain = domain_of(normalized)
-    if _is_domain_allowed(domain, allowed_domains):
+    if is_domain_allowed(domain, allowed_domains):
         return normalized
     canonicalized = _canonicalize_greenhouse_from_custom(url, query)
     if canonicalized:
@@ -137,7 +138,7 @@ def filter_candidates(
     hits: list[SearchHit],
     rules: dict,
     *,
-    is_allowed_domain_fn: Callable[[str, list[str]], bool] = _is_domain_allowed,
+    is_allowed_domain_fn: Callable[[str, list[str]], bool] = is_domain_allowed,
 ) -> tuple[list[CandidateUrl], list[dict]]:
     allowed = rules.get("allowed_ats_domains", [])
     blocked = set(rules.get("blocked_final_domains", []))

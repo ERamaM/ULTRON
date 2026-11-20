@@ -160,6 +160,13 @@ def test_verify_unsupported_vendor():
     assert res.reason == "vendor_not_supported_yet"
 
 
+def test_verify_unparseable_taleo_board_is_reported_as_such():
+    shell = "<html><body><div id='app'></div><script src='/app.js'></script></body></html>"
+    p = Proposal("Acme", ats="taleo", board="acme.taleo.net/careersection/ex")
+    res = verify_proposal(p, client=make_client(lambda r: httpx.Response(200, text=shell)), timeout=5)
+    assert res.status == "unresolved" and res.reason == "unparseable_board"
+
+
 def test_verify_explicit_ats_board_does_not_probe_other_vendors():
     seen: list[str] = []
 

@@ -118,6 +118,7 @@ next call.
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
+| `unparseable_board` | The board page loaded but no listings could be read (e.g. a script-rendered Taleo career section). Drop it; its postings can still arrive through web search. |
 | `ownership_unknown` | A guessed board answered (see `candidate`) and was stored tagged `ownership:unknown`, but nothing ties it to the company. Optional: if you know the company's domain or real board, retry with `domain` or `ats` + `board` to get it verified. |
 | `wrong_tenant` | The guessed board belongs to another company (stored under that company's name). To find the proposed company's own board, look for its careers page and retry with that board; do not retry the `candidate` board. |
 | `invalid_proposal` | The line had no `company`. Fix it. |

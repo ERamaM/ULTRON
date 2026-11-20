@@ -22,8 +22,11 @@ filters, ranking, the query plan and your evaluations all read it.
 ## Schema
 
 Required: `slug`, `name`, `criteria` with a non-empty `target_titles` or `role_focus_terms`. Every
-term list must be a list of strings. Terms match as whole words or phrases, ignoring case and
-accents, so use short terms as they would appear in postings (`ml engineer`, not `ML Engineers`).
+term list must be a list of strings, even with one term (`[manager]`, not `manager`), and
+`seniority`, `remote_policy`, `location_scope` and `query_templates` are mappings. Terms match as
+whole words or phrases, ignoring case and accents, so use short terms as they would appear in
+postings (`ml engineer`, not `ML Engineers`). The CLI ignores keys outside this schema, and
+`profile explain` warns about them.
 
 ```yaml
 slug: data-eng-remote-spain          # ^[a-z0-9][a-z0-9-]*$, same as the file name
@@ -80,7 +83,9 @@ pack's companies when the pack fits the profile:
   `manufacturing_industrial`, `automotive`, `aerospace_defense`, `construction_engineering`,
   `marketing_advertising`, `professional_services`, `other`. Common names map to it (`healthcare`,
   `nursing` and `medical` mean `pharma_health`, `software` means `technology`, `finance` means
-  `finance_insurance`). Any other value matches no pack.
+  `finance_insurance`). Any other value (`fintech`) matches no pack, so its seeds rank last and
+  `profile explain` warns. Leave the list out when no sector fits; niches such as fintech go into `prompt`
+  and into the companies you propose.
 - **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
   another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
   region, one of its countries, states or counties, or a main city (`Remote LATAM`, `Brazil`, `Bogotá`;
@@ -89,6 +94,16 @@ pack's companies when the pack fits the profile:
   or `Seattle` rather than `Washington`. A profile without preferred regions fits every pack.
 
 `ultron run new` prints how many boards fit (`eligible_seeds`).
+
+### Title exclusions
+
+When job boards and feeds are listed, titles containing a term from `profile explain`'s
+`title_exclusions.effective` are skipped. That list holds built-in terms (`manager`, `director`, `vp`,
+`head`, `team lead`, `tech lead`; unless `seniority.required` is false, also `intern`, `junior`,
+`graduate`, `entry`, `staff`, `principal`, `lead`) plus the profile's own exclusions. Compare it with the titles the
+user wants: Head Nurse, Staff Nurse, Lead Teacher or Graduate Analyst would be skipped. A term is lifted
+when it shares a word with `role_focus_terms`, `target_titles` or `seniority.preferred_terms`. To keep
+such roles, add the title (`Head Nurse`) or the level (`graduate`), then check `explain` again.
 
 ### Vocabulary packs
 
@@ -194,7 +209,8 @@ after the user confirms.
    and ask only what the CV cannot tell you: roles they want next, roles they do not want, remote,
    hybrid or onsite, where they can legally work, deal-breakers.
 5. Validate and explain the draft as above. On failure `profile validate` exits 1 with `"valid": false`
-   and a list of `errors`; fix them and validate again.
+   and a list of `errors`; fix them and validate again. Fix every explain `warning`, and check
+   `title_exclusions.effective` against the titles the user wants (see "Title exclusions").
 6. Save it: `ultron profile save --from <file> --source-cv <source_cv>` (use the `source_cv` value
    printed by `cv extract`; the file must exist, otherwise `{"error": "source_cv_not_found"}`; only the
    path is stored, never the CV content). It validates first and refuses to overwrite an existing
@@ -225,8 +241,9 @@ Operations run in the order given, and nothing is saved if any of them is invali
 
 - `--add FIELD=TERM` and `--remove FIELD=TERM` change one term in a term list. Terms compare ignoring
   case and accents. Adding a present term or removing an absent one changes nothing and is reported.
-- `--set FIELD=VALUE` sets a text field, `true`/`false`, or `full_remote`/`any`. `--unset FIELD`
-  removes an optional field.
+- `--set FIELD=VALUE` sets a text field, `true`/`false`, or `full_remote`/`any`. It replaces the whole
+  value: to add a note to `prompt`, set the current text plus the new note. `--unset FIELD` removes an
+  optional field.
 - `--from <file>` reads operations from a UTF-8 JSON file; they run at the file's place among the other
   operations (`--from reset.json --add ...` applies the file first). Use it to replace a whole list (`set` with a
   JSON list) and for terms with accents or quotes: some shells mangle quotes and non-ASCII text in
@@ -257,8 +274,10 @@ bundled profile saves a user copy, and undo removes that copy again.
 | no management roles | add `manager`, `head of`, `director` to `criteria.exclusion_terms` and `query_templates.exclusion_terms`; if `profile explain` lists one under `title_exclusions.ignored`, it overlaps a role term: tell the user |
 | add a skill (Rust) | add it to `criteria.specialties` and `query_templates.technologies`; to `criteria.role_signal_terms` only if the skill defines the role (a Rust developer search) |
 | based in a city, can work for EU companies | add the country and `Remote EU` to `criteria.location_scope.preferred` and their spellings to `eligibility_terms`; add matching `query_templates.regions`; set `criteria.remote_policy.required` to `any` only if onsite or hybrid roles there are fine |
+| add titles (MLOps roles) | add the titles to `criteria.target_titles` and `query_templates.titles`, and the short family term (`mlops engineer`) to `criteria.role_focus_terms`; role matching is strict, so a title that matches no role term is usually discarded |
+| no junior roles, or only one level | add the level words to `criteria.seniority.excluded_terms` (`junior`, `intern`, `graduate`, `entry level`). For one wanted level, set `criteria.seniority.required` to `true` and list its words in `preferred_terms` (`mid`, `intermediate` for mid-level). Any level: set it to `false` |
 | remove a term | find every list that holds it in `profile show`, remove it from each, and report any `not_found` |
-| salary, spoken languages, companies to target or avoid | the CLI cannot filter these: record them in `prompt` and apply them yourself when you propose companies and evaluate postings. A required language they lack can also go into `criteria.exclusion_terms` (for example `fluent german`) |
+| salary, spoken languages, companies or company types to target or avoid (consulting firms, crypto) | the CLI cannot filter these: record them in `prompt` and apply them yourself when you propose companies and evaluate postings. A word that shows in unwanted titles can also go into `criteria.exclusion_terms` (`crypto`, or `fluent german` for a required language they lack) |
 
 `ultron profile explain <slug>` (or `--from <file>` for a draft) shows what the profile makes the CLI do,
 using the same rules as a run: `role_match` (strict role terms and where they come from), `seniority`,
@@ -267,7 +286,7 @@ matching titles when job boards are listed: the `built_in` defaults plus the pro
 `ignored` ones overlap the profile's own role terms), `fit_signals`, the
 `query_plan` for `--preset` (default `balanced`), `agent_notes` (the `prompt` field) and `warnings`
 (duplicated terms, several terms in one, long phrases, oversized lists, missing query regions, empty query
-plan). Add `--run <run_id>` to replay the filter of an earlier fetched run with this profile, without
+plan, fields the CLI ignores, unknown sectors). Add `--run <run_id>` to replay the filter of an earlier fetched run with this profile, without
 writing anything: `replay` gives the new kept, ambiguous (including `rescued_discards`) and discarded counts and, when that run was
 filtered, the `changes` (for example `"kept -> discarded": 3`) with a few `examples`. Only postings that
 run fetched can appear.

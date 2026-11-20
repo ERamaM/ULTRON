@@ -156,3 +156,57 @@ def test_cli_profile_validate_from_file(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["error"] == "usage"
     assert main(["profile", "validate", "ai-ml-remote-eu", "--from", str(valid_yaml)]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "usage"
+
+
+def test_scalar_term_lists_are_invalid():
+    # A bare string used to validate, then every code path iterated it character by character:
+    # single-letter role terms that match any posting and a query plan made of letters.
+    data = _example()
+    data["criteria"]["role_focus_terms"] = "backend engineer"
+    data["criteria"]["seniority"]["excluded_terms"] = "junior"
+    data["query_templates"]["core_titles"] = "Senior Backend Engineer"
+    errors = profiles.validate_profile(data)
+    assert any("criteria.role_focus_terms" in e and "list" in e for e in errors)
+    assert any("criteria.seniority.excluded_terms" in e for e in errors)
+    assert any("query_templates.core_titles" in e for e in errors)
+
+
+def test_query_template_lists_must_hold_strings():
+    data = _example()
+    data["query_templates"]["regions"] = ["Remote EU", 3]
+    assert any("query_templates.regions" in e for e in profiles.validate_profile(data))
+
+
+def test_profile_sections_must_be_mappings():
+    data = _example()
+    data["criteria"]["seniority"] = "senior"
+    data["criteria"]["remote_policy"] = "full_remote"
+    data["criteria"]["location_scope"] = ["Spain", "Remote EU"]
+    data["query_templates"] = ["Senior ML Engineer"]
+    errors = profiles.validate_profile(data)
+    for section in ("criteria.seniority", "criteria.remote_policy", "criteria.location_scope", "query_templates"):
+        assert any(e.startswith(section) and "mapping" in e for e in errors), section
+
+
+def test_flags_must_be_booleans():
+    data = _example()
+    data["criteria"]["seniority"]["required"] = "yes"
+    data["enabled"] = "no"
+    errors = profiles.validate_profile(data)
+    assert any(e.startswith("criteria.seniority.required") for e in errors)
+    assert any(e.startswith("enabled") for e in errors)
+
+
+def test_empty_term_lists_and_sections_stay_valid():
+    data = _example()
+    data["criteria"]["exclusion_terms"] = None
+    data["criteria"]["specialties"] = []
+    data["criteria"]["remote_policy"] = None
+    data["query_templates"] = None
+    assert profiles.validate_profile(data) == []
+
+
+def test_bundled_and_fixture_profiles_stay_valid():
+    folders = (home.data_dir() / "profiles", FIXTURE.parent)
+    for path in (p for folder in folders for p in sorted(folder.glob("*.yaml"))):
+        assert profiles.validate_profile(yaml.safe_load(path.read_text(encoding="utf-8"))) == [], path.name

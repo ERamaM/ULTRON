@@ -19,38 +19,13 @@ import json
 from pathlib import Path
 
 from ultron.core.rules.term_matching import normalize_text
+from ultron.profiles import TERM_LIST_FIELDS
 
 LIST = "list"
 TEXT = "text"
 FLAG = "flag"
 REMOTE_REQUIRED = ("full_remote", "any")
 
-_TERM_LISTS = (
-    "criteria.sectors",
-    "criteria.role_focus_terms",
-    "criteria.target_titles",
-    "criteria.seniority.preferred_terms",
-    "criteria.seniority.excluded_terms",
-    "criteria.remote_policy.positive_terms",
-    "criteria.remote_policy.negative_terms",
-    "criteria.location_scope.preferred",
-    "criteria.location_scope.eligibility_terms",
-    "criteria.location_scope.excluded_terms",
-    "criteria.exclusion_terms",
-    "criteria.specialties",
-    "criteria.fallback_fit_signals",
-    "criteria.role_signal_terms",
-    "criteria.role_ambiguity_terms",
-    "criteria.data_scientist_signal_terms",
-    "criteria.vocabulary_packs",
-    "query_templates.core_titles",
-    "query_templates.titles",
-    "query_templates.regions",
-    "query_templates.site_scopes",
-    "query_templates.technologies",
-    "query_templates.specialties",
-    "query_templates.exclusion_terms",
-)
 EDITABLE: dict[str, str] = {
     "name": TEXT,
     "description": TEXT,
@@ -59,7 +34,7 @@ EDITABLE: dict[str, str] = {
     "criteria.role_family_label": TEXT,
     "criteria.seniority.required": FLAG,
     "criteria.remote_policy.required": TEXT,
-    **dict.fromkeys(_TERM_LISTS, LIST),
+    **dict.fromkeys(TERM_LIST_FIELDS, LIST),
 }
 OPS = ("add", "remove", "set", "unset")
 MAX_OPERATIONS = 200

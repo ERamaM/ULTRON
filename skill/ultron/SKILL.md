@@ -99,6 +99,8 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | what is new since the last run | `ultron jobs new-since <run_id>`; `references/jobs-ledger.md` |
 | to know why a job did not show up | `ultron diagnose <url>`; `references/diagnose.md` |
 | to start from a CV, or create or edit a profile | `ultron cv extract`; `references/profile.md` |
+| a custom search built in conversation, without a CV | `references/profile-interview.md` |
+| to change a saved profile ("no management roles", "add Rust") | `ultron profile edit --dry-run`, confirm, apply; `references/profile.md` |
 | a saved search, or a scheduled or repeated run | `references/scheduling.md` |
 | an Excel file of a run | `ultron export xlsx --run <id>`; `references/jobs-ledger.md` |
 | a report to open in a browser | `ultron export html --run <id>`; `references/jobs-ledger.md` |

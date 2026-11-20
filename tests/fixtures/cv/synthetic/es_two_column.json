@@ -1,0 +1,31 @@
+{
+  "description": "Synthetic Spanish CV: full-width header, then a main column and a sidebar drawn row by row (as word processors export table layouts).",
+  "header": ["Lucía Pérez Ejemplo — jane.doe@example.com — +34 600 000 000"],
+  "left": [
+    "Ingeniera de Datos Sénior",
+    "Valencia, España (remoto UE)",
+    "",
+    "EXPERIENCIA",
+    "Analítica Ejemplo S.L. — 2019–Actualidad",
+    "• Diseñé pipelines ETL con Spark y Airflow",
+    "• Lideré la migración del almacén a dbt",
+    "Datos Ficticios S.A. — 2016–2019",
+    "• Ingeniera de datos en un equipo de 6",
+    "• Automaticé informes con Python",
+    "",
+    "FORMACIÓN",
+    "Máster en Informática, 2016"
+  ],
+  "right": [
+    "HABILIDADES",
+    "Python, SQL, Spark",
+    "Airflow · Kafka · dbt",
+    "",
+    "IDIOMAS",
+    "Español (nativo)",
+    "Inglés (C1)",
+    "",
+    "INTERESES",
+    "Datos abiertos"
+  ]
+}

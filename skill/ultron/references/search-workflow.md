@@ -70,7 +70,7 @@ Follow `references/seeds.md` to write `agent_proposals.jsonl`, then:
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 ```
 
-Output: `{"verified": 7, "new": 6, "unresolved": 3, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
+Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
 
 Details are in `seeds_verified.jsonl` and `seeds_unresolved.jsonl` (both rewritten on every call).
 Verified companies are stored for this profile and used by `discover ats` from now on.
@@ -81,7 +81,7 @@ Verified companies are stored for this profile and used by `discover ats` from n
 ultron discover feeds --run <run_id>
 ```
 
-Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "company_hints": 35, "requests": 40}`
+Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "requests": 40}`
 
 Reads the public job feeds listed in the skill's `data/feeds.yaml` (remote-job APIs, RSS feeds and
 company lists). No agent input is needed. It does three things:
@@ -92,9 +92,11 @@ company lists). No agent input is needed. It does three things:
   remoteok, jobicy...) is not a candidate: such pages are never kept, and the board it links to is
   still picked up as a seed. Feed rows are ranked by title fit and geography scope.
 - Links to ATS boards found in the feeds are added to the inventory as seeds, so step 5 queries them
-  (`seeds_added`).
+  (`seeds_added`), when at least one posting of that board passes the profile's title filter (boards of
+  company-list feeds always count); boards seen only in other professions' postings are skipped
+  (`feed_boards_irrelevant`).
 - Company names whose ATS is unknown are written to `seed_proposals_from_feeds.jsonl` (`company_hints`,
-  proposal format of `references/seeds.md`). Optionally verify them by passing that file directly with
+  proposal format of `references/seeds.md`), most-mentioned companies first. Optionally verify them by passing that file directly with
   `--limit` instead of copying a subset (`--limit` defaults to the run's `new_companies_per_run` when the
   input file is `seed_proposals_from_feeds.jsonl`):
   `ultron seeds verify --run <run_id> --from <run folder>/seed_proposals_from_feeds.jsonl --limit <new_companies_target>`.

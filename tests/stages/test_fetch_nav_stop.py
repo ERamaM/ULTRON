@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from pathlib import Path
 
 import httpx
@@ -98,3 +99,20 @@ def test_http_status_errors_do_not_count_as_navigation_failures(monkeypatch):
     _start(run_id, _ats("a", 6))
     res = fetch(run_id)
     assert "stopped" not in res and res["navigation_failures"] == 0 and res["failed"] == 6
+
+
+def test_dns_failures_count_as_navigation_failures(monkeypatch):
+    # Without a network, name resolution usually fails before any connection is attempted.
+    monkeypatch.setattr(fetch_stage, "NAV_FAILURE_STOP_THRESHOLD", 4)
+    run_id = _run(lambda r: httpx.Response(200, text=PAGE), max_pages=100)
+
+    def no_dns(host, port):
+        raise socket.gaierror("name resolution failed")
+
+    http_factory.set_test_overrides(resolver=no_dns)
+    d = _start(run_id, _ats("a", 10))
+    res = fetch(run_id)
+    assert res["stopped"] == "navigation_failures" and res["navigation_failures"] == 4
+    errors = [e["error"] for e in runs.read_jsonl(d / "fetch_errors.jsonl")]
+    assert errors[:4] == ["url_rejected: dns_resolution_failed"] * 4
+    assert errors[4:] == ["skipped_navigation_failures"] * 6

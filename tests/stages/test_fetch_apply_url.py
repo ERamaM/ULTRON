@@ -67,6 +67,19 @@ def test_canonical_pointing_at_a_board_root_is_ignored():
     assert url == "https://careers.example.test/jobs/1"
 
 
+@pytest.mark.parametrize("final_url", ["https://www.linkedin.com/jobs/view/123", "https://de.indeed.com/viewjob?jk=1"])
+def test_blocked_or_aggregator_final_host_is_never_replaced(final_url):
+    # A page on a blocked or aggregator host must stay discardable, whatever its canonical link says.
+    lever = "https://jobs.lever.co/acme/11111111-2222-3333-4444-555555555555"
+    cand = _cand(lever, "lever:acme")
+    assert resolve_apply_url(cand, final_url, lever, ALLOWED) == final_url
+
+
+def test_canonical_with_credentials_is_ignored():
+    assert page_canonical_url('<link rel="canonical" href="https://user:pw@jobs.lever.co/acme/x">',
+                              "https://careers.example.test/") is None
+
+
 def test_candidate_url_used_when_page_redirected_off_the_allowlist():
     cand = _cand("https://jobs.lever.co/acme/11111111-2222-3333-4444-555555555555", "lever:acme")
     url = resolve_apply_url(cand, "https://www.acme.test/careers", None, ALLOWED)

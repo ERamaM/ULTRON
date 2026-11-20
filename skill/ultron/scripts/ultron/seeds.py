@@ -836,10 +836,12 @@ def verify_proposal(
     if budget_spent:
         return budget_exhausted()
     target = _page_hop_target(p, explicit=has_explicit)
+    page_skipped = False
     if target is not None:
         url, reg, kind = target
         hops = page_hops if page_hops is not None else PageHops()
-        if hops.take((urlparse(url).hostname or "").lower()):
+        page_skipped = not hops.take((urlparse(url).hostname or "").lower())
+        if not page_skipped:
             try:
                 links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
             except RequestBudgetExceeded as exc:
@@ -865,4 +867,6 @@ def verify_proposal(
         return unresolved("host_blocked")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
+    if page_skipped:  # the careers page was never opened: the call's page budget ran out, not the company
+        return unresolved("page_budget_exhausted")
     return unresolved("no_board_found")

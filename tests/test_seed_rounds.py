@@ -278,3 +278,61 @@ def test_lines_beyond_the_ask_are_reported_not_verified(requests_log, capsys, tm
                      _write(tmp_path, "agent_seed_round_1.jsonl", _rows("A", 38)), "--round")
     assert code == 0 and out["verified"] == 35 and out["seed_round"]["over_ask_ignored"] == 3
     assert seed_rounds.load_rounds(run_id)[0]["received"] == 38
+
+
+def test_unconfirmed_and_uncounted_seeds_do_not_exclude_their_company(requests_log, capsys, tmp_path):
+    # PR #60 review: a guessed board of unknown ownership (and a feed seed) do not count toward the target, so
+    # their company must stay open to an explicit board, which also promotes the guessed board when it matches.
+    from ultron.core.models import AtsBoardSeed
+
+    guessed = AtsBoardSeed(seed_id="greenhouse:okguess", company="Guess Co", ats="greenhouse",
+                           board_identifier="okguess", source_type="guessed_unconfirmed", tags=["ownership:unknown"])
+    feed = AtsBoardSeed(seed_id="lever:feedco", company="Feed Co", ats="lever", board_identifier="feedco",
+                        source_type="feed_discovered")
+    seeds.add_seeds([guessed, feed], profile_slug=profiles.EXAMPLE_SLUG)
+    run_id = _new_run(capsys)["run_id"]
+    rows = [{"company": "Guess Co", "ats": "greenhouse", "board": "okguess"},
+            {"company": "Feed Co", "ats": "greenhouse", "board": "okfeedco"},
+            {"company": "Feed Co again", "ats": "lever", "board": "feedco"}]  # the feed board itself: a repeat
+    code, out = _cli(capsys, "seeds", "verify", "--run", run_id, "--from",
+                     _write(tmp_path, "agent_seed_round_1.jsonl", rows), "--round")
+    assert code == 0 and out["verified"] == 2 and out["seed_round"]["repeats_skipped"] == 1
+    promoted = next(s for s in seeds.load_inventory(profiles.EXAMPLE_SLUG) if s.board_identifier == "okguess")
+    assert promoted.source_type == "agent_generated"
+    assert out["seed_round"]["fitting_seeds"] == 2
+
+
+def test_an_ownership_unknown_board_from_a_round_can_be_proposed_again_explicitly():
+    p = seeds.Proposal(company="Acme Labs")
+    stored = seeds.AtsBoardSeed(seed_id="greenhouse:acmelabs", company="Acme Labs", ats="greenhouse",
+                                board_identifier="acmelabs", source_type="guessed_unconfirmed")
+    results = [seeds.VerifyResult(p, "unresolved", stored, 3, "ownership_unknown")]
+    record = seed_rounds.round_record(number=1, received=1, repeats=[], rows=[{"company": "Acme Labs",
+                                      "careers_url": "https://acmelabs.example/jobs"}], results=results,
+                                      fitting_before=0, fitting_after=0)
+    assert "greenhouse:acmelabs" not in record["boards"]
+    assert record["boards"] == ["url:https://acmelabs.example/jobs"]
+
+
+def test_careers_pages_left_unfetched_by_the_page_budget_are_unchecked(requests_log, capsys, tmp_path):
+    # PR #60 review: more careers-page proposals than the call's page budget (10 pages, 2 per site) came back as
+    # no_board_found without a request, were marked tried and lowered the yield.
+    run_id = _new_run(capsys)["run_id"]
+    rows = [{"company": f"Site {i}", "careers_url": f"https://site{i}.example/careers", "domain": f"site{i}.example"}
+            for i in range(12)]
+    code, _out = _cli(capsys, "seeds", "verify", "--run", run_id, "--from",
+                     _write(tmp_path, "agent_seed_round_1.jsonl", rows), "--round")
+    assert code == 0
+    (record,) = seed_rounds.load_rounds(run_id)
+    assert record["checked"] == 10
+    assert "url:https://site10.example/careers" not in record["boards"]
+    reasons = [json.loads(line)["reason"] for line in
+               (runs.run_dir(run_id) / "seeds_unresolved.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert reasons.count("page_budget_exhausted") == 2
+
+
+def test_careers_url_keys_keep_the_path_case():
+    # Workday site paths are case-sensitive (/External vs /external): only scheme and host fold.
+    keys = seed_rounds.board_keys({"company": "W", "careers_url": "HTTPS://Acme.WD3.MyWorkdayJobs.com/External/"})
+    assert keys == ["url:https://acme.wd3.myworkdayjobs.com/External"]
+    assert keys != seed_rounds.board_keys({"company": "W", "careers_url": "https://acme.wd3.myworkdayjobs.com/external"})

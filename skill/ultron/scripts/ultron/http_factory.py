@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -28,6 +30,8 @@ DISCOVER_VENDOR_SHARE = 0.5
 VERIFY_VENDOR_SHARE = 0.5
 # Run-folder file with the vendor state, so a later stage or `seeds verify` process honours the same cap and breaker.
 VENDOR_STATE_FILE = "vendor_budget.json"
+
+logger = logging.getLogger(__name__)
 
 # Test hook: merged into every client built by ``client_for_run`` (transport, resolver, sleep, ...).
 TEST_OVERRIDES: dict = {}
@@ -70,17 +74,19 @@ def _state_path(run: dict) -> Path | None:
 
 def _save_state(path: Path, budget: VendorBudget) -> None:
     """Best effort: a failed write keeps the in-memory budget, which still bounds this client."""
+    tmp: str | None = None
     try:
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".vendor-", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(budget.to_dict(), handle)
-            os.replace(tmp, path)
-        except BaseException:
-            Path(tmp).unlink(missing_ok=True)
-            raise
-    except OSError:
-        pass
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(budget.to_dict(), handle)
+        os.replace(tmp, path)
+        tmp = None
+    except OSError as exc:  # e.g. a file briefly locked by another process on Windows
+        logger.debug("vendor budget state not saved to %s: %s", path, exc)
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                Path(tmp).unlink()
 
 
 def load_vendor_budget(run: dict) -> VendorBudget:

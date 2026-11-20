@@ -102,7 +102,10 @@ def test_titles_with_the_family_noun_still_pass_on_signal_terms():
         "Werkstudentin Data Analyst",
         "Data Analyst Praktikum",
         "Data Analyst Trainee",
-        "Stage Data Analyst",
+        "Stage - Data Analyst",
+        "Stage en analyse de données (Data Analyst)",
+        "Stage: Data Analyst",
+        "Stagiaire Data Analyst",
         "Becario Data Analyst",
         "Data Analyst Apprentice",
     ],
@@ -179,3 +182,27 @@ def test_home_places_are_the_single_places_of_the_profile():
 )
 def test_other_spellings_of_the_home_country_and_city_only_profiles_are_not_flagged(criteria, location, remote):
     assert other_country_restriction(location, remote, criteria) is None
+
+def _stage_profile(**criteria) -> dict:
+    profile = _analyst_profile(excluded_terms=["intern"])
+    profile["criteria"].update(criteria)
+    return profile
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Stage Manager", "Stage Technician", "Stage Hand", "Stage Designer", "Backstage Coordinator"],
+)
+def test_english_stage_occupations_are_not_internships(title):
+    profile = _stage_profile(
+        role_focus_terms=["stage manager", "stage technician", "stage hand", "stage designer", "backstage coordinator"],
+        target_titles=[title], role_signal_terms=["theatre", "productions"],
+    )
+    job = _job(title, body="Run theatre productions and rehearsals.")
+    assert _outcome(job, profile) == "keep"
+
+
+def test_a_stage_role_term_of_the_profile_is_never_read_as_an_internship():
+    profile = _stage_profile(role_focus_terms=["stage manager"], target_titles=["Stage Manager"],
+                             role_signal_terms=["theatre"])
+    assert _outcome(_job("Stage Manager - Touring", body="Theatre tours."), profile) == "keep"

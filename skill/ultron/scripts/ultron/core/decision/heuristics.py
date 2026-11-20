@@ -42,7 +42,12 @@ from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 logger = logging.getLogger(__name__)
 
 _SPANISH_REMOTE_FORMS = {"hibrido", "hibrida", "hibridos", "hibridas", "presenciales"}
-_LEADING_STAGE = re.compile(r"\s*stage\b", re.IGNORECASE)
+# The French and Dutch internship marker leads the title and is followed by a separator or a preposition
+# ("Stage - Data Analyst", "Stage: ...", "Stage en finance", "Stage d'analyste", "Stage bij ..."). English
+# occupations ("Stage Manager", "Stage Technician") are not internships.
+_LEADING_STAGE = re.compile(
+    r"\s*stage(?:\s*[-–—:|(]|\s+(?:en|de|du|des|bij|in|op)\b|\s+d['’])", re.IGNORECASE
+)
 _EMPLOYMENT_LEVEL_FIELD = re.compile(
     r"^[ \t]*(?:employment type|experience level)[ \t]*:[ \t]*(?:\r?\n[ \t]*)?([^\r\n]+)",
     re.IGNORECASE | re.MULTILINE,
@@ -186,7 +191,12 @@ class HeuristicEvaluator:
             normalize_text(term) in STUDENT_LEVEL_TRIGGER_TERMS for term in profile.seniority_excluded_terms
         ):
             return False
-        return bool(find_terms(job.title, STUDENT_LEVEL_TITLE_TERMS)) or bool(_LEADING_STAGE.match(job.title or ""))
+        if find_terms(job.title, STUDENT_LEVEL_TITLE_TERMS):
+            return True
+        # A profile that targets a stage occupation ("stage manager") never reads its own title as an internship.
+        roles = (*self.cfg.role_focus_terms, *profile.role_terms)
+        stage_roles = [term for term in roles if find_terms(term, ("stage",))]
+        return bool(_LEADING_STAGE.match(job.title or "")) and not find_terms(job.title, stage_roles)
 
     def _seniority_evidence_terms(self) -> set[str]:
         profile = getattr(self.cfg, "evaluation_profile", None)

@@ -78,7 +78,7 @@ def test_character_boundary_rejects_not_cuts(tmp_path):
 
 def test_unsupported_and_empty(tmp_path):
     with pytest.raises(cv.CvExtractionError) as raised:
-        cv.extract_cv_text(_write(tmp_path, "cv.docx", b"data"))
+        cv.extract_cv_text(_write(tmp_path, "cv.doc", b"data"))
     assert raised.value.code == "unsupported_type"
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv_text(_write(tmp_path, "e.txt", b" \n\t "))
@@ -249,11 +249,11 @@ def test_cli_cv_extract_writes_file_not_stdout(tmp_path, capsys):
     assert "Secret CV body" not in out
     assert (payload["chars"], payload["pages"]) == (14, 1)
     assert Path(payload["path"]).read_text(encoding="utf-8") == "Secret CV body"
-    assert Path(payload["path"]).name == "me.txt"
+    assert Path(payload["path"]).name == "me.txt.txt"
 
 
 def test_cli_cv_extract_error_json(tmp_path, capsys):
-    assert cli.main(["cv", "extract", str(_write(tmp_path, "a.docx", b"x"))]) != 0
+    assert cli.main(["cv", "extract", str(_write(tmp_path, "a.odt", b"x"))]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "unsupported_type"
 
 

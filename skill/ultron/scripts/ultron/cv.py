@@ -1,6 +1,6 @@
-"""CV text extraction from PDF or plain-text files (port of MARK III ``cv/text_extractor.py``).
+"""CV text extraction from PDF, Word ``.docx`` or plain-text files (port of MARK III ``cv/text_extractor.py``).
 
-PDF parsing runs in a child interpreter bounded by a hard timeout (``ultron.cv_worker``). Text is
+Word files are read with the standard library (``ultron.cv_docx``). PDF parsing runs in a child interpreter bounded by a hard timeout (``ultron.cv_worker``). Text is
 never silently truncated: over-budget input is rejected with a typed ``CvExtractionError``.
 
 ``CvExtractionError.code`` is one of:
@@ -26,6 +26,7 @@ MAX_CV_CHARS = 60_000
 MAX_CV_PAGES = 20
 PDF_TIMEOUT_SECONDS = 20.0
 TEXT_SUFFIXES = {".txt", ".md"}
+DOCX_SUFFIX = ".docx"
 
 
 class CvExtractionError(ValueError):
@@ -245,8 +246,8 @@ def extract_cv(
 
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix not in TEXT_SUFFIXES and suffix != ".pdf":
-        raise CvExtractionError("Unsupported CV format. Use PDF, .txt or .md.", code="unsupported_type")
+    if suffix not in TEXT_SUFFIXES and suffix not in {".pdf", DOCX_SUFFIX}:
+        raise CvExtractionError("Unsupported CV format. Use PDF, .docx, .txt or .md.", code="unsupported_type")
     try:
         if path.stat().st_size > MAX_CV_BYTES:
             raise CvExtractionError("CV file is too large", code="too_long")
@@ -255,6 +256,11 @@ def extract_cv(
         raise CvExtractionError(f"Cannot read CV file: {exc}", code="unsupported_type") from exc
     if suffix in TEXT_SUFFIXES:
         return CvText(_clean_text(_decode_text_bytes(content), max_chars), 1)
+    if suffix == DOCX_SUFFIX:
+        from ultron.cv_docx import extract_docx_text
+
+        text, page_count = extract_docx_text(content)
+        return CvText(_clean_text(text, max_chars), page_count)
     pages = pdf_runner(content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout)
     return CvText(_clean_text("\n".join(pages), max_chars), len(pages))
 
@@ -266,6 +272,6 @@ def extract_cv_text(
     max_chars: int = MAX_CV_CHARS,
     timeout: float = PDF_TIMEOUT_SECONDS,
 ) -> str:
-    """Return bounded plain text from a CV file (PDF, ``.txt`` or ``.md``)."""
+    """Return bounded plain text from a CV file (PDF, ``.docx``, ``.txt`` or ``.md``)."""
 
     return extract_cv(path, max_pages=max_pages, max_chars=max_chars, timeout=timeout).text

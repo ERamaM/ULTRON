@@ -250,16 +250,20 @@ three; breaks a Spanish family-noun test as written). Rejected: a keep that name
 scope anywhere becoming unsure (new false negative: an Irish town outside the profile's terms), and
 "Nursing" read as the noun "nurse" (admits nursing-home and assistant roles).
 
-Session 7 accepted two quality changes. The deferred "global" and "international" change came first:
+Session 7 accepted two quality changes. The deferred "global" and "international" change came first.
+After review it is a closed list: these words in a body still name a region unless the next three words
+make them a company description ("the global economy", "our global support organization",
+"international clients"). Ambiguous text never demotes a keep, so a negated statement ("we are not
+hiring internationally") still opens a posting, which is a known limit. It measured
 0.796 / 0.886 / 0.839 -> 0.886 / 0.886 / 0.886 (fp 10 -> 5) on 210 cases. Six US-location cases
 followed, which brought the corpus to 216 cases at 0.833 / 0.851 / 0.842 (tp 40, fp 8, fn 7, tn 144).
 Two of the six are Irish towns that the European pre-filter already loses: it reads "Virginia" and
 ", CO." as US places. The second change treats a US place that names no country as outside a non-US
 home. The evidence is a state code at the end of a location ("Austin, TX"), a state name after a
-comma or before "(Any City)", or an affirmative US state-licence requirement in one sentence of the
-body. A code that a country or another region also uses ("CA", "PR", "MI") needs a ZIP code and
-never counts when that country is a home. Body statements (licences and hiring scope such as "we
-hire globally") count only within one sentence that does not negate or restrict them. It measures
+comma or before "(Any City)", or an explicit US state-licence requirement on the applicant in the
+body ("must hold an active Texas RN license", "current state licensure", "licensed to practice in the
+state of Arizona"), not negated in its clause. A code that a country or another region also uses
+("CA", "PR", "MI") needs a ZIP code and never counts when that country is a home. It measures
 0.930 / 0.851 / 0.889 (tp 40, fp 3, fn 7, tn 149). Of the five cases it fixes, three were written for this
 change, so read that number as a regression gate. Neither change created a new false negative, and
 the 60-case pin did not move.

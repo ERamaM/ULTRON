@@ -116,6 +116,11 @@ def test_explicit_closed_phrases_reject_in_every_language(body):
         "La oferta incluye seguro médico y está abierta a candidaturas de toda la UE.",
         "Our legacy API is no longer available; you will help build its replacement.",
         "No se admiten más solicitudes de agencias de selección.",
+        "Applications are accepted until the position has been filled.",
+        "We review applications on a rolling basis; once the role has been filled, this page closes.",
+        "La candidatura sigue abierta hasta que la plaza ha sido cubierta.",
+        "Bewerbungen sind willkommen, bis die Stelle besetzt ist.",
+        "Le poste est pourvu d'un véhicule de fonction.",
     ],
 )
 def test_open_postings_with_closed_lookalike_words_stay_open(body):

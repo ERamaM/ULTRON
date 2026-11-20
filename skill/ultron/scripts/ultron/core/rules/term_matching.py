@@ -67,7 +67,12 @@ def matching_term_span(text: str, terms: Iterable[str], *, max_length: int) -> t
 
 def extract_matching_evidence(text: str, terms: Iterable[str]) -> str:
     """Return a bounded source window containing an actual configured term."""
-    terms = tuple(terms)
+    # A term absent from the whole normalized text cannot match any sentence: drop it once up front, so
+    # large term lists (closed-status phrases) do not cost one regex scan per term per sentence.
+    normalized_text = normalize_text(text)
+    terms = tuple(term for term in terms if normalize_text(term.strip()) in normalized_text)
+    if not terms:
+        return ""
     for sentence in re.split(r"(?<=[.!?])\s+", text):
         sentence = sentence.strip()
         span = matching_term_span(sentence, terms, max_length=280)

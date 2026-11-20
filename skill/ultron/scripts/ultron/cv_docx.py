@@ -5,8 +5,8 @@ and footers (often contact details) are left out. The archive and the XML are un
 
 - the archive may hold at most ``MAX_ARCHIVE_ENTRIES`` entries, and the body is streamed with a hard cap
   of ``MAX_DOCUMENT_XML_BYTES`` inflated bytes (a declared size can lie, so the read itself is bounded);
-- any document type declaration is rejected before parsing, so no entity is ever defined or expanded
-  and nothing outside the archive is fetched.
+- the body must be UTF-8 (as Word writes it), and any document type declaration is rejected before
+  parsing, so no entity is ever defined or expanded and nothing outside the archive is fetched.
 """
 
 from __future__ import annotations
@@ -60,6 +60,9 @@ def _read_body(content: bytes) -> bytes:
 
 def _text(body: bytes) -> tuple[str, int]:
     """Paragraph text and the page count (explicit page breaks plus one)."""
+    # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
+    if b"\x00" in body or body.startswith((b"\xff\xfe", b"\xfe\xff")):
+        raise _error("The Word document body is not UTF-8")
     if _DOCTYPE.search(body):
         raise _error("The Word document declares a document type, which is not supported")
     lines: list[str] = []

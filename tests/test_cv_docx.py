@@ -149,3 +149,14 @@ def test_a_pdf_and_a_text_cv_with_the_same_stem_keep_separate_outputs(tmp_path, 
         outputs.append(Path(json.loads(capsys.readouterr().out)["path"]))
     assert [path.name for path in outputs] == ["cv.pdf.txt", "cv.txt.txt"]
     assert [path.read_text(encoding="utf-8") for path in outputs] == ["From the PDF", "From the text file"]
+
+
+def test_a_utf16_body_cannot_hide_a_document_type_declaration(tmp_path):
+    xml = _document(_paragraph("&a;"), prolog='<!DOCTYPE d [<!ENTITY a "aaaaaaaaaa">]>').replace("UTF-8", "UTF-16")
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", xml.encode("utf-16"))
+    content = buffer.getvalue()
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", content))
+    assert raised.value.code == "no_extractable_text"

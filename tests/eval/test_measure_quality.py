@@ -18,12 +18,16 @@ import pytest
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
+# Updated with the closed-status / non-EU / Spanish-title filter fixes: relevant 14 kept + 3 discarded
+# -> 17 kept (es-positive-shape-01, q-es-senior-remoto-espana, en-positive-shape-07 now kept);
+# not_relevant 5 kept -> 1 kept (closed postings en/es-negative-shape-08/07 and non-EU remote ones
+# now discarded). Ambiguous cases and score bands are unchanged.
 PINNED_COUNTS = {
-    "relevant": {"kept": 14, "unsure": 0, "discarded": 3},
-    "not_relevant": {"kept": 5, "unsure": 0, "discarded": 16},
+    "relevant": {"kept": 17, "unsure": 0, "discarded": 0},
+    "not_relevant": {"kept": 1, "unsure": 0, "discarded": 20},
     "ambiguous": {"kept": 6, "unsure": 3, "discarded": 13},
 }
-PINNED_RATES = {"relevant_kept_or_unsure_rate": 14 / 17, "not_relevant_kept_rate": 5 / 21}
+PINNED_RATES = {"relevant_kept_or_unsure_rate": 17 / 17, "not_relevant_kept_rate": 1 / 21}
 PINNED_BANDS = {
     "relevant": {"strong": 17, "good": 0, "borderline": 0, "ineligible": 0},
     "not_relevant": {"strong": 9, "good": 5, "borderline": 7, "ineligible": 0},

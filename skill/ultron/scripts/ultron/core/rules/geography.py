@@ -216,6 +216,58 @@ def _names_home(text: str, homes: Iterable[str]) -> bool:
     return bool(find_terms(_place_text(text), homes) or find_terms(normalize_text(text or ""), as_written))
 
 
+# US places that name no country. State and territory codes after a comma, at the end of a location part
+# ("Austin, TX", "Lewes, DE 19958"), are matched as written: "Co. Meath" and "CO. WESTMEATH" are Irish counties.
+# A code that is also an ISO country code ("CA" Canada, "DE" Germany, "AR" Argentina) only counts before a ZIP
+# code, and never when that country is a home place.
+_US_STATE_CODES = frozenset({
+    "AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "GA", "GU", "HI", "IA", "ID", "IL", "IN", "KS",
+    "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY",
+    "OH", "OK", "OR", "PA", "PR", "RI", "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY",
+})
+_ISO_COUNTRY_OF_STATE_CODE = {
+    "AL": "albania", "AR": "argentina", "AZ": "azerbaijan", "CA": "canada", "CO": "colombia", "DE": "germany",
+    "GA": "gabon", "ID": "indonesia", "IL": "israel", "IN": "india", "KY": "cayman islands", "LA": "laos",
+    "MA": "morocco", "MD": "moldova", "ME": "montenegro", "MN": "mongolia", "MO": "macao", "MS": "montserrat",
+    "MT": "malta", "NC": "new caledonia", "NE": "niger", "PA": "panama", "SC": "seychelles", "SD": "sudan",
+    "TN": "tunisia", "VA": "vatican city",
+}
+_US_STATE_CODE_AT_END = re.compile(r",\s*([A-Z]{2})(\s+\d{5}(?:-\d{4})?)?\s*(?=$|[;|/\n])", re.MULTILINE)
+# State names at the end of a location part ("Memphis, Tennessee") or before "(Any City)". Left out: "Georgia"
+# (also a country) and a bare "Washington" (also a town in England). "Virginia, Co. Cavan" is an Irish town:
+# a state name only counts after a comma.
+US_STATE_NAMES = (
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware", "florida",
+    "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
+    "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio", "oklahoma",
+    "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", "tennessee", "texas", "utah",
+    "vermont", "virginia", "west virginia", "wisconsin", "wyoming", "washington state", "district of columbia",
+)
+_STATE_NAME = "|".join(re.escape(name) for name in sorted(US_STATE_NAMES, key=len, reverse=True))
+_US_STATE_NAME_IN_PLACE = re.compile(
+    rf",\s*(?:{_STATE_NAME})\s*(?=$|[;|/\n])|\b(?:{_STATE_NAME})\s*\(\s*any\s+city\s*\)", re.IGNORECASE | re.MULTILINE
+)
+# A licence issued by a US state: "current state licensure", "multiple state licenses", "licensed in the state".
+# The Irish "State" ("a State-funded service") never comes with a licence.
+_US_STATE_LICENSURE = re.compile(
+    r"\bstate\s+licen[cs](?:e|es|ure)\b|\blicen[cs]ed\s+(?:to\s+practi[cs]e\s+)?in\s+the\s+state\b", re.IGNORECASE
+)
+
+
+def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
+    """True when the location fields or a state-licence requirement place a posting in the United States."""
+    homes = set(homes)
+    for match in _US_STATE_CODE_AT_END.finditer(fields):
+        code, zip_code = match.group(1), match.group(2)
+        if code not in _US_STATE_CODES:
+            continue
+        country = _ISO_COUNTRY_OF_STATE_CODE.get(code)
+        if country is None or (zip_code and country not in homes):
+            return True
+    return bool(_US_STATE_NAME_IN_PLACE.search(fields) or _US_STATE_LICENSURE.search(body_text or ""))
+
+
 def other_country_restriction(
     location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = "",
     *, remote_job: bool = True,
@@ -230,6 +282,8 @@ def other_country_restriction(
     "international" in the body describe the company ("our global platform"), not where it hires.
     The body is only read for a remote job (``remote_job``): an on-site or hybrid job is done at its location,
     whatever regions the company blurb names.
+    A US place that names no country ("Austin, TX", "Nebraska (Any City)") or a US state licence in the body of
+    any job ("current state licensure") limits the posting to the United States, unless that is a home.
     """
     places = profile_home_places(criteria)
     countries = [spelling for place in places if place in _COUNTRY_NAMES for spelling in _country_spellings(place)]
@@ -246,7 +300,11 @@ def other_country_restriction(
     if (remote_job and _names_home(body_text, homes)) or body_region:
         return None
     named = find_terms(text, COUNTRY_TERMS)
-    return named[0] if named else None
+    if named:
+        return named[0]
+    if "united states" not in homes and _names_us_place(fields, body_text, homes):
+        return "united states"
+    return None
 
 
 def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:

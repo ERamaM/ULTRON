@@ -124,3 +124,46 @@ def test_a_profile_that_names_northern_ireland_or_the_us_keeps_those_postings(cr
 def test_northern_ireland_in_the_body_of_a_remote_job_is_not_ireland():
     body = "Work remotely from anywhere in Northern Ireland."
     assert other_country_restriction("Belfast", "Remote - United Kingdom", IRELAND, body) == "united kingdom"
+
+
+# --- US places with no country name: state codes, state names and US state licensure ------------------------
+
+US_LICENSURE = "Current appropriate state licensure is required. Comply with federal and state regulations."
+
+
+@pytest.mark.parametrize(
+    "criteria, location, remote, body, remote_job",
+    [
+        (IRELAND, "Lewes, DE 19958", "Onsite", "", False),
+        (IRELAND, "Austin, TX", "On-site", "", False),
+        (IRELAND, "Dededo, GU", "Onsite Dededo, GU", "", False),
+        (IRELAND, "Nebraska (Any City)", "Field-based", "", False),
+        (IRELAND, "Memphis, Tennessee", "", "", False),
+        (IRELAND, "Riverside Dialysis - Clinic", "Onsite", US_LICENSURE, False),
+        (IRELAND, "Wyoming", "Remote", "Multiple state licenses are a strong advantage.", True),
+        (LATAM, "Riverside Clinic", "Remote", "You must be licensed in the state where your patients live.", True),
+        (LATAM, "Remote - Denver, CO 80202", "Remote", "", True),
+    ],
+)
+def test_a_us_place_without_a_country_name_is_outside_a_non_us_home(criteria, location, remote, body, remote_job):
+    assert other_country_restriction(location, remote, criteria, body, remote_job=remote_job) == "united states"
+
+
+@pytest.mark.parametrize(
+    "criteria, location, remote, body",
+    [
+        (IRELAND, "Virginia, Co. Cavan", "", "NMBI registration required."),
+        (IRELAND, "MULLINGAR, CO. WESTMEATH", "On-site", "Provide patient care in a State-funded day hospital."),
+        (IRELAND, "Roscommon", "", "Join our nurse-led residential service in Co Roscommon."),
+        (IRELAND, "Tralee", "", "The State Claims Agency covers clinical indemnity."),
+        (LATAM, "Buenos Aires, AR", "Remote", ""),
+        (LATAM, "Bogota, CO", "Remote", ""),
+        ({"location_scope": {"preferred": ["Remote LATAM", "Argentina"]}}, "Cordoba, AR 50000", "Remote", ""),
+        ({"location_scope": {"preferred": ["Germany"]}}, "Berlin, DE 10115", "On-site", ""),
+        ({"location_scope": {"preferred": ["United Kingdom"]}}, "Washington, Tyne and Wear", "On-site", ""),
+        ({"location_scope": {"preferred": ["United States"]}}, "Lewes, DE 19958", "Onsite", US_LICENSURE),
+        ({"location_scope": {"preferred": ["Remote US", "Texas"]}}, "Austin, TX", "On-site", US_LICENSURE),
+    ],
+)
+def test_us_place_evidence_does_not_flag_a_home_or_look_alike_place(criteria, location, remote, body):
+    assert other_country_restriction(location, remote, criteria, body, remote_job=False) is None

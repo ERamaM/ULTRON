@@ -5377,7 +5377,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 19,
+        "rank": 14,
         "reason": null,
         "status": "unsure"
       },
@@ -5406,7 +5406,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 20,
+        "rank": 15,
         "reason": null,
         "status": "unsure"
       },
@@ -5435,7 +5435,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 21,
+        "rank": 16,
         "reason": null,
         "status": "unsure"
       },
@@ -5841,7 +5841,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 22,
+        "rank": 17,
         "reason": null,
         "status": "unsure"
       },
@@ -5870,7 +5870,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 23,
+        "rank": 18,
         "reason": null,
         "status": "unsure"
       },
@@ -5928,9 +5928,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 11,
+        "rank": 19,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -5957,9 +5957,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 12,
+        "rank": 20,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -5986,7 +5986,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 24,
+        "rank": 21,
         "reason": null,
         "status": "unsure"
       },
@@ -6015,7 +6015,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 25,
+        "rank": 22,
         "reason": null,
         "status": "unsure"
       },
@@ -6044,7 +6044,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 13,
+        "rank": 11,
         "reason": null,
         "status": "keep"
       },
@@ -6073,7 +6073,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 14,
+        "rank": 12,
         "reason": null,
         "status": "keep"
       },
@@ -6102,7 +6102,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 15,
+        "rank": 13,
         "reason": null,
         "status": "keep"
       },
@@ -6131,9 +6131,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 16,
+        "rank": 23,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -6160,9 +6160,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 17,
+        "rank": 24,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -6189,9 +6189,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 18,
+        "rank": 25,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -6270,17 +6270,17 @@
   "metrics": {
     "agent_queue": 110,
     "classification": {
-      "abstention_rate": 0.10900473933649289,
+      "abstention_rate": 0.13270142180094788,
       "confusion_matrix": {
         "fn": 7,
-        "fp": 8,
-        "tn": 144,
+        "fp": 3,
+        "tn": 149,
         "tp": 40
       },
-      "f1": 0.8421052631578947,
+      "f1": 0.888888888888889,
       "false_negative_rate": 0.14893617021276595,
-      "false_positive_rate": 0.05263157894736842,
-      "precision": 0.8333333333333334,
+      "false_positive_rate": 0.019736842105263157,
+      "precision": 0.9302325581395349,
       "recall": 0.851063829787234,
       "sample_size": 199
     },
@@ -6291,8 +6291,8 @@
     },
     "outcomes": {
       "discard": 141,
-      "keep": 52,
-      "unsure": 23
+      "keep": 47,
+      "unsure": 28
     },
     "ranking": {
       "backend-engineer-spain-eu": {
@@ -6339,17 +6339,17 @@
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.15333333333333332,
+          "abstention_rate": 0.18666666666666668,
           "confusion_matrix": {
             "fn": 3,
-            "fp": 8,
-            "tn": 95,
+            "fp": 3,
+            "tn": 100,
             "tp": 39
           },
-          "f1": 0.8764044943820225,
+          "f1": 0.9285714285714286,
           "false_negative_rate": 0.07142857142857142,
-          "false_positive_rate": 0.07766990291262135,
-          "precision": 0.8297872340425532,
+          "false_positive_rate": 0.02912621359223301,
+          "precision": 0.9285714285714286,
           "recall": 0.9285714285714286,
           "sample_size": 145,
           "status": "measured"
@@ -6421,17 +6421,17 @@
           "status": "measured"
         },
         "nurse-ireland-onsite": {
-          "abstention_rate": 0.2,
+          "abstention_rate": 0.34285714285714286,
           "confusion_matrix": {
             "fn": 3,
-            "fp": 6,
-            "tn": 14,
+            "fp": 1,
+            "tn": 19,
             "tp": 12
           },
-          "f1": 0.7272727272727272,
+          "f1": 0.8571428571428571,
           "false_negative_rate": 0.2,
-          "false_positive_rate": 0.3,
-          "precision": 0.6666666666666666,
+          "false_positive_rate": 0.05,
+          "precision": 0.9230769230769231,
           "recall": 0.8,
           "sample_size": 35,
           "status": "measured"
@@ -6503,17 +6503,17 @@
           "status": "measured"
         },
         "onsite": {
-          "abstention_rate": 0.12727272727272726,
+          "abstention_rate": 0.21818181818181817,
           "confusion_matrix": {
             "fn": 3,
-            "fp": 6,
-            "tn": 34,
+            "fp": 1,
+            "tn": 39,
             "tp": 12
           },
-          "f1": 0.7272727272727272,
+          "f1": 0.8571428571428571,
           "false_negative_rate": 0.2,
-          "false_positive_rate": 0.15,
-          "precision": 0.6666666666666666,
+          "false_positive_rate": 0.025,
+          "precision": 0.9230769230769231,
           "recall": 0.8,
           "sample_size": 55,
           "status": "measured"
@@ -6585,17 +6585,17 @@
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.19827586206896552,
+          "abstention_rate": 0.2413793103448276,
           "confusion_matrix": {
             "fn": 7,
-            "fp": 7,
-            "tn": 60,
+            "fp": 2,
+            "tn": 65,
             "tp": 40
           },
-          "f1": 0.8510638297872339,
+          "f1": 0.898876404494382,
           "false_negative_rate": 0.14893617021276595,
-          "false_positive_rate": 0.1044776119402985,
-          "precision": 0.851063829787234,
+          "false_positive_rate": 0.029850746268656716,
+          "precision": 0.9523809523809523,
           "recall": 0.851063829787234,
           "sample_size": 114,
           "status": "measured"
@@ -6683,17 +6683,17 @@
           "status": "measured"
         },
         "json_api": {
-          "abstention_rate": 0.13157894736842105,
+          "abstention_rate": 0.2631578947368421,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 5,
-            "tn": 28,
+            "fp": 0,
+            "tn": 33,
             "tp": 5
           },
-          "f1": 0.6666666666666666,
+          "f1": 1.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.15151515151515152,
-          "precision": 0.5,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
           "recall": 1.0,
           "sample_size": 38,
           "status": "measured"

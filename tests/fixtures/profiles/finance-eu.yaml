@@ -4,7 +4,7 @@ description: Test fixture for a non-technical profile with no vocabulary pack.
 enabled: true
 source_kind: example
 criteria:
-  sectors: [finance]
+  sectors: [finance_insurance]
   role_family_label: Finance and accounting
   target_titles:
     - Financial Controller

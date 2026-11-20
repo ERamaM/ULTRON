@@ -16,7 +16,9 @@ from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.remote_requirement import is_remote_required, remote_required_value
 from ultron.core.rules.geography import geo_scope, location_scope, scoped_eligibility_terms
 from ultron.core.rules.term_matching import normalize_text
+from ultron.core.sectors import Sector, profile_sector_values
 from ultron.core.vocabulary import active_pack
+from ultron.profiles import unknown_fields
 from ultron.runs_cmd import build_query_plan
 
 MAX_EXAMPLES = 5
@@ -67,6 +69,14 @@ def _warnings(profile: dict, criteria: dict, ignored_exclusions: list[str], plan
         out.append("query_templates.regions is empty: web-search queries will not name any of the preferred regions")
     if not plan:
         out.append("the query plan is empty: add criteria.target_titles or query_templates.core_titles")
+    for path in unknown_fields(profile):
+        out.append(f"{path} is not a profile field and the CLI ignores it; fix the name, or put preferences the CLI "
+                   "cannot filter (salary, companies, languages) in prompt")
+    known_sectors = {sector.value for sector in Sector}
+    for sector in dict.fromkeys(_list(criteria.get("sectors"))):
+        if not profile_sector_values([sector]) <= known_sectors:
+            out.append(f"criteria.sectors: {sector!r} is not a known sector ({', '.join(sorted(known_sectors))}); "
+                       "bundled seed packs then rank as non-matching")
     return out
 
 

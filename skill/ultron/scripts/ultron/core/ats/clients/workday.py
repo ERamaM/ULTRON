@@ -115,7 +115,7 @@ def fetch_workday_jobs(
     api_url = locator_url(host, api_path, "jobs")
     _WD_PAGE_LIMIT = 20
     _WD_MAX_PAGES = 100  # Safety cap: max 2000 jobs per board
-    page_cap = _WD_MAX_PAGES if max_pages is None else max(1, int(max_pages))
+    page_cap = _WD_MAX_PAGES if max_pages is None else max(1, min(_WD_MAX_PAGES, int(max_pages)))
     out: list[AtsPosting] = []
     seen: set[str] = set()
     pages: deque[tuple[dict[str, list[str]], int, int | None]] = deque([({}, 0, None)])

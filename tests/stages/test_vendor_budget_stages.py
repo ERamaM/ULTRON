@@ -192,3 +192,21 @@ def test_postings_skipped_by_the_vendor_budget_leave_their_page_slot_to_capped_c
     assert "employer.example.org" in hits
     assert runs.read_jsonl(runs.run_dir(run_id) / "fetch_capped.jsonl") == []
     assert result["capped"] == 0
+
+
+def test_a_large_workday_share_never_exceeds_the_client_safety_cap():
+    from ultron.core.ats.clients.workday import fetch_workday_jobs
+
+    class Endless:
+        calls = 0
+
+        def request_json(self, url, method="GET", json_body=None, timeout=None):
+            self.calls += 1
+            return _jobs(json_body["offset"], 100_000)
+
+        def request_text(self, url, timeout=None):
+            raise AssertionError("not reached")
+
+    client = Endless()
+    fetch_workday_jobs("acme.wd1.myworkdayjobs.com/External", client=client, max_pages=500)
+    assert client.calls == 100

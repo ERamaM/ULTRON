@@ -183,3 +183,21 @@ def test_corrupt_or_missing_state_starts_a_fresh_budget():
     legacy = runs.load_run(run_id)
     del legacy["settings"]["max_requests_per_vendor"]
     assert http_factory.client_for_run(legacy).vendor_allowance("workday") > 0
+
+
+def test_a_429_recovered_by_its_retry_still_clears_an_earlier_403_strike():
+    # Codex review: (200, rate_limited=True) skipped the 2xx branch, so a stale 403 plus the 429 blocked the vendor.
+    budget = VendorBudget(max_requests=100, block_threshold=3)
+    budget.record("workday", 403)
+    budget.record("workday", 200, rate_limited=True)
+    assert budget.forbidden_streak.get("workday", 0) == 0 and budget.strikes("workday") == 1
+    budget = VendorBudget(max_requests=100, block_threshold=2)
+    budget.record("workday", 403)
+    budget.record("workday", 200, rate_limited=True)
+    assert not budget.is_blocked("workday")
+
+
+def test_vendor_blocked_is_a_host_blocked_with_both_names():
+    exc = VendorBlocked("workday", "acme.wd1.myworkdayjobs.com")
+    assert exc.host == "acme.wd1.myworkdayjobs.com" and exc.vendor == "workday"
+    assert str(exc) == "vendor_blocked: workday" and exc.status_code is None

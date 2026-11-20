@@ -52,17 +52,18 @@ class HttpError(RuntimeError):
 class HostBlocked(HttpError):
     """The host answered 403/429 ``block_threshold`` times in a row; no further request is sent to it."""
 
-    def __init__(self, host: str) -> None:
-        super().__init__(f"host_blocked: {host}")
+    def __init__(self, host: str, message: str = "") -> None:
+        super().__init__(message or f"host_blocked: {host}")
         self.host = host
 
 
 class VendorBlocked(HostBlocked):
-    """Hosts of this ATS vendor answered 403/429 too often in this run; no host of the vendor is called again."""
+    """Hosts of this ATS vendor answered 403/429 too often in this run; no host of the vendor is called again.
+
+    ``host`` is the host that was about to be called; ``vendor`` names the blocked vendor."""
 
     def __init__(self, vendor: str, host: str) -> None:
-        HttpError.__init__(self, f"vendor_blocked: {vendor}")
-        self.host = host
+        super().__init__(host, f"vendor_blocked: {vendor}")
         self.vendor = vendor
 
 
@@ -116,13 +117,18 @@ class VendorBudget:
 
     def record(self, vendor: str, status: int, *, rate_limited: bool = False) -> None:
         """Count one request's outcome: its final ``status``, and ``rate_limited`` if any attempt got a 429."""
+        changed = False
         if rate_limited or status == 429:
             self.rate_limited[vendor] = self.rate_limited.get(vendor, 0) + 1
-        elif status == 403:
+            changed = True
+        if status == 403:
             self.forbidden_streak[vendor] = self.forbidden_streak.get(vendor, 0) + 1
+            changed = True
         elif 200 <= status < 300 and self.forbidden_streak.get(vendor):
+            # Any final success clears the 403 streak, also when an earlier attempt of this request met a 429.
             self.forbidden_streak[vendor] = 0
-        else:
+            changed = True
+        if not changed:
             return
         if self.strikes(vendor) >= self.block_threshold:
             self.blocked.add(vendor)

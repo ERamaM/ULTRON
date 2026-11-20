@@ -19,9 +19,18 @@ from ultron.core.privacy import redact
 from ultron.core.rules.term_matching import contains_term, normalize_text
 
 _YEAR_RE = re.compile(r"\b(19[6-9]\d|20[0-3]\d)\b")
-_PHONE_LINE_RE = re.compile(r"(?<!\d)(?:\+?\d[\d\s().-]{6,}\d)(?!\d)")
+_PHONE_LINE_RE = re.compile(
+    r"(?<![\d$€£¥₹])(?:"
+    r"\+\d{1,3}(?:[\s.-]?\(?\d{2,4}\)?){2,4}"
+    r"|\(\d{2,4}\)[\s.-]?\d{3,4}[\s.-]\d{3,4}"
+    r"|\d{3,4}[\s-]\d{3,4}[\s-]\d{3,4}"
+    r")(?!\d)(?!\s*(?:EUR|USD|GBP|CHF|requests|users|clients|customers|people|engineers)\b)",
+    re.IGNORECASE,
+)
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b"
+)
 
 _WORD_NUMBERS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
@@ -114,7 +123,6 @@ _SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
 )
 
 _ACRONYM_RE = re.compile(r"\b[A-Z][A-Z0-9/+.#-]{1,6}\b")
-_MIXED_TECH_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9]*(?:[A-Z][a-z0-9]+|[.+/#][A-Za-z0-9]+|[0-9]+[a-z]+)\b")
 
 
 def _flatten_json_cv(data: dict[str, Any]) -> str:
@@ -304,8 +312,9 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
     for tok in _ACRONYM_RE.findall(body):
         record(tok)
 
-    for tok in _MIXED_TECH_RE.findall(body):
-        record(tok)
+    for tok in cv_ats._TECH_CANDIDATE_RE.findall(body):
+        if cv_ats.is_mixed_tech_token(tok, allow_digit_lower=True):
+            record(tok)
 
     return found
 
@@ -336,7 +345,7 @@ def _check_years_and_experience(
     ref: date,
     violations: list[dict[str, Any]],
     warnings: list[dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any], int]:
+) -> tuple[dict[str, Any], dict[str, Any], int, int]:
     auth_years = set(_YEAR_RE.findall(authorized_text))
     opt_years = set(_YEAR_RE.findall(optimized_text))
     for yr in sorted(opt_years - auth_years):
@@ -383,7 +392,7 @@ def _check_years_and_experience(
             "message": f"Source work-history year {yr} is missing from the optimized CV.",
         })
 
-    return src_exp, opt_exp, delta
+    return src_exp, opt_exp, delta, allowed_months
 
 
 def _check_metrics(
@@ -486,10 +495,10 @@ def verify_truth(
     warnings: list[dict[str, Any]] = []
     info: list[dict[str, Any]] = []
 
-    src_exp, opt_exp, delta_months = _check_years_and_experience(
+    src_exp, opt_exp, delta_months, allowed_months = _check_years_and_experience(
         source_text, confirmed, authorized_text, optimized_text, ref, violations, warnings
     )
-    _check_metrics(authorized_text, optimized_text, float(src_exp["total_years"]), violations, info)
+    _check_metrics(authorized_text, optimized_text, round(allowed_months / 12.0, 1), violations, info)
     _check_credentials(authorized_text, optimized_text, violations)
     _check_tech_tokens(authorized_text, optimized_text, violations, info)
 

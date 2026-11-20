@@ -424,6 +424,7 @@ class ExperienceEntry:
     is_internship: bool
     line_index: int
     date_text: str
+    display_end: YearMonth | None = None
     matches_profile: bool | None = None
 
     @property
@@ -541,10 +542,38 @@ def _resolve_interval(start: YearMonth, end: YearMonth, *, is_present: bool, as_
     return start, end
 
 
+_TITLE_EDGE_CHARS = " -–—|·•,;:[]#*"
+
+
 def _clean_title_hint(fragment: str) -> str:
-    cleaned = re.sub(r"^[\s\-–—|·•,;:()\[\]]+|[\s\-–—|·•,;:()\[\]]+$", "", fragment)
-    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    cleaned = " ".join(fragment.split()).strip(_TITLE_EDGE_CHARS)
+    while cleaned.startswith("(") and cleaned.endswith(")") and len(cleaned) >= 2:
+        cleaned = cleaned[1:-1].strip(_TITLE_EDGE_CHARS)
+    cleaned = cleaned.lstrip(")").rstrip("(").strip(_TITLE_EDGE_CHARS)
     return cleaned if sum(ch.isalpha() for ch in cleaned) >= 2 else ""
+
+
+def _prev_heading_hint(lines: list[str], line_idx: int, *, max_offset: int) -> str:
+    for offset in range(1, max_offset + 1):
+        prev_idx = line_idx - offset
+        if prev_idx < 0:
+            break
+        prev = lines[prev_idx].strip()
+        if not prev:
+            if max_offset > 1:
+                continue
+            break
+        if _BULLET_PREFIX_RE.match(prev) or match_section_heading(prev):
+            break
+        folded_prev, _ = _fold_with_offsets(prev)
+        if _RANGE_RE.search(folded_prev):
+            break
+        if len(prev) > 100 or (prev.endswith(".") and len(prev.split()) > 6):
+            break
+        hint = _clean_title_hint(prev)
+        if hint:
+            return hint
+    return ""
 
 
 def _title_hint_for_line(lines: list[str], line_idx: int, span: tuple[int, int]) -> str:
@@ -552,24 +581,12 @@ def _title_hint_for_line(lines: list[str], line_idx: int, span: tuple[int, int])
     before = _clean_title_hint(line[: span[0]])
     after = _clean_title_hint(line[span[1] :])
     same_line = " · ".join(part for part in (before, after) if part)
-    if same_line:
-        return same_line
-    for offset in (1, 2):
-        prev_idx = line_idx - offset
-        if prev_idx < 0:
-            break
-        prev = lines[prev_idx].strip()
-        if not prev:
-            continue
-        if _BULLET_PREFIX_RE.match(prev) or match_section_heading(prev):
-            break
-        folded_prev, _ = _fold_with_offsets(prev)
-        if _RANGE_RE.search(folded_prev):
-            break
-        hint = _clean_title_hint(prev)
-        if hint:
-            return hint
-    return ""
+    if not same_line:
+        return _prev_heading_hint(lines, line_idx, max_offset=2)
+    prev_hint = _prev_heading_hint(lines, line_idx, max_offset=2 if not before else 1)
+    if prev_hint and prev_hint.casefold() not in same_line.casefold():
+        return f"{prev_hint} · {same_line}"
+    return same_line
 
 
 def _is_internship_line(text: str) -> bool:
@@ -615,6 +632,7 @@ def parse_date_ranges_from_lines(
                     is_internship=_is_internship_line(f"{title_hint} {line}"),
                     line_index=idx,
                     date_text=date_text,
+                    display_end=end_raw,
                 )
             )
             break  # at most one role date range per line
@@ -796,6 +814,7 @@ def analyze_experience(
                 is_internship=entry.is_internship,
                 line_index=entry.line_index,
                 date_text=entry.date_text,
+                display_end=entry.display_end,
                 matches_profile=matches,
             )
         )
@@ -847,7 +866,7 @@ def analyze_experience(
             {
                 "title_hint": e.title_hint,
                 "start": e.start.label(),
-                "end": "present" if e.is_present else e.end.label(),
+                "end": "present" if e.is_present else (e.display_end or e.end).label(),
                 "months": e.months,
                 "is_internship": e.is_internship,
                 "date_text": e.date_text,

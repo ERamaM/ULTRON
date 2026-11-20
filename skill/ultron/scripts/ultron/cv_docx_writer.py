@@ -38,9 +38,12 @@ _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 _SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
 _MD_LINK_RE = re.compile(r"\[([^\[\]]+)\]\(([^()\s]+)\)")
 _BOLD_RE = re.compile(r"\*\*([^*\n]+)\*\*")
-_BULLET_RE = re.compile(r"^\s*(?:[-*•▪▫◦‣])\s+(.+)$")
+_BULLET_RE = re.compile(r"^[ \t]*[-*•▪▫◦‣][ \t]+(\S.*)$")
 _CONTACT_LINE_RE = re.compile(
-    r"(@|https?://|linkedin\.com/|github\.com/|\+?\d[\d\s().-]{6,}\d|\|)",
+    r"(@|https?://|linkedin\.com/|github\.com/|\||"
+    r"\+\d{1,3}(?:[\s.-]?\(?\d{2,4}\)?){2,4}|"
+    r"\(\d{2,4}\)[\s.-]?\d{3,4}[\s.-]\d{3,4}|"
+    r"\d{3,4}[\s-]\d{3,4}[\s-]\d{3,4})",
     re.IGNORECASE,
 )
 

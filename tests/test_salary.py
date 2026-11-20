@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import yaml
@@ -220,3 +221,63 @@ def test_profile_validate_accepts_expected_salary_and_rejects_bad_url(tmp_path):
     prof["salary_min"] = 60000
     assert "salary_min" in profiles.unknown_fields(prof)
     assert profiles.validate_profile(yaml.safe_load(yaml.safe_dump(_seed_profile("ok-sal")))) == []
+
+
+def test_extract_salaries_linear_time_on_long_digit_run():
+    t0 = time.perf_counter()
+    hits = salary.extract_salaries_from_text("1" * 10_000)
+    elapsed = time.perf_counter() - t0
+    assert hits == []
+    assert elapsed < 0.5
+
+
+def test_mine_run_salaries_classifies_remote_us_and_separates_unknown_geo(tmp_path):
+    _seed_profile("remote-dev")
+    rid = runs.new_run("remote-dev", "balanced")
+    folder = runs.run_dir(rid)
+    postings = [
+        {
+            "identity_key": "greenhouse:us:1",
+            "job": ExtractedJob(
+                apply_url="https://boards.greenhouse.io/us/jobs/1",
+                domain="boards.greenhouse.io",
+                title="Senior Engineer US",
+                company="US Co",
+                location="Remote, US",
+                body_text="Annual base salary: $180,000 - $220,000 per year.",
+            ).model_dump(mode="json"),
+        },
+        {
+            "identity_key": "greenhouse:unk:2",
+            "job": ExtractedJob(
+                apply_url="https://boards.greenhouse.io/unk/jobs/2",
+                domain="boards.greenhouse.io",
+                title="Senior Engineer Anywhere",
+                company="Global Co",
+                location="Remote",
+                body_text="Join us to build distributed systems. Annual salary: $130,000 - $150,000 per year.",
+            ).model_dump(mode="json"),
+        },
+        {
+            "identity_key": "greenhouse:eu:3",
+            "job": ExtractedJob(
+                apply_url="https://boards.greenhouse.io/eu/jobs/3",
+                domain="boards.greenhouse.io",
+                title="Senior Engineer EU",
+                company="EU Co",
+                location="Remote, EU",
+                body_text="Annual salary: $110,000 - $125,000 per year.",
+            ).model_dump(mode="json"),
+        },
+    ]
+    runs.write_jsonl(folder / "postings.jsonl", postings)
+    runs.mark_stage(rid, "fetch")
+
+    comps = salary.mine_run_salaries(rid)
+    usd = comps["by_currency"]["USD"]
+    assert usd["count"] == 3
+    assert usd["us_pay_transparency_count"] == 1
+    assert usd["non_us_count"] == 1
+    assert usd["unknown_geo_count"] == 1
+    sample_geos = [s["geo_hint"] for s in comps["samples"]]
+    assert sample_geos == ["eu", "unspecified", "us"]

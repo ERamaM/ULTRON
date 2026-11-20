@@ -170,20 +170,20 @@ _SUFFIX_CURRENCIES: dict[str, str] = {
     "inr": "INR",
 }
 
-_NUM = r"\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d{1,2})?"
+_NUM = r"(?:\d{1,3}(?:[.,]\d{3}){1,3}|\d{1,9}(?:[.,]\d{1,2})?)"
 _PRE_TOKEN = r"(?:€|£|₹|US\$|CA\$|C\$|AU\$|A\$|R\$|\$|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR)\b)"
 _SUF_TOKEN = r"(?:€|£|zł|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR|zl)\b)"
-_RANGE_JOIN = r"\s*(?:[-–—]+|\b(?:to|and|a|bis)\b)\s*"
+_RANGE_JOIN = r"[ \t]{0,3}(?:[-–—]{1,2}|\b(?:to|and|a|bis)\b)[ \t]{0,3}"
 
 _PREFIX_SALARY_RE = re.compile(
-    rf"(?P<curr>{_PRE_TOKEN})\s*(?P<low>{_NUM})\s*(?P<low_k>[kK])?"
-    rf"(?:{_RANGE_JOIN}(?:{_PRE_TOKEN}\s*)?(?P<high>{_NUM})\s*(?P<high_k>[kK])?)?",
+    rf"(?P<curr>{_PRE_TOKEN})[ \t]{{0,3}}(?P<low>{_NUM})(?!\d)[ \t]{{0,2}}(?P<low_k>[kK])?"
+    rf"(?:{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?(?P<high>{_NUM})(?!\d)[ \t]{{0,2}}(?P<high_k>[kK])?)?",
     re.UNICODE,
 )
 _SUFFIX_SALARY_RE = re.compile(
-    rf"(?P<low>{_NUM})\s*(?P<low_k>[kK])?"
-    rf"(?:{_RANGE_JOIN}(?P<high>{_NUM})\s*(?P<high_k>[kK])?)?"
-    rf"\s*(?P<curr>{_SUF_TOKEN})",
+    rf"(?<!\d)(?P<low>{_NUM})(?!\d)[ \t]{{0,2}}(?P<low_k>[kK])?"
+    rf"(?:{_RANGE_JOIN}(?P<high>{_NUM})(?!\d)[ \t]{{0,2}}(?P<high_k>[kK])?)?"
+    rf"[ \t]{{0,3}}(?P<curr>{_SUF_TOKEN})",
     re.UNICODE,
 )
 
@@ -270,6 +270,8 @@ _CURRENCY_BOUNDS: dict[str, tuple[float, float]] = {
 _US_MARKERS = (
     "united states",
     "u.s.",
+    "u.s.a.",
+    "u.s.a",
     "usa",
     "us only",
     "for us locations",
@@ -299,6 +301,34 @@ _EU_MARKERS = (
     "poland",
     "cet",
     "cest",
+)
+_OTHER_NON_US_MARKERS = (
+    "canada",
+    "australia",
+    "switzerland",
+    "suiza",
+    "schweiz",
+    "brazil",
+    "mexico",
+    "india",
+    "latam",
+    "apac",
+    "singapore",
+    "japan",
+)
+_US_LOC_RE = re.compile(r"(?<!\w)(?:us|usa|u\.s\.a?\.?)(?!\w)")
+_US_BODY_RE = re.compile(
+    r"(?:(?<!\w)(?:usa|u\.s\.a?\.?)(?!\w)|\bremote[\s,/-]+us\b|\bus[\s,/-]+remote\b|"
+    r"\(\s*us\s*\)|,\s*us\b|\bin\s+the\s+us\b|\bus[- ]based\b|"
+    r"\bus\s+(?:only|employees?|roles?|candidates?|locations?)\b)"
+)
+_UK_LOC_RE = re.compile(r"(?<!\w)(?:uk|u\.k\.)(?!\w)")
+_UK_BODY_RE = re.compile(
+    r"(?:\bremote[\s,/-]+uk\b|\buk[\s,/-]+remote\b|\(\s*uk\s*\)|,\s*uk\b|\bin\s+the\s+uk\b|\buk[- ]based\b)"
+)
+_EU_LOC_RE = re.compile(r"(?<!\w)(?:eu|eea)(?!\w)")
+_EU_BODY_RE = re.compile(
+    r"(?:\bremote[\s,/-]+eu\b|\beu[\s,/-]+remote\b|\(\s*eu\s*\)|,\s*eu\b|\bin\s+the\s+eu\b|\beu[- ]based\b)"
 )
 
 _CURRENCY_GEO_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
@@ -359,9 +389,9 @@ def _parse_amount(raw: str, has_k: bool) -> float | None:
             return float(normalized) * 1000.0
         except ValueError:
             return None
-    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3})+", cleaned):
+    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3}){1,3}", cleaned):
         return float(cleaned.replace(".", "").replace(",", ""))
-    if re.fullmatch(r"\d+(?:[.,]\d{1,2})?", cleaned):
+    if re.fullmatch(r"\d{1,9}(?:[.,]\d{1,2})?", cleaned):
         return float(cleaned.replace(",", "."))
     return None
 
@@ -400,14 +430,20 @@ def _detect_period(text: str, start: int, end: int, window: str) -> SalaryPeriod
     return best_period
 
 
-def _detect_geo_hint(text: str) -> str:
+def _has_marker(folded: str, markers: tuple[str, ...]) -> bool:
+    return any(re.search(rf"(?<!\w){re.escape(marker)}(?!\w)", folded) for marker in markers)
+
+
+def _detect_geo_hint(text: str, *, is_location_field: bool = False) -> str:
     folded = normalize_text(text)
-    if any(marker in folded for marker in _US_MARKERS):
+    if (_US_LOC_RE if is_location_field else _US_BODY_RE).search(folded) or _has_marker(folded, _US_MARKERS):
         return "us"
-    if any(marker in folded for marker in _UK_MARKERS):
+    if (_UK_LOC_RE if is_location_field else _UK_BODY_RE).search(folded) or _has_marker(folded, _UK_MARKERS):
         return "uk"
-    if any(marker in folded for marker in _EU_MARKERS):
+    if (_EU_LOC_RE if is_location_field else _EU_BODY_RE).search(folded) or _has_marker(folded, _EU_MARKERS):
         return "eu"
+    if _has_marker(folded, _OTHER_NON_US_MARKERS):
+        return "other_non_us"
     return "unspecified"
 
 
@@ -528,6 +564,7 @@ def _kept_keys_for_run(run_folder: Path) -> set[str]:
                 if url:
                     kept.add(canonical_job_identity(url, source_type=str(row.get("source_type") or ""), source_key=str(row.get("source_key") or "")).identity_key)
         except (OSError, ValueError):
+            # Ignore unreadable or malformed results.json and fall back to kept.jsonl below.
             pass
     for row in runs.read_jsonl(run_folder / "kept.jsonl"):
         if key := row.get("identity_key"):
@@ -565,7 +602,7 @@ def mine_run_salaries(
                 continue
             best = hits[0]
             loc_blob = f"{job.get('location') or ''} {job.get('remote_text') or ''}"
-            geo_hint = _detect_geo_hint(loc_blob)
+            geo_hint = _detect_geo_hint(loc_blob, is_location_field=True)
             if geo_hint == "unspecified":
                 geo_hint = best["geo_hint"]
             all_samples.append({
@@ -592,6 +629,8 @@ def mine_run_salaries(
         lows = [float(item["annual_low"]) for item in items]
         highs = [float(item["annual_high"]) for item in items]
         us_count = sum(1 for item in items if item["geo_hint"] == "us")
+        unknown_geo_count = sum(1 for item in items if item["geo_hint"] == "unspecified")
+        non_us_count = sum(1 for item in items if item["geo_hint"] not in {"us", "unspecified"})
         by_currency[currency] = {
             "count": len(items),
             "kept_count": sum(1 for item in items if item["kept"]),
@@ -601,12 +640,20 @@ def mine_run_salaries(
             "p75": _percentile(mids, 0.75),
             "max": round(max(highs)),
             "us_pay_transparency_count": us_count,
-            "non_us_count": len(items) - us_count,
+            "non_us_count": non_us_count,
+            "unknown_geo_count": unknown_geo_count,
         }
+
+    def _geo_sort_rank(geo_hint: str) -> int:
+        if geo_hint == "us":
+            return 2
+        if geo_hint == "unspecified":
+            return 1
+        return 0
 
     ranked_samples = sorted(
         all_samples,
-        key=lambda item: (not item["kept"], item["geo_hint"] == "us", -item["annual_mid"]),
+        key=lambda item: (not item["kept"], _geo_sort_rank(item["geo_hint"]), -item["annual_mid"]),
     )[:15]
     return {
         "runs_scanned": run_ids,

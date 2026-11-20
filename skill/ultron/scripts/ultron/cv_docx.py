@@ -55,9 +55,9 @@ _A_BLIP = f"{_A}blip"
 _V_IMAGEDATA = f"{_V}imagedata"
 _HEADER_FOOTER_RE = re.compile(r"^word/(?:header|footer)\d*\.xml$", re.IGNORECASE)
 _CONTACT_RE = re.compile(
-    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|"
+    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b|"
     r"(?:https?://|linkedin\.com/|github\.com/)\S+|"
-    r"(?<!\d)(?:\+?\d[\d\s().-]{6,}\d)(?!\d)",
+    r"(?<![\d$€£¥₹])(?:\+\d{1,3}(?:[\s.-]?\(?\d{2,4}\)?){2,4}|\(\d{2,4}\)[\s.-]?\d{3,4}[\s.-]\d{3,4}|\d{3,4}[\s-]\d{3,4}[\s-]\d{3,4})(?!\d)",
     re.IGNORECASE,
 )
 _ZERO_WIDTH_CHARS = frozenset("\u200b\u200c\u200d\u2060\ufeff\u00ad")

@@ -200,3 +200,68 @@ def test_build_ats_docx_strict_refuses_to_write_on_truth_violation(tmp_path, cap
     assert err["error"] == "truthfulness_failed"
     assert err["truth"]["passed"] is False
     assert not out_docx.exists()
+
+
+def test_verify_truth_year_only_self_check_no_spurious_dropped_year(tmp_path):
+    src = tmp_path / "src.md"
+    opt = tmp_path / "opt.md"
+    cv_body = "# Alex Dev\nalex@example.com\n\n## Experience\nBackend Engineer | Acme | 2020 - 2024\n- Built APIs.\n"
+    src.write_text(cv_body, encoding="utf-8")
+    opt.write_text(cv_body, encoding="utf-8")
+
+    report = cv_truth.verify_truth(src, opt, as_of=datetime.date(2026, 1, 1))
+    assert report["passed"] is True
+    assert report["warnings"] == []
+
+
+def test_verify_truth_catches_ungrouped_large_metrics_not_masked_as_phone(tmp_path):
+    src = tmp_path / "src.md"
+    opt = tmp_path / "opt.md"
+    src.write_text(SOURCE_CV_MD, encoding="utf-8")
+    opt.write_text(
+        SOURCE_CV_MD + "\n- Handled 10000000 requests daily.\n- Saved $10000000 annually.\n",
+        encoding="utf-8",
+    )
+
+    report = cv_truth.verify_truth(src, opt, as_of=datetime.date(2026, 6, 1))
+    assert report["passed"] is False
+    metric_tokens = {v["token"] for v in report["violations"] if v["type"] == "unverified_metric"}
+    assert "10000000 requests" in metric_tokens
+    assert "$10000000" in metric_tokens
+
+    # Phone numbers in various formats remain safely ignored
+    opt_phone = tmp_path / "opt_phone.md"
+    opt_phone.write_text(
+        SOURCE_CV_MD.replace("+34 600 111 222", "(555) 123-4567"),
+        encoding="utf-8",
+    )
+    phone_report = cv_truth.verify_truth(src, opt_phone, as_of=datetime.date(2026, 6, 1))
+    assert phone_report["passed"] is True
+
+
+def test_verify_truth_allows_tenure_summary_derived_from_confirmed_facts(tmp_path):
+    src = tmp_path / "src.md"
+    opt = tmp_path / "opt.md"
+    src_text = (
+        "# Jane Example\njane@example.com\n\n"
+        "## Summary\nBackend engineer.\n\n"
+        "## Experience\nSenior Engineer | Beta | Jan 2021 - Present\n- Built Python services.\n"
+    )
+    opt_text = (
+        "# Jane Example\njane@example.com\n\n"
+        "## Summary\nBackend engineer with 10 years of experience.\n\n"
+        "## Experience\nSenior Engineer | Beta | Jan 2021 - Present\n"
+        "Engineer | Alpha | Jan 2016 - Dec 2020\n- Built Python services.\n"
+    )
+    src.write_text(src_text, encoding="utf-8")
+    opt.write_text(opt_text, encoding="utf-8")
+
+    report = cv_truth.verify_truth(
+        src,
+        opt,
+        confirmed_facts=["Worked at Alpha from Jan 2016 to Dec 2020."],
+        as_of=datetime.date(2026, 1, 1),
+    )
+    assert report["passed"] is True
+    assert report["violations"] == []
+    assert any(item["type"] == "derived_tenure_statement" for item in report["info"])

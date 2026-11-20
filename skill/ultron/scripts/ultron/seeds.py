@@ -217,18 +217,15 @@ def _seed_file_lock(path: Path) -> Iterator[None]:
                     lock.unlink(missing_ok=True)
                     continue
             except OSError:
-                continue  # released (or broken) meanwhile: try again
-            if time.monotonic() >= deadline:
-                raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})") from None
-            time.sleep(0.05)
-            continue
+                pass  # released meanwhile, or a stale lock that cannot be removed: wait like for a live one
         except PermissionError:  # Windows: the lock is being deleted right now
-            if time.monotonic() >= deadline:
-                raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})") from None
-            time.sleep(0.05)
-            continue
-        os.close(fd)
-        break
+            pass
+        else:
+            os.close(fd)
+            break
+        if time.monotonic() >= deadline:
+            raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})")
+        time.sleep(0.05)
     try:
         yield
     finally:

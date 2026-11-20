@@ -32,3 +32,19 @@ def test_redacted_json_report_still_parses_and_keys_are_redacted(tmp_path, monke
     data = json.loads(path.read_text(encoding="utf-8"))
     assert token not in json.dumps(data)
     assert len(data["identities"]) == 1 and data["changes"][0]["after"] == "discard"
+
+
+def test_redacted_identity_keys_stay_distinct_and_stable(tmp_path, monkeypatch):
+    import json
+
+    import safe_paths
+
+    monkeypatch.setattr(safe_paths, "REPORTS_DIR", str(tmp_path / "ultron-eval-test"))
+    a = "url://careers.example.test/apply?token=" + "1" * 12
+    b = "url://careers.example.test/apply?token=" + "2" * 12
+    report = {"identities": {a: {"recorded": "keep"}, b: {"recorded": "discard"}}}
+    first = json.loads(safe_paths.write_report("one.json", json.dumps(report)).read_text(encoding="utf-8"))
+    second = json.loads(safe_paths.write_report("two.json", json.dumps(report)).read_text(encoding="utf-8"))
+    assert len(first["identities"]) == 2
+    assert first == second
+    assert "1" * 12 not in json.dumps(first) and "2" * 12 not in json.dumps(first)

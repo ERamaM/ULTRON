@@ -25,6 +25,8 @@ allowed_ats_domains:
   - icims.com
   - taleo.net
   - hirehive.com
+  - occupop.com
+  - candidatemanager.net
   - wellfound.com
   - nofluffjobs.com
 blocked_final_domains:

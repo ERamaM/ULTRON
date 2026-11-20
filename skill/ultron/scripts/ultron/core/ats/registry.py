@@ -5,6 +5,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
+from ultron.core.ats.clients.candidatemanager import candidatemanager_board_from_url
+from ultron.core.ats.clients.occupop import API_HOST as OCCUPOP_API_HOST
 from ultron.core.ats.vendors import (
     VENDOR_DATA_BY_NAME,
     AtsVendorData,
@@ -19,6 +21,9 @@ from ultron.core.extractors.ats_extractors.parser_factory import ParserFn, parse
 from ultron.core.models import AtsBoardSeed, ExtractedJob, JobRawPage
 
 SeedExtractorFn = Callable[[str, str], str | None]
+# Board identifiers kept in their original case: Workday site segments, Occupop share tokens, CandidateManager ids.
+CASE_SENSITIVE_BOARD_VENDORS = frozenset({"workday", "occupop", "candidatemanager"})
+_OPAQUE_BOARD_VENDORS = frozenset({"occupop", "candidatemanager"})
 
 GENERIC_LABELS = {
     "api",
@@ -101,8 +106,9 @@ GREENHOUSE_BOARD_HOSTS = (
     "job-boards.eu.greenhouse.io",
 )
 BOARD_IDENTIFIER_RE = re.compile(r"[^a-zA-Z0-9_.:/-]+")
-# Vendors whose hosted boards live on the vendor's www host (www.comeet.com/jobs/<slug>/...).
-_WWW_BOARD_VENDORS = frozenset({"comeet"})
+# Vendors whose hosted boards live on the vendor's www host (www.comeet.com/jobs/<slug>/...,
+# www.candidatemanager.net/cm/p/pJobs.aspx?mid=...&sid=...). Their seed extractors accept only board paths.
+_WWW_BOARD_VENDORS = frozenset({"comeet", "candidatemanager"})
 # Older SmartRecruiters posting links: www.smartrecruiters.com/<Company>/<numeric id>-<title>.
 _SMARTRECRUITERS_WWW_POSTING_RE = re.compile(r"/[^/]+/\d+(?:[-/]|$)")
 
@@ -423,6 +429,24 @@ def _taleo_seed(url: str, _company_hint: str) -> str | None:
     return _normalize_board_identifier(host)
 
 
+def _occupop_seed(url: str, _company_hint: str) -> str | None:
+    """The share token of an employer's embedded job list (``api.occupop.com/api/jobs-frame/<token>``).
+
+    A posting link (``/shared/job/<ref>``) names no board, so it gives no seed.
+    """
+    parsed = urlparse(url)
+    if (parsed.hostname or "").lower() != OCCUPOP_API_HOST:
+        return None
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) == 3 and parts[:2] == ["api", "jobs-frame"]:
+        return parts[2]
+    return None
+
+
+def _candidatemanager_seed(url: str, _company_hint: str) -> str | None:
+    return candidatemanager_board_from_url(url)
+
+
 # Ashby keeps a real parser module (scoped-search fallback); every other vendor's
 # page parser is built from the declarative selector table.
 VENDOR_SPECS: tuple[AtsVendorSpec, ...] = (
@@ -488,6 +512,8 @@ VENDOR_SPECS: tuple[AtsVendorSpec, ...] = (
         VENDOR_DATA_BY_NAME["hirehive"],
         lambda url, hint: _subdomain_seed(url, hint, "hirehive.com"),
     ),
+    AtsVendorSpec(VENDOR_DATA_BY_NAME["occupop"], _occupop_seed),
+    AtsVendorSpec(VENDOR_DATA_BY_NAME["candidatemanager"], _candidatemanager_seed),
 )
 
 SPEC_BY_NAME = {spec.name: spec for spec in VENDOR_SPECS}
@@ -555,14 +581,16 @@ def extract_seed_from_url(url: str, company_hint: str) -> AtsBoardSeed | None:
         spec = get_vendor_spec("greenhouse")
         board_identifier = _greenhouse_seed(normalized_url, company_hint) or ""
 
-    preserve_case = spec is not None and spec.name == "workday"
+    preserve_case = spec is not None and spec.name in CASE_SENSITIVE_BOARD_VENDORS
     board_identifier = _normalize_board_identifier(board_identifier, preserve_case=preserve_case)
     if spec is None or not board_identifier:
         return None
 
     return AtsBoardSeed(
         seed_id=f"api_{spec.name}_{board_identifier}",
-        company=_simple_company(company_hint, board_identifier),
+        # Opaque tokens (Occupop, CandidateManager) never spell the company's name: keep the hint as given.
+        company=(str(company_hint or "").strip() if spec.name in _OPAQUE_BOARD_VENDORS else "")
+        or _simple_company(company_hint, board_identifier),
         ats=spec.name,
         board_identifier=board_identifier,
         enabled=True,

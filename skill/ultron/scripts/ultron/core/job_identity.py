@@ -205,6 +205,11 @@ def _hosted_vendor_identity(host: str, path: str, pairs: list[tuple[str, str]]) 
             position_uids = [segment for segment in segments[3:5] if _COMEET_UID_RE.match(segment)]
             if len(position_uids) == 1:
                 return f"comeet:{segments[2]}:{position_uids[0]}"
+    if _host_matches(host, "candidatemanager.net") and low_path == "/cm/p/pjobdetails.aspx":
+        # pJobDetails.aspx?mid=<mid>&sid=<sid>&jid=<jid>[&a=<token>]: the extra token does not name the vacancy.
+        mid, sid, jid = (_pair_value(pairs, key).casefold() for key in ("mid", "sid", "jid"))
+        if all(re.fullmatch(r"[a-z0-9]+", value) for value in (mid, sid, jid)):
+            return f"candidatemanager:{mid}-{sid}:{jid}"
     if tenant := _tenant(host, "applytojob.com"):
         match = re.match(r"/apply/([A-Za-z0-9]{4,})(?:/|$)", path)
         if match and match.group(1).casefold() != "jobs":

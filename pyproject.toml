@@ -11,10 +11,18 @@ members = ["skill/ultron/scripts"]
 ultron = { workspace = true }
 
 [dependency-groups]
-dev = ["diff-cover", "pytest", "pytest-cov", "ruff"]
+dev = [
+    "diff-cover",
+    "pytest",
+    "pytest-cov",
+    "pytest-xdist>=3.8.0",
+    "ruff",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Run tests in parallel on every core (pytest-xdist). Use `-n0` to debug a single test serially.
+addopts = "-n auto --dist load"
 
 [tool.coverage.run]
 source = ["skill/ultron/scripts/ultron", "tools"]

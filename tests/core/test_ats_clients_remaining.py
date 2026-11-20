@@ -266,6 +266,60 @@ def test_icims_paginates_until_empty():
     assert _fields(out) == [("Dev", "https://careers-acme.icims.com/jobs/1/dev", "Madrid", None)]
 
 
+# A current iCIMS portal: /jobs/search is an iframe wrapper (scripts only); the listings come with in_iframe=1
+# as job cards whose anchor wraps an <h3> title and whose location sits in the card header.
+_ICIMS_WRAPPER = (
+    "<html><head><script src='https://cdn.icims.example/portal/utils.js'></script></head>"
+    "<body><iframe id='icims_content_iframe' src='/jobs/search?in_iframe=1'></iframe></body></html>"
+)
+_ICIMS_CARDS = """
+<ul class="container-fluid iCIMS_JobsTable">
+<li class="iCIMS_JobCardItem"><div class="row">
+<div class="col-xs-6 header left"><span class="sr-only field-label">Job Locations</span><span>IE-Dublin</span></div>
+<div class="col-xs-12 title">
+<a href="https://careers-acme.icims.com/jobs/101/staff-nurse/job?in_iframe=1" class="iCIMS_Anchor" title="101 - Staff Nurse">
+<span class="sr-only field-label">Job Title</span><h3>Staff Nurse</h3></a></div>
+<div class="col-xs-12 description">Synthetic card description.</div>
+</div></li>
+<li class="iCIMS_JobCardItem"><div class="row">
+<div class="col-xs-6 header left"><span class="sr-only field-label">Job Locations</span><span>IE-Cork</span></div>
+<div class="col-xs-12 title">
+<a href="/jobs/102/clinical-nurse-manager/job?in_iframe=1" class="iCIMS_Anchor" title="102 - Clinical Nurse Manager">
+<span class="sr-only field-label">Job Title</span><h3>Clinical Nurse Manager</h3></a></div>
+</div></li>
+</ul>
+"""
+
+
+class _IcimsPortal(FakeClient):
+    def request_text(self, url, timeout=None):
+        self.urls.append(url)
+        if "in_iframe=1" not in url:
+            return _ICIMS_WRAPPER
+        return _ICIMS_CARDS if "pr=0" in url else '<ul class="iCIMS_JobsTable"></ul>'
+
+
+def test_icims_reads_job_cards_from_the_iframe_listing():
+    client = _IcimsPortal()
+    out = fetch("icims", "careers-acme.icims.com", client)
+    assert _fields(out) == [
+        ("Staff Nurse", "https://careers-acme.icims.com/jobs/101/staff-nurse/job?in_iframe=1", "IE-Dublin", None),
+        ("Clinical Nurse Manager", "https://careers-acme.icims.com/jobs/102/clinical-nurse-manager/job?in_iframe=1",
+         "IE-Cork", None),
+    ]
+    assert client.urls[0] == "https://careers-acme.icims.com/jobs/search?pr=0&in_iframe=1"
+
+
+def test_icims_wrapper_page_without_listings_is_unparseable_not_empty():
+    # The wrapper alone used to come back as a board with zero jobs, so a live board looked empty.
+    with pytest.raises(AtsClientError, match="unparseable_board"):
+        fetch("icims", "careers-acme.icims.com", FakeClient(text_value=_ICIMS_WRAPPER))
+
+
+def test_icims_empty_listing_table_is_an_empty_board():
+    assert fetch("icims", "careers-acme.icims.com", FakeClient(text_value='<ul class="iCIMS_JobsTable"></ul>')) == []
+
+
 def test_taleo_parses_cards():
     html = '<a class="jobTitle-link" href="/job/1">Dev</a>'
     out = fetch("taleo", "acme.taleo.net", FakeClient(text_value=html))

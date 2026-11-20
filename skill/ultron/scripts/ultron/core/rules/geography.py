@@ -149,6 +149,24 @@ COUNTRY_TERMS = tuple(sorted({
 }))
 
 
+# Spellings of one country: a profile that says "Brazil" is at home in a posting that says "Brasil".
+COUNTRY_ALIASES = (
+    ("united kingdom", "uk", "great britain", "england", "scotland", "wales"),
+    ("united states", "usa", "us", "united states of america"),
+    ("brazil", "brasil"),
+    ("netherlands", "holland"),
+    ("germany", "deutschland"),
+    ("czech republic", "czechia"),
+    ("norway", "norge"),
+    ("turkey", "turkiye", "turquia"),
+)
+_COUNTRY_NAMES = frozenset(COUNTRY_TERMS) | {name for group in COUNTRY_ALIASES for name in group}
+
+
+def _country_spellings(place: str) -> tuple[str, ...]:
+    return next((group for group in COUNTRY_ALIASES if place in group), (place,))
+
+
 def names_wide_region(text: str) -> bool:
     """True when the text names a region that spans several countries ("Remote EU", "anywhere", "LATAM")."""
     low = normalize_text(text)
@@ -176,9 +194,14 @@ def other_country_restriction(location: str, remote_text: str, criteria: Mapping
     one place of work, while a body may mention offices anywhere. A posting that also names a home place
     ("Germany, Ireland or Portugal") or a multi-country region ("Remote EU, Germany preferred") is not limited.
     """
-    homes = profile_home_places(criteria)
+    places = profile_home_places(criteria)
+    countries = [spelling for place in places if place in _COUNTRY_NAMES for spelling in _country_spellings(place)]
+    if not countries:  # only cities ("Dublin") or regions: the home country is not known, so nothing is limited
+        return None
+    extra = [normalize_text(term) for term in location_scope({"criteria": criteria or {}})["eligibility_terms"]]
+    homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
     text = f"{location}\n{remote_text}"
-    if not homes or names_wide_region(text) or find_terms(text, homes):
+    if names_wide_region(text) or find_terms(text, homes):
         return None
     named = find_terms(text, COUNTRY_TERMS)
     return named[0] if named else None

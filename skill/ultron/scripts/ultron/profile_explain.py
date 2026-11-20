@@ -161,6 +161,7 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
                 (profile.get("query_templates") or {}).get("specialties")),
         },
         "query_plan": {"preset": preset, "max_queries": settings["max_search_queries"], "queries": plan},
+        "expected_salary": profile.get("expected_salary"),
         "agent_notes": profile.get("prompt") if isinstance(profile.get("prompt"), str) else "",
         "warnings": _warnings(profile, criteria, ignored, plan),
     }

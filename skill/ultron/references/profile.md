@@ -327,3 +327,7 @@ run fetched can appear.
 
 Runs already made keep their own snapshot of the profile.
 
+Optional `expected_salary` metadata (written and updated via `ultron salary save`, versioned and
+undoable with `ultron profile undo`) stores a sourced compensation benchmark on the profile for your
+evaluations; the CLI never filters out postings using `expected_salary`.
+

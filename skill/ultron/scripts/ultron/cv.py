@@ -120,9 +120,7 @@ def _json_int(value: object) -> int | None:
     return value
 
 
-def _pages_from_worker_stdout(
-    stdout: bytes, returncode: int, *, max_chars: int, stderr: bytes = b""
-) -> list[str]:
+def _worker_payload(stdout: bytes, returncode: int, *, max_chars: int, stderr: bytes = b"") -> dict:
     if len(stdout) > max_chars * 8 + 65536:
         raise CvExtractionError("PDF extraction output is too large", code="too_long")
     if returncode != 0:
@@ -135,14 +133,8 @@ def _pages_from_worker_stdout(
         raise CvExtractionError(_FAILED) from exc
     if not isinstance(payload, dict):
         raise CvExtractionError(_FAILED)
-    pages = payload.get("pages")
-    if "error" not in payload and isinstance(pages, list):
-        texts: list[str] = []
-        for page in pages:
-            if not isinstance(page, str):
-                raise CvExtractionError(_FAILED)
-            texts.append(page)
-        return texts
+    if "error" not in payload:
+        return payload
     error = payload.get("error")
     if error == "too_many_pages":
         limit = _json_int(payload.get("limit"))
@@ -158,12 +150,30 @@ def _pages_from_worker_stdout(
     raise CvExtractionError(_FAILED)
 
 
-def subprocess_pdf_runner(content: bytes, *, max_pages: int, max_chars: int, timeout_seconds: float) -> list[str]:
-    """Extract PDF text in a child interpreter bounded by ``timeout_seconds``."""
+def _validate_pages(payload: dict) -> list[str]:
+    pages = payload.get("pages")
+    if isinstance(pages, list) and all(isinstance(page, str) for page in pages):
+        return list(pages)
+    raise CvExtractionError(_FAILED)
 
+
+def _pages_from_worker_stdout(
+    stdout: bytes, returncode: int, *, max_chars: int, stderr: bytes = b""
+) -> list[str]:
+    return _validate_pages(_worker_payload(stdout, returncode, max_chars=max_chars, stderr=stderr))
+
+
+def _run_pdf_worker(
+    content: bytes,
+    *,
+    max_pages: int,
+    max_chars: int,
+    timeout_seconds: float,
+    extra_args: tuple[str, ...] = (),
+) -> dict:
     try:
         completed = subprocess.run(
-            [sys.executable, *_pdf_worker_flags(), "-m", "ultron.cv_worker", str(max_pages), str(max_chars)],
+            [sys.executable, *_pdf_worker_flags(), "-m", "ultron.cv_worker", str(max_pages), str(max_chars), *extra_args],
             input=content,
             capture_output=True,
             timeout=timeout_seconds,
@@ -178,7 +188,37 @@ def subprocess_pdf_runner(content: bytes, *, max_pages: int, max_chars: int, tim
     if not isinstance(stdout, bytes):
         raise CvExtractionError(_FAILED)
     stderr = completed.stderr if isinstance(completed.stderr, bytes) else b""
-    return _pages_from_worker_stdout(stdout, completed.returncode, max_chars=max_chars, stderr=stderr)
+    return _worker_payload(stdout, completed.returncode, max_chars=max_chars, stderr=stderr)
+
+
+def subprocess_pdf_runner(content: bytes, *, max_pages: int, max_chars: int, timeout_seconds: float) -> list[str]:
+    """Extract PDF text in a child interpreter bounded by ``timeout_seconds``."""
+
+    payload = _run_pdf_worker(
+        content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout_seconds
+    )
+    return _validate_pages(payload)
+
+
+def subprocess_pdf_inspector(
+    content: bytes,
+    *,
+    max_pages: int = MAX_CV_PAGES,
+    max_chars: int = MAX_CV_CHARS,
+    timeout_seconds: float = PDF_TIMEOUT_SECONDS,
+) -> tuple[list[str], dict[str, object]]:
+    """Extract PDF pages and ATS structural metadata in a bounded child interpreter."""
+
+    payload = _run_pdf_worker(
+        content,
+        max_pages=max_pages,
+        max_chars=max_chars,
+        timeout_seconds=timeout_seconds,
+        extra_args=("--inspect",),
+    )
+    pages = _validate_pages(payload)
+    meta = payload.get("metadata")
+    return pages, dict(meta) if isinstance(meta, dict) else {}
 
 
 # Characters that word processors and typesetters leave in CV text: invisible ones are dropped, Latin

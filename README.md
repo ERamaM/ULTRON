@@ -22,6 +22,8 @@ ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code
 - **22 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
 - **Hybrid precision & triage:** Deterministic rules discard off-location/off-seniority noise before your agent spends tokens reviewing only genuinely uncertain ("unsure") or high-signal postings.
 - **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, Excel (`.xlsx`), and a self-contained offline HTML report.
+- **Expected salary benchmarking:** Calculates sourced compensation ranges from verified non-internship CV tenure, run disclosures, and live market research (`ultron salary analyze`, `ultron salary save`).
+- **ATS CV audit & `.docx` optimizer:** Audits `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility, verifies rewrite truthfulness against the source CV (`ultron cv verify-truth`), and generates a clean single-column Word `.docx` (`ultron cv build-docx`).
 - **Scheduled / zero-token mode:** Run unattended heuristic searches with `ultron run --unattended`.
 
 ## Supported Agents
@@ -168,6 +170,7 @@ Open any supported agent and ask naturally:
 
 - *"Create a search profile from my attached CV and find remote backend roles in Europe."*
 - *"Run my saved search again and show only newly posted openings."*
+- *"Estimate my expected salary from my CV and optimize my CV into an ATS-friendly Word document."*
 
 If you ask for an interactive search without choosing a profile, ULTRON lists your options and asks
 which one to use. You can also create a profile from a CV or describe the roles, regions, and work

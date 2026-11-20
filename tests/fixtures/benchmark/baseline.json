@@ -998,7 +998,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 17,
+        "rank": 15,
         "reason": null,
         "status": "unsure"
       },
@@ -1027,7 +1027,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 18,
+        "rank": 16,
         "reason": null,
         "status": "unsure"
       },
@@ -1056,7 +1056,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 19,
+        "rank": 17,
         "reason": null,
         "status": "unsure"
       },
@@ -1085,7 +1085,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 20,
+        "rank": 18,
         "reason": null,
         "status": "unsure"
       },
@@ -1143,7 +1143,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 21,
+        "rank": 19,
         "reason": null,
         "status": "unsure"
       },
@@ -1375,7 +1375,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 22,
+        "rank": 20,
         "reason": null,
         "status": "unsure"
       },
@@ -1404,9 +1404,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 14,
+        "rank": 21,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "us_only",
@@ -1433,9 +1433,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 15,
+        "rank": 22,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "us_only",
@@ -1549,7 +1549,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 16,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -5348,7 +5348,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 18,
+        "rank": 16,
         "reason": null,
         "status": "unsure"
       },
@@ -5377,7 +5377,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 19,
+        "rank": 17,
         "reason": null,
         "status": "unsure"
       },
@@ -5406,7 +5406,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 20,
+        "rank": 18,
         "reason": null,
         "status": "unsure"
       },
@@ -5812,9 +5812,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 10,
+        "rank": 19,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -5841,9 +5841,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 11,
+        "rank": 20,
         "reason": null,
-        "status": "keep"
+        "status": "unsure"
       },
       "profile": "nurse-ireland-onsite",
       "remote_mode": "onsite",
@@ -5870,7 +5870,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 12,
+        "rank": 10,
         "reason": null,
         "status": "keep"
       },
@@ -5899,7 +5899,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 13,
+        "rank": 11,
         "reason": null,
         "status": "keep"
       },
@@ -5928,7 +5928,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 14,
+        "rank": 12,
         "reason": null,
         "status": "keep"
       },
@@ -6015,7 +6015,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 15,
+        "rank": 13,
         "reason": null,
         "status": "keep"
       },
@@ -6044,7 +6044,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 16,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -6073,7 +6073,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 17,
+        "rank": 15,
         "reason": null,
         "status": "keep"
       },
@@ -6096,17 +6096,17 @@
   "metrics": {
     "agent_queue": 106,
     "classification": {
-      "abstention_rate": 0.09268292682926829,
+      "abstention_rate": 0.11219512195121951,
       "confusion_matrix": {
         "fn": 5,
-        "fp": 9,
-        "tn": 140,
+        "fp": 5,
+        "tn": 144,
         "tp": 39
       },
-      "f1": 0.8478260869565218,
+      "f1": 0.8863636363636365,
       "false_negative_rate": 0.11363636363636363,
-      "false_positive_rate": 0.06040268456375839,
-      "precision": 0.8125,
+      "false_positive_rate": 0.03355704697986577,
+      "precision": 0.8863636363636364,
       "recall": 0.8863636363636364,
       "sample_size": 193
     },
@@ -6116,8 +6116,8 @@
     },
     "outcomes": {
       "discard": 139,
-      "keep": 52,
-      "unsure": 19
+      "keep": 48,
+      "unsure": 23
     },
     "ranking": {
       "backend-engineer-spain-eu": {
@@ -6153,10 +6153,10 @@
       "nurse-ireland-onsite": {
         "duplicate_rows": 0,
         "mrr": 1.0,
-        "ndcg_at_10": 0.8669479898642709,
-        "precision_at_10": 0.8,
+        "ndcg_at_10": 0.9305687780632227,
+        "precision_at_10": 0.9,
         "precision_at_5": 1.0,
-        "recall_at_10": 0.6153846153846154,
+        "recall_at_10": 0.6923076923076923,
         "relevant_total": 13,
         "shortlist_size": 22
       }
@@ -6164,17 +6164,17 @@
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.13194444444444445,
+          "abstention_rate": 0.1597222222222222,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 9,
-            "tn": 91,
+            "fp": 5,
+            "tn": 95,
             "tp": 38
           },
-          "f1": 0.8837209302325582,
+          "f1": 0.9268292682926831,
           "false_negative_rate": 0.02564102564102564,
-          "false_positive_rate": 0.09,
-          "precision": 0.8085106382978723,
+          "false_positive_rate": 0.05,
+          "precision": 0.8837209302325582,
           "recall": 0.9743589743589743,
           "sample_size": 139,
           "status": "measured"
@@ -6214,17 +6214,17 @@
           "status": "measured"
         },
         "data-analyst-remote-latam": {
-          "abstention_rate": 0.1875,
+          "abstention_rate": 0.25,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 3,
-            "tn": 16,
+            "fp": 1,
+            "tn": 18,
             "tp": 13
           },
-          "f1": 0.896551724137931,
+          "f1": 0.962962962962963,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.15789473684210525,
-          "precision": 0.8125,
+          "false_positive_rate": 0.05263157894736842,
+          "precision": 0.9285714285714286,
           "recall": 1.0,
           "sample_size": 32,
           "status": "measured"
@@ -6246,17 +6246,17 @@
           "status": "measured"
         },
         "nurse-ireland-onsite": {
-          "abstention_rate": 0.16666666666666666,
+          "abstention_rate": 0.23333333333333334,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 5,
-            "tn": 12,
+            "fp": 3,
+            "tn": 14,
             "tp": 12
           },
-          "f1": 0.8000000000000002,
+          "f1": 0.8571428571428571,
           "false_negative_rate": 0.07692307692307693,
-          "false_positive_rate": 0.29411764705882354,
-          "precision": 0.7058823529411765,
+          "false_positive_rate": 0.17647058823529413,
+          "precision": 0.8,
           "recall": 0.9230769230769231,
           "sample_size": 30,
           "status": "measured"
@@ -6328,17 +6328,17 @@
           "status": "measured"
         },
         "onsite": {
-          "abstention_rate": 0.1,
+          "abstention_rate": 0.14,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 5,
-            "tn": 32,
+            "fp": 3,
+            "tn": 34,
             "tp": 12
           },
-          "f1": 0.8000000000000002,
+          "f1": 0.8571428571428571,
           "false_negative_rate": 0.07692307692307693,
-          "false_positive_rate": 0.13513513513513514,
-          "precision": 0.7058823529411765,
+          "false_positive_rate": 0.08108108108108109,
+          "precision": 0.8,
           "recall": 0.9230769230769231,
           "sample_size": 50,
           "status": "measured"
@@ -6360,16 +6360,16 @@
           "status": "measured"
         },
         "us_only": {
-          "abstention_rate": 0.043478260869565216,
+          "abstention_rate": 0.13043478260869565,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 2,
-            "tn": 21,
+            "fp": 0,
+            "tn": 23,
             "tp": 0
           },
           "f1": 0.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.08695652173913043,
+          "false_positive_rate": 0.0,
           "precision": 0.0,
           "recall": 0.0,
           "sample_size": 23,
@@ -6410,17 +6410,17 @@
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.17272727272727273,
+          "abstention_rate": 0.20909090909090908,
           "confusion_matrix": {
             "fn": 5,
-            "fp": 8,
-            "tn": 56,
+            "fp": 4,
+            "tn": 60,
             "tp": 39
           },
-          "f1": 0.8571428571428571,
+          "f1": 0.896551724137931,
           "false_negative_rate": 0.11363636363636363,
-          "false_positive_rate": 0.125,
-          "precision": 0.8297872340425532,
+          "false_positive_rate": 0.0625,
+          "precision": 0.9069767441860465,
           "recall": 0.8863636363636364,
           "sample_size": 108,
           "status": "measured"
@@ -6476,17 +6476,17 @@
           "status": "insufficient_sample"
         },
         "generic_html": {
-          "abstention_rate": 0.0,
+          "abstention_rate": 0.06451612903225806,
           "confusion_matrix": {
             "fn": 2,
-            "fp": 2,
-            "tn": 20,
+            "fp": 0,
+            "tn": 22,
             "tp": 5
           },
-          "f1": 0.7142857142857143,
+          "f1": 0.8333333333333333,
           "false_negative_rate": 0.2857142857142857,
-          "false_positive_rate": 0.09090909090909091,
-          "precision": 0.7142857142857143,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
           "recall": 0.7142857142857143,
           "sample_size": 29,
           "status": "measured"
@@ -6524,17 +6524,17 @@
           "status": "measured"
         },
         "lever": {
-          "abstention_rate": 0.0975609756097561,
+          "abstention_rate": 0.14634146341463414,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 2,
-            "tn": 30,
+            "fp": 0,
+            "tn": 32,
             "tp": 7
           },
-          "f1": 0.8750000000000001,
+          "f1": 1.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0625,
-          "precision": 0.7777777777777778,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
           "recall": 1.0,
           "sample_size": 39,
           "status": "measured"

@@ -193,6 +193,15 @@ def profile_home_places(criteria: Mapping[str, Any] | None) -> tuple[str, ...]:
 
 
 _ANYWHERE_IN_PLACE = re.compile(r"\banywhere\s+in\s+(?:the\s+)?\w+")
+# A standalone upper-case "US" names the United States ("US Remote", "US-SF"); lower-case "us" is a pronoun.
+_US_CODE = re.compile(r"(?<![\w.])US(?![\w.])")
+# Northern Ireland is in the United Kingdom, so it must not read as the home country of an Ireland profile.
+_NORTHERN_IRELAND = re.compile(r"\bnorthern\s+ireland\b")
+
+
+def _place_text(text: str) -> str:
+    """Normalized text with "US" spelled out and "Northern Ireland" read as the United Kingdom."""
+    return _NORTHERN_IRELAND.sub("united kingdom", normalize_text(_US_CODE.sub("United States", text or "")))
 
 
 def other_country_restriction(
@@ -216,10 +225,10 @@ def other_country_restriction(
         return None
     extra = [normalize_text(term) for term in location_scope({"criteria": criteria or {}})["eligibility_terms"]]
     homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
-    text = f"{location}\n{remote_text}"
+    text = _place_text(f"{location}\n{remote_text}")
     if names_wide_region(text) or find_terms(text, homes):
         return None
-    excerpt = normalize_text(body_text or "") if remote_job else ""
+    excerpt = _place_text(body_text) if remote_job else ""
     if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS):
         return None
     named = find_terms(text, COUNTRY_TERMS)

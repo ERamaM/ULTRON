@@ -95,3 +95,18 @@ def test_comeet_parse_positions_keeps_absolute_links_on_the_hosted_com_domain():
         ("ML Engineer", "https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E12"),
     ]
 
+
+def test_personio_bare_slug_reports_the_vendor_404_not_a_host_rejection():
+    # A removed board answers 404 on both Personio hosts. The bare slug is not a host, so the client must not
+    # request "https://<slug>/xml" (rejected as domain_not_allowed) and hide the real reason.
+    requested = []
+
+    def t(url):
+        requested.append(url)
+        if url.startswith("https://acme.jobs.personio."):
+            raise RuntimeError(f"HTTP 404 for {url.split('/')[2]} (status=404)")
+        raise RuntimeError("domain_not_allowed")
+
+    with pytest.raises(AtsClientError, match="status=404"):
+        personio.fetch_personio_jobs("acme", client=FC(text_fn=t))
+    assert requested == ["https://acme.jobs.personio.de/xml", "https://acme.jobs.personio.com/xml"]

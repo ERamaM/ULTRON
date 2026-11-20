@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from safe_paths import UnsafePathError, contained_path
+from safe_paths import UnsafePathError, write_report
 
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import ExtractedJob
@@ -97,18 +97,18 @@ def measure() -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Measure the 60-case corpus against its synthetic labels.")
-    parser.add_argument("--output", type=Path, help="write the JSON report here (repository or temp folder)")
+    parser.add_argument("--output", help="report file name, written into the reports folder (see safe_paths.py)")
     args = parser.parse_args(argv)
     rendered = json.dumps(measure(), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     if not args.output:
         sys.stdout.write(rendered)
         return 0
     try:
-        output = contained_path(args.output)
-        output.write_text(rendered, encoding="utf-8", newline="\n")
+        path = write_report(args.output, rendered)
     except (UnsafePathError, OSError) as exc:
         print(json.dumps({"error": str(exc)}))
         return 2
+    print(json.dumps({"report": str(path)}))
     return 0
 
 

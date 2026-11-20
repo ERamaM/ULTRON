@@ -119,3 +119,12 @@ def test_agent_can_keep_a_rescued_discard(capsys, tmp_path):
     capsys.readouterr()
     assert main(["finalize", "--run", run_id]) == 0
     assert json.loads(capsys.readouterr().out)["roles"] == 1
+
+
+def test_pending_lists_rescued_discards_after_unsure_and_before_keeps(capsys):
+    keep = _job(1, title="Senior Machine Learning Engineer")
+    run_id = _run([keep, _job(0)])
+    _filter(capsys, run_id)
+    assert main(["evaluate", "pending", "--run", run_id]) == 0
+    items = json.loads(capsys.readouterr().out)["items"]
+    assert [item["heuristic"]["verdict"] for item in items] == ["discard", "keep"]

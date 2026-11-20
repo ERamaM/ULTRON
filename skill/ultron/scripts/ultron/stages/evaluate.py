@@ -82,8 +82,9 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
     done = {r["identity_key"] for r in runs.read_jsonl(out_dir / "evaluations.jsonl")}
     rows = runs.read_jsonl(out_dir / "ambiguous.jsonl") + runs.read_jsonl(out_dir / "kept.jsonl")
     todo = [r for r in rows if r["identity_key"] not in done]
-    # R15: heuristic "unsure" rows first, then the rest (stable sort keeps file order within each group).
-    todo.sort(key=lambda r: (r.get("heuristic") or {}).get("verdict") != "unsure")
+    # R15: heuristic "unsure" rows first, then rescued heuristic discards (they stay discarded unless
+    # evaluated), then the keeps (stable sort keeps file order within each group).
+    todo.sort(key=lambda r: ((r.get("heuristic") or {}).get("verdict") != "unsure", "rescued_discard" not in r))
     items = []
     for row in todo[: max(limit, 0)]:
         job, heuristic = row["job"], row["heuristic"]

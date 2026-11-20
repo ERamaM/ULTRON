@@ -160,7 +160,7 @@ Output: `{"added": 18, "duplicates": 3, "rejected": 1, "seed_proposals": 2}`
 
 You can call `candidates add` several times; it appends.
 
-## 5. Query ATS boards (19 vendors)
+## 5. Query ATS boards (20 vendors)
 
 ```
 ultron discover ats --run <run_id>
@@ -178,7 +178,7 @@ Workday verification samples up to two pages, so discovery queries those boards 
 budget. When a Workday board offers a country facet matching a preferred location, discovery interleaves
 pages for those countries with unfiltered pages within the same budget.
 
-Seeds can be on any of the 19 supported ATS vendors (`references/seeds.md`). Order: companies you
+Seeds can be on any of the 20 supported ATS vendors (`references/seeds.md`). Order: companies you
 verified for the profile (and ATS boards discovered via web search) first, then bundled pack seeds in
 the profile's sectors, then other seeds linked to the profile, then seeds found in feeds (feed seeds
 never take more than half of the seed slots while curated seeds are left). Pack seeds for another sector

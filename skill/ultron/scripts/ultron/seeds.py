@@ -285,7 +285,7 @@ def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) 
             index[key] = fresh
             out_rows.append(fresh)
             new += 1
-        elif _is_unconfirmed(current) and not _is_unconfirmed(seed):
+        elif is_unconfirmed(current) and not is_unconfirmed(seed):
             # A guessed board stored without proof of ownership, now verified: take the verified metadata and
             # keep every profile link.
             promoted = seed.model_copy(update={
@@ -566,7 +566,7 @@ UNCONFIRMED_SOURCE_TYPE = "guessed_unconfirmed"
 OTHER_COMPANY_SOURCE_TYPE = "guessed_other_company"
 
 
-def _is_unconfirmed(seed: AtsBoardSeed) -> bool:
+def is_unconfirmed(seed: AtsBoardSeed) -> bool:
     return seed.source_type in {UNCONFIRMED_SOURCE_TYPE, OTHER_COMPANY_SOURCE_TYPE}
 
 
@@ -836,10 +836,12 @@ def verify_proposal(
     if budget_spent:
         return budget_exhausted()
     target = _page_hop_target(p, explicit=has_explicit)
+    page_skipped = False
     if target is not None:
         url, reg, kind = target
         hops = page_hops if page_hops is not None else PageHops()
-        if hops.take((urlparse(url).hostname or "").lower()):
+        page_skipped = not hops.take((urlparse(url).hostname or "").lower())
+        if not page_skipped:
             try:
                 links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
             except RequestBudgetExceeded as exc:
@@ -865,4 +867,6 @@ def verify_proposal(
         return unresolved("host_blocked")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
+    if page_skipped:  # the careers page was never opened: the call's page budget ran out, not the company
+        return unresolved("page_budget_exhausted")
     return unresolved("no_board_found")

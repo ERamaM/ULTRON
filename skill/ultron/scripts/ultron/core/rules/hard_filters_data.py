@@ -26,6 +26,10 @@ STUDENT_PROGRAMME_ROLE_NOUNS = (
     "coordinator", "manager", "lead", "officer", "recruiter", "specialist", "director", "advisor", "adviser",
     "partner", "program", "programme", "administrator", "consultant", "head", "coach", "mentor",
 )
+# Student words that can name a programme ("Internship Coordinator"); "working student" or "trainee" never do.
+STUDENT_PROGRAMME_WORDS = frozenset({
+    "internship", "internships", "apprenticeship", "apprenticeships", "traineeship", "traineeships", "praktikum",
+})
 STUDENT_LEVEL_TRIGGER_TERMS = frozenset({*STUDENT_LEVEL_TITLE_TERMS, "student", "students", "stage"})
 SENIOR_REQUIRED_TERMS = {"senior", "sr.", "sr "}
 DISALLOWED_REMOTE_TERMS = {

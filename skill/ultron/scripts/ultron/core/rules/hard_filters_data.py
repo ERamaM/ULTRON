@@ -20,6 +20,12 @@ STUDENT_LEVEL_TITLE_TERMS = (
     "apprenticeship", "azubi", "stagiair", "stagiaire", "afstudeerstage", "meewerkstage", "becario", "becaria",
     "practicas", "estagio", "estagiario", "estagiaria",
 )
+# Roles that run a student programme: after one of these nouns a student word names the programme
+# ("Internship Coordinator", "Apprenticeship Programme Manager"), not the level of the role.
+STUDENT_PROGRAMME_ROLE_NOUNS = (
+    "coordinator", "manager", "lead", "officer", "recruiter", "specialist", "director", "advisor", "adviser",
+    "partner", "program", "programme", "administrator", "consultant", "head", "coach", "mentor",
+)
 STUDENT_LEVEL_TRIGGER_TERMS = frozenset({*STUDENT_LEVEL_TITLE_TERMS, "student", "students", "stage"})
 SENIOR_REQUIRED_TERMS = {"senior", "sr.", "sr "}
 DISALLOWED_REMOTE_TERMS = {

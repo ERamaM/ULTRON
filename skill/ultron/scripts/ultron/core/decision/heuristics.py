@@ -29,6 +29,7 @@ from ultron.core.rules.hard_filters_data import (
     SENIOR_REQUIRED_TERMS,
     STUDENT_LEVEL_TITLE_TERMS,
     STUDENT_LEVEL_TRIGGER_TERMS,
+    STUDENT_PROGRAMME_ROLE_NOUNS,
 )
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,
@@ -191,12 +192,21 @@ class HeuristicEvaluator:
             normalize_text(term) in STUDENT_LEVEL_TRIGGER_TERMS for term in profile.seniority_excluded_terms
         ):
             return False
-        if find_terms(job.title, STUDENT_LEVEL_TITLE_TERMS):
-            return True
-        # A profile that targets a stage occupation ("stage manager") never reads its own title as an internship.
+        title = job.title or ""
+        # A profile that targets such a role ("stage manager", "internship advisor") never reads its own title
+        # as a student level.
         roles = (*self.cfg.role_focus_terms, *profile.role_terms)
-        stage_roles = [term for term in roles if find_terms(term, ("stage",))]
-        return bool(_LEADING_STAGE.match(job.title or "")) and not find_terms(job.title, stage_roles)
+        student_roles = [term for term in roles if find_terms(term, (*STUDENT_LEVEL_TRIGGER_TERMS,))]
+        if find_terms(title, student_roles):
+            return False
+        low = normalize_text(title)
+        for term in find_terms(title, STUDENT_LEVEL_TITLE_TERMS):
+            match = re.search(r"(?<!\w)" + re.escape(normalize_text(term)) + r"(?!\w)", low)
+            # "Internship Coordinator", "Apprenticeship Programme Manager": the word names the programme a role
+            # runs, not the level of the role.
+            if match is None or not find_terms(low[match.end():], STUDENT_PROGRAMME_ROLE_NOUNS):
+                return True
+        return bool(_LEADING_STAGE.match(title))
 
     def _seniority_evidence_terms(self) -> set[str]:
         profile = getattr(self.cfg, "evaluation_profile", None)

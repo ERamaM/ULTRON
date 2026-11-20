@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
-from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting
+from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 from ultron.core.ats.vendors import greenhouse_job_url
-from ultron.net import RequestBudgetExceeded, URLRejected
+from ultron.net import URLRejected
 
 
 def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = False) -> str:
@@ -37,7 +37,7 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
             payload = fetch_json(url, timeout=timeout)
             used_eu = is_eu
             break
-        except RequestBudgetExceeded:
+        except UNCHECKED_ERRORS:
             raise
         except URLRejected:
             # A policy or DNS rejection of the EU fallback (its API host may not resolve) must not replace the

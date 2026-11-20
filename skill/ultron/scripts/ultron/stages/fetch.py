@@ -547,8 +547,10 @@ def fetch(run_id: str) -> dict:
             # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
             errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
             slots -= 1
+            attempted -= 1  # no request was sent: not an attempt for the navigation-failure stop
             continue
         except HostBlocked:
+            attempted -= 1
             if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
                 postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
                                  "identity_key": identity, "ats_fingerprint": True})
@@ -556,6 +558,7 @@ def fetch(run_id: str) -> dict:
             errors.append({"url": url, "error": "host_blocked"})
             continue
         except RequestBudgetExceeded as exc:
+            attempted -= 1  # refused before sending
             if exc.scope == "host":
                 skipped_hosts.add(exc.host or candidate.domain)
                 errors.append({"url": url, "error": f"host_budget_exhausted: {exc.host}"})

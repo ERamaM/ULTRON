@@ -69,7 +69,8 @@ def test_429s_from_two_tenants_skip_every_other_workday_board(pack_dir):
     assert sum(hits.values()) == 6
     errors = runs.read_jsonl(runs.run_dir(run_id) / "seed_errors.jsonl")
     vendor_rows = [e for e in errors if e.get("error") == "vendor_blocked"]
-    assert len(vendor_rows) == len(hosts) - 2 and all(e.get("vendor") == "workday" for e in vendor_rows)
+    # The second board's own 429 trips the breaker, so its HTML fallback is refused as vendor_blocked too.
+    assert len(vendor_rows) == len(hosts) - 1 and all(e.get("vendor") == "workday" for e in vendor_rows)
     assert result["vendors_blocked"] == ["workday"]
 
     # The breaker holds for the rest of the run: fetch sends nothing to any Workday tenant.
@@ -189,7 +190,7 @@ def test_postings_skipped_by_the_vendor_budget_leave_their_page_slot_to_capped_c
     runs.write_jsonl(runs.run_dir(run_id) / "candidates.jsonl", cands)
     runs.mark_stage(run_id, "discover_ats")
     result = fetch_stage.fetch(run_id)
-    assert "employer.example.org" in hits
+    assert any(host == "employer.example.org" for host in hits)
     assert runs.read_jsonl(runs.run_dir(run_id) / "fetch_capped.jsonl") == []
     assert result["capped"] == 0
 
@@ -210,3 +211,76 @@ def test_a_large_workday_share_never_exceeds_the_client_safety_cap():
     client = Endless()
     fetch_workday_jobs("acme.wd1.myworkdayjobs.com/External", client=client, max_pages=500)
     assert client.calls == 100
+
+
+def _blocked_run(vendor: str = "workday") -> str:
+    run_id = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+    (runs.run_dir(run_id) / http_factory.VENDOR_STATE_FILE).write_text(
+        json.dumps({"requests": {}, "rate_limited": {vendor: 2}, "forbidden_streak": {}, "blocked": [vendor]}),
+        encoding="utf-8")
+    return run_id
+
+
+def test_skips_without_a_request_do_not_dilute_the_navigation_failure_stop(pack_dir):
+    # Codex review: 100 vendor-blocked skips + 60 connection failures counted 160 attempts, so fetch never stopped.
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=request)
+
+    _overrides(handler)
+    run_id = _blocked_run()
+    cands = []
+    for i in range(100):
+        host = f"tenant{i}.wd1.myworkdayjobs.com"
+        url = f"https://{host}/External/job/Remote-EU/ML_R-{i}"
+        cands.append(CandidateUrl(query_id="ats:x", query="", source_url=url, normalized_url=url, domain=host,
+                                  source_type="ats_api", source_key=f"ats:workday:{i}").model_dump(mode="json"))
+    for i in range(80):
+        url = f"https://down{i}.example.org/jobs/{i}"
+        cands.append(CandidateUrl(query_id="web:1", query="", source_url=url, normalized_url=url,
+                                  domain=f"down{i}.example.org", source_type="web_search",
+                                  source_key=f"web:down{i}").model_dump(mode="json"))
+    runs.write_jsonl(runs.run_dir(run_id) / "candidates.jsonl", cands)
+    runs.mark_stage(run_id, "discover_ats")
+    result = fetch_stage.fetch(run_id)
+    assert result.get("stopped") == "navigation_failures"
+
+
+@pytest.mark.parametrize(("vendor", "board"), [
+    ("icims", "careers-acme.icims.com"),
+    ("taleo", "acme.taleo.net/careersection/ex/jobsearch.ftl"),
+])
+def test_a_blocked_vendor_is_not_reported_as_a_checked_board(pack_dir, vendor, board):
+    # Codex review: iCIMS and Taleo turned VendorBlocked into AtsClientError("browser_fallback_unavailable"), so
+    # `seeds verify` said no_board_found (a checked company) instead of host_blocked.
+    from ultron.core.ats.clients import fetch_vendor_jobs
+    from ultron.net import VendorBlocked
+
+    _overrides(lambda request: httpx.Response(500))
+    run_id = _blocked_run(vendor)
+    with pytest.raises(VendorBlocked):
+        fetch_vendor_jobs(vendor, board, client=http_factory.client_for_run(runs.load_run(run_id)), timeout=5)
+    result = seeds.verify_proposal(seeds.Proposal(company="Acme", ats=vendor, board=board),
+                                   client=http_factory.client_for_run(runs.load_run(run_id)), timeout=5,
+                                   verify_only=True)
+    assert result.reason == "host_blocked"
+
+
+@pytest.mark.parametrize("vendor", ["bamboohr", "comeet", "factorial", "greenhouse", "jobvite", "lever", "personio",
+                                    "pinpoint", "workday"])
+def test_every_client_with_a_fallback_propagates_a_blocked_vendor(vendor):
+    from ultron.core.ats.clients import fetch_vendor_jobs
+    from ultron.net import VendorBlocked
+
+    calls = {"n": 0}
+
+    class Blocked:
+        def request_json(self, url, *args, **kwargs):
+            calls["n"] += 1
+            raise VendorBlocked(vendor, "x")
+
+        request_text = request_json
+
+    board = {"workday": "acme.wd1.myworkdayjobs.com/External"}.get(vendor, "acme")
+    with pytest.raises(VendorBlocked):
+        fetch_vendor_jobs(vendor, board, client=Blocked(), timeout=5)
+    assert calls["n"] == 1  # no fallback request (EU host, HTML page) after the block

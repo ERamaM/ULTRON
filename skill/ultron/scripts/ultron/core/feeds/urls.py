@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from ultron.core.ats.clients.base import AtsHTTPClient
 from ultron.core.discovery.title_vocabulary import TitleVocabulary
 from ultron.core.rules.term_matching import find_terms
-from ultron.net import RequestBudgetExceeded
+from ultron.net import HostBlocked, RequestBudgetExceeded
 
 URL_RE = r"https?://[^\s\"'<>]+"
 AGGREGATOR_DOMAINS = {
@@ -154,11 +154,12 @@ def fetch_page_links(url: str, timeout: int, *, client: AtsHTTPClient) -> list[s
 
     ``HttpClient.get_text`` returns ``(status, final_url, text)``; it carries no headers, so the
     HTML check relies on the body only. The network failures MARK III swallowed (any ``Exception``)
-    are swallowed here too, except the request budget, which propagates.
+    are swallowed here too, except the request budget and a blocked host or vendor (nothing was requested, so
+    the page is unchecked, not empty), which propagate.
     """
     try:
         status, final_url, text = client.get_text(url)  # type: ignore[attr-defined]
-    except RequestBudgetExceeded:
+    except (RequestBudgetExceeded, HostBlocked):
         raise
     except Exception:  # pragma: no cover - network/runtime dependent
         return []

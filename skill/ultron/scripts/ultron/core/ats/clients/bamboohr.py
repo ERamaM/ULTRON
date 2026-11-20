@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
@@ -10,7 +11,6 @@ from ultron.core.ats.clients.base import (
     locator_url,
     parse_card_listings,
 )
-from ultron.net import RequestBudgetExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def fetch_bamboohr_jobs(
     # The /careers page is a JS shell; the real data is the JSON endpoint.
     try:
         payload = fetch_json(locator_url(host, "careers", "list"), timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception as exc:
         logger.warning(

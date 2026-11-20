@@ -336,14 +336,20 @@ class HttpClient:
         elif 200 <= status < 300 and current > self._base_interval(host):
             self._host_delay[host] = max(self._base_interval(host), current - HOST_BACKOFF_DECAY)
 
-    def _throttle(self, host: str) -> None:
-        last = self._last_request.get(host)
-        interval = self.host_delay(host)
-        if last is not None and interval > 0:
-            remaining = interval - (self._clock() - last)
-            if remaining > 0:
-                self._sleep(remaining)
-        self._last_request[host] = self._clock()
+    def _throttle(self, *keys: str) -> None:
+        """One wait until every key's spacing has passed (host and vendor), then stamp all keys with the send time."""
+        now = self._clock()
+        wait = 0.0
+        for key in keys:
+            last = self._last_request.get(key)
+            interval = self.host_delay(key)
+            if last is not None and interval > 0:
+                wait = max(wait, interval - (now - last))
+        if wait > 0:
+            self._sleep(wait)
+        sent = self._clock()
+        for key in keys:
+            self._last_request[key] = sent
 
     def _send_once(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
@@ -362,8 +368,9 @@ class HttpClient:
         if vendor is not None:
             self._vendor_spent[vendor] = self._vendor_spent.get(vendor, 0) + 1
             self.vendor_budget.charge(vendor)
-            self._throttle(_VENDOR_KEY + vendor)
-        self._throttle(host)
+            self._throttle(host, _VENDOR_KEY + vendor)
+        else:
+            self._throttle(host)
         kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
@@ -410,24 +417,29 @@ class HttpClient:
             current = admitted.url
             vendor = self.vendor_for(admitted.hostname)
             rate_limited = False
-            for attempt in range(1, MAX_ATTEMPTS + 1):
-                try:
-                    status, headers, text = self._send_once(
-                        method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
-                    )
-                except HttpError as exc:
-                    if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
-                        self._sleep(0.5 * attempt)
+            try:
+                for attempt in range(1, MAX_ATTEMPTS + 1):
+                    try:
+                        status, headers, text = self._send_once(
+                            method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
+                        )
+                    except HttpError as exc:
+                        if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
+                            self._sleep(0.5 * attempt)
+                            continue
+                        raise
+                    rate_limited = rate_limited or status == 429
+                    if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
+                        delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
+                        self._sleep(0.5 * attempt if delay is None else delay)
                         continue
-                    if vendor is not None and rate_limited:
-                        self.vendor_budget.record(vendor, 429, rate_limited=True)
-                    raise
-                rate_limited = rate_limited or status == 429
-                if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-                    delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
-                    self._sleep(0.5 * attempt if delay is None else delay)
-                    continue
-                break
+                    break
+            except Exception:
+                # Any interruption of the retries (a transport error, a spent budget, a block) keeps a 429 the
+                # request already met as a vendor strike.
+                if vendor is not None and rate_limited:
+                    self.vendor_budget.record(vendor, 429, rate_limited=True)
+                raise
             if vendor is not None:
                 self.vendor_budget.record(vendor, status, rate_limited=rate_limited)
             location = headers.get("Location")

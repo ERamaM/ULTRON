@@ -838,7 +838,8 @@ def verify_proposal(
     if budget_spent:
         return budget_exhausted()
     target = _page_hop_target(p, explicit=has_explicit)
-    page_skipped = page_blocked = False
+    page_skipped = False
+    page_unchecked = ""  # why the careers page (or the ATS board it redirects to) was not checked
     if target is not None:
         url, reg, kind = target
         hops = page_hops if page_hops is not None else PageHops()
@@ -847,11 +848,13 @@ def verify_proposal(
             try:
                 links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
             except RequestBudgetExceeded as exc:
-                if getattr(exc, "scope", "global") not in {"host", "vendor"}:
+                scope = getattr(exc, "scope", "global")
+                if scope not in {"host", "vendor"}:
                     return budget_exhausted()
+                page_unchecked = f"{scope}_budget_exhausted"
                 links = []
             except HostBlocked:  # the page (or the ATS board it redirects to) is blocked: not checked
-                page_blocked = True
+                page_unchecked = "host_blocked"
                 links = []
             boards = _linked_boards(links)[:PAGE_HOP_MAX_BOARDS]
             found = probe(boards, f"{kind}_page")
@@ -874,8 +877,8 @@ def verify_proposal(
         return unresolved("vendor_budget_exhausted")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
-    if page_blocked:
-        return unresolved("host_blocked")
+    if page_unchecked:
+        return unresolved(page_unchecked)
     if page_skipped:  # the careers page was never opened: the call's page budget ran out, not the company
         return unresolved("page_budget_exhausted")
     return unresolved("no_board_found")

@@ -346,8 +346,9 @@ def test_tools_never_write_the_labels():
 
 
 def test_every_relevant_miss_has_a_losing_stage(report):
+    units = {id(unit) for unit in qb.scoring_units(report["cases"])}
     for case in report["cases"]:
-        missed = case["truth"]["relevant"] is True and case["prediction"]["status"] != "keep"
+        missed = case["truth"]["relevant"] is True and case["prediction"]["status"] != "keep" and id(case) in units
         assert (case["first_loss_stage"] is not None) == missed, case["id"]
     losses = report["metrics"]["first_loss_counts"]
     assert sum(losses.values()) == report["metrics"]["classification"]["confusion_matrix"]["fn"]

@@ -7,7 +7,9 @@ this profile, so later runs reuse them.
 ## How many and which
 
 - Propose about `new_companies_target` companies (printed by `run new`). A few extra is fine, since
-  some will not resolve.
+  some will not resolve. When `run new` printed `cold_start: true` (fewer than 15 boards fit this
+  profile), propose about twice that number, and give `domain` for each so guessed boards can be
+  tied to the company.
 - Run `ultron seeds list --profile <slug>` first. It prints the inventory size and up to 30 seeds
   (`linked: true` = already verified for this profile). Use them as examples of the kind of company
   that fits, and do not propose companies that are already there.
@@ -34,7 +36,7 @@ more reliable:
 | `domain` | main website domain, e.g. `example.com` |
 | `ats` | ATS name, if known (lowercase; see Supported job boards) |
 | `board` | board identifier on that ATS, if known (see below) |
-| `careers_url` | a URL of the company's ATS board or one of its postings |
+| `careers_url` | a URL of the company's ATS board or one of its postings; or its own careers page (on `domain`), which the CLI opens once to find the ATS board it links |
 
 ```jsonl
 {"company": "Example Labs", "domain": "examplelabs.com", "ats": "greenhouse", "board": "examplelabs"}
@@ -55,12 +57,28 @@ Verify:
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 ```
 
-Output: `{"verified": 7, "new": 6, "unresolved": 3, "unresolved_sample": [{"company": "...", "reason": "..."}]}`.
+Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "...", "reason": "..."}]}`.
 
-When `ats` + `board` or `careers_url` is given, the CLI checks only that board (no slug guessing)
-and reports its failure reason if it does not resolve; when neither is given, it probes slug guesses
-built from the company name and domain on the probed ATSs (below). A company is verified when the
-board's public API answers (even with zero open postings).
+When `ats` + `board` or `careers_url` is given, the CLI checks only that board (no slug guessing;
+a `careers_url` that is the company's own careers page is opened once and the ATS boards it links are
+checked) and reports its failure reason if it does not resolve; a given board is verified when its public API
+answers (even with zero open postings). When neither is given, it probes slug guesses built from the
+company name and domain on the probed ATSs (below). A guessed board must have open postings, and it is
+**verified** for the company only when it provably belongs to it (another company may own the same slug):
+
+- a slug equal to the main label of the proposal's `domain` (`acme` for `careers.acme.com`) is accepted;
+- otherwise, for a name with two or more words (legal forms such as GmbH or Inc do not count), the ATS
+  must report the same company name in its postings (only some ATS APIs include it, e.g. a
+  `company_name` field);
+- a one-word or short name ("Acme", "Acme GmbH") needs the domain slug.
+
+A guessed board that answers without that proof is **still stored** (its postings are real, and each
+result's company comes from the posting, not from the seed), but it is not counted as verified: it comes
+back as `ownership_unknown` (no proof; stored under the proposal's name, tagged `ownership:unknown`) or
+`wrong_tenant` (the ATS names another company; stored under that company's name, tagged
+`discovered_via:<your proposal>`). Both are stored with a low priority (900) so their later yield decides
+how often they are queried; `seeds_unresolved.jsonl` shows the board under `candidate` and how it was
+stored under `stored_as`. Giving `domain` gets the company's own board verified instead.
 
 ## Supported job boards
 
@@ -68,9 +86,9 @@ board's public API answers (even with zero open postings).
 
 - **Probed by slug** (the CLI guesses boards from the company name/domain, in this order):
   greenhouse, lever, ashby, workable, recruitee, teamtailor, smartrecruiters, personio, pinpoint,
-  homerun, breezy.
+  homerun, breezy, jobvite, bamboohr, jazzhr, factorial.
 - **Only via `careers_url` or an explicit `ats` + `board`** (the board needs a host or a vendor-specific
-  locator that cannot be guessed): jobvite, bamboohr, jazzhr, factorial, comeet, workday, icims, taleo.
+  locator that cannot be guessed): comeet, workday, icims, taleo.
   For these, search the web for the company's careers page, then propose it with its URL, e.g.
   `{"company": "Big Bank", "careers_url": "https://bigbank.wd3.myworkdayjobs.com/en-US/External"}`.
 
@@ -83,7 +101,7 @@ still contribute postings through web search in step 4.
 Put all of this run's proposals in one file and call `seeds verify` once. Each call has an overall
 request budget (`max_pages` + 2 x `max_seeds_per_run` of the preset; about 300 requests with `fast`).
 A proposal with a known `ats` + `board` (or a `careers_url` on the ATS) costs about 1 request; one
-without costs up to 3 guesses on each of the 11 probed ATSs. If the budget runs out, the remaining companies
+without costs up to 5 guesses on each of the 15 probed ATSs (about 22 requests per guess). If the budget runs out, the remaining companies
 come back as `budget_exhausted`; verify those again in a new call, which starts with a fresh budget.
 
 Give `ats` + `board` or `careers_url` whenever you know them; it is cheaper and more reliable.
@@ -99,8 +117,10 @@ next call.
 | `no_board_found` | Search the web for "<company> careers" / "<company> jobs" and look for a link to a supported ATS (including the careers-URL-only vendors); if found, retry with `ats` + `board` or `careers_url`. Otherwise drop it. |
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
-| `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url`; a careers site on the company's own domain is not an ATS board. |
+| `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
 | `unparseable_board` | The board page loaded but no listings could be read (e.g. a script-rendered Taleo career section). Drop it; its postings can still arrive through web search. |
+| `ownership_unknown` | A guessed board answered (see `candidate`) and was stored tagged `ownership:unknown`, but nothing ties it to the company. Optional: if you know the company's domain or real board, retry with `domain` or `ats` + `board` to get it verified. |
+| `wrong_tenant` | The guessed board belongs to another company (stored under that company's name). To find the proposed company's own board, look for its careers page and retry with that board; do not retry the `candidate` board. |
 | `invalid_proposal` | The line had no `company`. Fix it. |
 
 Put retries in a new file (e.g. `agent_proposals_retry.jsonl`) with only the corrected companies.

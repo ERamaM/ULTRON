@@ -47,12 +47,17 @@ Output:
 
 ```json
 {"run_id": "20261116-101500-a1b2c3", "preset": "balanced", "profile": "ai-ml-remote-eu",
- "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25}
+ "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25,
+ "eligible_seeds": 40, "cold_start": false}
 ```
 
 - `query_plan`: web-search queries for step 4 (already capped to the preset; includes `site:` ATS queries when `query_templates.site_scopes` is set).
 - `profile_seeds`: verified companies already linked to this profile (reused automatically).
 - `new_companies_target`: how many new companies to propose in step 2.
+- `eligible_seeds`: inventory boards that fit this profile (its own seeds plus bundled packs for its
+  sectors and region). `cold_start: true` means fewer than 15: this profile has too few boards for a
+  useful ATS pass, so in this run propose about twice `new_companies_target` companies in step 2 and add
+  the extra ATS `site:` searches of step 4 (see "Cold start" there).
 
 If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md
 before calling `run new`. For a named saved search, use its configured profile.
@@ -65,7 +70,7 @@ Follow `references/seeds.md` to write `agent_proposals.jsonl`, then:
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 ```
 
-Output: `{"verified": 7, "new": 6, "unresolved": 3, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
+Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
 
 Details are in `seeds_verified.jsonl` and `seeds_unresolved.jsonl` (both rewritten on every call).
 Verified companies are stored for this profile and used by `discover ats` from now on.
@@ -76,7 +81,7 @@ Verified companies are stored for this profile and used by `discover ats` from n
 ultron discover feeds --run <run_id>
 ```
 
-Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "company_hints": 35, "requests": 40}`
+Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "requests": 40}`
 
 Reads the public job feeds listed in the skill's `data/feeds.yaml` (remote-job APIs, RSS feeds and
 company lists). No agent input is needed. It does three things:
@@ -87,9 +92,11 @@ company lists). No agent input is needed. It does three things:
   remoteok, jobicy...) is not a candidate: such pages are never kept, and the board it links to is
   still picked up as a seed. Feed rows are ranked by title fit and geography scope.
 - Links to ATS boards found in the feeds are added to the inventory as seeds, so step 5 queries them
-  (`seeds_added`).
+  (`seeds_added`), when at least one posting of that board passes the profile's title filter (boards of
+  company-list feeds always count); boards seen only in other professions' postings are skipped
+  (`feed_boards_irrelevant`).
 - Company names whose ATS is unknown are written to `seed_proposals_from_feeds.jsonl` (`company_hints`,
-  proposal format of `references/seeds.md`). Optionally verify them by passing that file directly with
+  proposal format of `references/seeds.md`), most-mentioned companies first. Optionally verify them by passing that file directly with
   `--limit` instead of copying a subset (`--limit` defaults to the run's `new_companies_per_run` when the
   input file is `seed_proposals_from_feeds.jsonl`):
   `ultron seeds verify --run <run_id> --from <run folder>/seed_proposals_from_feeds.jsonl --limit <new_companies_target>`.
@@ -111,6 +118,13 @@ string as the query. For a SearXNG instance, send that same string as the URL-en
 parameter. If you add a supplementary query using a profile technology, record it separately
 and use the same query with each provider when comparing them. Record how many planned queries
 you actually submitted if you stopped early.
+
+**Cold start** (`cold_start: true` in `run new`): after the plan, also search the profile's two or three
+main target titles on the main ATS hosts, e.g. `site:jobs.lever.co "<title>" <region>`, then
+`site:job-boards.greenhouse.io`, `site:jobs.ashbyhq.com`, `site:apply.workable.com`,
+`site:jobs.smartrecruiters.com` and `site:*.recruitee.com` (about 10 extra queries; record them
+separately from the plan). Every posting URL on a new board becomes a seed proposal that step 5
+verifies and keeps for later runs, so this is the quickest way to grow a small inventory.
 
 Collect **individual job-posting URLs** (one opening per URL), excluding portals and aggregator
 home pages. Write them as JSONL with the required `url`, plus `title`, `company` and the exact

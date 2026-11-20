@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 
 import httpx
 import pytest
@@ -81,6 +83,10 @@ def test_verify_probes_suffix_stripped_slug():
         return httpx.Response(404)
 
     res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
+    # A one-word name without a domain slug is never proof of ownership; the probed board is reported.
+    assert res.reason == "ownership_unknown" and res.candidate == {"ats": "lever", "board": "acme", "postings": 1}
+    res = verify_proposal(Proposal("Acme GmbH", domain="acme.de"), client=make_client(handler, max_requests=200),
+                          timeout=5)
     assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acme"
 
 
@@ -93,7 +99,9 @@ def test_verify_probes_literal_slugs_on_every_vendor_before_normalized_guesses()
         return httpx.Response(404)
 
     res = verify_proposal(Proposal("Acme GmbH"), client=make_client(handler, max_requests=200), timeout=5)
-    assert res.status == "verified" and res.seed.ats == "lever" and res.seed.board_identifier == "acmegmbh"
+    # The literal "acmegmbh" board on a later vendor is found before the normalized "acme" guess.
+    assert res.reason == "ownership_unknown"
+    assert res.candidate == {"ats": "lever", "board": "acmegmbh", "postings": 1}
 
 
 def test_verify_explicit_pair():
@@ -197,7 +205,7 @@ def test_verify_explicit_careers_url_does_not_probe_other_vendors():
         timeout=5,
     )
     assert custom.status == "unresolved" and custom.reason == "no_board_found"
-    assert seen == []
+    assert seen == ["acme.example"]  # one capped hop to the careers page itself, no slug guessing
 
 
 def test_add_seeds_atomic_and_links_profile():
@@ -320,7 +328,7 @@ def test_per_host_budget_skips_vendor_but_tries_others():
         return httpx.Response(404)
 
     client = make_client(handler, max_requests_per_host=1)
-    first = verify_proposal(Proposal("Acme Corp", domain="acme.io"), client=client, timeout=5)
+    first = verify_proposal(Proposal("Acme", domain="acme.io"), client=client, timeout=5)
     assert first.status == "verified" and first.seed.ats == "lever"
     second = verify_proposal(Proposal("Other"), client=client, timeout=5)
     assert second.reason != "budget_exhausted"
@@ -386,7 +394,8 @@ def test_seeds_verify_cli_not_limited_by_preset_per_host_cap(capsys, tmp_path):
     ])
     assert main(["seeds", "verify", "--run", run_id, "--from", src]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out == {"verified": 35, "new": 35, "unresolved": 0, "unresolved_sample": []}
+    assert out == {"verified": 35, "new": 35, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
 
 def test_seeds_verify_cli_global_budget_still_exhausts(capsys, tmp_path):
@@ -431,13 +440,115 @@ def test_seeds_verify_reports_new_count_and_respects_limit(capsys, tmp_path):
     # Default limit for seed_proposals_from_feeds.jsonl is the run's new_companies_per_run (10).
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file)]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out == {"verified": 10, "new": 10, "unresolved": 0, "unresolved_sample": []}
+    assert out == {"verified": 10, "new": 10, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
     # Re-verifying with explicit --limit 3 processes 3 rows and reports new=0 for already-stored boards.
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file), "--limit", "3"]) == 0
     out2 = json.loads(capsys.readouterr().out)
-    assert out2 == {"verified": 3, "new": 0, "unresolved": 0, "unresolved_sample": []}
+    assert out2 == {"verified": 3, "new": 0, "unresolved": 0, "ownership_unknown": 0, "wrong_tenant": 0,
+                   "unresolved_sample": []}
 
     # Negative --limit is rejected as usage error.
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file), "--limit", "-1"]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "usage"
+
+
+def test_run_new_flags_cold_start_below_fifteen_eligible_seeds(capsys, tmp_path, monkeypatch):
+    empty = tmp_path / "no_packs"
+    empty.mkdir()
+    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    profiles.install_example()
+    add_seeds([seed(f"board{i}") for i in range(14)], profile_slug=profiles.EXAMPLE_SLUG)
+    add_seeds([seed(f"other{i}") for i in range(5)], profile_slug="another-profile")
+    assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG, "--preset", "fast"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["eligible_seeds"], out["cold_start"]) == (14, True)
+    add_seeds([seed("board14")], profile_slug=profiles.EXAMPLE_SLUG)
+    assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG, "--preset", "fast"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["eligible_seeds"], out["cold_start"]) == (15, False)
+
+
+def _seed_lock():
+    path = seeds.auto_seeds_path()
+    return path.with_name(path.name + ".lock")
+
+
+def test_concurrent_add_seeds_do_not_lose_each_others_rows(monkeypatch):
+    real_read = seeds._read_raw_rows
+    a_read, b_started = threading.Event(), threading.Event()
+
+    def slow_read(path):
+        rows = real_read(path)
+        if threading.current_thread().name == "writer-a":
+            a_read.set()
+            b_started.wait(5)
+            time.sleep(0.3)  # writer B reaches add_seeds (and, without a lock, finishes its write) meanwhile
+        return rows
+
+    monkeypatch.setattr(seeds, "_read_raw_rows", slow_read)
+    a = threading.Thread(target=add_seeds, args=([seed("alpha")],), kwargs={"profile_slug": "p1"}, name="writer-a")
+    a.start()
+    assert a_read.wait(5)
+
+    def writer_b():
+        b_started.set()
+        add_seeds([seed("beta")], profile_slug="p1")
+
+    b = threading.Thread(target=writer_b, name="writer-b")
+    b.start()
+    a.join(10)
+    b.join(10)
+    assert {s.board_identifier for s in load_inventory("p1") if "p1" in s.profiles} == {"alpha", "beta"}
+
+
+def test_a_leftover_lock_file_from_a_crashed_writer_does_not_block():
+    lock = _seed_lock()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")  # the file exists, but no process holds the OS lock
+    assert add_seeds([seed("gamma")], profile_slug="p1") == 1
+
+
+def test_a_live_seed_lock_times_out_as_a_seed_file_error(monkeypatch):
+    monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
+    with seeds._seed_file_lock(seeds.auto_seeds_path()):  # another writer holds the lock
+        with pytest.raises(seeds.SeedFileError):
+            add_seeds([seed("delta")], profile_slug="p1")
+        assert _seed_lock().exists()  # another writer's lock is left alone
+    assert not seeds.auto_seeds_path().exists()
+    assert add_seeds([seed("delta")], profile_slug="p1") == 1  # released: the next writer gets it
+
+
+def test_a_later_verification_promotes_an_unconfirmed_stored_seed():
+    guessed = seed("acme").model_copy(update={
+        "source_type": seeds.UNCONFIRMED_SOURCE_TYPE, "tags": ["ownership:unknown"],
+        "priority": seeds.UNCONFIRMED_SEED_PRIORITY,
+    })
+    assert add_seeds([guessed], profile_slug="p1") == 1
+    verified = seed("acme").model_copy(update={"source_type": "agent_generated", "source_label": "Agent proposal"})
+    assert add_seeds([verified], profile_slug="p2") == 0
+    [stored] = [s for s in load_inventory("p2") if s.board_identifier == "acme" and s.ats == "greenhouse"]
+    assert stored.source_type == "agent_generated" and "ownership:unknown" not in stored.tags
+    assert stored.priority != seeds.UNCONFIRMED_SEED_PRIORITY
+    assert set(stored.profiles) >= {"p1", "p2"}
+    # An unconfirmed result never downgrades a stored verified seed.
+    assert add_seeds([guessed], profile_slug="p3") == 0
+    [again] = [s for s in load_inventory("p3") if s.board_identifier == "acme" and s.ats == "greenhouse"]
+    assert again.source_type == "agent_generated" and "p3" in again.profiles
+
+
+def test_budget_exhaustion_keeps_an_unconfirmed_board_already_found():
+    def handler(request):
+        if "greenhouse" in request.url.host and "/acmedatasystems/" in request.url.path:
+            return httpx.Response(200, json=GH_JOBS)
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme Data Systems"), client=make_client(handler, max_requests=1), timeout=5)
+    assert res.reason == "budget_exhausted"
+    stored = seeds.stored_seed(res)
+    assert stored is not None and stored.board_identifier == "acmedatasystems"
+    assert stored.source_type == seeds.UNCONFIRMED_SOURCE_TYPE
+    # Without a board found first, budget exhaustion still stores nothing.
+    res = verify_proposal(Proposal("Other Data Systems"), client=make_client(handler, max_requests=1), timeout=5)
+    assert res.reason == "budget_exhausted" and seeds.stored_seed(res) is None

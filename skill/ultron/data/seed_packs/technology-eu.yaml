@@ -255,17 +255,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Clipboard Health
-  ats: ashby
-  board_identifier: app
-  enabled: true
-  priority: 54
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Enode
   ats: ashby
   board_identifier: enode
@@ -1461,116 +1450,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: PlanetScale
-  ats: lever
-  board_identifier: planetscale
-  enabled: true
-  priority: 201
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Segment
-  ats: lever
-  board_identifier: segment
-  enabled: true
-  priority: 202
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Amplitude
-  ats: lever
-  board_identifier: amplitude
-  enabled: true
-  priority: 203
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Mixpanel
-  ats: lever
-  board_identifier: mixpanel
-  enabled: true
-  priority: 204
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: LaunchDarkly
-  ats: lever
-  board_identifier: launchdarkly
-  enabled: true
-  priority: 205
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Intercom
-  ats: lever
-  board_identifier: intercom
-  enabled: true
-  priority: 206
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Procore
-  ats: lever
-  board_identifier: procore
-  enabled: true
-  priority: 207
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Thumbtack
-  ats: lever
-  board_identifier: thumbtack
-  enabled: true
-  priority: 209
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Canary
-  ats: lever
-  board_identifier: canary
-  enabled: true
-  priority: 210
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Sonar
-  ats: lever
-  board_identifier: sonar
-  enabled: true
-  priority: 211
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Immutable
   ats: lever
   board_identifier: immutable
@@ -1594,66 +1473,11 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: OpenPhone
-  ats: lever
-  board_identifier: openphone
-  enabled: true
-  priority: 214
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Tines
-  ats: lever
-  board_identifier: tines
-  enabled: true
-  priority: 215
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Constructor
-  ats: lever
-  board_identifier: constructor
-  enabled: true
-  priority: 216
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Olo
   ats: lever
   board_identifier: olo
   enabled: true
   priority: 217
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Checkr
-  ats: lever
-  board_identifier: checkr
-  enabled: true
-  priority: 218
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Benchling
-  ats: lever
-  board_identifier: benchling
-  enabled: true
-  priority: 219
   tags:
   - ml
   - ai
@@ -1715,17 +1539,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Adept
-  ats: ashby
-  board_identifier: adept
-  enabled: true
-  priority: 225
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Pinecone
   ats: ashby
   board_identifier: pinecone
@@ -1759,28 +1572,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Nebius
-  ats: ashby
-  board_identifier: nebius
-  enabled: true
-  priority: 229
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Builder.ai
-  ats: ashby
-  board_identifier: builderai
-  enabled: true
-  priority: 230
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Synthesia
   ats: ashby
   board_identifier: synthesia
@@ -1789,40 +1580,6 @@ seeds:
   tags:
   - ml
   - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Sanas
-  ats: ashby
-  board_identifier: sanas
-  enabled: true
-  priority: 232
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: HeyGen
-  ats: ashby
-  board_identifier: heygen
-  enabled: true
-  priority: 233
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
-- company: Aircall
-  ats: ashby
-  board_identifier: aircall
-  enabled: true
-  priority: 234
-  tags:
-  - ml
-  - ai
-  - eu
   country_scope: EU
   sectors:
   - technology
@@ -2439,45 +2196,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: InstaDeep
-  ats: jazzhr
-  board_identifier: instadeep
-  enabled: true
-  priority: 288
-  tags:
-  - ml
-  - ai
-  - research
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Aignostics
-  ats: jazzhr
-  board_identifier: aignostics
-  enabled: true
-  priority: 289
-  tags:
-  - ml
-  - ai
-  - healthtech
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Helsing
-  ats: jazzhr
-  board_identifier: helsing
-  enabled: true
-  priority: 290
-  tags:
-  - ml
-  - ai
-  - defense
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Typeform
   ats: factorial
   board_identifier: typeform
@@ -2733,20 +2451,6 @@ seeds:
   - ml
   - ai
   - nlp
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Deepset
-  ats: personio
-  board_identifier: deepset
-  enabled: true
-  priority: 371
-  tags:
-  - ml
-  - ai
-  - llm
-  - rag
   - eu
   country_scope: EU
   sectors:

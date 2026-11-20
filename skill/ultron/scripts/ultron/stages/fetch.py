@@ -11,6 +11,7 @@ import yaml
 from bs4 import BeautifulSoup
 
 from ultron import runs
+from ultron.core.ats.clients.bamboohr import bamboohr_workplace
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
 from ultron.core.data_paths import data_dir
@@ -23,7 +24,7 @@ from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.core.urlpolicy import admit_url
 from ultron.http_factory import client_for_run
-from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.stages.feeds import is_aggregator_host
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -361,10 +362,14 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
             for k in ("city", "state", "addressCountry")
             if loc_obj.get(k)
         ).strip(", ")
+        # The vendor's workplace type is authoritative: prose such as "some remote workers" must not make
+        # an on-site posting look remote.
+        remote_parts = (bamboohr_workplace(opening), job.remote_text or loc_str)
+        remote_text = " | ".join(dict.fromkeys(clean_text(part) for part in remote_parts if clean_text(part)))
         return job.model_copy(update={
             "title": clean_text(opening.get("jobOpeningName") or candidate.ats_title or job.title),
             "location": clean_text(loc_str or candidate.ats_location or job.location),
-            "remote_text": clean_text(job.remote_text or loc_str),
+            "remote_text": remote_text,
             "body_text": desc,
             "posting_date": str(opening.get("datePosted") or job.posting_date or "").strip() or None,
         }), True
@@ -629,7 +634,8 @@ def fetch(run_id: str) -> dict:
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")
     summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
-               "navigation_failures": nav_failures, "requests": client.requests_made}
+               "navigation_failures": nav_failures, "requests": client.requests_made,
+               "requests_by_domain": top_hosts(client.requests_by_host())}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
     return summary

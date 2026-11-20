@@ -4,8 +4,7 @@ import logging
 
 from bs4 import BeautifulSoup
 
-from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, locator_url
-from ultron.net import RequestBudgetExceeded
+from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsClientError, AtsHTTPClient, AtsPosting, locator_url
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +67,7 @@ def fetch_jobvite_jobs(
     for host in ("jobs.jobvite.com", "jobs.eu.jobvite.com"):
         try:
             html = fetch_text(locator_url(host, board_identifier), timeout=timeout)
-        except RequestBudgetExceeded:
+        except UNCHECKED_ERRORS:
             raise
         except Exception as exc:
             last_exc = exc

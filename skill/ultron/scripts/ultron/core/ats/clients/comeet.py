@@ -5,13 +5,13 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
     refuse_browser_fallback,
 )
 from ultron.core.ats.vendors import domain_matches
-from ultron.net import RequestBudgetExceeded
 
 _COMEET_HOST = "https://www.comeet.co"
 _COMEET_DOMAINS = ("comeet.com", "comeet.co")
@@ -61,7 +61,7 @@ def fetch_comeet_jobs(
     board_url = f"{_COMEET_HOST}/jobs/{slug}"
     try:
         html = fetch_text(board_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception:
         html = ""

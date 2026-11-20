@@ -2,8 +2,14 @@ from __future__ import annotations
 
 from defusedxml import ElementTree as ET
 
-from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, locator_has_host, locator_url
-from ultron.net import RequestBudgetExceeded
+from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
+    AtsClientError,
+    AtsHTTPClient,
+    AtsPosting,
+    locator_has_host,
+    locator_url,
+)
 
 
 def _looks_like_personio_xml(payload: str) -> bool:
@@ -44,7 +50,7 @@ def fetch_personio_jobs(
             except (ET.ParseError, ValueError) as exc:  # ValueError: defusedxml forbids DTD/entities
                 last_exc = exc
                 payload = ""
-        except RequestBudgetExceeded:
+        except UNCHECKED_ERRORS:
             raise
         except Exception as exc:
             last_exc = exc

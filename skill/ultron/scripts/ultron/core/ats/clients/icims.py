@@ -3,6 +3,7 @@ from __future__ import annotations
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
@@ -11,7 +12,6 @@ from ultron.core.ats.clients.base import (
     parse_card_listings,
     refuse_browser_fallback,
 )
-from ultron.net import RequestBudgetExceeded
 
 _ICIMS_MAX_PAGES = 25  # Safety cap: ~20 rows per page
 # Markup only a listing page has (legacy table rows or current job cards, even with zero rows). A portal's
@@ -53,7 +53,7 @@ def fetch_icims_jobs(
     for page in range(_ICIMS_MAX_PAGES):
         try:
             html = fetch_text(f"{board_url}?pr={page}&in_iframe=1", timeout=timeout)
-        except RequestBudgetExceeded:
+        except UNCHECKED_ERRORS:
             raise
         except Exception:
             if page > 0:

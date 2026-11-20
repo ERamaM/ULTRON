@@ -43,7 +43,9 @@ MIN_MEASURED = 5
 # At most this many tried company names are printed by ``seeds plan`` (repeats are refused at verify anyway).
 MAX_EXCLUDE_SHOWN = 300
 # Verification outcomes that never checked the board: they do not count in the yield or as tried.
-_UNCHECKED = frozenset({"budget_exhausted", "host_blocked", "host_budget_exhausted", "page_budget_exhausted"})
+_UNCHECKED = frozenset({
+    "budget_exhausted", "host_blocked", "host_budget_exhausted", "page_budget_exhausted", "vendor_budget_exhausted",
+})
 
 PROPOSAL_SCHEMA: dict = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",

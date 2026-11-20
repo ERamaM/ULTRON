@@ -543,3 +543,17 @@ def test_edit_runs_from_file_at_its_place_in_the_order(tmp_path, capsys):
     assert code == 0, out
     code, shown = _run(capsys, "profile", "show", SLUG)
     assert shown["profile"]["criteria"]["specialties"] == ["Go"]  # the file ran last
+
+
+def test_plain_undo_after_an_explicit_restore_brings_back_the_replaced_version(tmp_path, capsys):
+    _save_draft(tmp_path, capsys)  # A
+    a = profiles.user_path(SLUG).read_bytes()
+    _run(capsys, "profile", "edit", SLUG, "--add", "criteria.specialties=Rust")  # B
+    _run(capsys, "profile", "edit", SLUG, "--add", "criteria.specialties=Elixir")  # C
+    c = profiles.user_path(SLUG).read_bytes()
+    version_a = [v for v in profiles.history(SLUG) if v["reason"] == "edit"][-1]["version"]  # the copy of A
+    assert _run(capsys, "profile", "undo", SLUG, "--to", version_a)[0] == 0
+    assert profiles.user_path(SLUG).read_bytes() == a
+    assert profiles.history(SLUG)[0]["reason"] == "restore"
+    assert _run(capsys, "profile", "undo", SLUG)[0] == 0
+    assert profiles.user_path(SLUG).read_bytes() == c  # not B

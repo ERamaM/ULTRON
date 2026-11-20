@@ -197,7 +197,8 @@ Rust", "I'm based in Valencia and can work for EU companies" or "remove data ent
 5. If the user wants a change back, preview with `ultron profile undo <slug> --dry-run` and apply with
    `ultron profile undo <slug>`. Each undo steps one change back. `ultron profile history <slug>` lists
    versions, and `ultron profile undo <slug> --to <version>` restores one, including a version that an
-   undo replaced (redo).
+   undo replaced (redo). A restore with `--to` counts as a change: a plain `undo` afterwards brings back
+   the version it replaced.
 
 Operations run in the order given, and nothing is saved if any of them is invalid:
 

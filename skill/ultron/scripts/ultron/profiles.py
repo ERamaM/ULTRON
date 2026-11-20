@@ -249,8 +249,10 @@ def _undo_target(slug: str, version: str | None) -> Path:
             if _version_id(path) == version:
                 return path
         raise VersionNotFoundError(f"version not found for {slug}: {version}")
-    # A plain undo steps back through the changes. Versions written by an undo itself are skipped, so
-    # repeated undos keep going back instead of toggling; restore one of them with ``--to`` to redo.
+    # A plain undo steps back through the changes. Versions written by a plain undo itself are skipped, so
+    # repeated undos keep going back instead of toggling; restore one of them with ``--to`` to redo. An
+    # explicit restore (``--to``) is a change like an edit: its "restore" version is what a later plain undo
+    # brings back.
     for _seq, _saved_at, reason, path in reversed(versions):
         if reason != "undo":
             return path
@@ -264,14 +266,16 @@ def version_content(slug: str, version: str | None = None) -> tuple[str, str | N
 
 
 def restore(slug: str, version: str | None = None) -> dict:
-    """Restore a version (default: the one before the last change); the replaced file is kept as ``undo``.
+    """Restore a version (default: the one before the last change).
 
-    A plain undo consumes the version it restores; an explicit ``version`` stays in the history.
+    The replaced file is kept as ``undo`` for a plain undo, which also consumes the version it restores, and
+    as ``restore`` for an explicit ``version``, which stays in the history; a plain undo after an explicit
+    restore therefore brings back the state that restore replaced.
     """
     path = _undo_target(slug, version)
     # Read the version before snapshotting: the snapshot may prune the oldest entry, which can be this one.
     content = path.read_bytes() if path.suffix == ".yaml" else None
-    backup = _snapshot(slug, "undo")
+    backup = _snapshot(slug, "undo" if version is None else "restore")
     target = user_path(slug)
     if content is not None:
         _atomic_write_bytes(target, content)

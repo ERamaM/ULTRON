@@ -182,3 +182,13 @@ def test_the_merged_row_is_the_same_whatever_order_the_cities_arrive_in():
     forward = dedupe_final_rows(rows(), merge_locations=True)[0]
     backward = dedupe_final_rows(rows()[::-1], merge_locations=True)[0]
     assert [row.apply_url for row in forward] == [row.apply_url for row in backward] == ["https://x.com/j/1"]
+
+def test_web_results_on_different_domains_never_merge():
+    rows = [
+        _row(location="Madrid, Spain", apply_url="https://careers.acme.example/jobs/1", source_type="web_search",
+             source_key="web_search"),
+        _row(location="Lisbon, Portugal", apply_url="https://acme-jobs.attacker.example/a", source_type="web_search",
+             source_key="web_search"),
+    ]
+    kept, dupes = dedupe_final_rows(rows, merge_locations=True)
+    assert [row.apply_url for row in kept] == [row.apply_url for row in rows] and dupes == []

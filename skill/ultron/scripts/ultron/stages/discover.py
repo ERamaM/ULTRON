@@ -125,6 +125,8 @@ SCOPE_REGION_TERMS: dict[str, tuple[str, ...]] = {
 }
 # Scopes that fit every profile.
 GLOBAL_SCOPES = frozenset({"GLOBAL", "WORLDWIDE"})
+# ``_rank`` order of a pack seed scoped to another region: it is left out of the selection entirely.
+EXCLUDED_RANK = 5
 
 
 def _profile_region_text(profile: dict | None) -> str:
@@ -162,7 +164,10 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu", regi
             return 3, "feed"
         return 2, "other"
     sector_match = not sectors or not seed.sectors or bool(sectors.intersection(seed.sectors))
-    geo_match = seed_scope_fits(getattr(seed, "country_scope", ""), None, geo=geo, region_text=region_text)
+    scope = str(getattr(seed, "country_scope", "") or "").strip().upper()
+    geo_match = seed_scope_fits(scope, None, geo=geo, region_text=region_text)
+    if not geo_match and scope in SCOPE_REGION_TERMS:
+        return EXCLUDED_RANK, "excluded"  # a pack for another region never fills this profile's slots
     return (1, "pack") if (sector_match and geo_match) else (4, "other")
 
 
@@ -208,8 +213,9 @@ def _select_seeds(
         attempts, keeps = history.get(seed_key(seed), (0, 0))
         return SeedYield(max(0, int(attempts)), max(0, int(keeps or 0)))
 
+    ranked_all = ((seed, *_rank(seed, profile_slug, sectors, geo, region_text)) for seed in load_inventory(profile_slug))
     ranked = sorted(
-        ((seed, *_rank(seed, profile_slug, sectors, geo, region_text)) for seed in load_inventory(profile_slug)),
+        (item for item in ranked_all if item[1] < EXCLUDED_RANK),
         key=lambda item: (
             stat(item[0]).deprioritized,
             item[1],

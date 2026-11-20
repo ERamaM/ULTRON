@@ -508,6 +508,24 @@ def test_a_stale_seed_lock_is_broken():
     assert not lock.exists()
 
 
+def test_a_stale_lock_that_cannot_be_removed_still_times_out(monkeypatch):
+    lock = _seed_lock()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")
+    monkeypatch.setattr(seeds, "SEED_LOCK_STALE", -1.0)
+    monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
+    real_unlink = type(lock).unlink
+
+    def refuse(self, missing_ok=False):
+        if self.name.endswith(".lock"):
+            raise PermissionError("in use")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(type(lock), "unlink", refuse)
+    with pytest.raises(seeds.SeedFileError):
+        add_seeds([seed("epsilon")], profile_slug="p1")
+
+
 def test_a_live_seed_lock_times_out_as_a_seed_file_error(monkeypatch):
     lock = _seed_lock()
     lock.parent.mkdir(parents=True, exist_ok=True)

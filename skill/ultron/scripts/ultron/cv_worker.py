@@ -9,13 +9,106 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections import Counter
 from io import BytesIO
 
 
 def _normalize_text(text: str) -> str:
-    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
-    lines = [re.sub(r"[ \t\f\v]+", " ", line).strip() for line in normalized.split("\n")]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    from ultron.cv import _normalize_text as normalize
+
+    return normalize(text)
+
+
+_MIN_GUTTER = 3  # blank character columns that must separate two text columns
+_DATE_LIKE = re.compile(r"\b(19|20)\d{2}\b|\b(present|current|today|actualidad|actual|hoy|presente)\b", re.IGNORECASE)
+
+
+def _crosses(line: str, col: int) -> bool:
+    return bool(line[max(col - 1, 0) : col + _MIN_GUTTER - 1].strip())
+
+
+def _gutter_body(lines: list[str], col: int) -> tuple[int, int] | None:
+    """``(start, end)`` of the lines that respect a gutter at ``col``; only a header and a footer may cross it."""
+    crossing = [i for i, line in enumerate(lines) if _crosses(line, col)]
+    start = 0
+    while start < len(lines) and start in crossing:
+        start += 1
+    end = len(lines)
+    while end > start and end - 1 in crossing:
+        end -= 1
+    if any(start <= i < end for i in crossing):
+        return None
+    return start, end
+
+
+def _two_columns(lines: list[str], col: int, start: int, end: int) -> tuple[list[str], list[str]] | None:
+    left = [line[:col].strip() for line in lines[start:end]]
+    right = [line[col:].strip() for line in lines[start:end]]
+    both = sum(1 for a, b in zip(left, right, strict=True) if a and b)
+    one_sided = sum(1 for a, b in zip(left, right, strict=True) if bool(a) != bool(b))
+    right_cells = [b for b in right if b]
+    # Real side-by-side columns run independently: some rows hold only one of them, and the right
+    # column is a dense block of consecutive lines. Right-aligned details of a single column (dates,
+    # cities, a contact line) are sparse, one per role line, and must stay on their line.
+    if both < 3 or one_sided < 2 or not any(b and not a for a, b in zip(left, right, strict=True)):
+        return None
+    if len(right_cells) * 5 < len(right) * 2 or _longest_run(right) < 3:
+        return None
+    if sum(1 for b in right_cells if _DATE_LIKE.search(b)) * 2 >= len(right_cells):
+        return None
+    return [a for a in left if a], right_cells
+
+
+def _longest_run(cells: list[str]) -> int:
+    best = run = 0
+    for cell in cells:
+        run = run + 1 if cell else 0
+        best = max(best, run)
+    return best
+
+
+def reorder_columns(layout_text: str) -> str | None:
+    """Rebuild reading order of a two-column page from pypdf's layout-mode text, or ``None`` when unsure.
+
+    Layout mode keeps horizontal positions, so a column gutter is a band of blank character columns
+    shared by every line between an optional full-width header and footer. The result lists the header,
+    the whole left column, the whole right column, then the footer.
+    """
+    lines = [line.rstrip() for line in layout_text.split("\n") if line.strip()]
+    if len(lines) < 4:
+        return None
+    width = max(len(line) for line in lines)
+    best: tuple[int, int, int, list[str], list[str]] | None = None
+    for col in range(width // 4, (width * 3) // 4):
+        body = _gutter_body(lines, col)
+        if body is None or body[1] - body[0] < 4:
+            continue
+        columns = _two_columns(lines, col, *body)
+        if columns is not None and (best is None or body[1] - body[0] > best[1] - best[0]):
+            left_column, right_column = columns
+            best = (body[0], body[1], col, left_column, right_column)
+    if best is None:
+        return None
+    start, end, _col, left, right = best
+    blocks = ([line.strip() for line in lines[:start]], left, right, [line.strip() for line in lines[end:]])
+    return "\n\n".join("\n".join(block) for block in blocks if block)
+
+
+def _words(text: str) -> Counter:
+    return Counter(re.findall(r"\w+", text.casefold()))
+
+
+def _page_text(page) -> str:
+    plain = page.extract_text() or ""
+    try:
+        layout = page.extract_text(extraction_mode="layout")
+        reordered = reorder_columns(layout) if isinstance(layout, str) else None
+    except Exception:  # older pypdf, odd fonts or a stub page: keep plain extraction
+        return plain
+    # Layout mode skips rotated text: the reordered page is used only if it keeps every word of the plain one.
+    if reordered and not (_words(plain) - _words(reordered)):
+        return reordered
+    return plain
 
 
 def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) -> list[str]:
@@ -36,7 +129,7 @@ def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) ->
         chunks: list[str] = []
         used_chars = 0
         for page in pages:
-            page_text = _normalize_text(page.extract_text() or "")
+            page_text = _normalize_text(_page_text(page))
             added = len(page_text) + (1 if chunks and page_text else 0)
             # Stop before extracting later pages once the explicit text
             # budget is exhausted; never materialize an unbounded suffix.

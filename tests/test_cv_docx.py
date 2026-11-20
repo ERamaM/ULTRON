@@ -160,3 +160,13 @@ def test_a_utf16_body_cannot_hide_a_document_type_declaration(tmp_path):
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv(_write(tmp_path, "cv.docx", content))
     assert raised.value.code == "no_extractable_text"
+
+def test_breaks_inside_a_paragraph_separate_the_text_on_both_sides(tmp_path):
+    body = (
+        '<w:p><w:r><w:t>Experience</w:t><w:br w:type="page"/><w:t>Education</w:t></w:r></w:p>'
+        '<w:p><w:r><w:t>Left</w:t><w:br w:type="column"/><w:t>Right</w:t><w:cr/><w:t>Next</w:t>'
+        "<w:tab/><w:t>Tabbed</w:t></w:r></w:p>"
+    )
+    result = cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
+    assert result.text.splitlines() == ["Experience", "Education", "Left", "Right", "Next Tabbed"]
+    assert result.pages == 2

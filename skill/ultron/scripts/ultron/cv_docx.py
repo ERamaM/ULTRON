@@ -84,8 +84,8 @@ def _text(body: bytes) -> tuple[str, int]:
             elif tag in {f"{_W}br", f"{_W}cr"}:
                 if element.get(f"{_W}type") == "page":
                     pages += 1
-                else:
-                    current.append("\n")
+                # Every break (line, column or page) separates the text on its two sides.
+                current.append("\n")
             elif tag == f"{_W}p":
                 lines.append("".join(current))
                 current = []

@@ -15,13 +15,14 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   company and run `ultron seeds verify --run <id> --from <proposals.jsonl>`), make sure relevant feeds are read, or add
   the URL directly with `ultron candidates add --run <id> --from <file>`. Check the replay
   trace: if it would also fail a filter, fix that first.
-- `candidate_cap`: discovered, but never fetched because `max_pages` was reached. Use a larger preset (or
+- `candidate_cap`: discovered, but never fetched because `max_pages` was reached (listed in `fetch_capped.jsonl`). Use a larger preset (or
   `ultron saved-search create --override max_pages=...`; `run new` has no overrides), or narrow seeds so fewer boards compete.
 - `fetch_failed`: the page errored (`expired_or_closed` for 404/410 or a Workable `?not_found=true` / Greenhouse `?error=true` board redirect, `inaccessible`, budget exhausted, rejected URL).
   Closed postings are expected; for budget errors use a larger preset (or `ultron saved-search create --override`).
   `blocked` (a captcha or bot-challenge page) and `js_shell` (a script-rendered page with no readable text) need a
   manual look: open the URL in a browser. `host_blocked` means the host kept answering 403/429, so the rest of its
   URLs were skipped for this run; retry later or open them manually.
+  `skipped_navigation_failures` means fetch stopped because most URLs failed to load (network down).
 - `extraction_failed`: the page was downloaded but no posting could be parsed. Prefer ATS-API seeds over scraping
   the HTML page; the page may be a client-rendered shell.
 - `prefilter`: cheap early rejection (domain, obvious role/title mismatch). Adjust the profile's role terms
@@ -35,7 +36,7 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   the two are genuinely different roles.
 - `final_cap`: ranked below `max_roles`. Use a larger preset (or `ultron saved-search create --override max_roles=...`;
   `run new` has no overrides) or sharpen the profile so the role ranks higher.
-- `pending`: a stage has not run yet, so no verdict exists. `not_fetched`: the run has not done `fetch`; run it.
+- `pending`: a stage has not run yet, so no verdict exists. `not_fetched`: the run has not done `fetch` (run it), or the URL was added after `fetch` ran.
   `not_finalized`: the job passed filtering but `finalize` has not run. `pending_evaluation`: it is in
   `ambiguous.jsonl` waiting for agent evaluation; evaluate, then finalize.
 - `kept`: nothing failed; the job is in `results.json`.

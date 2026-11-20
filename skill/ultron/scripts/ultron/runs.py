@@ -68,6 +68,8 @@ def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> st
     settings = presets.resolve(preset)
     if overrides:
         settings.update(presets.validate_overrides(overrides, settings))
+        # Lowering only max_roles keeps the settings consistent (min_roles is not read by any stage).
+        settings["min_roles"] = min(settings["min_roles"], settings["max_roles"])
     snapshot = profiles.load_profile(profile_slug)
     now = datetime.now(UTC)
     run_id = f"{now:%Y%m%d-%H%M%S}-{secrets.token_hex(3)}"

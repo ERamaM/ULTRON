@@ -19,7 +19,7 @@ def create(name: str, profile_slug: str, preset: str = presets.DEFAULT_PRESET, p
         presets.resolve(preset)
     except KeyError as exc:
         raise ValueError(str(exc.args[0])) from exc
-    overrides = presets.validate_overrides(overrides or {})
+    overrides = presets.validate_overrides(overrides or {}, presets.resolve(preset))
     profiles.load_profile(profile_slug)  # raises FileNotFoundError if missing
     now = datetime.now(UTC).isoformat()
     with closing(ledger.connect()) as conn, conn:

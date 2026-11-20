@@ -64,12 +64,6 @@ def render_summary_markdown(summary: RunSummary, discards: list[DiscardRecord]) 
         f"   Guardrail saves: {summary.guardrail_saves} | Unsure→keep: {summary.unsure_to_keep_count}"
         f" | Hard-filter overrides: {summary.hard_filter_overrides}",
     ]
-    if "cold_start" in discovery_metrics:
-        lines.append(
-            f"   Cold start: {'yes' if discovery_metrics['cold_start'] else 'no'} ? "
-            f"{discovery_metrics.get('promoted_seed_count', 0)} boards promoted, "
-            f"{discovery_metrics.get('cold_start_saved', 0)} saved for this profile"
-        )
     if discovery_metrics:
         lines.append(
             "   Discovery units: "

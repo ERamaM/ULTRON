@@ -12,12 +12,12 @@ from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
 from ultron.core.job_identity import canonical_job_identity
-from ultron.core.models import JobRawPage
+from ultron.core.models import CandidateUrl, JobRawPage
 from ultron.core.rules.geography import location_scope
 from ultron.http_factory import client_for_run
 from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
 from ultron.stages.feeds import is_aggregator_host
-from ultron.stages.fetch import has_ats_fingerprint
+from ultron.stages.fetch import has_ats_fingerprint, page_canonical_url, resolve_apply_url
 
 FILTER_STAGES = {"pre_filter": "prefilter", "heuristic_evaluator": "evaluator", "hard_filter": "hard_filter"}
 FINALIZE_STAGES = {
@@ -58,10 +58,28 @@ def _step(trace: list[dict], stage: str, passed: bool, reason: str = "", label: 
     trace.append({"stage": stage, "label": label, "passed": passed, "reason": reason})
 
 
+def _posting_aliases(out_dir) -> dict[str, str]:
+    """Identity of each posting's final apply URL -> the posting's (candidate) identity key.
+
+    Fetch can replace a custom-domain URL with the ATS canonical URL; results then carry the new URL while the
+    candidate and every stage artifact keep the original identity.
+    """
+    aliases: dict[str, str] = {}
+    for row in runs.read_jsonl(out_dir / "postings.jsonl"):
+        key = row.get("identity_key")
+        apply_url = (row.get("job") or {}).get("apply_url") or ""
+        if key and apply_url:
+            aliases.setdefault(_identity_of(apply_url), key)
+    return aliases
+
+
 def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
     out_dir = runs.run_dir(run_id)
     stages_done = runs.load_run(run_id).get("stages_done") or []
+    aliases = _posting_aliases(out_dir)
     wanted = {identity}
+    if identity in aliases:  # the submitted URL is the canonical URL fetch switched to
+        wanted.add(aliases[identity])
 
     cand_ids: dict[str, set[str]] = {}
     matched: set[str] = set()
@@ -88,8 +106,13 @@ def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
         _step(trace, "fetch", False, "not_fetched")
         return "pending", "not_fetched"
     if not ({r.get("identity_key") for r in runs.read_jsonl(out_dir / "postings.jsonl")} & wanted):
-        _step(trace, "fetch", False, "candidate_cap")
-        return "candidate_cap", "candidate_cap"
+        capped_path = out_dir / "fetch_capped.jsonl"
+        # Runs from before fetch recorded capped candidates: not fetched and not failed can only mean the cap.
+        if not capped_path.is_file() or {r.get("identity_key") for r in runs.read_jsonl(capped_path)} & wanted:
+            _step(trace, "fetch", False, "candidate_cap")
+            return "candidate_cap", "candidate_cap"
+        _step(trace, "fetch", False, "not_fetched")
+        return "pending", "not_fetched"
     _step(trace, "fetch", True)
 
     for row in runs.read_jsonl(out_dir / "discarded.jsonl"):
@@ -112,8 +135,9 @@ def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
         except ValueError:
             rows = []
         for row in rows:
-            key = _identity_of(row.get("apply_url") or "", row.get("source_type") or "", row.get("source_key") or "")
-            if key in wanted:
+            apply_url = row.get("apply_url") or ""
+            key = _identity_of(apply_url, row.get("source_type") or "", row.get("source_key") or "")
+            if key in wanted or aliases.get(_identity_of(apply_url)) in wanted:
                 _step(trace, "finalize", True)
                 return "kept", "kept"
     in_ambiguous = any(r.get("identity_key") in wanted for r in runs.read_jsonl(out_dir / "ambiguous.jsonl"))
@@ -139,17 +163,22 @@ def _replay(url: str, profile: dict, run: dict | None, profile_slug: str, trace:
         _step(trace, "fetch", False, "expired_or_closed" if status in {404, 410} else "inaccessible", label)
         return
     _step(trace, "fetch", True, label=label)
+    page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
+                      canonical_url=page_canonical_url(html, final_url))
     try:
-        job = parse_ats_page(JobRawPage(url=url, final_url=final_url, status_code=status, html=html), ats_hints={})
+        job = parse_ats_page(page, ats_hints={})
     except (ValueError, KeyError, TypeError, AttributeError) as exc:
         _step(trace, "extraction", False, f"extract_failed: {exc!r}", label)
         return
-    job.apply_url = normalize_url(final_url)
+    allowed_domains = load_allowed_domains()
+    submitted = CandidateUrl(query_id="diagnose", query="", source_url=url, normalized_url=normalize_url(url),
+                             domain=domain_of(normalize_url(url)))
+    job.apply_url = resolve_apply_url(submitted, final_url, page.canonical_url, allowed_domains)
     job.domain = domain_of(job.apply_url)
     _step(trace, "extraction", True, label=label)
     # Same override as the filter stage; the replay has no candidate, so only the page fingerprint counts.
     result = characterize_job(
-        job, profile, load_allowed_domains(),
+        job, profile, allowed_domains,
         allow_outside_ats_allowlist=has_ats_fingerprint(html) and not is_aggregator_host(job.domain),
         target_regions=location_scope(profile)["preferred"],
     )

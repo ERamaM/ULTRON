@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 
 import httpx
 import pytest
@@ -459,3 +462,58 @@ def test_run_new_flags_cold_start_below_fifteen_eligible_seeds(capsys, tmp_path,
     assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG, "--preset", "fast"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert (out["eligible_seeds"], out["cold_start"]) == (15, False)
+
+
+def _seed_lock():
+    path = seeds.auto_seeds_path()
+    return path.with_name(path.name + ".lock")
+
+
+def test_concurrent_add_seeds_do_not_lose_each_others_rows(monkeypatch):
+    real_read = seeds._read_raw_rows
+    a_read, b_started = threading.Event(), threading.Event()
+
+    def slow_read(path):
+        rows = real_read(path)
+        if threading.current_thread().name == "writer-a":
+            a_read.set()
+            b_started.wait(5)
+            time.sleep(0.3)  # writer B reaches add_seeds (and, without a lock, finishes its write) meanwhile
+        return rows
+
+    monkeypatch.setattr(seeds, "_read_raw_rows", slow_read)
+    a = threading.Thread(target=add_seeds, args=([seed("alpha")],), kwargs={"profile_slug": "p1"}, name="writer-a")
+    a.start()
+    assert a_read.wait(5)
+
+    def writer_b():
+        b_started.set()
+        add_seeds([seed("beta")], profile_slug="p1")
+
+    b = threading.Thread(target=writer_b, name="writer-b")
+    b.start()
+    a.join(10)
+    b.join(10)
+    assert {s.board_identifier for s in load_inventory("p1") if "p1" in s.profiles} == {"alpha", "beta"}
+    assert not _seed_lock().exists()
+
+
+def test_a_stale_seed_lock_is_broken():
+    lock = _seed_lock()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")
+    old = lock.stat().st_mtime - 3600
+    os.utime(lock, (old, old))
+    assert add_seeds([seed("gamma")], profile_slug="p1") == 1
+    assert not lock.exists()
+
+
+def test_a_live_seed_lock_times_out_as_a_seed_file_error(monkeypatch):
+    lock = _seed_lock()
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="utf-8")
+    monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
+    with pytest.raises(seeds.SeedFileError):
+        add_seeds([seed("delta")], profile_slug="p1")
+    assert lock.exists()  # another writer's lock is left alone
+    assert not seeds.auto_seeds_path().exists()

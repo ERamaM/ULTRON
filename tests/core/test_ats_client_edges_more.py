@@ -79,3 +79,19 @@ def test_icims_dedupes_and_rejects_hostless_locator():
         icims.fetch_icims_jobs("/missing-host", client=FC(text_fn=lambda u: ""))
     dup = '<a href="/job/1"><span class="iCIMS_JobsTable_title">One</span></a>' * 2
     assert len(icims.fetch_icims_jobs("acme.example", client=FC(text_fn=lambda u: dup))) == 1
+
+
+def test_comeet_parse_positions_keeps_absolute_links_on_the_hosted_com_domain():
+    # Hosted Comeet positions live on www.comeet.com; "comeet.co" is a substring of that host, so the
+    # path must be taken from the parsed URL, not by splitting the string on "comeet.co".
+    html = (
+        '<a href="https://www.comeet.com/jobs/acme/41.001/data-scientist/C7.E11">Data Scientist</a>'
+        '<a href="https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E12">ML Engineer</a>'
+        '<a href="https://comeet.com.evil.example/jobs/acme/41.001/fake/C7.E13">Fake</a>'
+    )
+    postings = comeet._parse_positions(html, "acme")
+    assert [(p.title, p.apply_url) for p in postings] == [
+        ("Data Scientist", "https://www.comeet.com/jobs/acme/41.001/data-scientist/C7.E11"),
+        ("ML Engineer", "https://www.comeet.co/jobs/acme/41.001/ml-engineer/C7.E12"),
+    ]
+

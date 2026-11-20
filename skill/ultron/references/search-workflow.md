@@ -29,10 +29,10 @@ executable named in `RUNTIME.md` (see SKILL.md). Every command prints **one JSON
 
 | preset | max roles kept | pages fetched | seeds queried | web queries | new companies | seed target (rounds) |
 |---|---|---|---|---|---|---|
-| `fast` | 5 | 70 | 120 | 20 | 10 | 45 (2) |
-| `balanced` (default) | 250 | 400 | 180 | 40 | 25 | 90 (3) |
-| `deep` | 250 | 4000 | 400 | 120 | 60 | 120 (3) |
-| `seed_boost` | 250 | 4000 | 400 | 220 | 120 | 150 (4) |
+| `fast` | 5 | 70 | 120 | 20 | 10 | 40 (2) |
+| `balanced` (default) | 250 | 400 | 180 | 40 | 25 | 80 (3) |
+| `deep` | 250 | 4000 | 400 | 120 | 60 | 110 (3) |
+| `seed_boost` | 250 | 4000 | 400 | 220 | 120 | 140 (4) |
 
 Use `balanced` unless the user asks otherwise ("quick" → `fast`, "thorough" → `deep`, "find more
 companies" → `seed_boost`).
@@ -48,7 +48,7 @@ Output:
 ```json
 {"run_id": "20261116-101500-a1b2c3", "preset": "balanced", "profile": "ai-ml-remote-eu",
  "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25,
- "eligible_seeds": 40, "cold_start": false, "seed_target": 90, "fitting_seeds": 40, "seed_deficit": 50}
+ "eligible_seeds": 40, "cold_start": false, "seed_target": 80, "fitting_seeds": 40, "seed_deficit": 40}
 ```
 
 - `query_plan`: web-search queries for step 4 (already capped to the preset; includes `site:` ATS queries when `query_templates.site_scopes` is set).

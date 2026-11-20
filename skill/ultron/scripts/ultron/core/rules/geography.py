@@ -180,9 +180,32 @@ _HIRING_SCOPE = re.compile(
     r"|\bopen\s+to\s+(?:\w+\s+)?(?:candidates|applicants|talent)\s+(?:globally|internationally)\b"
     r"|\bopen\s+to\s+(?:international|global)\s+(?:candidates|applicants|talent)\b"
     r"|\b(?:international|global)\s+(?:candidates|applicants)\s+(?:are\s+)?welcome\b"
-    r"|\bno\s+(?:country|location|geographic(?:al)?)\s+restrictions?\b"
+    r"|\b(?:no|without)\s+(?:any\s+)?(?:country|location|geographic(?:al)?)\s+restrictions?\b"
     r"|\banywhere\s+in\s+the\s+(?:world|globe)\b"
 )
+# Body statements (hiring scope above, a US state licence below) count only inside one sentence that is
+# affirmative: no negation in it once the statement itself is removed ("no country restrictions" is the statement),
+# and no "only within <place>" in it or in the next sentence ("We hire globally. Open only to residents of Canada.").
+_BODY_SENTENCE_BREAK = re.compile(r"(?<=[.!?;])\s+|[\r\n]+|\s*[•·▪●]\s*")
+_PLACE_ONLY = r"\bonly\s+(?:\w+\s+){0,3}?(?:within|in|from)\b|\b(?:within|in|from)\s+(?:the\s+)?[a-z][\w ]{0,30}?\s+only\b"
+_RESTRICTED = re.compile(_PLACE_ONLY, re.IGNORECASE)
+_NEGATED = re.compile(
+    r"\b(?:not|no|never|unable|cannot|without|except|none)\b|n['’]t\b|" + _PLACE_ONLY, re.IGNORECASE
+)
+
+
+def _affirmed_in_a_sentence(text: str, statement: re.Pattern[str], cue: re.Pattern[str] | None = None) -> bool:
+    """True when one sentence makes ``statement`` (and ``cue``, if given) without negating or restricting it."""
+    sentences = [part for part in _BODY_SENTENCE_BREAK.split(text or "") if part.strip()]
+    for index, sentence in enumerate(sentences):
+        if not statement.search(sentence) or (cue is not None and not cue.search(sentence)):
+            continue
+        if _NEGATED.search(statement.sub(" ", sentence)):
+            continue
+        if index + 1 < len(sentences) and _RESTRICTED.search(sentences[index + 1]):
+            continue
+        return True
+    return False
 
 
 def names_wide_region(text: str, *, ignore: frozenset[str] = frozenset()) -> bool:
@@ -282,10 +305,16 @@ _STATE_NAME = "|".join(re.escape(name) for name in sorted(US_STATE_NAMES, key=le
 _US_STATE_NAME_IN_PLACE = re.compile(
     rf",\s*(?:{_STATE_NAME})\s*(?=$|[;|/\n])|\b(?:{_STATE_NAME})\s*\(\s*any\s+city\s*\)", re.IGNORECASE | re.MULTILINE
 )
-# A licence issued by a US state: "current state licensure", "multiple state licenses", "licensed in the state".
-# The Irish "State" ("a State-funded service") never comes with a licence.
+# A licence issued by a US state: "current state licensure", "licensed in the state of". It only counts as a
+# requirement on the applicant ("must hold", "required", "active", "current", "eligible"): "software to manage
+# state licenses" and "no state license is required" do not. The Irish "State" never comes with a licence.
 _US_STATE_LICENSURE = re.compile(
     r"\bstate\s+licen[cs](?:e|es|ure)\b|\blicen[cs]ed\s+(?:to\s+practi[cs]e\s+)?in\s+the\s+state\b", re.IGNORECASE
+)
+_LICENCE_REQUIREMENT = re.compile(
+    r"\b(?:must|required|requires?|requirement|current|active|valid|unrestricted|eligible|eligibility|hold|possess"
+    r"|maintain)\b|\blicen[cs]ed\s+(?:to\s+practi[cs]e\s+)?in\s+the\s+state\b",
+    re.IGNORECASE,
 )
 
 
@@ -301,7 +330,9 @@ def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
             return True
     if _US_STATE_NAME_IN_PLACE.search(fields):
         return True
-    return not _STATE_LICENSING_COUNTRIES & homes and bool(_US_STATE_LICENSURE.search(body_text or ""))
+    return not _STATE_LICENSING_COUNTRIES & homes and _affirmed_in_a_sentence(
+        body_text, _US_STATE_LICENSURE, _LICENCE_REQUIREMENT
+    )
 
 
 def other_country_restriction(
@@ -333,7 +364,7 @@ def other_country_restriction(
     if names_wide_region(text) or _names_home(fields, homes):
         return None
     excerpt = _place_text(body_text) if remote_job else ""
-    body_region = bool(_HIRING_SCOPE.search(excerpt)) or names_wide_region(
+    body_region = _affirmed_in_a_sentence(excerpt, _HIRING_SCOPE) or names_wide_region(
         _ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS
     )
     if (remote_job and _names_home(body_text, homes)) or body_region:

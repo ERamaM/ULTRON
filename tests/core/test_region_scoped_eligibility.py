@@ -56,6 +56,7 @@ def test_global_or_international_in_the_body_does_not_open_a_country_posting(cri
         (LATAM, "Toronto, Canada", "Remote", "The role is open to candidates globally."),
         (LATAM, "Toronto, Canada", "Remote", "We are open to international applicants."),
         (LATAM, "Toronto, Canada", "Remote", "There are no location restrictions."),
+        (LATAM, "Toronto, Canada", "Remote", "We hire globally, without location restrictions."),
     ],
 )
 def test_a_body_that_names_where_the_company_hires_still_opens_the_posting(criteria, location, remote, body):
@@ -156,7 +157,8 @@ US_LICENSURE = "Current appropriate state licensure is required. Comply with fed
         (IRELAND, "Nebraska (Any City)", "Field-based", "", False),
         (IRELAND, "Memphis, Tennessee", "", "", False),
         (IRELAND, "Riverside Dialysis - Clinic", "Onsite", US_LICENSURE, False),
-        (IRELAND, "Wyoming", "Remote", "Multiple state licenses are a strong advantage.", True),
+        (IRELAND, "Wyoming", "Remote", "An active state license is required. Telehealth from home.", True),
+        (IRELAND, "Riverside Clinic", "Onsite", "Applicants must hold a valid state license.", False),
         (LATAM, "Riverside Clinic", "Remote", "You must be licensed in the state where your patients live.", True),
         (LATAM, "Remote - Denver, CO 80202", "Remote", "", True),
         (IRELAND, "Ann Arbor, MI 48104", "On-site", "", False),
@@ -205,3 +207,36 @@ def test_a_us_place_without_a_country_name_is_outside_a_non_us_home(criteria, lo
 )
 def test_us_place_evidence_does_not_flag_a_home_or_look_alike_place(criteria, location, remote, body):
     assert other_country_restriction(location, remote, criteria, body, remote_job=False) is None
+
+
+# --- PR #67 review round 2: body statements count only when affirmative, within one sentence -----------------
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "Build software to manage state licenses for our customers.",
+        "No state license is required for this non-clinical role.",
+        "You do not need a state licensure for this position.",
+        "Current state licensure is not required.",
+        "State licenses are a plus.",
+    ],
+)
+def test_a_state_licence_without_an_affirmative_applicant_requirement_is_not_us_evidence(body):
+    assert other_country_restriction("Riverside Office", "On-site", IRELAND, body, remote_job=False) is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "We are not hiring internationally. This position is remote within Canada only.",
+        "We hire globally. This role is open only to candidates in Canada.",
+        "This is not a global remote role.",
+        "International candidates are welcome, but this role is remote in Canada only.",
+        "We cannot hire internationally.",
+        "We don't hire globally for this team.",
+        "There are no location restrictions except Canada residency.",
+    ],
+)
+def test_a_negated_or_restricted_hiring_scope_statement_does_not_open_the_posting(body):
+    assert other_country_restriction("Toronto, Canada", "Remote (Canada)", LATAM, body) == "canada"

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ultron.core.rules import hard_filters_data as rules_data
-from ultron.core.rules.term_matching import find_terms
+from ultron.core.rules.term_matching import find_terms, normalize_text
 from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary
 from ultron.core.rules.title_synonyms import expand_role_terms, normalize_role_title, normalize_title_separators
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
@@ -123,6 +123,7 @@ def filter_negatives_against_focus(
 
 
 _NUMERIC_GRADE = re.compile(r"l?\d+")
+_ROMANCE_ROLE_ENDINGS = ("ero", "era", "dor", "dora", "ista", "ante", "ente", "eur", "euse", "ier", "iere", "ico", "ica")
 
 
 def _is_level_word(word: str) -> bool:
@@ -150,11 +151,51 @@ def role_family_nouns(allowed_terms: Iterable[str] | None) -> set[str]:
                 words.pop()
             if words and len(words[-1]) >= 3 and not _is_level_word(words[-1]):
                 nouns.add(words[-1])
+            # Spanish, Portuguese and French put the role first ("Diseñador UX", "Desarrolladora Backend").
+            first = normalize_text(words[0]) if len(words) > 1 else ""
+            if len(first) >= 4 and not _is_level_word(first) and first.endswith(_ROMANCE_ROLE_ENDINGS):
+                nouns.add(words[0])
     return nouns
 
 
+# Gendered and plural endings, replaced longest first so every form of one noun has the same stem:
+# German -in/-innen (Entwicklerin, Ingenieurin), French -euse/-rice/-ière (développeuse, directrice, infirmière),
+# Spanish and Portuguese -ora/-oras/-ores (desarrolladora), then a plural -s/-es and one final vowel
+# (ingeniero/ingeniera/ingenieros, analista/analistas, nurse/nurses).
+_GENDER_ENDINGS = (
+    ("erinnen", "er"), ("eurinnen", "eur"), ("erin", "er"), ("eurin", "eur"), ("euses", "eur"), ("euse", "eur"),
+    ("trici", "tor"), ("trice", "tor"), ("rices", "eur"), ("rice", "eur"), ("ieres", "ier"), ("iere", "ier"), ("oras", "or"), ("ores", "or"),
+    ("ora", "or"),
+)
+
+
+def _noun_stem(word: str) -> str:
+    """One stem for the gender and plural forms of a role noun (accents folded)."""
+    stem = normalize_text(word)
+    for ending, replacement in _GENDER_ENDINGS:
+        if stem.endswith(ending) and len(stem) - len(ending) >= 3:
+            stem = stem[: -len(ending)] + replacement
+            break
+    else:
+        if stem.endswith("s") and len(stem) > 4:
+            stem = stem[:-1]
+        if stem[-1:] in {"a", "e", "o"} and len(stem) > 4:
+            stem = stem[:-1]
+    # French -eur and Italian -tore/-trice meet the Spanish and English -or (directeur, direttore, director).
+    return stem[:-3] + "or" if stem.endswith("eur") and len(stem) > 5 else stem
+
+
 def _title_has_family_noun(title_low: str, nouns: set[str]) -> bool:
-    return any(re.search(r"(?<!\w)" + re.escape(noun) + r"(?:s|es)?(?!\w)", title_low) for noun in nouns)
+    """True when a title word is the family noun or one of its gender or plural forms.
+
+    Compound German titles ("Softwareentwicklerin") name the noun at the end of the word.
+    """
+    stems = {_noun_stem(noun) for noun in nouns}
+    for word in re.findall(r"\w+", normalize_text(title_low)):
+        word_stem = _noun_stem(word)
+        if word_stem in stems or any(len(stem) >= 6 and word_stem.endswith(stem) for stem in stems):
+            return True
+    return False
 
 
 def is_senior_title(

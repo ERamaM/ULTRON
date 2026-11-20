@@ -15,6 +15,7 @@ import re
 from datetime import UTC, datetime
 from math import ceil
 from typing import get_args
+from urllib.parse import urlsplit, urlunsplit
 
 from ultron import presets, runs, seeds
 from ultron.core.ats.identity import seed_identity
@@ -42,7 +43,7 @@ MIN_MEASURED = 5
 # At most this many tried company names are printed by ``seeds plan`` (repeats are refused at verify anyway).
 MAX_EXCLUDE_SHOWN = 300
 # Verification outcomes that never checked the board: they do not count in the yield or as tried.
-_UNCHECKED = frozenset({"budget_exhausted", "host_blocked"})
+_UNCHECKED = frozenset({"budget_exhausted", "host_blocked", "host_budget_exhausted", "page_budget_exhausted"})
 
 PROPOSAL_SCHEMA: dict = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -155,34 +156,43 @@ def observed_yield(rounds: list[dict]) -> float:
 
 
 def board_keys(row: dict) -> list[str]:
-    """The keys a proposal is tried under: ``ats:board`` and ``url:<careers_url>`` (lowercase, no slash)."""
+    """The keys a proposal is tried under: ``ats:board`` (``seed_identity``) and ``url:<careers_url>`` with only
+    the scheme and host folded and no trailing slash (paths can be case-sensitive: Workday ``/External``)."""
     keys = []
     if row.get("ats") and row.get("board"):
         keys.append(":".join(seed_identity(str(row["ats"]), str(row["board"]))))
     if row.get("careers_url"):
-        keys.append("url:" + str(row["careers_url"]).strip().lower().rstrip("/"))
+        parts = urlsplit(str(row["careers_url"]).strip())
+        url = urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path, parts.query, ""))
+        keys.append("url:" + url.rstrip("/"))
     return keys
 
 
 def tried(run: dict, rounds: list[dict]) -> tuple[set[str], set[str], list[str]]:
-    """What a round proposal may not repeat: the company keys of the seeds the profile already has (its own and
-    the bundled pack seeds that fit it), and every board or careers URL already tried (those seeds and this
-    run's rounds). A company that failed in an earlier round may come back with a different board. Also the
-    company names to show the agent."""
+    """What a round proposal may not repeat, and the company names to show the agent.
+
+    A company is excluded wholesale only when one of its seeds counts toward the target (``_counts``). A board
+    is excluded when the profile already holds it as a confirmed seed (its own or a fitting pack seed), or an
+    earlier round checked it; a guessed board of unknown ownership stays open, so an explicit proposal can
+    promote it. A company that failed in an earlier round may come back with a different board."""
     profile = run.get("profile_snapshot") or {}
     sectors = profile_sector_values((profile.get("criteria") or {}).get("sectors"))
     geo, region_text = geo_scope(profile), _profile_region_text(profile)
     companies: set[str] = set()
     boards: set[str] = set()
     names: list[str] = []
+    shown: set[str] = set()
     for seed in seeds.load_inventory(run["profile_slug"]):
         if _rank(seed, run["profile_slug"], sectors, geo, region_text)[0] >= EXCLUDED_RANK:
             continue
-        boards.add(seed_key(seed))
-        if (key := seeds.company_key(seed.company)) and key not in companies:
+        if not seeds.is_unconfirmed(seed):
+            boards.add(seed_key(seed))
+        key = seeds.company_key(seed.company)
+        if key and _counts(seed):
             companies.add(key)
+        if key and key not in shown:
+            shown.add(key)
             names.append(seed.company)
-    shown = set(companies)
     for record in rounds:
         boards.update(record.get("boards", []))
         for name in record.get("companies", []):
@@ -253,7 +263,12 @@ def round_record(*, number: int, received: int, repeats: list[str], rows: list[d
     for row, result in zip(rows, results, strict=False):
         if result.reason not in _UNCHECKED:
             boards += board_keys(row)
-    boards += [seed_key(r.seed) for r in results if r.seed is not None]
+    # A verified board, or one that belongs to another company, is settled; a guessed board of unknown ownership
+    # stays open so an explicit proposal can still promote it.
+    boards += [
+        seed_key(r.seed) for r in results
+        if r.seed is not None and (r.status == "verified" or r.reason == "wrong_tenant")
+    ]
     return {
         "round": number,
         "at": datetime.now(UTC).isoformat(timespec="seconds"),

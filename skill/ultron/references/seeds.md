@@ -39,8 +39,8 @@ gets the rest from you, in rounds:
 
 1. `ultron seeds plan --run <run_id>` prints the next round: `ask` (how many companies to propose; it
    already allows for proposals that will not verify), `proposals_file` (the file name to write in the
-   run folder), `schema` (a JSON Schema every line must match), `exclude_companies` (already tried: do
-   not propose them again), `full_hosts` (ATS hosts already at the preset's per-host limit: more boards
+   run folder), `schema` (a JSON Schema every line must match), `exclude_companies` (already in the profile or
+   tried: propose one again only with a different, real board), `full_hosts` (ATS hosts already at the preset's per-host limit: more boards
    there add nothing this run, so prefer other vendors) and `more_rounds`.
 2. Write up to `ask` lines (aim for `ask`) to `<run folder>/<proposals_file>`, one object per line, matching `schema`.
    Every line needs `company` plus `ats` + `board` or `careers_url`: look the board up (web search
@@ -62,8 +62,8 @@ gets the rest from you, in rounds:
    boards stay with the profile, so the next run starts with a smaller deficit.
 
 Read `seeds_unresolved.jsonl` after each round. A company that failed may come back in the next round
-only with a different, real board (see the reason table below); `budget_exhausted` and `host_blocked`
-companies may come back unchanged.
+only with a different, real board (see the reason table below); `budget_exhausted`, `host_blocked`,
+`host_budget_exhausted` and `page_budget_exhausted` companies were never checked and may come back unchanged.
 
 ## Proposal format (JSONL)
 
@@ -157,6 +157,8 @@ next call.
 | `no_board_found` | Search the web for "<company> careers" / "<company> jobs" and look for a link to a supported ATS (including the careers-URL-only vendors); if found, retry with `ats` + `board` or `careers_url`. Otherwise drop it. |
 | `vendor_not_supported_yet` | The company uses an ATS outside the 19. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
+| `host_budget_exhausted` | The call's request budget for that ATS host ran out before the board was checked. Verify the company again in a new call. |
+| `page_budget_exhausted` | The company's careers page was not opened: one call opens at most 10 careers pages (2 per site). Verify the company again in a new call, or give its ATS board as `ats` + `board`. |
 | `host_blocked` | The ATS host kept answering "too many requests" (or "forbidden"), so the board was not checked; the CLI stops calling that host for the rest of the call. Keep the company and verify it again in a later run; do not drop it. |
 | `invalid_board` | The `board` is not a valid identifier for that ATS (a slug for most vendors; for workday, icims and taleo, a host on the vendor's own domain plus an optional path). Retry with the board's `careers_url` (or the company's own careers page, which the CLI follows to its board). |
 | `unparseable_board` | The board page loaded but no listings could be read (e.g. a script-rendered Taleo career section). Drop it; its postings can still arrive through web search. |

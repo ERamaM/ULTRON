@@ -10,31 +10,35 @@ DEFAULT_PRESET = "balanced"
 # profile without a matching pack aims at about the same coverage. It stays about 10% below those counts so a
 # technology-pack profile needs no round even after a few dead boards are pruned or capped (the smaller regional
 # packs do not reach it, so their profiles run rounds too); seed_boost aims higher to grow the inventory.
+#
+# ``max_requests_per_vendor``: requests per run to all hosts of one ATS vendor together (every Workday tenant, or
+# the Greenhouse API and posting hosts), across stages. In session 3 a balanced run sent about 1,100 requests to
+# 18 Workday tenants and Workday answered 429; the busiest other vendor (Greenhouse, S3 balanced) used about 220.
 
 PRESETS: dict[str, dict] = {
     "fast": {
         "min_roles": 3, "max_roles": 5, "max_pages": 70, "ats_api_timeout": 10,
         "ats_api_max_jobs_per_seed": 18, "max_requests_per_host": 8, "max_seeds_per_run": 120,
         "max_search_queries": 20, "llm_ambiguity_threshold": 55, "new_companies_per_run": 10,
-        "seed_target": 35, "seed_rounds": 2,
+        "seed_target": 35, "seed_rounds": 2, "max_requests_per_vendor": 120,
     },
     "balanced": {
         "min_roles": 15, "max_roles": 250, "max_pages": 400, "ats_api_timeout": 12,
         "ats_api_max_jobs_per_seed": 35, "max_requests_per_host": 30, "max_seeds_per_run": 180,
         "max_search_queries": 40, "llm_ambiguity_threshold": 50, "new_companies_per_run": 25,
-        "seed_target": 75, "seed_rounds": 3,
+        "seed_target": 75, "seed_rounds": 3, "max_requests_per_vendor": 400,
     },
     "deep": {
         "min_roles": 15, "max_roles": 250, "max_pages": 4000, "ats_api_timeout": 12,
         "ats_api_max_jobs_per_seed": 55, "max_requests_per_host": 60, "max_seeds_per_run": 400,
         "max_search_queries": 120, "llm_ambiguity_threshold": 45, "new_companies_per_run": 60,
-        "seed_target": 100, "seed_rounds": 3,
+        "seed_target": 100, "seed_rounds": 3, "max_requests_per_vendor": 1200,
     },
     "seed_boost": {
         "min_roles": 15, "max_roles": 250, "max_pages": 4000, "ats_api_timeout": 16,
         "ats_api_max_jobs_per_seed": 70, "max_requests_per_host": 40, "max_seeds_per_run": 400,
         "max_search_queries": 220, "llm_ambiguity_threshold": 45, "new_companies_per_run": 120,
-        "seed_target": 130, "seed_rounds": 4,
+        "seed_target": 130, "seed_rounds": 4, "max_requests_per_vendor": 1200,
     },
 }
 

@@ -132,9 +132,10 @@ def fetch_workday_jobs(
                 json_body={"appliedFacets": facets, "limit": _WD_PAGE_LIMIT, "offset": offset, "searchText": ""},
             )
         except RequestBudgetExceeded as exc:
-            if exc.scope == "host" and out:
+            if exc.scope in {"host", "vendor"} and out:
                 logger.warning(
-                    "workday pagination stopped on host budget board=%s page=%d; returning partial results (%d postings)",
+                    "workday pagination stopped on %s budget board=%s page=%d; returning partial results (%d postings)",
+                    exc.scope,
                     board_identifier,
                     page,
                     len(out),

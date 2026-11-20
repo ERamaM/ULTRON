@@ -759,7 +759,7 @@ def verify_proposal(
     # Past its domain slug, no guess can prove a short name's board: keep the first one that answers and stop.
     stop_at_first_hit = not has_explicit and _is_short_name(p.company)
 
-    unsupported = invalid = unparseable = host_budget = budget_spent = rate_limited = False
+    unsupported = invalid = unparseable = host_budget = vendor_budget = budget_spent = rate_limited = False
     # (reason, candidate, seed) of the best guessed board not proven owned; its seed is still stored, tagged.
     doubtful: tuple[str, dict, AtsBoardSeed | None] | None = None
     skipped_vendors: set[str] = set()
@@ -768,7 +768,7 @@ def verify_proposal(
 
     def probe(candidates: list[tuple[str, str]], mode: str) -> VerifyResult | None:
         """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page."""
-        nonlocal unsupported, invalid, unparseable, host_budget, budget_spent, rate_limited, doubtful
+        nonlocal unsupported, invalid, unparseable, host_budget, vendor_budget, budget_spent, rate_limited, doubtful
         for ats, board in candidates:
             key = seed_identity(ats, board)
             try:
@@ -786,8 +786,10 @@ def verify_proposal(
                         jobs = fetch_vendor_jobs(ats, board, client=client, timeout=timeout)
                     answered[key] = jobs
             except RequestBudgetExceeded as exc:
-                if getattr(exc, "scope", "global") == "host":
-                    host_budget = True
+                scope = getattr(exc, "scope", "global")
+                if scope in {"host", "vendor"}:
+                    host_budget = host_budget or scope == "host"
+                    vendor_budget = vendor_budget or scope == "vendor"
                     skipped_vendors.add(ats)
                     continue
                 budget_spent = True
@@ -845,7 +847,7 @@ def verify_proposal(
             try:
                 links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
             except RequestBudgetExceeded as exc:
-                if getattr(exc, "scope", "global") != "host":
+                if getattr(exc, "scope", "global") not in {"host", "vendor"}:
                     return budget_exhausted()
                 links = []
             boards = _linked_boards(links)[:PAGE_HOP_MAX_BOARDS]
@@ -865,6 +867,8 @@ def verify_proposal(
         return unresolved("unparseable_board")
     if has_explicit and rate_limited:
         return unresolved("host_blocked")
+    if has_explicit and vendor_budget:
+        return unresolved("vendor_budget_exhausted")
     if has_explicit and host_budget:
         return unresolved("host_budget_exhausted")
     if page_skipped:  # the careers page was never opened: the call's page budget ran out, not the company

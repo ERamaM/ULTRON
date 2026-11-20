@@ -9,7 +9,7 @@ seeds:
   ats: lever
   board_identifier: bluelightconsulting
   enabled: true
-  priority: 10
+  priority: 100
   tags:
   - latam
   country_scope: LATAM

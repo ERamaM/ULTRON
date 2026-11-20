@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -67,7 +68,7 @@ def test_region_pack_rows_record_their_live_verification(pack_name):
     for row in rows:
         verification = row.get("verification") or {}
         assert verification.get("postings", 0) > 0, row["board_identifier"]
-        assert str(verification.get("verified_at", "")).startswith("2026-"), row["board_identifier"]
+        assert datetime.fromisoformat(str(verification.get("verified_at"))).year >= 2026, row["board_identifier"]
 
 
 @pytest.mark.parametrize("pack_name", REGION_PACKS)

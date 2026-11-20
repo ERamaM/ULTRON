@@ -285,7 +285,7 @@ def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) 
             index[key] = fresh
             out_rows.append(fresh)
             new += 1
-        elif _is_unconfirmed(current) and not _is_unconfirmed(seed):
+        elif is_unconfirmed(current) and not is_unconfirmed(seed):
             # A guessed board stored without proof of ownership, now verified: take the verified metadata and
             # keep every profile link.
             promoted = seed.model_copy(update={
@@ -566,7 +566,7 @@ UNCONFIRMED_SOURCE_TYPE = "guessed_unconfirmed"
 OTHER_COMPANY_SOURCE_TYPE = "guessed_other_company"
 
 
-def _is_unconfirmed(seed: AtsBoardSeed) -> bool:
+def is_unconfirmed(seed: AtsBoardSeed) -> bool:
     return seed.source_type in {UNCONFIRMED_SOURCE_TYPE, OTHER_COMPANY_SOURCE_TYPE}
 
 

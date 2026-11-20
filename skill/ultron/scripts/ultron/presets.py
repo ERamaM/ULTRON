@@ -4,26 +4,35 @@ from __future__ import annotations
 
 DEFAULT_PRESET = "balanced"
 
+# ``seed_target``: fitting seeds a run should have before discover (``ultron seeds plan`` asks the agent for the
+# rest, in up to ``seed_rounds`` rounds). It matches what a profile covered by the bundled technology pack queries
+# per run under the same seed and per-host caps (45 fast, 91 balanced, 121 deep, measured in session 3), so a
+# profile without a matching pack aims at the same coverage; seed_boost aims higher to grow the inventory.
+
 PRESETS: dict[str, dict] = {
     "fast": {
         "min_roles": 3, "max_roles": 5, "max_pages": 70, "ats_api_timeout": 10,
         "ats_api_max_jobs_per_seed": 18, "max_requests_per_host": 8, "max_seeds_per_run": 120,
         "max_search_queries": 20, "llm_ambiguity_threshold": 55, "new_companies_per_run": 10,
+        "seed_target": 45, "seed_rounds": 2,
     },
     "balanced": {
         "min_roles": 15, "max_roles": 250, "max_pages": 400, "ats_api_timeout": 12,
         "ats_api_max_jobs_per_seed": 35, "max_requests_per_host": 30, "max_seeds_per_run": 180,
         "max_search_queries": 40, "llm_ambiguity_threshold": 50, "new_companies_per_run": 25,
+        "seed_target": 90, "seed_rounds": 3,
     },
     "deep": {
         "min_roles": 15, "max_roles": 250, "max_pages": 4000, "ats_api_timeout": 12,
         "ats_api_max_jobs_per_seed": 55, "max_requests_per_host": 60, "max_seeds_per_run": 400,
         "max_search_queries": 120, "llm_ambiguity_threshold": 45, "new_companies_per_run": 60,
+        "seed_target": 120, "seed_rounds": 3,
     },
     "seed_boost": {
         "min_roles": 15, "max_roles": 250, "max_pages": 4000, "ats_api_timeout": 16,
         "ats_api_max_jobs_per_seed": 70, "max_requests_per_host": 40, "max_seeds_per_run": 400,
         "max_search_queries": 220, "llm_ambiguity_threshold": 45, "new_companies_per_run": 120,
+        "seed_target": 150, "seed_rounds": 4,
     },
 }
 

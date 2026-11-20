@@ -6,10 +6,10 @@ this profile, so later runs reuse them.
 
 ## How many and which
 
-- Propose about `new_companies_target` companies (printed by `run new`). A few extra is fine, since
-  some will not resolve. When `run new` printed `cold_start: true` (fewer than 15 boards fit this
-  profile), propose about twice that number, and give `domain` for each so guessed boards can be
-  tied to the company.
+- When `run new` printed `seed_deficit` above 0, follow "Seed rounds" below instead of this list's
+  count: the CLI tells you how many companies to propose in each round.
+- Otherwise propose about `new_companies_target` companies (printed by `run new`). A few extra is fine,
+  since some will not resolve. Give `domain` for each so guessed boards can be tied to the company.
 - Run `ultron seeds list --profile <slug>` first. It prints the inventory size and up to 30 seeds
   (`linked: true` = already verified for this profile). Use them as examples of the kind of company
   that fits, and do not propose companies that are already there.
@@ -29,6 +29,37 @@ this profile, so later runs reuse them.
   (hospital groups, universities, retailers) often use Workday or iCIMS, which you can propose with
   their careers URL. Search by sector and place ("<role> jobs <city> <employer type>", "<employer> careers")
   rather than by remote or technology terms.
+
+## Seed rounds (profiles with a seed deficit)
+
+Bundled packs cover only some sectors and regions (technology in Europe and Latin America, healthcare
+in the US and Ireland), and a pack that does not fit the profile is never queried. A profile with fewer
+fitting boards than its preset's `seed_target` (45 `fast`, 90 `balanced`, 120 `deep`, 150 `seed_boost`)
+gets the rest from you, in rounds:
+
+1. `ultron seeds plan --run <run_id>` prints the next round: `ask` (how many companies to propose; it
+   already allows for proposals that will not verify), `proposals_file` (the file name to write in the
+   run folder), `schema` (a JSON Schema every line must match), `exclude_companies` (already tried: do
+   not propose them again), `full_hosts` (ATS hosts already at the preset's per-host limit: more boards
+   there add nothing this run, so prefer other vendors) and `more_rounds`.
+2. Write exactly `ask` lines to `<run folder>/<proposals_file>`, one object per line, matching `schema`.
+   Every line needs `company` plus `ats` + `board` or `careers_url`: look the board up (web search
+   "<company> careers", the company's careers page) rather than guessing it. Spread the companies over
+   employers that fit the profile's roles, sector and region, as in "How many and which".
+3. `ultron seeds verify --run <run_id> --from <run folder>/<proposals_file> --round` rejects the whole
+   file, before any request, if a line does not match the schema (fix the lines it names and run it
+   again). Otherwise it verifies the companies, skips repeats (a company the profile already has, or a
+   board or careers URL tried before), and adds
+   `seed_round` to its output: `fitting_seeds`, `seed_deficit`, `status`, `more_rounds` and `next_ask`.
+4. While `more_rounds` is true, go back to 1. Rounds end when the target is met (`target_met`), after
+   the preset's `seed_rounds` rounds (`max_rounds`), after a round that added no fitting board
+   (`no_progress`) or after an ATS host blocked the requests (`host_blocked`). Tell the user how many
+   fitting boards the profile has and, when the target was not met, the remaining deficit. Verified
+   boards stay with the profile, so the next run starts with a smaller deficit.
+
+Read `seeds_unresolved.jsonl` after each round. A company that failed may come back in the next round
+only with a different, real board (see the reason table below); `budget_exhausted` and `host_blocked`
+companies may come back unchanged.
 
 ## Proposal format (JSONL)
 

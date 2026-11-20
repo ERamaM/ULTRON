@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ultron import runs, seeds
+from ultron import runs, seed_rounds, seeds
 from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.stages.discover import discover_ats
 from ultron.stages.feeds import PROPOSALS_FILE, discover_feeds
@@ -56,6 +56,8 @@ def run_unattended(profile_slug: str, preset: str, overrides: dict | None = None
     runs.mark_stage(run_id, "new")
     stages = {"discover_feeds": discover_feeds(run_id)}
     stages["feed_companies"] = verify_feed_companies(run_id)
+    # Unattended runs cannot generate seeds: report the gap instead of running thin silently.
+    stages["seed_coverage"] = seed_rounds.coverage(runs.load_run(run_id))
     stages["discover"] = discover_ats(run_id)
     stages["fetch"] = fetch(run_id)
     stages["filter"] = filter_run(run_id)

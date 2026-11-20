@@ -9,8 +9,10 @@ Every change to this repository, including new features, fixes and docs, reaches
 pull request. The `main` ruleset rejects direct pushes, so a change that is only committed locally
 is not finished.
 
-1. Start from the latest `main` on a new branch: `git fetch origin` then
-   `git switch -c <type>/<short-name> origin/main` (types: `feat`, `fix`, `docs`, `chore`, `test`).
+1. Start from the latest `main` on a new branch, in its own worktree: `git fetch origin` then
+   `git worktree add ../ULTRON-worktrees/<short-name> -b <type>/<short-name> origin/main`
+   (types: `feat`, `fix`, `docs`, `chore`, `test`). Work only inside that folder, and run
+   `uv sync --locked` there first: each worktree has its own environment.
 2. Implement the change with tests, and run the checks in
    [CONTRIBUTING.md](CONTRIBUTING.md#verification-checklist-before-opening-a-pr).
 3. Commit with a conventional title, push the branch (`git push -u origin <branch>`) and open the
@@ -18,6 +20,12 @@ is not finished.
    following the [pull request template](.github/pull_request_template.md).
 4. Follow [Pull Requests and Codex Reviews](#pull-requests-and-codex-reviews) until the PR is ready
    to merge. Do not merge with admin rights or bypass the ruleset.
+
+Use one worktree per branch. Several agents may work on this repository at the same time, so never
+switch branches, commit or run `git commit -a` in the main checkout or in another agent's worktree:
+a branch switch there can carry someone else's uncommitted work into your commit. Separate
+worktrees also let agents work on different branches in parallel. After the pull request merges,
+remove yours with `git worktree remove ../ULTRON-worktrees/<short-name>`.
 
 Do not stop after editing files or committing locally, and do not ask whether to open a pull
 request: opening it is part of the task. Ask only if `gh` is not authenticated

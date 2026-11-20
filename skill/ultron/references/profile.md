@@ -203,16 +203,17 @@ Operations run in the order given, and nothing is saved if any of them is invali
 
 - `--add FIELD=TERM` and `--remove FIELD=TERM` change one term in a term list. Terms compare ignoring
   case and accents. Adding a present term or removing an absent one changes nothing and is reported.
-- `--set FIELD=VALUE` sets a field. Write lists and `true`/`false` as JSON, for example
-  `--set 'criteria.location_scope.preferred=["Spain", "Remote EU"]'`. `--unset FIELD` removes an
-  optional field.
-- `--from <file>` reads operations from a UTF-8 JSON file. Prefer it for terms with accents or quotes,
-  which shells can mangle:
+- `--set FIELD=VALUE` sets a text field, `true`/`false`, or `full_remote`/`any`. `--unset FIELD`
+  removes an optional field.
+- `--from <file>` reads operations from a UTF-8 JSON file. Use it to replace a whole list (`set` with a
+  JSON list) and for terms with accents or quotes: some shells mangle quotes and non-ASCII text in
+  command arguments:
 
 ```json
 {"operations": [
   {"op": "add", "path": "criteria.exclusion_terms", "value": ["manager", "head of", "director"]},
   {"op": "remove", "path": "criteria.role_signal_terms", "value": "data entry"},
+  {"op": "set", "path": "criteria.location_scope.preferred", "value": ["Spain", "Valencia", "Remote EU"]},
   {"op": "set", "path": "criteria.remote_policy.required", "value": "any"}
 ]}
 ```

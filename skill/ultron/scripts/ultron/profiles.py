@@ -269,15 +269,17 @@ def restore(slug: str, version: str | None = None) -> dict:
     A plain undo consumes the version it restores; an explicit ``version`` stays in the history.
     """
     path = _undo_target(slug, version)
+    # Read the version before snapshotting: the snapshot may prune the oldest entry, which can be this one.
+    content = path.read_bytes() if path.suffix == ".yaml" else None
     backup = _snapshot(slug, "undo")
     target = user_path(slug)
-    if path.suffix == ".yaml":
-        _atomic_write_bytes(target, path.read_bytes())
+    if content is not None:
+        _atomic_write_bytes(target, content)
     else:
         target.unlink(missing_ok=True)
     if version is None:
         path.unlink(missing_ok=True)
-    return {"restored": _version_id(path), "backup": backup, "removed_user_copy": path.suffix != ".yaml"}
+    return {"restored": _version_id(path), "backup": backup, "removed_user_copy": content is None}
 
 
 def _atomic_write_bytes(path: Path, content: bytes) -> None:

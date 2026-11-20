@@ -20,6 +20,8 @@ from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosti
 from ultron.core.models import ExtractedJob
 
 MAX_POSTINGS = 500
+MAX_BODY_CHARS = 30_000  # the posting text limit every other extractor applies
+MAX_DESCRIPTION_HTML = 200_000  # parse at most this much description markup
 API_HOST = "api.occupop.com"
 # Share tokens are long, case-sensitive and alphanumeric; posting refs are a title slug plus a short code.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]{8,128}", re.ASCII)
@@ -70,8 +72,10 @@ def occupop_job_from_detail(payload: object, apply_url: str, *, company_hint: st
     remote_text = " | ".join(part for part in (workplace, location) if part)
     hiring = job.get("hiring_company") if isinstance(job.get("hiring_company"), dict) else {}
     company = _clean(job.get("company_name") or hiring.get("name") or company_hint)
-    body = BeautifulSoup(str(job.get("description") or ""), "html.parser").get_text("\n")
-    body_text = "\n".join(line.strip() for line in body.splitlines() if line.strip())
+    # A tenant controls the description: bound the markup parsed and the text kept per posting.
+    description = str(job.get("description") or "")[:MAX_DESCRIPTION_HTML]
+    body = BeautifulSoup(description, "html.parser").get_text("\n")
+    body_text = "\n".join(line.strip() for line in body.splitlines() if line.strip())[:MAX_BODY_CHARS]
     return ExtractedJob(
         apply_url=apply_url,
         domain=urlsplit(apply_url).netloc.lower(),

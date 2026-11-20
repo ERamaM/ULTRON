@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "es",
+  "title": "Especialista Ingenieria Frontend 072",
+  "location": "Estados Unidos",
+  "remote_text": "Teletrabajo solo desde Estados Unidos",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia relevante no especificada. Es obligatorio residir en Estados Unidos. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-072",
+  "is_open_hint": true
+}

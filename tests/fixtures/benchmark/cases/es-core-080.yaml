@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-core-080
+profile: ml-engineering-remote-eu
+language: es
+role_track: core
+seniority: manager
+remote_mode: hybrid
+eligibility_label: high
+vendor: lever
+fixture: ../fixtures/es-core-080.json
+split: dev
+labels:
+  relevant: null
+  role_fit: true
+  seniority_fit: false
+  remote_fit: false
+  eligibility: high
+  open_status: true
+expected_stage: unsure
+notes: Synthetic fixture with independently reviewed dimensional labels.

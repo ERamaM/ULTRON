@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-negative-089
+profile: ml-engineering-remote-eu
+language: en
+role_track: negative
+seniority: junior
+remote_mode: unknown
+eligibility_label: medium
+vendor: ashby
+fixture: ../fixtures/en-negative-089.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: false
+  remote_fit: null
+  eligibility: medium
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

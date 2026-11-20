@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Specialist Frontend Engineer 119",
+  "location": "",
+  "remote_text": "Workplace arrangement discussed during interviews",
+  "body_text": "Build web interfaces and design systems; relevant experience is not specified. The location policy is not stated. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-negative-119",
+  "is_open_hint": true
+}

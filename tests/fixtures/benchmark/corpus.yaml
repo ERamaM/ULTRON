@@ -1,0 +1,11 @@
+schema_version: 1
+corpus_version: 2026-07-09.1
+purpose: Sanitized synthetic ground truth for offline quality benchmarking.
+cases_glob: cases/*.yaml
+fixtures_dir: fixtures
+minimum_cases: 120
+split:
+  algorithm: sha256(id) first 32 bits modulo 100
+  dev_threshold: 70
+  test_threshold: 30
+labels: Human-authored independent ground truth; tooling must never rewrite labels.

@@ -230,17 +230,18 @@ Output: `{"recorded": 10, "pending": 40, "pending_ambiguous": 35}`
 
 Rules:
 
-- `pending` returns unrecorded items with heuristic `unsure` first, then the heuristic keeps and the
-  rescued discards (`heuristic.verdict: "discard"`, file order within each group). The queue only moves when you record: record every item of a batch
+- `pending` returns unrecorded items with heuristic `unsure` first, then the rescued discards
+  (`heuristic.verdict: "discard"`), then the heuristic keeps (file order within each group). The queue only moves when you record: record every item of a batch
   before asking for the next one.
 - `record` is all-or-nothing: one bad line rejects the whole file with
   `{"error": "invalid_evaluation", "line": N, "identity_key": "...", "reason": "..."}`. Fix that line
   and record the same file again. Recording the same `identity_key` again replaces the earlier verdict.
-- Budget: evaluate at least all the `unsure` items (they come first). Then evaluate heuristic keeps as
-  far as the preset allows: `fast` unsure only; `balanced` about 5 batches in total; `deep` /
-  `seed_boost` until done or the user's patience runs out. Heuristic keeps usually need only a quick
-  confirmation. Items you never record keep their heuristic verdict at finalize (keeps stay keeps,
-  unsure stays unsure). Tell the user how many were left to the heuristic.
+- Budget: evaluate at least all the `unsure` items (they come first). Then evaluate the rescued
+  discards and heuristic keeps as far as the preset allows: `fast` unsure only; `balanced` about 5
+  batches in total; `deep` / `seed_boost` until done or the user's patience runs out. Heuristic keeps
+  usually need only a quick confirmation. Items you never record keep their heuristic verdict at
+  finalize (keeps stay keeps, unsure stays unsure, rescued discards stay discarded). Tell the user how
+  many were left to the heuristic.
 - Keep evaluations out of the conversation: write them to the file, do not echo them back.
 
 ## 9. Finalize

@@ -10,7 +10,7 @@ from urllib.parse import parse_qs, urljoin, urlsplit
 import yaml
 from bs4 import BeautifulSoup
 
-from ultron import runs
+from ultron import http_factory, runs
 from ultron.core.ats.clients.bamboohr import bamboohr_workplace
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
@@ -34,7 +34,7 @@ _SPA_BODY_MIN_CHARS = 400
 # Consecutive 403/429 responses from one host before HttpClient stops sending it requests. Every response
 # counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
 # host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
-HOST_BLOCK_THRESHOLD = 3
+HOST_BLOCK_THRESHOLD = http_factory.HOST_BLOCK_THRESHOLD
 # Global stop: once at least this many URLs failed to load at all (DNS failures, connection errors, timeouts)
 # and they are at least half of the URLs attempted, the network or proxy is assumed down and the rest is skipped.
 NAV_FAILURE_STOP_THRESHOLD = 50

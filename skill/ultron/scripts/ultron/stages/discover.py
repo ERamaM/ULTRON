@@ -28,8 +28,8 @@ from ultron.core.rules.term_matching import contains_term
 from ultron.core.sectors import profile_sector_values
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
-from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected, top_hosts
+from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.seeds import load_inventory
 
 
@@ -325,7 +325,7 @@ def _verify_search_proposals(
     rows = runs.read_jsonl(out_dir / seed_store.SEARCH_PROPOSALS_FILE)
     if not rows:
         return 0, 0, {}, {}
-    verify_client = client_for_run(run)
+    verify_client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
     known = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     limit = run["settings"]["new_companies_per_run"]
@@ -386,7 +386,7 @@ def discover_ats(run_id: str) -> dict:
     per_seed = settings["ats_api_max_jobs_per_seed"]
     timeout = settings["ats_api_timeout"]
     search_verified, search_added, prefetched, verify_requests = _verify_search_proposals(run, out_dir, timeout=timeout)
-    client = client_for_run(run)
+    client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
     seeds, groups, yield_stats = _select_seeds(
         run["profile_slug"], criteria.get("sectors"),
         settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
@@ -423,6 +423,11 @@ def discover_ats(run_id: str) -> dict:
                 continue
             except AtsClientError as exc:
                 errors.append({"seed_id": seed.seed_id, "error": str(exc)})
+                continue
+            except HostBlocked as exc:
+                # The host kept answering 429/403: no request was sent for this board.
+                errors.append({"seed_id": seed.seed_id, "error": "host_blocked", "host": str(exc).split(": ", 1)[-1],
+                               "skipped": True})
                 continue
             except HttpError as exc:
                 errors.append({"seed_id": seed.seed_id, "error": f"http_error: {exc} (status={exc.status_code})"})

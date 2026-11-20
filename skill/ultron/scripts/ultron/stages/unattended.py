@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ultron import runs, seeds
-from ultron.http_factory import client_for_run
+from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.stages.discover import discover_ats
 from ultron.stages.feeds import PROPOSALS_FILE, discover_feeds
 from ultron.stages.fetch import fetch
@@ -19,7 +19,9 @@ def verify_feed_companies(run_id: str) -> dict:
     if not rows:
         return {"tried": 0, "verified": 0}
     # Like ``seeds verify``: probing tries many slugs on few ATS hosts, so only the global budget bounds it.
-    client = client_for_run(run, max_requests_per_host=settings["max_pages"])
+    client = client_for_run(
+        run, max_requests_per_host=settings["max_pages"], block_threshold=HOST_BLOCK_THRESHOLD,
+    )
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     verified = []
     unconfirmed_seeds = []

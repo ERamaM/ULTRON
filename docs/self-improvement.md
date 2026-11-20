@@ -105,7 +105,7 @@ fixed folder, `<system temp>/ultron-eval`. On the command line a report is a pla
 (`--output candidate.json`), never a path. A name with a folder or `..` is rejected with exit
 code `2`. The tool prints where it wrote the report.
 
-### Labelled benchmark (183 cases)
+### Labelled benchmark (210 cases)
 
 ```sh
 uv run python tools/quality_benchmark.py validate
@@ -135,7 +135,9 @@ did not end as a confident keep. That stage is a filter stage (`pre_filter`,
 
 The corpus in `tests/fixtures/benchmark/` is synthetic. Its first 120 cases came from the
 deterministic template generator of the MARK II project; 63 hand-written cases added on
-2026-11-20 cover other profiles. Every URL is on `jobs.example.test`, and no case describes a
+2026-11-20 cover other profiles, and 27 more of the same day (`da-scope`, `da-list`, `be-list`,
+`nu-scope`, `nu-fam`) are synthesized from postings that live sessions 3 and 4 kept or lost for
+region-scoped profiles. Every URL is on `jobs.example.test`, and no case describes a
 real person or company. It maps to ULTRON's pipeline as follows:
 
 | Corpus | ULTRON |
@@ -235,6 +237,17 @@ eligibility lowering the verdict, was not accepted: the first attempt demoted se
 Irish nursing jobs, and the second moved no case. These numbers come from cases written for these
 hypotheses, so read them as a regression gate, not as live precision.
 
+The 27 region-scope cases lowered that baseline to 0.736 / 0.886 / 0.804 (tp 39, fp 14, fn 5,
+tn 135) on 210 cases. Two accepted fixes followed: company-scope words ("global", "international")
+and the bodies of jobs that are not remote no longer open a posting placed in another country
+(0.812 / 0.886 / 0.848), and "US" and Northern Ireland read as countries outside an Ireland or
+Latin American home (0.886 / 0.886 / 0.886, tp 39, fp 5, fn 5, tn 144). The 60-case pin did not
+move. Three hypotheses were measured and not accepted: a keep that names no place of the scope
+anywhere becoming unsure (new false negative: an Irish town outside the profile's terms), "Nursing"
+read as the noun "nurse" (admits nursing-home and assistant roles), and dropping the qualifier
+"specialist" of "Clinical Nurse Specialist" from the family nouns (passes the gates, but it is a third
+quality change of the session and breaks a Spanish family-noun test as written).
+
 The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
 fn 7, tn 60). The pull request that applies a quality change records its before and after
 numbers; `baseline.json` always holds the latest accepted state.
@@ -246,8 +259,8 @@ Known limits of the corpus:
   matching, which may be an artifact of the template.
 - `eligibility_label` does not appear in the legacy fixture text; it records the rule's reading of
   `remote_mode`.
-- The added profiles have 15 to 23 labelled cases each, so one case moves a profile's recall by
-  about 10 points.
+- The added profiles have 20 to 32 labelled cases each, so one case moves a profile's recall by
+  5 to 10 points.
 
 ## Vendor no-go decisions
 

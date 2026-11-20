@@ -167,45 +167,45 @@ def _country_spellings(place: str) -> tuple[str, ...]:
     return next((group for group in COUNTRY_ALIASES if place in group), (place,))
 
 
-# Adjectives that describe a company, a team or a market more often than where it hires ("our global payments
-# platform", "an international analytics team"). In a location field they still name a region ("Remote, Global").
+# "global", "international" and "worldwide" in a body name a region, as any wide-region word does, unless the next
+# few words make them a company description: "the global economy", "our global support organization", "a global
+# leader", "international clients", "our globally distributed team", "Global Candidate Privacy Notice". The list
+# is closed on purpose: anything else ("a global remote role", "international applicants may apply") still opens
+# the posting, because ambiguous text must never demote a keep. A negated statement ("we are not hiring
+# internationally") also still opens it: a known limit of this conservative reading. In a location field these
+# words always name a region ("Remote, Global").
 COMPANY_SCOPE_WORDS = frozenset({"global", "international"})
-# The same words in a statement about who can apply still name a region: "a global remote role", "we hire
-# globally", "international candidates are welcome", "no country restrictions", "anywhere in the world".
-# Matched on normalized (lower-case) text.
-_HIRING_SCOPE = re.compile(
-    r"\bglobal(?:ly)?[\s-]+remote\b"
-    r"|\bremote\s*[-,:(]\s*global(?:ly)?\b"
-    r"|\bhir(?:e|es|ing)\s+(?:\w+\s+)?(?:globally|internationally)\b"
-    r"|\bopen\s+to\s+(?:\w+\s+)?(?:candidates|applicants|talent)\s+(?:globally|internationally)\b"
-    r"|\bopen\s+to\s+(?:international|global)\s+(?:candidates|applicants|talent)\b"
-    r"|\b(?:international|global)\s+(?:candidates|applicants)\s+(?:are\s+)?welcome\b"
-    r"|\b(?:no|without)\s+(?:any\s+)?(?:country|location|geographic(?:al)?)\s+restrictions?\b"
-    r"|\banywhere\s+in\s+the\s+(?:world|globe)\b"
-)
-# Body statements (hiring scope above, a US state licence below) count only inside one sentence that is
-# affirmative: no negation in it once the statement itself is removed ("no country restrictions" is the statement),
-# and no "only within <place>" in it or in the next sentence ("We hire globally. Open only to residents of Canada.").
-_BODY_SENTENCE_BREAK = re.compile(r"(?<=[.!?;])\s+|[\r\n]+|\s*[•·▪●]\s*")
-_PLACE_ONLY = r"\bonly\s+(?:\w+\s+){0,3}?(?:within|in|from)\b|\b(?:within|in|from)\s+(?:the\s+)?[a-z][\w ]{0,30}?\s+only\b"
-_RESTRICTED = re.compile(_PLACE_ONLY, re.IGNORECASE)
-_NEGATED = re.compile(
-    r"\b(?:not|no|never|unable|cannot|without|except|none)\b|n['’]t\b|" + _PLACE_ONLY, re.IGNORECASE
+_SCOPE_WORD = re.compile(r"\b(?:global|international|worldwide)\b")
+_WORD = re.compile(r"[a-z]+")
+_COMPANY_NOUNS = frozenset({
+    "economy", "leader", "leaders", "company", "companies", "brand", "brands", "business", "businesses",
+    "organisation", "organisations", "organization", "organizations", "platform", "platforms", "team", "teams",
+    "presence", "footprint", "network", "networks", "scale", "client", "clients", "customer", "customers",
+    "market", "markets", "expansion", "community", "operations", "offices", "headquarters", "provider",
+    "providers", "firm", "enterprise", "group", "distributed", "privacy", "notice", "policy", "reach", "impact",
+    "partners", "portfolio", "supply", "chain", "player", "payments", "payouts",
+})
+_COMPANY_NOUN_WINDOW = 3
+# Statements that open a posting without a wide-region word. "Globally" alone is an adverb ("monitor quality
+# globally"), so only these hiring statements use it.
+_OPEN_SCOPE_PHRASES = (
+    "no country restrictions", "no location restrictions", "without location restrictions",
+    "without country restrictions", "anywhere in the world", "hire globally", "hiring globally",
+    "hire internationally", "hiring internationally", "globally remote", "candidates globally",
+    "applicants globally",
 )
 
 
-def _affirmed_in_a_sentence(text: str, statement: re.Pattern[str], cue: re.Pattern[str] | None = None) -> bool:
-    """True when one sentence makes ``statement`` (and ``cue``, if given) without negating or restricting it."""
-    sentences = [part for part in _BODY_SENTENCE_BREAK.split(text or "") if part.strip()]
-    for index, sentence in enumerate(sentences):
-        if not statement.search(sentence) or (cue is not None and not cue.search(sentence)):
-            continue
-        if _NEGATED.search(statement.sub(" ", sentence)):
-            continue
-        if index + 1 < len(sentences) and _RESTRICTED.search(sentences[index + 1]):
-            continue
+def _body_names_region(text: str) -> bool:
+    """True when a body names a multi-country scope, not counting company descriptions (see above)."""
+    low = normalize_text(text)
+    for match in _SCOPE_WORD.finditer(low):
+        following = _WORD.findall(low, match.end(), match.end() + 80)[:_COMPANY_NOUN_WINDOW]
+        if not _COMPANY_NOUNS.intersection(following):
+            return True
+    if find_terms(low, _OPEN_SCOPE_PHRASES):
         return True
-    return False
+    return names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", low), ignore=COMPANY_SCOPE_WORDS | {"worldwide"})
 
 
 def names_wide_region(text: str, *, ignore: frozenset[str] = frozenset()) -> bool:
@@ -305,17 +305,37 @@ _STATE_NAME = "|".join(re.escape(name) for name in sorted(US_STATE_NAMES, key=le
 _US_STATE_NAME_IN_PLACE = re.compile(
     rf",\s*(?:{_STATE_NAME})\s*(?=$|[;|/\n])|\b(?:{_STATE_NAME})\s*\(\s*any\s+city\s*\)", re.IGNORECASE | re.MULTILINE
 )
-# A licence issued by a US state: "current state licensure", "licensed in the state of". It only counts as a
-# requirement on the applicant ("must hold", "required", "active", "current", "eligible"): "software to manage
-# state licenses" and "no state license is required" do not. The Irish "State" never comes with a licence.
-_US_STATE_LICENSURE = re.compile(
-    r"\bstate\s+licen[cs](?:e|es|ure)\b|\blicen[cs]ed\s+(?:to\s+practi[cs]e\s+)?in\s+the\s+state\b", re.IGNORECASE
+# A licence issued by a US state counts only in an explicit requirement on the applicant:
+# - "must hold an active Texas RN license", "required to have a valid state licensure";
+# - "current appropriate state licensure", "active state license is required";
+# - "licensed to practice in the state of Arizona", "eligible for licensure in New York".
+# Anything else ("software to manage state licenses for our current customers", "maintain our state license
+# database") never counts, and a negation in the same clause ("current state licensure is not required") blocks
+# it. Each pattern is a sequence of literal alternatives, so matching stays linear.
+_LICENCE_STATE = rf"(?:(?:{_STATE_NAME})\s)?"
+_LICENCE_KIND = r"(?:(?:rn|nursing|professional)\s)?"
+_LICENCE_NOUN = r"licen[cs](?:e|ure)\b"
+_US_STATE_LICENCE_REQUIREMENT = re.compile(
+    r"\b(?:must|required\sto)\s(?:hold|have|possess|maintain|obtain)\s(?:an?\s)?"
+    rf"(?:(?:active|current|valid|unrestricted)\s)?{_LICENCE_STATE}(?:state\s)?{_LICENCE_KIND}{_LICENCE_NOUN}"
+    rf"|\b(?:active|current|valid|unrestricted)\s(?:appropriate\s)?{_LICENCE_STATE}state\s{_LICENCE_KIND}"
+    rf"{_LICENCE_NOUN}"
+    rf"|\blicensed\s(?:to\spractice\s)?in\sthe\sstate\sof\s(?:{_STATE_NAME})\b"
+    rf"|\beligible\sfor\s{_LICENCE_KIND}licensure\sin\s(?:the\sstate\sof\s)?(?:{_STATE_NAME})\b",
 )
-_LICENCE_REQUIREMENT = re.compile(
-    r"\b(?:must|required|requires?|requirement|current|active|valid|unrestricted|eligible|eligibility|hold|possess"
-    r"|maintain)\b|\blicen[cs]ed\s+(?:to\s+practi[cs]e\s+)?in\s+the\s+state\b",
-    re.IGNORECASE,
-)
+_CLAUSE_BREAK = re.compile(r"[.;!?\n]")
+_NEGATION_WORDS = frozenset({"no", "not", "never", "without", "cannot", "unable", "none"})
+
+
+def _requires_us_state_licence(body_text: str) -> bool:
+    """True when the body requires the applicant to hold or be eligible for a US state licence (see above)."""
+    for clause in _CLAUSE_BREAK.split(normalize_text(body_text).replace("’", "'")):
+        words = clause.split()
+        if _NEGATION_WORDS.intersection(words) or any(word.endswith("n't") for word in words):
+            continue
+        if _US_STATE_LICENCE_REQUIREMENT.search(" ".join(words)):
+            return True
+    return False
 
 
 def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
@@ -330,9 +350,7 @@ def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
             return True
     if _US_STATE_NAME_IN_PLACE.search(fields):
         return True
-    return not _STATE_LICENSING_COUNTRIES & homes and _affirmed_in_a_sentence(
-        body_text, _US_STATE_LICENSURE, _LICENCE_REQUIREMENT
-    )
+    return not _STATE_LICENSING_COUNTRIES & homes and _requires_us_state_licence(body_text)
 
 
 def other_country_restriction(
@@ -346,8 +364,8 @@ def other_country_restriction(
     multi-country region ("Remote EU, Germany preferred"), or when the body does
     ("work remotely from anywhere in Ireland", "hiring across the EU"): when in doubt, nothing is limited.
     "Anywhere in the Netherlands" still names one country, so it does not count as a region, and "global" or
-    "international" in the body describe the company ("our global platform"), not where it hires, unless they
-    state who can apply ("a global remote role", "international candidates are welcome").
+    "international" in the body do not count inside a closed list of company descriptions ("our global
+    platform", "international clients"); elsewhere they still name a region.
     The body is only read for a remote job (``remote_job``): an on-site or hybrid job is done at its location,
     whatever regions the company blurb names.
     A US place that names no country ("Austin, TX", "Nebraska (Any City)") or a US state licence in the body of
@@ -364,9 +382,7 @@ def other_country_restriction(
     if names_wide_region(text) or _names_home(fields, homes):
         return None
     excerpt = _place_text(body_text) if remote_job else ""
-    body_region = _affirmed_in_a_sentence(excerpt, _HIRING_SCOPE) or names_wide_region(
-        _ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS
-    )
+    body_region = _body_names_region(excerpt)
     if (remote_job and _names_home(body_text, homes)) or body_region:
         return None
     named = find_terms(text, COUNTRY_TERMS)

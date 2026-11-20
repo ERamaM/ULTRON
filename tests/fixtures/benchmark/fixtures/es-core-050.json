@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "es",
+  "title": "Senior Ingenieria Machine Learning 050",
+  "location": "Berlin o Madrid",
+  "remote_text": "Hibrido con asistencia obligatoria",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; experiencia de nivel senior. La asistencia a la oficina es obligatoria algunos dias. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-core-050",
+  "is_open_hint": true
+}

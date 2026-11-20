@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-adjacent-069
+profile: ml-engineering-remote-eu
+language: en
+role_track: adjacent
+seniority: manager
+remote_mode: eu
+eligibility_label: ineligible
+vendor: greenhouse
+fixture: ../fixtures/en-adjacent-069.json
+split: dev
+labels:
+  relevant: false
+  role_fit: null
+  seniority_fit: false
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

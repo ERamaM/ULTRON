@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-negative-065
+profile: ml-engineering-remote-eu
+language: en
+role_track: negative
+seniority: junior
+remote_mode: worldwide
+eligibility_label: ineligible
+vendor: empty_dynamic
+fixture: ../fixtures/en-negative-065.json
+split: test
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: false
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

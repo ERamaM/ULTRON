@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "es",
+  "title": "Especialista Ingenieria Frontend 048",
+  "location": "Berlin o Madrid",
+  "remote_text": "Hibrido con asistencia obligatoria",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia relevante no especificada. La asistencia a la oficina es obligatoria algunos dias. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-048",
+  "is_open_hint": true
+}

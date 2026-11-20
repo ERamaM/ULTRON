@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-negative-084
+profile: ml-engineering-remote-eu
+language: es
+role_track: negative
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: high
+vendor: lever
+fixture: ../fixtures/es-negative-084.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: null
+  remote_fit: false
+  eligibility: high
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

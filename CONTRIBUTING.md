@@ -33,6 +33,7 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 
 - **Secret scanning:** Run `gitleaks git --redact --config .gitleaks.toml` (or install `pre-commit install`) to ensure no secrets, API keys, or local personal paths are introduced.
 - **Parity tests:** Heuristic changes must preserve the characterization suite (`tests/core/test_parity_heuristics.py`).
+- **Quality changes:** Changes meant to improve relevance or ranking must pass the labelled benchmark gates (`uv run python tools/quality_benchmark.py compare`) and state the measured delta. See [docs/self-improvement.md](docs/self-improvement.md).
 - **English codebase & docs:** All skill instructions (`skill/ultron/SKILL.md`, `skill/ultron/references/*.md`), code, comments, and documentation must be written in English. Multilingual keyword matching belongs strictly inside the dedicated rule/vocabulary data modules with regression tests.
 - **Cross-platform paths & installers:** Keep `install.py`, `install.sh`, and `install.ps1` compatible with paths containing spaces and environments without Python pre-installed.
 

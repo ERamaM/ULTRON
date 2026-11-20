@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-adjacent-016
+profile: ml-engineering-remote-eu
+language: es
+role_track: adjacent
+seniority: junior
+remote_mode: hybrid
+eligibility_label: medium
+vendor: lever
+fixture: ../fixtures/es-adjacent-016.json
+split: dev
+labels:
+  relevant: null
+  role_fit: null
+  seniority_fit: false
+  remote_fit: false
+  eligibility: medium
+  open_status: true
+expected_stage: unsure
+notes: Synthetic fixture with independently reviewed dimensional labels.

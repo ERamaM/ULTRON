@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-core-038
+profile: ml-engineering-remote-eu
+language: es
+role_track: core
+seniority: senior
+remote_mode: eu
+eligibility_label: confirmed
+vendor: generic_html
+fixture: ../fixtures/es-core-038.json
+split: dev
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: keep
+notes: Synthetic fixture with independently reviewed dimensional labels.

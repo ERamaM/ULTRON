@@ -1,0 +1,20 @@
+schema_version: 1
+id: es-core-074
+profile: ml-engineering-remote-eu
+language: es
+role_track: core
+seniority: senior
+remote_mode: us_only
+eligibility_label: confirmed
+vendor: greenhouse
+fixture: ../fixtures/es-core-074.json
+split: dev
+labels:
+  relevant: null
+  role_fit: true
+  seniority_fit: true
+  remote_fit: false
+  eligibility: confirmed
+  open_status: true
+expected_stage: unsure
+notes: Synthetic fixture with independently reviewed dimensional labels.

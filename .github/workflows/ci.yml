@@ -169,7 +169,9 @@ jobs:
       - name: Make coverage source paths absolute
         if: env.SONAR_TOKEN != ''
         # coverage.py writes <source> relative to the repo; SonarCloud cannot resolve it.
-        run: sed -i "s#<source>skill/#<source>${GITHUB_WORKSPACE}/skill/#" coverage-report/coverage.xml
+        run: >-
+          sed -i -e "s#<source>skill/#<source>${GITHUB_WORKSPACE}/skill/#"
+          -e "s#<source>tools<#<source>${GITHUB_WORKSPACE}/tools<#" coverage-report/coverage.xml
       - name: Scan with SonarCloud
         if: env.SONAR_TOKEN != ''
         uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1

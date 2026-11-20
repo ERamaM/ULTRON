@@ -218,9 +218,13 @@ def _names_home(text: str, homes: Iterable[str]) -> bool:
 
 # US places that name no country. State and territory codes after a comma, at the end of a location part
 # ("Austin, TX", "Lewes, DE 19958"), are matched as written: "Co. Meath" and "CO. WESTMEATH" are Irish counties.
-# A code that is also an ISO country code ("CA" Canada, "DE" Germany, "AR" Argentina) only counts before a ZIP
-# code, and never when that country is a home place.
-_US_STATE_CODES = frozenset({
+# Most codes are also a country code ("CA" Canada, "DE" Germany, "AR" Argentina) or a region code elsewhere
+# ("PR" Parana, "DC" Bogota, "MI" Milan, "WA" Western Australia), so they only count before a ZIP code, and never
+# when that country is a home place. The codes below have no such double reading and count on their own.
+_US_STATE_CODES_ALONE = frozenset({
+    "AK", "FL", "GU", "HI", "IA", "KS", "ND", "NH", "NJ", "NM", "NY", "OH", "OK", "TX", "WI", "WV", "WY",
+})
+_US_STATE_CODES = _US_STATE_CODES_ALONE | frozenset({
     "AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DC", "DE", "FL", "GA", "GU", "HI", "IA", "ID", "IL", "IN", "KS",
     "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY",
     "OH", "OK", "OR", "PA", "PR", "RI", "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY",
@@ -260,10 +264,9 @@ def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
     homes = set(homes)
     for match in _US_STATE_CODE_AT_END.finditer(fields):
         code, zip_code = match.group(1), match.group(2)
-        if code not in _US_STATE_CODES:
-            continue
-        country = _ISO_COUNTRY_OF_STATE_CODE.get(code)
-        if country is None or (zip_code and country not in homes):
+        if code in _US_STATE_CODES_ALONE or (
+            zip_code and code in _US_STATE_CODES and _ISO_COUNTRY_OF_STATE_CODE.get(code) not in homes
+        ):
             return True
     return bool(_US_STATE_NAME_IN_PLACE.search(fields) or _US_STATE_LICENSURE.search(body_text or ""))
 

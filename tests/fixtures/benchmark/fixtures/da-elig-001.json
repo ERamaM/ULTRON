@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Data Analyst",
+  "location": "United States",
+  "remote_text": "Remote - United States",
+  "body_text": "Write SQL, build Looker dashboards and recurring reporting for product teams. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-elig-001",
+  "is_open_hint": true
+}

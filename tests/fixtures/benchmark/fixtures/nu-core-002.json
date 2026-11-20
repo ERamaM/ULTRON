@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Registered Nurse, Emergency Department",
+  "location": "Cork, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Provide acute care in the emergency department. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-core-002",
+  "is_open_hint": true
+}

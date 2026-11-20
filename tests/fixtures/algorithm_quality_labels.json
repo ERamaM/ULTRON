@@ -17,8 +17,8 @@
       "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
     },
     "en-positive-shape-04": {
-      "label": "ambiguous",
-      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+      "label": "relevant",
+      "reason": "Relabelled 2026-11-20 (owner-delegated): remote across EMEA includes Spain, and the profile lists Remote EMEA as a preferred region, so the senior AI or ML role is eligible."
     },
     "en-positive-shape-05": {
       "label": "relevant",
@@ -49,8 +49,8 @@
       "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
     },
     "es-positive-shape-04": {
-      "label": "ambiguous",
-      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+      "label": "relevant",
+      "reason": "Relabelled 2026-11-20 (owner-delegated): remote across EMEA includes Spain, and the profile lists Remote EMEA as a preferred region, so the senior AI or ML role is eligible."
     },
     "es-positive-shape-05": {
       "label": "relevant",
@@ -201,8 +201,8 @@
       "reason": "The title specifies a mid-level rather than senior role."
     },
     "q-distinguished": {
-      "label": "ambiguous",
-      "reason": "The title does not state senior, staff, principal, or lead level."
+      "label": "relevant",
+      "reason": "Relabelled 2026-11-20 (owner-delegated): distinguished is above senior and is one of the profile's preferred levels; the role is fully remote in the EU and open."
     },
     "q-exclusion-manager-title": {
       "label": "not_relevant",
@@ -225,16 +225,16 @@
       "reason": "The posting explicitly requires hybrid office attendance."
     },
     "q-emea-only": {
-      "label": "ambiguous",
-      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+      "label": "relevant",
+      "reason": "Relabelled 2026-11-20 (owner-delegated): remote across EMEA includes Spain, and the profile lists Remote EMEA as a preferred region, so the senior AI or ML role is eligible."
     },
     "q-cet-substring": {
       "label": "relevant",
       "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
     },
     "q-leuven-region-name": {
-      "label": "relevant",
-      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+      "label": "ambiguous",
+      "reason": "Relabelled 2026-11-20 (owner-delegated): the only location is a Belgian city, so the text does not say whether a fully remote hire from Spain is allowed."
     },
     "q-neuquen-region-name": {
       "label": "not_relevant",

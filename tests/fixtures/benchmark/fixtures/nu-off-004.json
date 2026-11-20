@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Healthcare Assistant",
+  "location": "Galway, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Support the nursing team with patient care on the ward. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-off-004",
+  "is_open_hint": true
+}

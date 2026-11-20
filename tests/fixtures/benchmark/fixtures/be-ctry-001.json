@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "Netherlands",
+  "remote_text": "Remote - Netherlands",
+  "body_text": "Build Python APIs. Work remotely from anywhere in the Netherlands. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-001",
+  "is_open_hint": true
+}

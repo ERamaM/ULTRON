@@ -1,0 +1,22 @@
+slug: data-analyst-remote-latam
+name: Data Analyst - Remote LATAM
+description: Synthetic benchmark profile for data analytics roles, fully remote, with a Latin American scope and no vocabulary pack.
+enabled: true
+source_kind: example
+criteria:
+  sectors: [technology]
+  role_family_label: Data analytics
+  role_focus_terms: [data analyst, business intelligence analyst, bi analyst, product analyst]
+  target_titles: [Data Analyst, Senior Data Analyst, BI Analyst, Product Analyst]
+  seniority:
+    required: false
+    excluded_terms: [intern, internship]
+  remote_policy:
+    required: full_remote
+  location_scope:
+    preferred: [Remote LATAM, Brazil, Mexico, Argentina, Colombia]
+    eligibility_terms: [latam, latin america, brazil, brasil, mexico, argentina, colombia, chile]
+    excluded_terms: [us only, united states only]
+  exclusion_terms: [manager, director]
+  specialties: [SQL, Tableau, Looker, dashboards]
+  role_signal_terms: [sql, dashboards, tableau, looker, power bi, analytics, reporting]

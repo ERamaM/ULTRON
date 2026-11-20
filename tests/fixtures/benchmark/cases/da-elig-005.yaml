@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-elig-005
+profile: data-analyst-remote-latam
+language: en
+role_track: core
+seniority: ambiguous
+remote_mode: latam
+eligibility_label: confirmed
+vendor: greenhouse
+fixture: ../fixtures/da-elig-005.json
+split: test
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: keep
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against data-analyst-remote-latam: relevant (BI analyst role, remote and open to Latin America).'

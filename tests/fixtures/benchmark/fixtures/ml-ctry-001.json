@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Machine Learning Engineer",
+  "location": "Germany",
+  "remote_text": "Remote across Germany",
+  "body_text": "Build machine learning services and LLM evaluation pipelines. Applications are open.",
+  "apply_url": "https://jobs.example.test/ml-ctry-001",
+  "is_open_hint": true
+}

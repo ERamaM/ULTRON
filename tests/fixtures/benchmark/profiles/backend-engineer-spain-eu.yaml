@@ -1,0 +1,23 @@
+slug: backend-engineer-spain-eu
+name: Senior Backend Engineer - Spain or Remote EU
+description: Synthetic benchmark profile for senior backend roles, fully remote from Spain or anywhere in the EU, with no vocabulary pack.
+enabled: true
+source_kind: example
+criteria:
+  sectors: [technology]
+  role_family_label: Backend engineering
+  role_focus_terms: [backend engineer, backend developer, python engineer, go engineer]
+  target_titles: [Senior Backend Engineer, Senior Python Engineer, Staff Backend Engineer]
+  seniority:
+    required: true
+    preferred_terms: [senior, sr., staff, principal, lead]
+    excluded_terms: [intern, junior, graduate, entry]
+  remote_policy:
+    required: full_remote
+  location_scope:
+    preferred: [Spain, Remote EU, Remote Europe]
+    eligibility_terms: [spain, remote eu, remote europe, within eu, europe, emea, cet]
+    excluded_terms: [us only, united states only]
+  exclusion_terms: [manager, director]
+  specialties: [Python, Go, PostgreSQL, Kubernetes, APIs]
+  role_signal_terms: [backend, python, golang, microservices, api]

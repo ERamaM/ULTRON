@@ -10,11 +10,11 @@ vendor: json_api
 fixture: ../fixtures/en-core-049.json
 split: dev
 labels:
-  relevant: null
+  relevant: false
   role_fit: true
   seniority_fit: true
   remote_fit: false
   eligibility: high
   open_status: true
-expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+expected_stage: discard
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (hybrid work (the profile requires full remote)).'

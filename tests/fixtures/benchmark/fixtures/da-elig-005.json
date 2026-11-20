@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "BI Analyst",
+  "location": "Remote",
+  "remote_text": "Remote, open to candidates across Latin America",
+  "body_text": "Own Tableau and Power BI reporting for operations. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-elig-005",
+  "is_open_hint": true
+}

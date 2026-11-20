@@ -18,22 +18,21 @@ import pytest
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
-# Updated with the closed-status / non-EU / Spanish-title filter fixes: relevant 14 kept + 3 discarded
-# -> 17 kept (es-positive-shape-01, q-es-senior-remoto-espana, en-positive-shape-07 now kept);
-# not_relevant 5 kept -> 1 kept (closed postings en/es-negative-shape-08/07 and non-EU remote ones
-# now discarded). Ambiguous cases and score bands are unchanged.
+# Relabelled on 2026-11-20 (owner-delegated, see docs/self-improvement.md): en/es-positive-shape-04 and
+# q-emea-only (remote EMEA, a preferred region of the profile) and q-distinguished (a preferred level) move from
+# ambiguous to relevant; q-leuven-region-name (a Belgian city as the only location) moves from relevant to
+# ambiguous. The measured outcomes of all 60 cases are unchanged; only the label buckets moved.
 PINNED_COUNTS = {
-    "relevant": {"kept": 17, "unsure": 0, "discarded": 0},
+    "relevant": {"kept": 20, "unsure": 0, "discarded": 0},
     "not_relevant": {"kept": 1, "unsure": 0, "discarded": 20},
-    "ambiguous": {"kept": 6, "unsure": 3, "discarded": 13},
+    "ambiguous": {"kept": 3, "unsure": 3, "discarded": 13},
 }
-PINNED_RATES = {"relevant_kept_or_unsure_rate": 17 / 17, "not_relevant_kept_rate": 1 / 21}
+PINNED_RATES = {"relevant_kept_or_unsure_rate": 20 / 20, "not_relevant_kept_rate": 1 / 21}
 PINNED_BANDS = {
-    "relevant": {"strong": 17, "good": 0, "borderline": 0, "ineligible": 0},
+    "relevant": {"strong": 20, "good": 0, "borderline": 0, "ineligible": 0},
     "not_relevant": {"strong": 9, "good": 5, "borderline": 7, "ineligible": 0},
-    "ambiguous": {"strong": 15, "good": 6, "borderline": 1, "ineligible": 0},
+    "ambiguous": {"strong": 12, "good": 6, "borderline": 1, "ineligible": 0},
 }
-
 
 def _labels() -> dict:
     return json.loads((FIXTURES / "algorithm_quality_labels.json").read_text(encoding="utf-8"))

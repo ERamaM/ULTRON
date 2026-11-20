@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Engineering Lead, Clinical Operations",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Lead engineers building clinical software used on nursing wards for patient care. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-off-001",
+  "is_open_hint": true
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Staff Nurse - Medical Ward",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Deliver patient care on a busy medical ward. NMBI registration required. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-core-001",
+  "is_open_hint": true
+}

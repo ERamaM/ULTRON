@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-core-006
+profile: data-analyst-remote-latam
+language: en
+role_track: core
+seniority: ambiguous
+remote_mode: worldwide
+eligibility_label: confirmed
+vendor: lever
+fixture: ../fixtures/da-core-006.json
+split: dev
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: keep
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against data-analyst-remote-latam: relevant (data analyst role open worldwide, which includes Latin America).'

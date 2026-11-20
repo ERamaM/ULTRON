@@ -32,7 +32,16 @@ from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
 from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
-from ultron.seeds import FEED_PROPOSALS_FILE, LEGAL_COMPANY_SUFFIXES, Proposal, SeedFileError, add_seeds, load_inventory
+from ultron.seeds import (
+    COUNTRY_SLDS,
+    FEED_PROPOSALS_FILE,
+    LEGAL_COMPANY_SUFFIXES,
+    THIRD_PARTY_DOMAINS,
+    Proposal,
+    SeedFileError,
+    add_seeds,
+    load_inventory,
+)
 
 FEED_PREFIX = "feed:"
 PROPOSALS_FILE = FEED_PROPOSALS_FILE
@@ -72,28 +81,11 @@ _AGGREGATORS = {d.removeprefix("www.") for d in AGGREGATOR_DOMAINS}
 # Names too generic to match across TLDs (``remote.co`` must not claim ``remote.de`` or ``remote.acme.de``).
 _GENERIC_AGGREGATOR_NAMES = frozenset({"remote"})
 _AGGREGATOR_NAMES = {d.split(".")[0] for d in _AGGREGATORS} - _GENERIC_AGGREGATOR_NAMES
-_COUNTRY_SLDS = frozenset({"co", "com", "org", "net"})  # arbeitnow.co.uk, foo.com.au
+_COUNTRY_SLDS = COUNTRY_SLDS  # arbeitnow.co.uk, foo.com.au
 _GENERIC_HOST_LABELS = frozenset({"www", "jobs", "careers", "apply", "boards", "job", "work", "team"})
 # Legal forms plus product words that do not distinguish a company's domain label.
 _COMPANY_SUFFIXES = LEGAL_COMPANY_SUFFIXES | frozenset({"labs", "lab", "ai", "hq", "io", "app"})
-_THIRD_PARTY_DOMAINS = frozenset({
-    "github.com",
-    "gitlab.com",
-    "linkedin.com",
-    "ycombinator.com",
-    "notion.so",
-    "notion.site",
-    "medium.com",
-    "twitter.com",
-    "x.com",
-    "facebook.com",
-    "google.com",
-    "docs.google.com",
-    "angel.co",
-    "wellfound.com",
-    "lever.co",
-    "greenhouse.io",
-})
+_THIRD_PARTY_DOMAINS = THIRD_PARTY_DOMAINS
 
 
 def _is_disallowed_proposal_host(host: str) -> bool:
@@ -295,6 +287,8 @@ def discover_feeds(run_id: str) -> dict:
     found: list[tuple[int, CandidateUrl]] = []
     new_seeds: dict[tuple[str, str], AtsBoardSeed] = {}
     proposals: dict[str, Proposal] = {}
+    relevant_boards: set[tuple[str, str]] = set()  # new boards with at least one row that counts
+    mentions: dict[str, int] = {}  # qualifying rows per proposed company (lowercased name)
     counts = {"ok": 0, "failed": 0, "skipped": 0}
     budget_spent = False
 
@@ -324,7 +318,13 @@ def discover_feeds(run_id: str) -> dict:
                         continue
                     ats_hit = True
                     key = seed_identity(seed.ats, seed.board_identifier)
-                    if key not in known_boards and key not in new_seeds:
+                    if key in known_boards:
+                        continue
+                    # A posting row counts for its board only when it passes the profile's prefilter; a
+                    # company list names boards, not postings, so its rows always count.
+                    if company_list or relevant:
+                        relevant_boards.add(key)
+                    if key not in new_seeds:
                         new_seeds[key] = seed.model_copy(update={
                             "source_type": "feed_discovered",
                             "source_label": f"Feed {source['id']}",
@@ -352,16 +352,23 @@ def discover_feeds(run_id: str) -> dict:
                     found.append((score, candidate))
             if company and not ats_hit and (company_list or relevant):
                 low = company.lower()
-                if low not in proposals and low not in known_companies:
+                if low not in known_companies:
+                    mentions[low] = mentions.get(low, 0) + 1
                     url = str(row.get("url") or "").strip()
                     domain = _company_domain_from_url(url, company)
-                    source_url = url if urlparse(url).scheme in {"http", "https"} else ""
-                    proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
+                    if low not in proposals:
+                        source_url = url if urlparse(url).scheme in {"http", "https"} else ""
+                        proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
+                    elif domain and not proposals[low].domain:
+                        proposals[low].domain = domain  # a later row may name the company's own site
 
+    # Boards seen only in postings this profile would discard are not saved: they would fill the inventory
+    # with other professions' boards (seed_yield ranks the saved ones by later keeps).
+    to_save = [seed for key, seed in new_seeds.items() if key in relevant_boards]
     seeds_added = 0
-    if new_seeds:
+    if to_save:
         try:
-            seeds_added = add_seeds(list(new_seeds.values()), profile_slug=profile_slug)
+            seeds_added = add_seeds(to_save, profile_slug=profile_slug)
         except SeedFileError as exc:
             errors.append({"source": "seeds", "error": f"seed_file_corrupt: {exc}"})
 
@@ -378,7 +385,10 @@ def discover_feeds(run_id: str) -> dict:
         candidates.append(candidate)
 
     runs.write_jsonl(out_dir / "candidates.jsonl", [*kept_rows, *candidates])
-    runs.write_jsonl(out_dir / PROPOSALS_FILE, (asdict(p) for p in proposals.values()))
+    # Most-mentioned companies first: `seeds verify` and the unattended mode verify only the first
+    # new_companies_per_run lines (stable sort keeps feed order among ties).
+    ranked = sorted(proposals.items(), key=lambda item: -mentions.get(item[0], 0))
+    runs.write_jsonl(out_dir / PROPOSALS_FILE, (asdict(p) for _low, p in ranked))
     runs.write_jsonl(out_dir / ERRORS_FILE, errors)
     runs.mark_stage(run_id, "discover_feeds")
     return {
@@ -387,6 +397,7 @@ def discover_feeds(run_id: str) -> dict:
         "sources_skipped": counts["skipped"],
         "candidates": len(candidates),
         "seeds_added": seeds_added,
+        "feed_boards_irrelevant": len(new_seeds) - len(to_save),
         "company_hints": len(proposals),
         "requests": client.requests_made,
     }

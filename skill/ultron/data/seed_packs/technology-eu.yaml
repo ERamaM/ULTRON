@@ -65,18 +65,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Sendcloud
-  ats: greenhouse
-  board_identifier: sendcloud
-  enabled: true
-  priority: 20
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Apaleo
   ats: greenhouse
   board_identifier: apaleo
@@ -186,18 +174,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Babbel
-  ats: greenhouse
-  board_identifier: babbel
-  enabled: true
-  priority: 42
-  tags:
-  - ml
-  - nlp
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Binance
   ats: lever
   board_identifier: binance
@@ -298,47 +274,11 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Mistral AI
-  ats: greenhouse
-  board_identifier: mistralai
-  enabled: true
-  priority: 100
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Hugging Face
-  ats: greenhouse
-  board_identifier: huggingface
-  enabled: true
-  priority: 101
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Stability AI
   ats: greenhouse
   board_identifier: stabilityai
   enabled: true
   priority: 102
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: DeepMind
-  ats: greenhouse
-  board_identifier: deepmind
-  enabled: true
-  priority: 103
   tags:
   - ml
   - ai
@@ -370,30 +310,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Criteo
-  ats: greenhouse
-  board_identifier: criteo
-  enabled: true
-  priority: 106
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: ContentSquare
-  ats: greenhouse
-  board_identifier: contentsquare
-  enabled: true
-  priority: 107
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Algolia
   ats: greenhouse
   board_identifier: algolia
@@ -406,35 +322,11 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Delivery Hero
-  ats: greenhouse
-  board_identifier: deliveryhero
-  enabled: true
-  priority: 109
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: GetYourGuide
   ats: greenhouse
   board_identifier: getyourguide
   enabled: true
   priority: 110
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Zalando
-  ats: greenhouse
-  board_identifier: zalando
-  enabled: true
-  priority: 111
   tags:
   - ml
   - ai
@@ -1608,18 +1500,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Pigment
-  ats: ashby
-  board_identifier: pigment
-  enabled: true
-  priority: 238
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Spendesk
   ats: ashby
   board_identifier: spendesk
@@ -1658,34 +1538,11 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Gradio
-  ats: ashby
-  board_identifier: gradio
-  enabled: true
-  priority: 242
-  tags:
-  - ml
-  - ai
-  country_scope: EU
-  sectors:
-  - technology
 - company: Photoroom
   ats: ashby
   board_identifier: photoroom
   enabled: true
   priority: 243
-  tags:
-  - ml
-  - ai
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Mistral Ops
-  ats: ashby
-  board_identifier: mistralops
-  enabled: true
-  priority: 244
   tags:
   - ml
   - ai
@@ -1965,19 +1822,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: ASML
-  ats: smartrecruiters
-  board_identifier: ASML
-  enabled: true
-  priority: 270
-  tags:
-  - ml
-  - ai
-  - semiconductor
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Visa
   ats: smartrecruiters
   board_identifier: Visa
@@ -2079,19 +1923,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Infineon
-  ats: jobvite
-  board_identifier: infineon
-  enabled: true
-  priority: 279
-  tags:
-  - ml
-  - ai
-  - semiconductor
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Zalando
   ats: jobvite
   board_identifier: zalando
@@ -2105,19 +1936,6 @@ seeds:
   country_scope: EU
   sectors:
   - technology
-- company: Trivago
-  ats: jobvite
-  board_identifier: trivago
-  enabled: true
-  priority: 281
-  tags:
-  - ml
-  - ai
-  - travel
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
 - company: Synthesia
   ats: bamboohr
   board_identifier: synthesia
@@ -2127,32 +1945,6 @@ seeds:
   - ml
   - ai
   - generative
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Photoroom
-  ats: bamboohr
-  board_identifier: photoroom
-  enabled: true
-  priority: 283
-  tags:
-  - ml
-  - ai
-  - computer-vision
-  - eu
-  country_scope: EU
-  sectors:
-  - technology
-- company: Tractable
-  ats: bamboohr
-  board_identifier: tractable
-  enabled: true
-  priority: 284
-  tags:
-  - ml
-  - ai
-  - computer-vision
   - eu
   country_scope: EU
   sectors:

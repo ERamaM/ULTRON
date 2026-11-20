@@ -83,15 +83,17 @@ pack's companies when the pack fits the profile:
   `manufacturing_industrial`, `automotive`, `aerospace_defense`, `construction_engineering`,
   `marketing_advertising`, `professional_services`, `other`. Common names map to it (`healthcare`,
   `nursing` and `medical` mean `pharma_health`, `software` means `technology`, `finance` means
-  `finance_insurance`). Any other value (`fintech`) matches no pack, so its seeds rank last and
-  `profile explain` warns. Leave the list out when no sector fits; niches such as fintech go into `prompt`
-  and into the companies you propose.
+  `finance_insurance`). Any other value (`fintech`) matches no pack and `profile explain` warns. A profile
+  without `sectors` fits the packs of every sector, so set the closest sector (`finance_insurance` for
+  fintech) and put the niche into `prompt` and into the companies you propose.
 - **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
   another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
   region, one of its countries, states or counties, or a main city (`Remote LATAM`, `Brazil`, `Bogotá`;
   `Ireland`, `Dublin`, `County Kildare`; `Remote US`, `Texas`, `New York`, `Austin, TX`). Names shared with
   another place are not matched: write `Georgia, USA` or `Atlanta` rather than `Georgia`, and `Washington DC`
   or `Seattle` rather than `Washington`. A profile without preferred regions fits every pack.
+
+A pack that does not fit is never queried, not even to fill leftover seed slots.
 
 `ultron run new` prints how many boards fit (`eligible_seeds`).
 
@@ -308,6 +310,7 @@ bundled profile saves a user copy, and undo removes that copy again.
 | add titles (MLOps roles) | add the titles to `criteria.target_titles` and `query_templates.titles`, and the short family term (`mlops engineer`) to `criteria.role_focus_terms`; role matching is strict, so a title that matches no role term is usually discarded |
 | no junior roles, or only one level | add the level words to `criteria.seniority.excluded_terms` (`junior`, `intern`, `graduate`, `entry level`). For one wanted level, set `criteria.seniority.required` to `true` and list its words in `preferred_terms` (`mid`, `intermediate` for mid-level). Any level: set it to `false` |
 | remove a term | find every list that holds it in `profile show`, remove it from each, and report any `not_found` |
+| only this kind of role, not neighbouring ones (nursing, not clinical research or lab roles) | remove the broad word that lets the neighbours in from `criteria.role_signal_terms` (`clinical`), and add the unwanted families to `criteria.exclusion_terms` and `query_templates.exclusion_terms` (`clinical research`, `laboratory`); check the effect with `profile explain <slug> --run <run_id>` on a recent run |
 | salary, spoken languages, companies or company types to target or avoid (consulting firms, crypto) | the CLI cannot filter these: record them in `prompt` and apply them yourself when you propose companies and evaluate postings. A word that shows in unwanted titles can also go into `criteria.exclusion_terms` (`crypto`, or `fluent german` for a required language they lack) |
 
 `ultron profile explain <slug>` (or `--from <file>` for a draft) shows what the profile makes the CLI do,

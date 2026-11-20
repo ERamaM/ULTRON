@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .ashby import parse as parse_ashby
+from .hirehive import parse as parse_hirehive
 from .parser_contract import ParserFn
 from .selectors import make_selector_parser
 from .smartrecruiters import parse as parse_smartrecruiters
@@ -14,4 +15,6 @@ def parser_for_vendor(vendor: str) -> ParserFn:
         return parse_ashby
     if vendor == "smartrecruiters":
         return parse_smartrecruiters
+    if vendor == "hirehive":
+        return parse_hirehive
     return make_selector_parser(vendor)

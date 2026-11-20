@@ -70,7 +70,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 14,
+        "rank": 13,
         "reason": null,
         "status": "keep"
       },
@@ -99,7 +99,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 13,
+        "rank": 12,
         "reason": null,
         "status": "keep"
       },
@@ -128,7 +128,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 15,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -416,11 +416,11 @@
       "prediction": {
         "filter_route": "ambiguous",
         "filter_stage": null,
-        "match_band": "strong",
-        "match_score": 94,
-        "rank": 12,
-        "reason": null,
-        "status": "unsure"
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
       },
       "profile": "backend-engineer-spain-eu",
       "remote_mode": "country",
@@ -650,7 +650,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 13,
+        "rank": 12,
         "reason": null,
         "status": "keep"
       },
@@ -911,7 +911,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 14,
+        "rank": 13,
         "reason": null,
         "status": "keep"
       },
@@ -940,7 +940,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 15,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -969,7 +969,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 16,
+        "rank": 15,
         "reason": null,
         "status": "keep"
       },
@@ -998,7 +998,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 17,
+        "rank": 16,
         "reason": null,
         "status": "keep"
       },
@@ -1228,11 +1228,11 @@
       "prediction": {
         "filter_route": "ambiguous",
         "filter_stage": null,
-        "match_band": "strong",
-        "match_score": 100,
-        "rank": 12,
-        "reason": null,
-        "status": "keep"
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "country",
@@ -5313,17 +5313,17 @@
   "metrics": {
     "agent_queue": 79,
     "classification": {
-      "abstention_rate": 0.0056179775280898875,
+      "abstention_rate": 0.0,
       "confusion_matrix": {
         "fn": 4,
-        "fp": 15,
-        "tn": 118,
+        "fp": 14,
+        "tn": 119,
         "tp": 29
       },
-      "f1": 0.7532467532467532,
+      "f1": 0.7631578947368421,
       "false_negative_rate": 0.12121212121212122,
-      "false_positive_rate": 0.11278195488721804,
-      "precision": 0.6590909090909091,
+      "false_positive_rate": 0.10526315789473684,
+      "precision": 0.6744186046511628,
       "recall": 0.8787878787878788,
       "sample_size": 166
     },
@@ -5332,9 +5332,8 @@
       "evaluator": 4
     },
     "outcomes": {
-      "discard": 131,
-      "keep": 51,
-      "unsure": 1
+      "discard": 133,
+      "keep": 50
     },
     "ranking": {
       "backend-engineer-spain-eu": {
@@ -5345,7 +5344,7 @@
         "precision_at_5": 1.0,
         "recall_at_10": 0.5555555555555556,
         "relevant_total": 9,
-        "shortlist_size": 15
+        "shortlist_size": 14
       },
       "data-analyst-remote-latam": {
         "duplicate_rows": 3,
@@ -5355,7 +5354,7 @@
         "precision_at_5": 0.4,
         "recall_at_10": 0.7777777777777778,
         "relevant_total": 9,
-        "shortlist_size": 17
+        "shortlist_size": 16
       },
       "ml-engineering-remote-eu": {
         "duplicate_rows": 0,
@@ -5381,17 +5380,17 @@
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.008547008547008548,
+          "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 15,
-            "tn": 69,
+            "fp": 14,
+            "tn": 70,
             "tp": 28
           },
-          "f1": 0.7887323943661972,
+          "f1": 0.8,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.17857142857142858,
-          "precision": 0.6511627906976745,
+          "false_positive_rate": 0.16666666666666666,
+          "precision": 0.6666666666666666,
           "recall": 1.0,
           "sample_size": 112,
           "status": "measured"
@@ -5415,7 +5414,7 @@
       },
       "profile": {
         "backend-engineer-spain-eu": {
-          "abstention_rate": 0.058823529411764705,
+          "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
             "fp": 5,
@@ -5434,14 +5433,14 @@
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 5,
-            "tn": 9,
+            "fp": 4,
+            "tn": 10,
             "tp": 9
           },
-          "f1": 0.782608695652174,
+          "f1": 0.8181818181818181,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.35714285714285715,
-          "precision": 0.6428571428571429,
+          "false_positive_rate": 0.2857142857142857,
+          "precision": 0.6923076923076923,
           "recall": 1.0,
           "sample_size": 23,
           "status": "measured"
@@ -5481,17 +5480,17 @@
       },
       "region": {
         "country": {
-          "abstention_rate": 0.045454545454545456,
+          "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 11,
-            "tn": 3,
+            "fp": 10,
+            "tn": 4,
             "tp": 8
           },
-          "f1": 0.5925925925925926,
+          "f1": 0.6153846153846153,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.7857142857142857,
-          "precision": 0.42105263157894735,
+          "false_positive_rate": 0.7142857142857143,
+          "precision": 0.4444444444444444,
           "recall": 1.0,
           "sample_size": 22,
           "status": "measured"
@@ -5627,17 +5626,17 @@
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.011627906976744186,
+          "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 4,
-            "fp": 15,
-            "tn": 36,
+            "fp": 14,
+            "tn": 37,
             "tp": 29
           },
-          "f1": 0.7532467532467532,
+          "f1": 0.7631578947368421,
           "false_negative_rate": 0.12121212121212122,
-          "false_positive_rate": 0.29411764705882354,
-          "precision": 0.6590909090909091,
+          "false_positive_rate": 0.27450980392156865,
+          "precision": 0.6744186046511628,
           "recall": 0.8787878787878788,
           "sample_size": 84,
           "status": "measured"
@@ -5741,17 +5740,17 @@
           "status": "measured"
         },
         "lever": {
-          "abstention_rate": 0.02631578947368421,
+          "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 5,
-            "tn": 25,
+            "fp": 4,
+            "tn": 26,
             "tp": 6
           },
-          "f1": 0.7058823529411764,
+          "f1": 0.7499999999999999,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.16666666666666666,
-          "precision": 0.5454545454545454,
+          "false_positive_rate": 0.13333333333333333,
+          "precision": 0.6,
           "recall": 1.0,
           "sample_size": 36,
           "status": "measured"

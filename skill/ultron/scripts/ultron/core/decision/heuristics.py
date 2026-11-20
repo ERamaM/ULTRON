@@ -27,6 +27,8 @@ from ultron.core.rules.hard_filters_data import (
     REMOTE_HINT_TERMS,
     ROLE_FAMILY_PASS_SCORE,
     SENIOR_REQUIRED_TERMS,
+    STUDENT_LEVEL_TITLE_TERMS,
+    STUDENT_LEVEL_TRIGGER_TERMS,
 )
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,
@@ -40,6 +42,7 @@ from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 logger = logging.getLogger(__name__)
 
 _SPANISH_REMOTE_FORMS = {"hibrido", "hibrida", "hibridos", "hibridas", "presenciales"}
+_LEADING_STAGE = re.compile(r"\s*stage\b", re.IGNORECASE)
 _EMPLOYMENT_LEVEL_FIELD = re.compile(
     r"^[ \t]*(?:employment type|experience level)[ \t]*:[ \t]*(?:\r?\n[ \t]*)?([^\r\n]+)",
     re.IGNORECASE | re.MULTILINE,
@@ -111,7 +114,7 @@ class HeuristicEvaluator:
         verdict, reason, category = self._decision(
             allowed_family, is_senior, full_remote, open_status, classification_signals
         )
-        if verdict != "discard" and self._excluded_optional_level(job):
+        if verdict != "discard" and (self._excluded_optional_level(job) or self._excluded_student_level(job)):
             verdict, reason, category = "discard", "seniority_not_senior", "seniority"
         if verdict != "discard" and self._location_excluded(job):
             verdict, reason, category = "discard", "location_excluded", "eligibility_scope"
@@ -175,6 +178,15 @@ class HeuristicEvaluator:
             return False
         evidence = "\n".join((job.title, *_EMPLOYMENT_LEVEL_FIELD.findall(job.body_text)))
         return bool(find_terms(evidence, profile.seniority_excluded_terms))
+
+    def _excluded_student_level(self, job: ExtractedJob) -> bool:
+        """A student or internship title, for a profile whose ``seniority.excluded_terms`` excludes interns."""
+        profile = self.cfg.evaluation_profile
+        if profile is None or not any(
+            normalize_text(term) in STUDENT_LEVEL_TRIGGER_TERMS for term in profile.seniority_excluded_terms
+        ):
+            return False
+        return bool(find_terms(job.title, STUDENT_LEVEL_TITLE_TERMS)) or bool(_LEADING_STAGE.match(job.title or ""))
 
     def _seniority_evidence_terms(self) -> set[str]:
         profile = getattr(self.cfg, "evaluation_profile", None)

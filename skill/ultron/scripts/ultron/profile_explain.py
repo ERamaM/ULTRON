@@ -110,6 +110,8 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
             "body_signal_terms": _list(criteria.get("role_signal_terms")),
         },
         "seniority": {
+            "effect": "the filter checks the level: preferred_terms mark the wanted level and excluded_terms an "
+                      "unwanted one (it can discard the posting); with required false, only excluded_terms count",
             "required": bool(seniority.get("required", True)),
             "preferred_terms": _list(seniority.get("preferred_terms")),
             "excluded_terms": _list(seniority.get("excluded_terms")),
@@ -129,8 +131,9 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
             "excluded_terms": list(scope["excluded_terms"]),
         },
         "title_exclusions": {
-            "effect": "titles containing these are skipped when job boards and feeds are listed; later they "
-                      "only lower the score",
+            "effect": "titles containing these (exclusion_terms and seniority.excluded_terms) are skipped when "
+                      "job boards and feeds are listed; afterwards exclusion_terms only lower the score, while "
+                      "seniority.excluded_terms keep marking a posting as the wrong level",
             "applied": [term for term in dict.fromkeys(profile_negatives) if _norm(term) in applied],
             "ignored": ignored,
         },

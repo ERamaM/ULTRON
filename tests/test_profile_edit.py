@@ -351,6 +351,27 @@ def test_history_lists_versions_newest_first_and_is_bounded(tmp_path, capsys, mo
     assert _run(capsys, "profile", "history", "ghost")[1]["error"] == "profile_not_found"
 
 
+def test_undo_to_the_oldest_version_survives_history_pruning(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(profiles, "HISTORY_LIMIT", 3)
+    _save_draft(tmp_path, capsys)
+    for term in ("A1", "B2", "C3"):
+        _run(capsys, "profile", "edit", SLUG, "--add", f"criteria.specialties={term}")
+    oldest = profiles.history(SLUG)[-1]["version"]
+    expected = (profiles._history_dir(SLUG) / f"{oldest}.yaml").read_bytes()
+    code, out = _run(capsys, "profile", "undo", SLUG, "--to", oldest)
+    assert code == 0, out
+    assert profiles.user_path(SLUG).read_bytes() == expected
+
+
+def test_edit_refuses_a_file_whose_slug_differs_from_its_name(capsys):
+    path = profiles.user_path("foo")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(_draft(slug="bar")), encoding="utf-8")
+    code, out = _run(capsys, "profile", "edit", "foo", "--add", "criteria.specialties=Rust")
+    assert code == 2 and out["error"] == "slug_mismatch"
+    assert not profiles.user_path("bar").exists()
+
+
 def test_history_folder_never_lists_as_a_profile(tmp_path, capsys):
     _save_draft(tmp_path, capsys)
     _run(capsys, "profile", "edit", SLUG, "--add", "criteria.specialties=Rust")
@@ -451,17 +472,24 @@ def test_explain_replays_a_run_with_a_draft_profile(tmp_path, capsys):
     code, out = _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", run_id)
     assert out["replay"]["compared_with_run"] is True and out["replay"]["changes"] == {}
     _save_draft(tmp_path, capsys)
+    folder = runs.run_dir(run_id)
+    before = {p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()}
     code, out = _run(capsys, "profile", "explain", SLUG, "--run", run_id)
     replay = out["replay"]
     assert replay["kept"] + replay["ambiguous"] + replay["discarded"] == 2
     assert replay["changes"], replay  # a backend profile treats the two postings differently
     example = next(iter(replay["examples"].values()))[0]
     assert set(example) >= {"title", "company", "before", "after"}
-    assert runs.read_jsonl(runs.run_dir(run_id) / "kept.jsonl") is not None  # the run's files are untouched
+    assert {p.name: p.read_bytes() for p in folder.iterdir() if p.is_file()} == before  # nothing written
 
 
 def test_explain_replay_errors(capsys):
     assert _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", "nope")[1]["error"] == "run_not_found"
     code, out = _run(capsys, "run", "new", "--profile", "ai-ml-remote-eu", "--preset", "fast")
-    code, out = _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", out["run_id"])
+    run_id = out["run_id"]
+    code, out = _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", run_id)
     assert code == 3 and out["error"] == "stage_order"
+    (runs.run_dir(run_id) / "postings.jsonl").write_text("{not json\n", encoding="utf-8")
+    runs.mark_stage(run_id, "fetch")
+    code, out = _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", run_id)
+    assert code == 2 and out["error"] == "stage_failed"

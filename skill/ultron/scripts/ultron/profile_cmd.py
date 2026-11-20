@@ -120,6 +120,9 @@ def _edit(args: argparse.Namespace) -> int:
     data, err = _load_saved(args.slug)
     if err is not None:
         return err
+    if data.get("slug") != args.slug:
+        return fail("slug_mismatch", f"{args.slug}.yaml declares slug {data.get('slug')!r}; fix the file first "
+                    "(`ultron profile validate` and `ultron profile save --force`)")
     try:
         operations = [profile_edit.parse_cli_operation(op, raw) for op, raw in (args.ops or [])]
         if args.source:
@@ -194,6 +197,8 @@ def _explain(args: argparse.Namespace) -> int:
             return fail("run_not_found", str(exc))
         except runs.StageOrderError as exc:
             return fail_stage_order(exc)
+        except (OSError, ValueError) as exc:  # same mapping as `ultron filter` for unreadable run files
+            return fail("stage_failed", str(exc))
     emit(payload)
     return 0
 
@@ -233,7 +238,7 @@ def register(subparsers) -> None:
     edit.add_argument("--remove", dest="ops", action="append", type=_op("remove"), metavar="FIELD=TERM",
                       help="remove a term (case and accents ignored)")
     edit.add_argument("--set", dest="ops", action="append", type=_op("set"), metavar="FIELD=VALUE",
-                      help="set a field; lists and true/false as JSON")
+                      help="set a field (true/false as is; a JSON list works, but prefer --from for lists)")
     edit.add_argument("--unset", dest="ops", action="append", type=_op("unset"), metavar="FIELD",
                       help="remove an optional field")
     edit.add_argument("--from", dest="source", help='JSON file with {"operations": [{"op", "path", "value"}]}')

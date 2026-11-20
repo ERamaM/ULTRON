@@ -58,6 +58,19 @@ def test_a_profile_without_a_home_country_keeps_single_country_postings(capsys):
     assert rows["Germany"]["evaluation_verdict"] == "keep"
 
 
+def test_the_body_opens_a_remote_job_but_not_an_onsite_one(capsys):
+    profile = json.loads(json.dumps(PROFILE))
+    profile["criteria"]["remote_policy"] = {"required": "any"}
+    europe = " Our teams work across Europe."
+    rows = _run(capsys, [
+        ("Senior Machine Learning Engineer", "Lyon, France", "On-site", ML_BODY + europe),
+        ("Senior Machine Learning Engineer", "Berlin, Germany", "Fully remote", ML_BODY + europe),
+    ], profile)
+    assert rows["Lyon, France"]["evaluation_verdict"] == "unsure"
+    assert "france" in rows["Lyon, France"]["eligibility_evidence"].lower()
+    assert rows["Berlin, Germany"]["evaluation_verdict"] == "keep"
+
+
 def test_a_remote_profile_sees_one_row_for_a_posting_listed_per_city(capsys):
     title = "Senior Machine Learning Engineer - Remote EU"
     rows = _run(capsys, [

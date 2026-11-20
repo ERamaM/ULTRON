@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Outpatient Registered Nurse - RN",
+  "location": "AZ104 Sun City - Clinic",
+  "remote_text": "Onsite AZ104 Sun City - Clinic",
+  "body_text": "Deliver outpatient dialysis patient care in accordance with company policy, standards of nursing practice, state and federal regulations. Current appropriate state licensure and CPR BLS certification. Must meet the practice requirements in the state in which he or she is employed. We maintain a drug-free workplace in accordance with applicable federal and state laws. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-004",
+  "is_open_hint": true
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Senior Data Analyst",
+  "location": "Mexico",
+  "remote_text": "Remote | Experience working effectively in a fully remote, distributed team environment.",
+  "body_text": "Build Tableau dashboards and SQL reporting for our global localization business. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-scope-007",
+  "is_open_hint": true
+}

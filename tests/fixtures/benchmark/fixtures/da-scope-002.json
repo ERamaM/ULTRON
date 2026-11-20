@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Staff Data Analyst",
+  "location": "Bangalore, India",
+  "remote_text": "Plan and prioritize work independently in a remote, cross-functional environment across time zones.",
+  "body_text": "Turn support data into actionable insights for our global support organization. Design dashboards, reports and data models in SQL. We hire team members in countries around the world; some roles carry specific location-based eligibility requirements. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-scope-002",
+  "is_open_hint": true
+}

@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-list-001
+profile: data-analyst-remote-latam
+language: en
+role_track: core
+seniority: senior
+remote_mode: country
+eligibility_label: ineligible
+vendor: greenhouse
+fixture: ../fixtures/da-list-001.json
+split: test
+labels:
+  relevant: false
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling, region-scope cases synthesized from session 3-4 postings), labelled from the text against data-analyst-remote-latam: not relevant (remote only in the US, Canada or the UK; no Latin American country is listed).'

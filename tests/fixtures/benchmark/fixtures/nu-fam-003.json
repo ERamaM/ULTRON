@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Nursing Assistant",
+  "location": "Cork, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Support registered nurses with patient care on the ward. QQI Level 5 in healthcare support required. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-fam-003",
+  "is_open_hint": true
+}

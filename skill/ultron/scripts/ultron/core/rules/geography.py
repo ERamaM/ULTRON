@@ -188,10 +188,32 @@ def profile_home_places(criteria: Mapping[str, Any] | None) -> tuple[str, ...]:
 
 
 _ANYWHERE_IN_PLACE = re.compile(r"\banywhere\s+in\s+(?:the\s+)?\w+")
+# A standalone upper-case "US" names the United States ("US Remote", "US-SF"); lower-case "us" is a pronoun.
+_US_CODE = re.compile(r"(?<![\w.])US(?![\w.])")
+# Northern Ireland is in the United Kingdom, so it must not read as the home country of an Ireland profile.
+_NORTHERN_IRELAND = re.compile(r"\bnorthern\s+ireland\b")
+
+
+def _place_text(text: str) -> str:
+    """Normalized text with "US" spelled out and "Northern Ireland" read as the United Kingdom."""
+    return _NORTHERN_IRELAND.sub("united kingdom", normalize_text(_US_CODE.sub("United States", text or "")))
+
+
+def _names_home(text: str, homes: Iterable[str]) -> bool:
+    """True when the text names a home place, read both as written and through ``_place_text``.
+
+    The rewritten text catches "US" for a United States profile; the text as written keeps a home place the
+    profile names itself ("Northern Ireland", "Belfast"). Only a plain "Ireland" home is not matched in the
+    text as written, because "Northern Ireland" contains it.
+    """
+    homes = tuple(homes)
+    as_written = tuple(home for home in homes if home != "ireland")
+    return bool(find_terms(_place_text(text), homes) or find_terms(normalize_text(text or ""), as_written))
 
 
 def other_country_restriction(
-    location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = ""
+    location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = "",
+    *, remote_job: bool = True,
 ) -> str | None:
     """The country a posting is limited to when it is none of the profile's home places, else ``None``.
 
@@ -200,6 +222,8 @@ def other_country_restriction(
     multi-country region ("Remote EU, Germany preferred"), or when the body does
     ("work remotely from anywhere in Ireland", "hiring across the EU"): when in doubt, nothing is limited.
     "Anywhere in the Netherlands" still names one country, so it does not count as a region.
+    The body is only read for a remote job (``remote_job``): an on-site or hybrid job is done at its location,
+    whatever regions the company blurb names.
     """
     places = profile_home_places(criteria)
     countries = [spelling for place in places if place in _COUNTRY_NAMES for spelling in _country_spellings(place)]
@@ -207,11 +231,12 @@ def other_country_restriction(
         return None
     extra = [normalize_text(term) for term in location_scope({"criteria": criteria or {}})["eligibility_terms"]]
     homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
-    text = f"{location}\n{remote_text}"
-    if names_wide_region(text) or find_terms(text, homes):
+    fields = f"{location}\n{remote_text}"
+    text = _place_text(fields)
+    if names_wide_region(text) or _names_home(fields, homes):
         return None
-    excerpt = normalize_text(body_text or "")
-    if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt)):
+    excerpt = _place_text(body_text) if remote_job else ""
+    if (remote_job and _names_home(body_text, homes)) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt)):
         return None
     named = find_terms(text, COUNTRY_TERMS)
     return named[0] if named else None

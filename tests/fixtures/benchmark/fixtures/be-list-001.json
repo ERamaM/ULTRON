@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "Czechia; Bulgaria; Ukraine; Poland; Hungary",
+  "remote_text": "Remote",
+  "body_text": "Build Go services for our global payments platform. We support remote work in the listed countries. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-list-001",
+  "is_open_hint": true
+}

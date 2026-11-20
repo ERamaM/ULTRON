@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Staff Nurse - Theatre",
+  "location": "Hillsborough, Northern Ireland, United Kingdom",
+  "remote_text": "On-site",
+  "body_text": "Synthetic Health Ireland careers. We are seeking a motivated Registered Nurse to join our growing theatres department in Hillsborough. We are Europe's leading provider of out-of-hospital healthcare in 14 countries. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-001",
+  "is_open_hint": true
+}

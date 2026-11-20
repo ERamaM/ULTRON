@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-fam-003
+profile: nurse-ireland-onsite
+language: en
+role_track: negative
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: confirmed
+vendor: generic_html
+fixture: ../fixtures/nu-fam-003.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling, region-scope cases synthesized from session 3-4 postings), labelled from the text against nurse-ireland-onsite: not relevant (a healthcare assistant role, not a registered nurse).'

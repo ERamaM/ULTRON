@@ -27,7 +27,7 @@ from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.seeds import load_inventory
 
 
@@ -267,11 +267,16 @@ def _candidate(seed, posting) -> CandidateUrl | None:
     )
 
 
-def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, int, dict[str, list], int]:
-    """Verify new ATS boards from ``seed_proposals_from_search.jsonl``, save them, and cache their postings."""
+def _verify_search_proposals(
+    run: dict, out_dir, *, timeout: int
+) -> tuple[int, int, dict[str, list], dict[str, int]]:
+    """Verify new ATS boards from ``seed_proposals_from_search.jsonl``, save them, and cache their postings.
+
+    The last item is the verification client's requests per host.
+    """
     rows = runs.read_jsonl(out_dir / seed_store.SEARCH_PROPOSALS_FILE)
     if not rows:
-        return 0, 0, {}, 0
+        return 0, 0, {}, {}
     verify_client = client_for_run(run)
     known = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
@@ -316,7 +321,7 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
             added = seed_store.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seed_store.SeedFileError:
             added = 0
-    return len(verified), added, prefetched, verify_client.requests_made
+    return len(verified), added, prefetched, verify_client.requests_by_host()
 
 
 def discover_ats(run_id: str) -> dict:
@@ -440,7 +445,8 @@ def discover_ats(run_id: str) -> dict:
         "seeds_failed": len(errors) - skipped,
         "seeds_skipped": skipped,
         "candidates": len(candidates),
-        "requests": client.requests_made + verify_requests,
+        "requests": client.requests_made + sum(verify_requests.values()),
+        "requests_by_domain": top_hosts(client.requests_by_host(), verify_requests),
         "seed_groups": groups,
         "seeds_deprioritized": yield_stats["deprioritized"],
         "seeds_exploration_reserved": yield_stats["exploration_reserved"],

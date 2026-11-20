@@ -81,7 +81,8 @@ Verified companies are stored for this profile and used by `discover ats` from n
 ultron discover feeds --run <run_id>
 ```
 
-Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "feed_links_not_postings": 4, "requests": 40}`
+Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "feed_links_not_postings": 4, "requests": 40,
+"requests_by_domain": [{"host": "www.arbeitnow.com", "requests": 3}, ...]}`
 
 Reads the public job feeds listed in the skill's `data/feeds.yaml` (remote-job APIs, RSS feeds and
 company lists). No agent input is needed. It does three things:
@@ -158,6 +159,7 @@ ultron discover ats --run <run_id>
 ```
 
 Output: `{"seeds_queried": 45, "seeds_failed": 2, "seeds_skipped": 0, "candidates": 310, "requests": 50,
+"requests_by_domain": [{"host": "boards-api.greenhouse.io", "requests": 12}, ...],
 "seed_groups": {"agent": {...}, "pack": {...}, "other": {...}, "feed": {...}},
 "seeds_deprioritized": 3, "seeds_exploration_reserved": 1,
 "search_proposals_verified": 2, "search_proposals_added": 2}`
@@ -194,11 +196,13 @@ get explored.
 ultron fetch --run <run_id>
 ```
 
-Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250}`
+Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250,
+"requests_by_domain": [{"host": "boards.greenhouse.io", "requests": 40}, ...]}`
 
 Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
 submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
-in `fetch_capped.jsonl`.
+in `fetch_capped.jsonl`. `requests_by_domain` (also in the `discover feeds` and `discover ats` outputs) lists
+the five domains with most requests, busiest first, to show where the request budget went.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.

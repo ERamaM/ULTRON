@@ -31,7 +31,7 @@ from ultron.core.rules.geography import geo_scope, location_scope, scoped_eligib
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
 from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.seeds import (
     COUNTRY_SLDS,
     FEED_PROPOSALS_FILE,
@@ -447,4 +447,5 @@ def discover_feeds(run_id: str) -> dict:
         "company_hints": len(proposals),
         "feed_links_not_postings": non_postings,
         "requests": client.requests_made,
+        "requests_by_domain": top_hosts(client.requests_by_host()),
     }

@@ -647,3 +647,34 @@ def test_jsonld_placeholder_values_are_treated_as_missing():
     assert fields["company"] == ""
     assert "UNAVAILABLE" not in fields["location"] and "Dublin" in fields["location"]
     assert base._extract_company_from_jobposting({"hiringOrganization": "n/a"}) == ""
+
+
+_PORTAL_PAGE = """
+<html><head>
+<meta property="og:site_name" content="Nurses"/>
+<script type="application/ld+json">
+{"@type": "JobPosting", "title": "Staff Nurse",
+ "hiringOrganization": {"@type": "Organization", "name": "UNAVAILABLE"},
+ "jobLocation": {"address": {"addressLocality": "Dublin", "addressCountry": "IE"}}}
+</script>
+</head><body><h1>Staff Nurse</h1></body></html>
+"""
+
+
+def test_ats_company_hint_beats_a_portal_site_name():
+    # S5 (session 2): an iCIMS hospital portal named "Nurses" in og:site_name became the employer of every
+    # posting once the "UNAVAILABLE" JSON-LD company was dropped. The seed's company is the better name.
+    url = "https://nurses-examplehospital.icims.com/jobs/1234/staff-nurse/job"
+    hints = {"company": "Example Hospital"}
+    for parse in (base.parse_generic, base.parse_with_overrides):
+        job = parse(_page(_PORTAL_PAGE, final_url=url), ats_hints=hints)
+        assert job.company == "Example Hospital"
+        assert job._field_provenance["company"] == "ats_hint"
+    # With no hint the site name is still the best the page offers.
+    assert base.parse_generic(_page(_PORTAL_PAGE, final_url=url)).company == "Nurses"
+
+
+def test_jsonld_company_still_beats_the_ats_company_hint():
+    html = _PORTAL_PAGE.replace('"UNAVAILABLE"', '"Example Hospital Group"')
+    job = base.parse_generic(_page(html), ats_hints={"company": "Example Hospital"})
+    assert job.company == "Example Hospital Group"

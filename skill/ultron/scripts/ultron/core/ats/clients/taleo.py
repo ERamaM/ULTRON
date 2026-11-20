@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import re
+
+from bs4 import BeautifulSoup
+
 from ultron.core.ats.clients.base import (
     AtsClientError,
     AtsHTTPClient,
@@ -10,6 +14,19 @@ from ultron.core.ats.clients.base import (
     refuse_browser_fallback,
 )
 from ultron.net import RequestBudgetExceeded
+
+# Empty-state wording of a career section with no openings. Without listings or this wording the markup is
+# unparseable (script-rendered or changed), which is reported as an error rather than as an empty board.
+_EMPTY_BOARD_RE = re.compile(
+    r"\bno (?:jobs|job openings|open positions|openings|vacancies)\b"
+    r"|\bthere are (?:currently )?no (?:jobs|job openings|open positions|openings|vacancies)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_empty_board(html: str) -> bool:
+    text = " ".join(BeautifulSoup(html or "", "html.parser").get_text(" ").split())
+    return bool(_EMPTY_BOARD_RE.search(text))
 
 
 def fetch_taleo_jobs(
@@ -36,5 +53,7 @@ def fetch_taleo_jobs(
                 apply_url=apply_url,
             )
         )
-    # Empty board (or unparseable HTML) is not an error.
+    # No pagination: only the first page of a career section is read (multi-page Taleo boards are a no-go).
+    if not postings and not _is_empty_board(html):
+        raise AtsClientError("unparseable_board")
     return postings

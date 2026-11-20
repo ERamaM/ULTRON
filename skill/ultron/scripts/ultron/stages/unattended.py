@@ -22,24 +22,30 @@ def verify_feed_companies(run_id: str) -> dict:
     client = client_for_run(run, max_requests_per_host=settings["max_pages"])
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     verified = []
+    unconfirmed_seeds = []
     tried = 0
+    page_hops = seeds.PageHops()
     for row in rows:
         tried += 1
         result = seeds.verify_proposal(
             seeds.Proposal(**{k: str(row.get(k) or "").strip() for k in keys}),
-            client=client, timeout=settings["ats_api_timeout"],
+            client=client, timeout=settings["ats_api_timeout"], page_hops=page_hops,
         )
         if result.status == "verified" and result.seed:
             verified.append(seeds.as_feed_company(result.seed))
+        elif (unconfirmed := seeds.stored_seed(result)) is not None:
+            unconfirmed_seeds.append(unconfirmed)  # tagged guessed board, low priority (seed_yield decides)
+            if result.reason == "budget_exhausted":
+                break
         elif result.reason == "budget_exhausted":
             break
     added = 0
-    if verified:
+    if verified or unconfirmed_seeds:
         try:
-            added = seeds.add_seeds(verified, profile_slug=run["profile_slug"])
+            added = seeds.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seeds.SeedFileError:
             added = 0
-    return {"tried": tried, "verified": len(verified), "seeds_added": added}
+    return {"tried": tried, "verified": len(verified), "unconfirmed": len(unconfirmed_seeds), "seeds_added": added}
 
 
 def run_unattended(profile_slug: str, preset: str, overrides: dict | None = None) -> dict:

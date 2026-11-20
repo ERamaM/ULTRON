@@ -32,22 +32,22 @@ def _list(args: argparse.Namespace) -> int:
 
 @_guard
 def _mark(args: argparse.Namespace) -> int:
-    review.set_state(args.identity_key, args.state)
-    emit({"identity_key": review.resolve_key(args.identity_key), "review_state": args.state})
+    key = review.set_state(args.identity_key, args.state)
+    emit({"identity_key": key, "review_state": args.state})
     return 0
 
 
 @_guard
 def _note(args: argparse.Namespace) -> int:
-    review.add_note(args.identity_key, args.text)
-    emit({"identity_key": review.resolve_key(args.identity_key), "noted": True})
+    key = review.add_note(args.identity_key, args.text)
+    emit({"identity_key": key, "noted": True})
     return 0
 
 
 @_guard
 def _feedback(args: argparse.Namespace) -> int:
-    review.set_feedback(args.identity_key, args.relevance, args.reason, args.note)
-    emit({"identity_key": review.resolve_key(args.identity_key), "relevance": args.relevance, "reason_code": args.reason})
+    key = review.set_feedback(args.identity_key, args.relevance, args.reason, args.note)
+    emit({"identity_key": key, "relevance": args.relevance, "reason_code": args.reason})
     return 0
 
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "es",
+  "title": "Especialista Ingenieria Frontend 036",
+  "location": "Union Europea",
+  "remote_text": "Teletrabajo en la Union Europea",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia relevante no especificada. Se aceptan candidaturas desde la Union Europea. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-036",
+  "is_open_hint": true
+}

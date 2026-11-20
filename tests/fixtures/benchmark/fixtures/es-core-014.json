@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "es",
+  "title": "Senior Ingenieria Machine Learning 014",
+  "location": "Estados Unidos",
+  "remote_text": "Teletrabajo solo desde Estados Unidos",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; experiencia de nivel senior. Es obligatorio residir en Estados Unidos. La oferta esta cerrada y no acepta solicitudes.",
+  "apply_url": "https://jobs.example.test/es-core-014",
+  "is_open_hint": false
+}

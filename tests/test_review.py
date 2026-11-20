@@ -107,3 +107,16 @@ def test_cli_jobs(capsys):
     assert main(["jobs", "new-since", "r1"]) == 0
     capsys.readouterr()
     assert main(["jobs", "mark", "https://nowhere.example/x/1", "applied"]) != 0
+
+
+def test_url_resolves_a_job_recorded_with_source_hints():
+    embedded = "https://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789"
+    row = _row(embedded).model_copy(update={"source_type": "ats_api", "source_key": "ashby:acme"})
+    with closing(ledger.connect()) as conn:
+        _run(conn, "r1", 0, [row])
+    stored = "ashby:acme:0b1c2d3e-4f50-6789-abcd-ef0123456789"
+    assert review.set_state(embedded + "&utm_source=x", "applied") == stored  # the bare URL identity differs
+    assert review.add_note(embedded, "called back") == stored
+    assert review.set_feedback(embedded, "relevant") == stored
+    (job,) = review.list_jobs(state="applied")
+    assert job["identity_key"] == stored and "called back" in job["notes"]

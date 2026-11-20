@@ -58,6 +58,37 @@ def test_registry_rejects_marketing_pages_and_accepts_schemeless_urls():
     assert extract_seed_from_url("https://www.comeet.com", "Spark Hire") is None
 
 
+@pytest.mark.parametrize("url", [
+    "https://www.icims.com/products",
+    "https://icims.com/",
+    "https://www.taleo.net/solutions",
+    "https://www.smartrecruiters.com/hr-software",
+    "https://smartrecruiters.com/recruiting-software",
+    "https://www.factorialhr.com/time-tracking",
+    "https://factorialhr.com/es/pricing",
+    "https://www.pinpointhq.com/features",
+    "https://www.applytojob.com/features",
+    "https://www.myworkdayjobs.com/External",
+])
+def test_vendor_marketing_hosts_are_never_boards(url):
+    assert extract_seed_from_url(url, "Acme") is None
+
+
+@pytest.mark.parametrize(("url", "board"), [
+    ("https://careers-acme.icims.com/jobs/1/job", "careers-acme.icims.com"),
+    ("https://acme.taleo.net/careersection/ext/jobsearch.ftl", "acme.taleo.net/careersection/ext"),
+    ("https://jobs.smartrecruiters.com/Acme/123", "acme"),
+    ("https://jobs.factorialhr.com/acme", "acme"),
+    ("https://acme.factorialhr.com/", "acme"),
+    ("https://acme.pinpointhq.com/postings/1", "acme"),
+    ("https://acme.applytojob.com/apply/x", "acme"),
+    ("https://www.comeet.com/jobs/acme/41.001", "acme"),
+    ("https://www.smartrecruiters.com/Acme/743999123456789-senior-engineer", "acme"),
+])
+def test_tenant_hosts_next_to_marketing_hosts_still_give_boards(url, board):
+    assert extract_seed_from_url(url, "Acme").board_identifier == board
+
+
 def test_registry_lookup_and_probe_contracts():
     assert get_vendor_spec("GREENHOUSE").name == "greenhouse"
     assert get_vendor_spec("") is None

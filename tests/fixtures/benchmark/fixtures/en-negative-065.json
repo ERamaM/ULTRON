@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "empty_dynamic",
+  "vendor": "empty_dynamic",
+  "language": "en",
+  "title": "Junior Frontend Engineer 065",
+  "location": "Worldwide",
+  "remote_text": "Remote worldwide",
+  "body_text": "Build web interfaces and design systems; early-career experience. Work may be performed from any country. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-negative-065",
+  "is_open_hint": true
+}

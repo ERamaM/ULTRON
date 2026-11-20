@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "purpose": "Synthetic relevance labels for the bundled ai-ml-remote-eu example profile. Not real-world ground truth.",
+  "profile_slug": "ai-ml-remote-eu",
+  "rubric_version": 1,
+  "labels": {
+    "en-positive-shape-01": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-02": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-03": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-04": {
+      "label": "ambiguous",
+      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+    },
+    "en-positive-shape-05": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-06": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-07": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-positive-shape-08": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-01": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-02": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-03": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-04": {
+      "label": "ambiguous",
+      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+    },
+    "es-positive-shape-05": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-06": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-07": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "es-positive-shape-08": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "en-negative-shape-01": {
+      "label": "not_relevant",
+      "reason": "The posting requires US residence."
+    },
+    "en-negative-shape-02": {
+      "label": "not_relevant",
+      "reason": "The posting requires hybrid office attendance."
+    },
+    "en-negative-shape-03": {
+      "label": "not_relevant",
+      "reason": "The posting requires on-site work."
+    },
+    "en-negative-shape-04": {
+      "label": "not_relevant",
+      "reason": "The title specifies a junior role."
+    },
+    "en-negative-shape-05": {
+      "label": "not_relevant",
+      "reason": "The role is management rather than an engineering role."
+    },
+    "en-negative-shape-06": {
+      "label": "not_relevant",
+      "reason": "The role is frontend engineering rather than AI or ML engineering."
+    },
+    "en-negative-shape-07": {
+      "label": "not_relevant",
+      "reason": "The posting explicitly says it is closed."
+    },
+    "en-negative-shape-08": {
+      "label": "not_relevant",
+      "reason": "The position has been filled and has no application form."
+    },
+    "es-negative-shape-01": {
+      "label": "not_relevant",
+      "reason": "The posting requires US residence."
+    },
+    "es-negative-shape-02": {
+      "label": "not_relevant",
+      "reason": "The posting requires hybrid office attendance."
+    },
+    "es-negative-shape-03": {
+      "label": "not_relevant",
+      "reason": "The posting requires on-site work."
+    },
+    "es-negative-shape-04": {
+      "label": "not_relevant",
+      "reason": "The title specifies a junior role."
+    },
+    "es-negative-shape-05": {
+      "label": "not_relevant",
+      "reason": "The role is management rather than an engineering role."
+    },
+    "es-negative-shape-06": {
+      "label": "not_relevant",
+      "reason": "The role is frontend engineering rather than AI or ML engineering."
+    },
+    "es-negative-shape-07": {
+      "label": "not_relevant",
+      "reason": "The posting explicitly says it is closed."
+    },
+    "es-negative-shape-08": {
+      "label": "not_relevant",
+      "reason": "The position has been filled and has no application form."
+    },
+    "en-ambiguous-shape-01": {
+      "label": "ambiguous",
+      "reason": "The title does not state a senior, staff, principal, or lead level."
+    },
+    "en-ambiguous-shape-02": {
+      "label": "ambiguous",
+      "reason": "The data engineering title and mixed duties do not establish an AI or ML engineering family."
+    },
+    "en-ambiguous-shape-03": {
+      "label": "ambiguous",
+      "reason": "Geographic eligibility is not stated."
+    },
+    "en-ambiguous-shape-04": {
+      "label": "ambiguous",
+      "reason": "The workplace arrangement is not stated."
+    },
+    "en-ambiguous-shape-05": {
+      "label": "ambiguous",
+      "reason": "The flexible distributed arrangement does not establish fully remote work."
+    },
+    "en-ambiguous-shape-06": {
+      "label": "ambiguous",
+      "reason": "The seniority level and EU eligibility are not stated."
+    },
+    "en-ambiguous-shape-07": {
+      "label": "ambiguous",
+      "reason": "The platform engineering title and mixed duties do not establish an AI or ML engineering family."
+    },
+    "en-ambiguous-shape-08": {
+      "label": "ambiguous",
+      "reason": "The remote-friendly arrangement does not establish fully remote work."
+    },
+    "es-ambiguous-shape-01": {
+      "label": "ambiguous",
+      "reason": "The title does not state a senior, staff, principal, or lead level."
+    },
+    "es-ambiguous-shape-02": {
+      "label": "ambiguous",
+      "reason": "The data engineering title and mixed duties do not establish an AI or ML engineering family."
+    },
+    "es-ambiguous-shape-03": {
+      "label": "ambiguous",
+      "reason": "Geographic eligibility is not stated."
+    },
+    "es-ambiguous-shape-04": {
+      "label": "ambiguous",
+      "reason": "The workplace arrangement is not stated."
+    },
+    "es-ambiguous-shape-05": {
+      "label": "ambiguous",
+      "reason": "The flexible distributed arrangement does not establish fully remote work."
+    },
+    "es-ambiguous-shape-06": {
+      "label": "ambiguous",
+      "reason": "The seniority level and EU eligibility are not stated."
+    },
+    "es-ambiguous-shape-07": {
+      "label": "ambiguous",
+      "reason": "The platform engineering title and mixed duties do not establish an AI or ML engineering family."
+    },
+    "es-ambiguous-shape-08": {
+      "label": "ambiguous",
+      "reason": "The remote-friendly arrangement does not establish fully remote work."
+    },
+    "q-mid-level": {
+      "label": "not_relevant",
+      "reason": "The title specifies a mid-level rather than senior role."
+    },
+    "q-distinguished": {
+      "label": "ambiguous",
+      "reason": "The title does not state senior, staff, principal, or lead level."
+    },
+    "q-exclusion-manager-title": {
+      "label": "not_relevant",
+      "reason": "The title and duties describe an engineering manager."
+    },
+    "q-excluded-location": {
+      "label": "not_relevant",
+      "reason": "The posting explicitly restricts remote work to the US."
+    },
+    "q-seniority-ambiguous": {
+      "label": "ambiguous",
+      "reason": "Years of experience do not explicitly state the required seniority level."
+    },
+    "q-no-remote-mention": {
+      "label": "ambiguous",
+      "reason": "The workplace arrangement is not stated."
+    },
+    "q-hybrid-explicit": {
+      "label": "not_relevant",
+      "reason": "The posting explicitly requires hybrid office attendance."
+    },
+    "q-emea-only": {
+      "label": "ambiguous",
+      "reason": "EMEA alone does not explicitly establish eligibility from the EU or Spain."
+    },
+    "q-cet-substring": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "q-leuven-region-name": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    },
+    "q-neuquen-region-name": {
+      "label": "not_relevant",
+      "reason": "The posting restricts remote work to Argentina."
+    },
+    "q-es-senior-remoto-espana": {
+      "label": "relevant",
+      "reason": "The AI or ML role has a stated eligible level, fully remote European scope, and an open application."
+    }
+  }
+}

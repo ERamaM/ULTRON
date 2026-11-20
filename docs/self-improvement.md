@@ -282,6 +282,39 @@ Known limits of the corpus:
 - The added profiles have 20 to 32 labelled cases each, so one case moves a profile's recall by
   5 to 10 points.
 
+## Open quality hypotheses
+
+Self-improvement session 8 (2026-11-20) closed the live passes for this cycle. It ran six live
+runs with no code changes, found no robustness bug, and hit no 403, 429 or challenge page. These
+hypotheses were found live, ordered by how many wrong rows each caused, and are not applied. Each
+one needs labelled benchmark cases before a change is tried, per the QUALITY gate above.
+
+Wrong keeps:
+
+1. A remote posting placed in another country (Spain, Germany, France, India) is kept when the
+   eligibility is unknown.
+2. US-only, "Americas" or "North America" remote postings are kept for EU and UK profiles.
+3. A state-licence requirement written without the word "state" is missed: location "Wyoming",
+   body "Active medical license in Wyoming".
+4. Northern Ireland and Spain rows still reach an Ireland shortlist.
+5. A remote posting that names no region is kept.
+6. Hybrid is read inconsistently: "Full remote from Spain" and "Hybrid or fully remote" are
+   discarded, while a "Hybrid working mode" benefit line is kept. A hybrid job can also read as
+   remote.
+
+Wrong discards:
+
+7. "Anywhere in Latin America" does not open a posting for a Latin American profile.
+8. Clinical Nurse Specialist and CNM titles are lost; dropping "specialist" from the family
+   nouns measured 0.907 precision but breaks a Spanish family-noun test as written.
+9. The European pre-filter reads "Virginia" and ", CO." in two Irish town names as US places, and
+   drops a "Europe; London" designer posting for a reason not yet traced.
+10. Two Barcelona postings (backend profile) and "Person in Charge (Nursing)" are discarded.
+
+Session 8 also showed that the session 6 and 7 changes moved rows from keep to unsure, but unsure
+rows still reach the shortlist, so live precision with unsure counted barely moved. Whether unsure
+rows belong on the shortlist is an owner decision.
+
 ## Vendor no-go decisions
 
 The MARK II project closed a feasibility review of these vendors as no-go. Do not add or extend

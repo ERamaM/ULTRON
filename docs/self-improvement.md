@@ -238,15 +238,16 @@ Irish nursing jobs, and the second moved no case. These numbers come from cases 
 hypotheses, so read them as a regression gate, not as live precision.
 
 The 27 region-scope cases lowered that baseline to 0.736 / 0.886 / 0.804 (tp 39, fp 14, fn 5,
-tn 135) on 210 cases. Two accepted fixes followed: company-scope words ("global", "international")
-and the bodies of jobs that are not remote no longer open a posting placed in another country
-(0.812 / 0.886 / 0.848), and "US" and Northern Ireland read as countries outside an Ireland or
-Latin American home (0.886 / 0.886 / 0.886, tp 39, fp 5, fn 5, tn 144). The 60-case pin did not
-move. Three hypotheses were measured and not accepted: a keep that names no place of the scope
-anywhere becoming unsure (new false negative: an Irish town outside the profile's terms), "Nursing"
-read as the noun "nurse" (admits nursing-home and assistant roles), and dropping the qualifier
-"specialist" of "Clinical Nurse Specialist" from the family nouns (passes the gates, but it is a third
-quality change of the session and breaks a Spanish family-noun test as written).
+tn 135) on 210 cases. Two quality changes were accepted, within the session cap: the body of a job
+that is not full remote no longer opens a posting placed in another country, and "US" and Northern
+Ireland read as countries outside an Ireland or Latin American home. Together they measure 0.796 /
+0.886 / 0.839 (tp 39, fp 10, fn 5, tn 139); the 60-case pin did not move. Deferred hypotheses,
+measured but not applied: "global" and "international" in the body no longer counting as a region
+(0.736 -> 0.780 alone, 0.886 on top of the two accepted changes; deferred by the cap), and dropping the
+qualifier "specialist" of "Clinical Nurse Specialist" from the family nouns (0.907 when stacked on all
+three; breaks a Spanish family-noun test as written). Rejected: a keep that names no place of the
+scope anywhere becoming unsure (new false negative: an Irish town outside the profile's terms), and
+"Nursing" read as the noun "nurse" (admits nursing-home and assistant roles).
 
 The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
 fn 7, tn 60). The pull request that applies a quality change records its before and after

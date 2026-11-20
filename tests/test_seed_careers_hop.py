@@ -79,6 +79,9 @@ def test_aggregator_page_with_several_boards_only_accepts_the_company_one():
     other_boards = page("https://boards.greenhouse.io/othercorp", "https://boards.greenhouse.io/thirdcorp")
     client = make_client(site({url: other_boards}, boards=("othercorp", "thirdcorp")))
     assert verify_proposal(Proposal("Zentro Labs", source_url=url), client=client, timeout=5).status == "unresolved"
+    # Even a single linked board must carry the company key (or the vendor's name for it).
+    client = make_client(site({url: page("https://boards.greenhouse.io/othercorp")}, boards=("othercorp",)))
+    assert verify_proposal(Proposal("Zentro Labs", source_url=url), client=client, timeout=5).status == "unresolved"
     client = make_client(site({url: page("https://boards.greenhouse.io/othercorp",
                                          "https://boards.greenhouse.io/zentro-labs")},
                               boards=("othercorp", "zentro-labs")))
@@ -108,6 +111,32 @@ def test_redirect_off_the_page_domain_is_not_followed():
                           timeout=5)
     assert res.reason == "no_board_found"
     assert seen == ["acme.example"]
+
+
+def test_careers_page_redirecting_to_its_hosted_board_verifies():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "acme.example":
+            return httpx.Response(302, headers={"Location": "https://boards.greenhouse.io/acmeco"})
+        if request.url.host == "boards.greenhouse.io":
+            return httpx.Response(200, text="<html><body>Acme jobs</body></html>")
+        if request.url.host == "boards-api.greenhouse.io" and request.url.path == "/v1/boards/acmeco/jobs":
+            return httpx.Response(200, json=gh_jobs("acmeco"))
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme", careers_url="https://acme.example/careers"), client=make_client(handler),
+                          timeout=5)
+    assert res.status == "verified" and res.seed.board_identifier == "acmeco"
+
+
+def test_careers_url_on_a_job_site_without_domain_is_judged_like_an_aggregator():
+    url = "https://jobsite.example/careers/acme-123"
+    client = make_client(site({url: page("https://boards.greenhouse.io/othercorp")}, boards=("othercorp",)))
+    res = verify_proposal(Proposal("Acme", careers_url=url), client=client, timeout=5)
+    assert res.reason == "no_board_found"
+    client = make_client(site({url: page("https://boards.greenhouse.io/othercorp", "https://boards.greenhouse.io/acme")},
+                              boards=("othercorp", "acme")))
+    res = verify_proposal(Proposal("Acme", careers_url=url), client=client, timeout=5)
+    assert res.status == "verified" and res.seed.board_identifier == "acme"
 
 
 def test_careers_page_on_a_private_address_is_never_requested():

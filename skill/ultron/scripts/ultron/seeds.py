@@ -28,6 +28,7 @@ from ultron import home
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.identity import seed_identity
 from ultron.core.ats.registry import GENERIC_BOARD_IDENTIFIERS, extract_seed_from_url, is_direct_supported_ats_host
+from ultron.core.ats.vendors import SUPPORTED_ATS_DOMAINS
 from ultron.core.feeds.urls import AGGREGATOR_DOMAINS, fetch_page_links, looks_like_company_jobs_url
 from ultron.core.models import AtsBoardSeed
 from ultron.core.sectors import seed_sector_values
@@ -503,9 +504,8 @@ def guessed_board_ownership(p: Proposal, board: str, jobs) -> Literal["owned", "
     if domain_label and slug == domain_label:
         return "owned"
     words = _core_company_words(p.company)
-    keys = {"".join(words), "".join(re.findall(r"[a-z0-9]+", ascii_fold(p.company)))} - {""}
     vendor_names = _vendor_company_names(jobs)
-    if vendor_names and not vendor_names & keys:
+    if vendor_names and not vendor_names & _company_keys(p.company):
         return "wrong_tenant"
     if len(words) < 2 or len("".join(words)) < _SHORT_COMPANY_KEY:
         return "ownership_unknown"
@@ -558,11 +558,12 @@ class PageHops:
 
 
 class _DomainScopedPages:
-    """``fetch_page_links`` client whose requests and redirect hops stay on one registrable domain."""
+    """``fetch_page_links`` client whose requests and redirect hops stay on the page's registrable domain or a
+    supported ATS domain (a careers page that redirects to its hosted board)."""
 
     def __init__(self, client: HttpClient, domain: str) -> None:
         self._client = client
-        self._domains = (domain,)
+        self._domains = (domain, *SUPPORTED_ATS_DOMAINS)
 
     def get_text(self, url: str) -> tuple[int, str, str]:
         return self._client.get_text(url, allowed_domains=self._domains)
@@ -572,8 +573,9 @@ def _page_hop_target(p: Proposal, *, explicit: bool) -> tuple[str, str, str] | N
     """``(url, registrable domain, kind)`` of the page to follow, kind ``company`` or ``aggregator``.
 
     With an explicit proposal only a ``careers_url`` that is not an ATS URL qualifies; otherwise the
-    ``source_url`` (a feed posting page) does. A company page must sit on the proposal's domain (or, for an
-    agent's ``careers_url`` without ``domain``, look like a careers page); aggregator pages always qualify.
+    ``source_url`` (a feed posting page) does. A page is the company's own when it sits on the proposal's
+    domain or, without a domain, when its domain label is the company key. Aggregator pages, and an agent's
+    careers-looking ``careers_url`` on a domain that does not name the company, are judged as aggregators.
     """
     url = (p.careers_url if explicit else p.source_url).strip()
     if not url or urlparse(url).scheme not in {"http", "https"} or extract_seed_from_url(url, "") is not None:
@@ -584,20 +586,28 @@ def _page_hop_target(p: Proposal, *, explicit: bool) -> tuple[str, str, str] | N
     if reg in _AGGREGATOR_REGISTRABLE:
         return url, reg, "aggregator"
     own = registrable_domain(p.domain)
-    if (own and reg == own) or (explicit and not own and looks_like_company_jobs_url(url)):
+    if own:
+        return (url, reg, "company") if reg == own else None
+    if domain_slug(reg).replace("-", "") in _company_keys(p.company):
         return url, reg, "company"
+    if explicit and looks_like_company_jobs_url(url):
+        return url, reg, "aggregator"
     return None
 
 
-def _aggregator_board_is_company(p: Proposal, board: str, jobs, *, single: bool) -> bool:
-    """An aggregator page links other companies' boards too: accept the only board it links, or one whose slug
-    is the company key; never one whose vendor names another company."""
-    words = _core_company_words(p.company)
-    keys = {"".join(words), "".join(re.findall(r"[a-z0-9]+", ascii_fold(p.company)))} - {""}
+def _company_keys(company: str) -> set[str]:
+    """The company key with and without legal forms ("acme", "acmegmbh" for "Acme GmbH")."""
+    return {company_key(company), "".join(re.findall(r"[a-z0-9]+", ascii_fold(company)))} - {""}
+
+
+def _aggregator_board_is_company(p: Proposal, board: str, jobs) -> bool:
+    """A page that does not belong to the company links other companies' boards too: accept a board whose slug
+    is the company key or whose vendor reports the company's name, never one whose vendor names another."""
+    keys = _company_keys(p.company)
     vendor_names = _vendor_company_names(jobs)
-    if vendor_names and not vendor_names & keys:
-        return False
-    return single or board.lower().replace("-", "") in keys
+    if vendor_names:
+        return bool(vendor_names & keys)
+    return board.lower().replace("-", "") in keys
 
 
 def _linked_boards(links: list[str]) -> list[tuple[str, str]]:
@@ -644,7 +654,7 @@ def verify_proposal(
     answered: dict[tuple[str, str], list] = {}  # boards that answered, with their postings
 
     def probe(candidates: list[tuple[str, str]], mode: str) -> VerifyResult | None:
-        """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page (single = 1 board)."""
+        """Try ``candidates``; ``mode``: explicit | guess | company_page | aggregator_page."""
         nonlocal unsupported, invalid, host_budget, budget_spent, doubtful
         for ats, board in candidates:
             key = seed_identity(ats, board)
@@ -686,7 +696,7 @@ def verify_proposal(
                     if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
                         doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
                     continue
-            if mode == "aggregator_page" and not _aggregator_board_is_company(p, board, jobs, single=len(candidates) == 1):
+            if mode == "aggregator_page" and not _aggregator_board_is_company(p, board, jobs):
                 continue
             try:
                 seed = _build_seed(p, ats, board, len(jobs))

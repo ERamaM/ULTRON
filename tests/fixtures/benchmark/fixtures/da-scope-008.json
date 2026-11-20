@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "BI Analyst",
+  "location": "Remote",
+  "remote_text": "Remote",
+  "body_text": "Own Tableau and Power BI reporting. We are a global team, and you can work from anywhere in Latin America. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-scope-008",
+  "is_open_hint": true
+}

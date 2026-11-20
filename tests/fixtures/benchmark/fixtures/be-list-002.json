@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "United Kingdom; Bulgaria; Poland; Romania",
+  "remote_text": "Remote",
+  "body_text": "Build Python APIs for a global cloud platform used worldwide. Remote in the listed countries. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-list-002",
+  "is_open_hint": true
+}

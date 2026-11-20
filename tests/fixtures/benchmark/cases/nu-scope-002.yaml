@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-scope-002
+profile: nurse-ireland-onsite
+language: en
+role_track: core
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: ineligible
+vendor: generic_html
+fixture: ../fixtures/nu-scope-002.json
+split: test
+labels:
+  relevant: false
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling, region-scope cases synthesized from session 3-4 postings), labelled from the text against nurse-ireland-onsite: not relevant (an on-site job in Belfast, Northern Ireland, outside the profile''s Irish scope).'

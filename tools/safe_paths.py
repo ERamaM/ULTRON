@@ -1,18 +1,32 @@
 """File locations for the developer tools.
 
-Reports are always read from and written to one fixed folder, ``<system temp>/ultron-eval``. On the
-command line a report is a bare file name, never a path, so no tool argument can point anywhere else.
-Report files are run artifacts and stay out of the repository.
+Reports are always read from and written to one fixed per-user folder,
+``<system temp>/ultron-eval-<user>`` (created 0700 and checked to belong to the current user on POSIX).
+On the command line a report is a bare file name, never a path, so no tool argument can point anywhere
+else. Report files are run artifacts, are redacted before writing, and stay out of the repository.
 """
 
 from __future__ import annotations
 
+import getpass
 import os
 import re
+import stat
 import tempfile
 from pathlib import Path
 
-REPORTS_DIR = os.path.join(tempfile.gettempdir(), "ultron-eval")
+from ultron.core.privacy import redact
+
+
+def _user_tag() -> str:
+    try:
+        user = getpass.getuser()
+    except (KeyError, OSError):  # no login name available
+        user = str(os.getuid()) if hasattr(os, "getuid") else "user"
+    return re.sub(r"[^A-Za-z0-9_-]", "_", user) or "user"
+
+
+REPORTS_DIR = os.path.join(tempfile.gettempdir(), f"ultron-eval-{_user_tag()}")
 REPORT_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*(?:\.[A-Za-z0-9_-]+)*")
 
 
@@ -41,14 +55,30 @@ def check_report_names(*raw_names: str | os.PathLike[str]) -> None:
         _check_target(os.path.join(REPORTS_DIR, _report_name(raw)))
 
 
+def _private_reports_dir() -> str:
+    """Create the reports folder 0700; refuse one that is a symlink or belongs to another user."""
+    os.makedirs(REPORTS_DIR, mode=0o700, exist_ok=True)
+    info = os.lstat(REPORTS_DIR)
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise UnsafePathError(f"{REPORTS_DIR} is not a plain folder")
+    if hasattr(os, "getuid"):
+        if info.st_uid != os.getuid():
+            raise UnsafePathError(f"{REPORTS_DIR} belongs to another user")
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            os.chmod(REPORTS_DIR, 0o700)
+    return REPORTS_DIR
+
+
 def write_report(raw_name: str | os.PathLike[str], text: str) -> Path:
-    """Write ``text`` to ``REPORTS_DIR/<name>`` and return that path."""
+    """Write redacted ``text`` to ``REPORTS_DIR/<name>`` (0600, never through a symlink); return the path."""
     name = _report_name(raw_name)
-    os.makedirs(REPORTS_DIR, exist_ok=True)
-    path = os.path.join(REPORTS_DIR, name)
+    folder = _private_reports_dir()
+    path = os.path.join(folder, name)
     _check_target(path)
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(text)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(str(redact(text)))
     return Path(path)
 
 

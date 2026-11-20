@@ -267,8 +267,9 @@ class HttpClient:
 
     # -- public API ------------------------------------------------------
 
-    def get_text(self, url: str) -> tuple[int, str, str]:
-        return self._fetch("GET", url, None)
+    def get_text(self, url: str, *, allowed_domains: tuple[str, ...] = ()) -> tuple[int, str, str]:
+        """``(status, final_url, text)``; ``allowed_domains`` (host suffixes) is enforced on every redirect hop."""
+        return self._fetch("GET", url, None, allowed_domains=allowed_domains)
 
     def request_text(
         self, url: str, timeout: float | None = None, *, allowed_domains: tuple[str, ...] = ()

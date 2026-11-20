@@ -9,11 +9,13 @@ else. Report files are run artifacts, are redacted before writing, and stay out 
 from __future__ import annotations
 
 import getpass
+import json
 import os
 import re
 import stat
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from ultron.core.privacy import redact
 
@@ -69,6 +71,26 @@ def _private_reports_dir() -> str:
     return REPORTS_DIR
 
 
+def _redact_tree(value: Any) -> Any:
+    """Redact every string in a JSON value, dictionary keys included (identity keys are used as keys)."""
+    if isinstance(value, dict):
+        return {str(redact(str(key))): _redact_tree(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_tree(item) for item in value]
+    if isinstance(value, str):
+        return str(redact(value))
+    return value
+
+
+def _redacted(text: str) -> str:
+    """JSON reports are redacted string by string, so redaction can never consume JSON delimiters."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return str(redact(text))
+    return json.dumps(_redact_tree(data), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
 def write_report(raw_name: str | os.PathLike[str], text: str) -> Path:
     """Write redacted ``text`` to ``REPORTS_DIR/<name>`` (0600, never through a symlink); return the path."""
     name = _report_name(raw_name)
@@ -78,7 +100,7 @@ def write_report(raw_name: str | os.PathLike[str], text: str) -> Path:
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(str(redact(text)))
+        handle.write(_redacted(text))
     return Path(path)
 
 

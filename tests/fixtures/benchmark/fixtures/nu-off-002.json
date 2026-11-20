@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Clinical Data Analyst",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Analyse clinical data and patient care outcomes for the nursing directorate. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-off-002",
+  "is_open_hint": true
+}

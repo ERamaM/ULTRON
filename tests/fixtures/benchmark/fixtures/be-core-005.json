@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Backend Developer",
+  "location": "Worldwide",
+  "remote_text": "Remote worldwide",
+  "body_text": "Design backend APIs in Python. We hire in any country. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-core-005",
+  "is_open_hint": true
+}

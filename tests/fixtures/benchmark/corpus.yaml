@@ -1,11 +1,15 @@
 schema_version: 1
-corpus_version: 2026-07-09.1
+corpus_version: 2026-11-20.1
 purpose: Sanitized synthetic ground truth for offline quality benchmarking.
 cases_glob: cases/*.yaml
 fixtures_dir: fixtures
-minimum_cases: 120
+profiles_dir: profiles
+minimum_cases: 183
 split:
   algorithm: sha256(id) first 32 bits modulo 100
   dev_threshold: 70
   test_threshold: 30
-labels: Human-authored independent ground truth; tooling must never rewrite labels.
+labels: >-
+  Independent ground truth, labelled from each posting's text against its case profile; tooling must never
+  rewrite labels. On 2026-11-20 the owner delegated one relabelling to an agent: the 120 legacy cases were
+  relabelled by the written rule in docs/self-improvement.md and 63 profile-diverse cases were added.

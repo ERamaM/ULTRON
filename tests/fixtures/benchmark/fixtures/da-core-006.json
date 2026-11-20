@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Data Analyst",
+  "location": "Anywhere",
+  "remote_text": "Remote worldwide, any country",
+  "body_text": "Write SQL, build Looker dashboards and recurring reporting for product teams. We hire in every country. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-core-006",
+  "is_open_hint": true
+}

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from ultron.core.rules import hard_filters_data as rules_data
-from ultron.core.rules.term_matching import find_terms
+from ultron.core.rules.term_matching import find_terms, normalize_text
 from ultron.core.rules.text_patterns import contains_any_substring, contains_any_word_boundary
 from ultron.core.rules.title_synonyms import expand_role_terms, normalize_role_title, normalize_title_separators
 from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
@@ -122,6 +123,95 @@ def filter_negatives_against_focus(
     return kept
 
 
+_NUMERIC_GRADE = re.compile(r"l?\d+")
+_ROMANCE_ROLE_ENDINGS = ("ero", "era", "dor", "dora", "ista", "ante", "ente", "eur", "euse", "ier", "iere", "ico", "ica")
+
+
+def _is_level_word(word: str) -> bool:
+    """A level word ("senior", "ii") or a numeric grade ("2", "l4")."""
+    return word in rules_data.ROLE_LEVEL_WORDS or bool(_NUMERIC_GRADE.fullmatch(word))
+
+
+def role_family_nouns(allowed_terms: Iterable[str] | None) -> set[str]:
+    """The family noun of each role term: its last word once trailing level words are dropped.
+
+    "Senior Data Analyst" -> "analyst", "clinical nurse" -> "nurse", "design lead" -> "design". A level word
+    ("senior") or a qualifier ("clinical", "data") shared with a title does not make it the same family.
+    """
+    nouns: set[str] = set()
+    for term in allowed_terms or ():
+        # Each part of a compound term ("Occupational Therapist - Graduate Program", "Engineer, Backend") has its
+        # own head.
+        for part in re.split(r"\s[-–—|]\s|[,;/()]", str(term or "").lower()):
+            words = re.findall(r"\w+", part)
+            # Romance titles name the role before its field ("ingeniero de software", "analista de datos").
+            preposition = next((i for i, word in enumerate(words) if word in rules_data.ROLE_FIELD_PREPOSITIONS), None)
+            if preposition:
+                words = words[:preposition]
+            while len(words) > 1 and _is_level_word(words[-1]):
+                words.pop()
+            if words and len(words[-1]) >= 3 and not _is_level_word(words[-1]):
+                nouns.add(words[-1])
+            # Spanish, Portuguese and French put the role first ("Diseñador UX", "Desarrolladora Backend").
+            first = normalize_text(words[0]) if len(words) > 1 else ""
+            if len(first) >= 4 and not _is_level_word(first) and first.endswith(_ROMANCE_ROLE_ENDINGS):
+                nouns.add(words[0])
+    return nouns
+
+
+# Gendered and plural endings, replaced longest first so every form of one noun has the same stem:
+# German -in/-innen (Entwicklerin, Ingenieurin), French -euse/-rice/-ière (développeuse, directrice, infirmière),
+# Spanish and Portuguese -ora/-oras/-ores (desarrolladora), then a plural -s/-es and one final vowel
+# (ingeniero/ingeniera/ingenieros, analista/analistas, nurse/nurses).
+_GENDER_ENDINGS = (
+    ("erinnen", "er"), ("eurinnen", "eur"), ("erin", "er"), ("eurin", "eur"), ("euses", "eur"), ("euse", "eur"),
+    ("trici", "tor"), ("trice", "tor"), ("rices", "eur"), ("rice", "eur"), ("ieres", "ier"), ("iere", "ier"), ("oras", "or"), ("ores", "or"),
+    ("ora", "or"),
+)
+
+
+def _noun_stem(word: str) -> str:
+    """One stem for the gender and plural forms of a role noun (accents folded)."""
+    stem = normalize_text(word)
+    for ending, replacement in _GENDER_ENDINGS:
+        if stem.endswith(ending) and len(stem) - len(ending) >= 3:
+            stem = stem[: -len(ending)] + replacement
+            break
+    else:
+        if stem.endswith("s") and len(stem) > 4:
+            stem = stem[:-1]
+        if stem[-1:] in {"a", "e", "o"} and len(stem) > 4:
+            stem = stem[:-1]
+    # French -eur and Italian -tore/-trice meet the Spanish and English -or (directeur, direttore, director).
+    return stem[:-3] + "or" if stem.endswith("eur") and len(stem) > 5 else stem
+
+
+def _shares_stem(word_stem: str, stem: str) -> bool:
+    """Irregular plural or inflected forms (Architekt/Architekten, actuary/actuaries) share all but a short tail.
+
+    Deliberately tolerant: this gate only ever rejects, so a near match keeps the posting for body evidence.
+    """
+    if len(stem) < 5:
+        return False
+    common = len(os.path.commonprefix([word_stem, stem]))
+    return common >= max(5, len(stem) - 1)
+
+
+def _title_has_family_noun(title_low: str, nouns: set[str]) -> bool:
+    """True when a title word is the family noun or one of its gender, plural or inflected forms.
+
+    Compound German titles ("Softwareentwicklerin") name the noun at the end of the word.
+    """
+    stems = {_noun_stem(noun) for noun in nouns}
+    for word in re.findall(r"\w+", normalize_text(title_low)):
+        word_stem = _noun_stem(word)
+        if word_stem in stems or any(
+            (len(stem) >= 6 and word_stem.endswith(stem)) or _shares_stem(word_stem, stem) for stem in stems
+        ):
+            return True
+    return False
+
+
 def is_senior_title(
     title: str,
     allowed_terms: Iterable[str] | None = None,
@@ -185,6 +275,7 @@ def score_role_family(
     ``allowed_terms`` changes the role vocabulary; the returned score is a
     heuristic signal for ranking, not a final keep/discard decision.
     """
+    raw_terms = tuple(allowed_terms or ())
     if allowed_terms:
         allowed_terms = expand_role_terms(allowed_terms, extra_groups=vocabulary.title_synonym_groups)
     t = (title or "").lower()
@@ -240,16 +331,19 @@ def score_role_family(
     effective_strong_signals = {
         str(term).strip().casefold() for term in (strong_signal_terms or allowed_terms or ()) if str(term).strip()
     }
-    focus_tokens = _role_focus_words(allowed_terms)
-    has_role_noun = bool(
-        score >= 0
-        and custom_role_terms
-        and not vocabulary.role_terms
-        and (
-            any(term in t for term in rules_data.ROLE_BRIDGE_TITLE_TERMS)
-            or any(len(w) >= 4 and w in focus_tokens for w in re.findall(r"\w+", t))
+    # Without a vocabulary pack, body signals only count for a title that names the profile's family noun
+    # (from role_focus_terms / target_titles): signal terms alone never pass an off-family title. When no family
+    # noun can be derived from the profile ("QA", "L4"), the rule does not apply and the earlier, looser check
+    # (a bridge title or any role word of four letters or more) is kept.
+    family_nouns = role_family_nouns((*raw_terms, *(allowed_terms or ())))
+    if family_nouns:
+        title_names_family = _title_has_family_noun(normalize_role_title(t), family_nouns)
+    else:
+        focus_tokens = _role_focus_words(allowed_terms)
+        title_names_family = any(term in t for term in rules_data.ROLE_BRIDGE_TITLE_TERMS) or any(
+            len(word) >= 4 and word in focus_tokens for word in re.findall(r"\w+", t)
         )
-    )
+    has_role_noun = bool(score >= 0 and custom_role_terms and not vocabulary.role_terms and title_names_family)
     title_strong_hit = any(term in t for term in effective_strong_signals)
     normalized_body = normalize_title_separators(b)
     raw_body_hits = [
@@ -266,7 +360,12 @@ def score_role_family(
         score += min(4, 1 + len(body_strong_hits))
         signals.append("body:ai_ml_signals")
 
-    bridge_title = [term for term in rules_data.ROLE_BRIDGE_TITLE_TERMS if term in t]
+    # Without a pack, a bridge title ("Software Engineer, Analytics Platform") outside the profile's family earns
+    # no bonus from a signal term: only a title with the family noun or an exact role term does.
+    packless_off_family = (
+        custom_role_terms and not vocabulary.role_terms and not custom_exact_title_match and not has_role_noun
+    )
+    bridge_title = [term for term in rules_data.ROLE_BRIDGE_TITLE_TERMS if term in t and not packless_off_family]
     if bridge_title and (body_strong_hits or any(term in t for term in effective_strong_signals)):
         score += 2
         signals.append("bridge_title+ai")

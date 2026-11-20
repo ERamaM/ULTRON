@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior Python Engineer",
+  "location": "Remote EU",
+  "remote_text": "Fully remote within the EU",
+  "body_text": "Own backend services in Python; Kubernetes and APIs. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-core-002",
+  "is_open_hint": true
+}

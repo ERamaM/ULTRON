@@ -5,7 +5,7 @@ language: es
 role_track: core
 seniority: manager
 remote_mode: worldwide
-eligibility_label: unknown
+eligibility_label: confirmed
 vendor: ashby
 fixture: ../fixtures/es-core-092.json
 split: test
@@ -14,7 +14,7 @@ labels:
   role_fit: true
   seniority_fit: false
   remote_fit: true
-  eligibility: unknown
+  eligibility: confirmed
   open_status: false
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (the posting is closed; manager-level role (the profile wants senior individual contributors)).'

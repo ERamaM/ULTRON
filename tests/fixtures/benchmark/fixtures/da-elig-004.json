@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Product Analyst",
+  "location": "Spain",
+  "remote_text": "Remote - Spain",
+  "body_text": "Analyse product funnels with SQL and build experiment dashboards. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-elig-004",
+  "is_open_hint": true
+}

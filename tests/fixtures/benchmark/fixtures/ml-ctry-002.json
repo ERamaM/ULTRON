@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior ML Engineer",
+  "location": "Netherlands",
+  "remote_text": "Remote - Netherlands",
+  "body_text": "Own model serving and retrieval systems. Work from anywhere in the Netherlands. Applications are open.",
+  "apply_url": "https://jobs.example.test/ml-ctry-002",
+  "is_open_hint": true
+}

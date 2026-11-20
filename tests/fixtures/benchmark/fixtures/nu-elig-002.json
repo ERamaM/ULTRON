@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Registered Nurse",
+  "location": "Lyon, France",
+  "remote_text": "On-site",
+  "body_text": "Provide acute care in our Lyon clinic. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-elig-002",
+  "is_open_hint": true
+}

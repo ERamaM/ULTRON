@@ -17,4 +17,4 @@ labels:
   eligibility: confirmed
   open_status: true
 expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: undetermined (a data-platform role adjacent to AI does not establish the AI/ML family).'

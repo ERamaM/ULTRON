@@ -1,0 +1,20 @@
+slug: nurse-ireland-onsite
+name: Registered Nurse - Ireland
+description: Synthetic benchmark profile for nursing roles in Ireland, on-site work allowed, any level, with no vocabulary pack.
+enabled: true
+source_kind: example
+criteria:
+  sectors: [healthcare]
+  role_family_label: Nursing
+  role_focus_terms: [registered nurse, staff nurse, clinical nurse, nurse practitioner]
+  target_titles: [Registered Nurse, Staff Nurse, Clinical Nurse Specialist]
+  seniority:
+    required: false
+  remote_policy:
+    required: any
+  location_scope:
+    preferred: [Ireland, Dublin, Cork, Galway]
+    eligibility_terms: [ireland, dublin, cork, galway, limerick]
+    excluded_terms: [united states only]
+  specialties: [acute care, ICU, oncology]
+  role_signal_terms: [nursing, patient care, ward, clinical]

@@ -10,11 +10,11 @@ vendor: ashby
 fixture: ../fixtures/es-adjacent-028.json
 split: test
 labels:
-  relevant: null
+  relevant: false
   role_fit: null
   seniority_fit: false
   remote_fit: null
   eligibility: unknown
   open_status: true
-expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+expected_stage: discard
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (junior role (the profile requires senior)).'

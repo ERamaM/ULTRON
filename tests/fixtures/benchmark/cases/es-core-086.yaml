@@ -5,7 +5,7 @@ language: es
 role_track: core
 seniority: senior
 remote_mode: unknown
-eligibility_label: medium
+eligibility_label: unknown
 vendor: lever
 fixture: ../fixtures/es-core-086.json
 split: dev
@@ -14,7 +14,7 @@ labels:
   role_fit: true
   seniority_fit: true
   remote_fit: null
-  eligibility: medium
+  eligibility: unknown
   open_status: true
 expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: undetermined (the workplace arrangement is not stated).'

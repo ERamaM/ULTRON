@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Working Student Backend Engineering (m/f/d)",
+  "location": "Spain",
+  "remote_text": "Remote - Spain",
+  "body_text": "Take ownership of small backend features in Python while you study. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-stud-001",
+  "is_open_hint": true
+}

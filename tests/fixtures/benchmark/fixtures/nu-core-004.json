@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Staff Nurse, ICU",
+  "location": "Limerick, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Care for critically ill patients in the ICU. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-core-004",
+  "is_open_hint": true
+}

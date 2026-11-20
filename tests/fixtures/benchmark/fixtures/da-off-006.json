@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior Customer Success Specialist",
+  "location": "Remote LATAM",
+  "remote_text": "Remote within Latin America",
+  "body_text": "Prepare customer reporting and dashboards; basic SQL is a plus. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-006",
+  "is_open_hint": true
+}

@@ -17,4 +17,4 @@ labels:
   eligibility: high
   open_status: false
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (the posting is closed; manager-level role (the profile wants senior individual contributors); hybrid work (the profile requires full remote)).'

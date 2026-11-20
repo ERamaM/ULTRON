@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Senior AI Engineer",
+  "location": "Spain",
+  "remote_text": "Remote - Spain",
+  "body_text": "Build LLM agents and evaluation tooling. Applications are open.",
+  "apply_url": "https://jobs.example.test/ml-ctry-003",
+  "is_open_hint": true
+}

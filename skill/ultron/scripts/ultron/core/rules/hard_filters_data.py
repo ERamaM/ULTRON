@@ -10,6 +10,27 @@ ROLE_FAMILY_NEGATIVE_TERMS_WB = {"recruiter", "sales", "account", "marketing", "
 # "International", "postgraduate", "Sentry", etc. ("entry" with \b still matches
 # "entry-level" / "entry level" because "-" and " " are non-word characters).
 JUNIOR_TITLE_TERMS_WB = {"intern", "junior", "graduate", "entry"}
+# Student and internship levels in titles (English, German, Dutch, French, Spanish, Portuguese). They only
+# discard a posting for a profile whose ``seniority.excluded_terms`` names one of STUDENT_LEVEL_TRIGGER_TERMS.
+# The Dutch and French "stage" is only read at the start of a title ("Stage Data Analyst"), never in
+# "Early Stage".
+STUDENT_LEVEL_TITLE_TERMS = (
+    "intern", "interns", "internship", "working student", "student assistant", "werkstudent", "werkstudentin",
+    "werkstudierende", "praktikant", "praktikantin", "praktikum", "pflichtpraktikum", "trainee", "apprentice",
+    "apprenticeship", "azubi", "stagiair", "stagiaire", "afstudeerstage", "meewerkstage", "becario", "becaria",
+    "practicas", "estagio", "estagiario", "estagiaria",
+)
+# Roles that run a student programme: after one of these nouns a student word names the programme
+# ("Internship Coordinator", "Apprenticeship Programme Manager"), not the level of the role.
+STUDENT_PROGRAMME_ROLE_NOUNS = (
+    "coordinator", "manager", "lead", "officer", "recruiter", "specialist", "director", "advisor", "adviser",
+    "partner", "program", "programme", "administrator", "consultant", "head", "coach", "mentor",
+)
+# Student words that can name a programme ("Internship Coordinator"); "working student" or "trainee" never do.
+STUDENT_PROGRAMME_WORDS = frozenset({
+    "internship", "internships", "apprenticeship", "apprenticeships", "traineeship", "traineeships", "praktikum",
+})
+STUDENT_LEVEL_TRIGGER_TERMS = frozenset({*STUDENT_LEVEL_TITLE_TERMS, "student", "students", "stage"})
 SENIOR_REQUIRED_TERMS = {"senior", "sr.", "sr "}
 DISALLOWED_REMOTE_TERMS = {
     "hybrid",
@@ -325,6 +346,13 @@ ROLE_NEGATIVE_BODY_TERMS = {
     "recruiting coordinator",
 }
 
+# Level words that never name a role family on their own ("Senior" in a target title, "lead" in "design lead").
+ROLE_LEVEL_WORDS = frozenset({
+    "senior", "sr", "staff", "principal", "lead", "distinguished", "junior", "jr", "mid", "level", "entry",
+    "head", "chief", "intern", "trainee", "i", "ii", "iii", "iv",
+})
+# Prepositions that join a role to its field in Spanish, Portuguese and French titles ("analista de datos").
+ROLE_FIELD_PREPOSITIONS = frozenset({"de", "del", "da", "do", "das", "dos", "des", "du"})
 ROLE_FAMILY_PASS_SCORE = 2
 ROLE_FAMILY_CLEAR_REJECT_SCORE = -2
 

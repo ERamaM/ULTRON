@@ -1,0 +1,20 @@
+schema_version: 1
+id: be-ctry-001
+profile: backend-engineer-spain-eu
+language: en
+role_track: core
+seniority: senior
+remote_mode: country
+eligibility_label: ineligible
+vendor: ashby
+fixture: ../fixtures/be-ctry-001.json
+split: dev
+labels:
+  relevant: false
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against backend-engineer-spain-eu: not relevant (remote only within the Netherlands; a Spain-based candidate cannot apply).'

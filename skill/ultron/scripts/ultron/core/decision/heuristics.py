@@ -27,6 +27,10 @@ from ultron.core.rules.hard_filters_data import (
     REMOTE_HINT_TERMS,
     ROLE_FAMILY_PASS_SCORE,
     SENIOR_REQUIRED_TERMS,
+    STUDENT_LEVEL_TITLE_TERMS,
+    STUDENT_LEVEL_TRIGGER_TERMS,
+    STUDENT_PROGRAMME_ROLE_NOUNS,
+    STUDENT_PROGRAMME_WORDS,
 )
 from ultron.core.rules.role_matching import (
     DEFAULT_ROLE_NEGATIVES,
@@ -40,6 +44,12 @@ from ultron.core.vocabulary import EMPTY_PACK, VocabularyPack
 logger = logging.getLogger(__name__)
 
 _SPANISH_REMOTE_FORMS = {"hibrido", "hibrida", "hibridos", "hibridas", "presenciales"}
+# The French and Dutch internship marker leads the title and is followed by a separator or a preposition
+# ("Stage - Data Analyst", "Stage: ...", "Stage en finance", "Stage d'analyste", "Stage bij ..."). English
+# occupations ("Stage Manager", "Stage Technician") are not internships.
+_LEADING_STAGE = re.compile(
+    r"\s*stage(?:\s*[-–—:|(]|\s+(?:en|de|du|des|bij|in|op)\b|\s+d['’])", re.IGNORECASE
+)
 _EMPLOYMENT_LEVEL_FIELD = re.compile(
     r"^[ \t]*(?:employment type|experience level)[ \t]*:[ \t]*(?:\r?\n[ \t]*)?([^\r\n]+)",
     re.IGNORECASE | re.MULTILINE,
@@ -57,6 +67,23 @@ def _specialty_pattern(term: str) -> re.Pattern[str]:
         stem = stem[:-1]
     tail = r"s?(?!\w)" if len(stem) <= 3 else ""
     return re.compile(r"(?<!\w)" + re.escape(stem) + tail)
+
+
+_PROGRAMME_TAIL = re.compile(r"\s*((?:programmes?|programs?|scheme)\s+)?(\w+)")
+# A trainee word names a programme only through an explicit "programme" ("Trainee Program Lead"); a bare
+# "Trainee Manager" is a manager in training.
+_PROGRAMME_ONLY_WITH_NOUN = frozenset({"trainee", "trainees"})
+
+
+def _names_a_programme(term: str, rest: str) -> bool:
+    """True when a programme word ("internship") is directly followed by a role that runs it ("coordinator")."""
+    with_noun_only = term in _PROGRAMME_ONLY_WITH_NOUN
+    if term not in STUDENT_PROGRAMME_WORDS and not with_noun_only:
+        return False
+    match = _PROGRAMME_TAIL.match(rest)
+    if not match or (with_noun_only and not match.group(1)):
+        return False
+    return match.group(2) in STUDENT_PROGRAMME_ROLE_NOUNS
 
 
 @dataclass(slots=True)
@@ -111,7 +138,7 @@ class HeuristicEvaluator:
         verdict, reason, category = self._decision(
             allowed_family, is_senior, full_remote, open_status, classification_signals
         )
-        if verdict != "discard" and self._excluded_optional_level(job):
+        if verdict != "discard" and (self._excluded_optional_level(job) or self._excluded_student_level(job)):
             verdict, reason, category = "discard", "seniority_not_senior", "seniority"
         if verdict != "discard" and self._location_excluded(job):
             verdict, reason, category = "discard", "location_excluded", "eligibility_scope"
@@ -175,6 +202,30 @@ class HeuristicEvaluator:
             return False
         evidence = "\n".join((job.title, *_EMPLOYMENT_LEVEL_FIELD.findall(job.body_text)))
         return bool(find_terms(evidence, profile.seniority_excluded_terms))
+
+    def _excluded_student_level(self, job: ExtractedJob) -> bool:
+        """A student or internship title, for a profile whose ``seniority.excluded_terms`` excludes interns."""
+        profile = self.cfg.evaluation_profile
+        if profile is None or not any(
+            normalize_text(term) in STUDENT_LEVEL_TRIGGER_TERMS for term in profile.seniority_excluded_terms
+        ):
+            return False
+        title = job.title or ""
+        # A profile that targets such a role ("stage manager", "internship advisor") never reads its own title
+        # as a student level.
+        roles = (*self.cfg.role_focus_terms, *profile.role_terms)
+        student_roles = [term for term in roles if find_terms(term, (*STUDENT_LEVEL_TRIGGER_TERMS,))]
+        if find_terms(title, student_roles):
+            return False
+        low = normalize_text(title)
+        for term in find_terms(title, STUDENT_LEVEL_TITLE_TERMS):
+            match = re.search(r"(?<!\w)" + re.escape(normalize_text(term)) + r"(?!\w)", low)
+            # "Internship Coordinator", "Apprenticeship Programme Manager": a programme word directly followed by
+            # the role that runs it names the programme, not the level. "Working Student Data Analyst - Reporting
+            # Specialist" stays a student level.
+            if match is None or not _names_a_programme(normalize_text(term), low[match.end():]):
+                return True
+        return bool(_LEADING_STAGE.match(title))
 
     def _seniority_evidence_terms(self) -> set[str]:
         profile = getattr(self.cfg, "evaluation_profile", None)

@@ -173,8 +173,9 @@ pages for those countries with unfiltered pages within the same budget.
 Seeds can be on any of the 19 supported ATS vendors (`references/seeds.md`). Order: companies you
 verified for the profile (and ATS boards discovered via web search) first, then bundled pack seeds in
 the profile's sectors, then other seeds linked to the profile, then seeds found in feeds (feed seeds
-never take more than half of the seed slots while curated seeds are left). Pack seeds for another region
-(a US or Latin America pack for a European profile) are never queried. Each ATS API gets at most
+never take more than half of the seed slots while curated seeds are left). Pack seeds for another sector
+or region (a technology pack for a nursing profile, a US pack for a European profile) are never queried,
+not even to fill leftover slots. Each ATS API gets at most
 the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled in that order; boards
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title

@@ -153,8 +153,71 @@ def test_seeds_scoped_to_another_region_are_never_queried_as_filler(pack_dir):
         yaml.safe_dump({"pack": {"id": "p", "usage": "active"}, "seeds": rows}), encoding="utf-8"
     )
     selected, _groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
-    assert [seed.board_identifier for seed, _group in selected] == ["iehealth", "eutech"]
+    # Session 3: "eutech" is left out too (another sector), no longer queried as last-rank filler.
+    assert [seed.board_identifier for seed, _group in selected] == ["iehealth"]
     selected, _groups, _stats = _select_seeds("synthetic", ["technology"], 50, 50, geo="other", profile=LATAM_DATA)
     boards = [seed.board_identifier for seed, _group in selected]
-    assert boards[:2] == ["latamtech0", "latamtech1"]
-    assert not any(board.startswith("ushealth") for board in boards)
+    # Same sector but a European pack for a LATAM profile: left out as well (session 3).
+    assert boards == ["latamtech0", "latamtech1"]
+
+
+def _write_pack(pack_dir, rows: list[dict]) -> None:
+    (pack_dir / "p.yaml").write_text(
+        yaml.safe_dump({"pack": {"id": "p", "usage": "active"}, "seeds": rows}), encoding="utf-8"
+    )
+
+
+def test_pack_seeds_of_another_sector_are_never_queried_as_filler(pack_dir):
+    # S5 balanced (session 2): an Irish nursing profile with 3 fitting seeds queried 102 EU technology boards as
+    # last-rank filler, which exposed it to a vendor 429 and added no nursing postings.
+    _write_pack(pack_dir, [_row("iehealth", "IE", "pharma_health"), _row("eutech", "EU", "technology"),
+                           _row("globaltech", "GLOBAL", "technology")])
+    selected, groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
+    assert [seed.board_identifier for seed, _group in selected] == ["iehealth"]
+    assert all(group["capped"] == group["host_capped"] == 0 for group in groups.values())
+    assert eligible_seed_count("synthetic", NURSE_IE) == 1
+
+
+def test_a_pack_seed_without_sectors_still_fits_every_profile(pack_dir):
+    _write_pack(pack_dir, [{"company": "Plain", "ats": "greenhouse", "board_identifier": "plain",
+                            "country_scope": "EU"}])
+    selected, _groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
+    assert [(seed.board_identifier, group) for seed, group in selected] == [("plain", "pack")]
+
+
+def test_profiles_without_sectors_use_packs_of_every_sector(pack_dir):
+    _write_pack(pack_dir, [_row("euhealth", "EU", "pharma_health"), _row("eutech", "EU", "technology")])
+    for sectors in ([], None):
+        profile = _profile(["Spain"], sectors or [])
+        selected, _groups, _stats = _select_seeds("synthetic", sectors, 50, 50, geo="eu", profile=profile)
+        assert {seed.board_identifier for seed, _group in selected} == {"eutech", "euhealth"}
+
+
+def test_free_text_sectors_outside_the_vocabulary_match_no_pack(pack_dir):
+    # "fintech" maps to no sector: no pack fits, so the profile relies on generated seeds.
+    _write_pack(pack_dir, [_row("euhealth", "EU", "pharma_health"), _row("eutech", "EU", "technology")])
+    selected, _groups, _stats = _select_seeds("synthetic", ["fintech"], 50, 50, geo="eu",
+                                              profile=_profile(["Spain"], ["fintech"]))
+    assert selected == []
+    assert eligible_seed_count("synthetic", _profile(["Spain"], ["fintech"])) == 0
+
+
+def test_a_known_sector_next_to_free_text_still_drops_other_sector_packs(pack_dir):
+    _write_pack(pack_dir, [_row("euhealth", "EU", "pharma_health"), _row("eutech", "EU", "technology")])
+    profile = _profile(["Spain"], ["fintech", "software"])
+    selected, _groups, _stats = _select_seeds("synthetic", ["fintech", "software"], 50, 50, geo="eu", profile=profile)
+    assert [seed.board_identifier for seed, _group in selected] == ["eutech"]
+
+
+def test_seeds_linked_to_the_profile_are_kept_whatever_their_sector(pack_dir, tmp_path, monkeypatch):
+    _write_pack(pack_dir, [_row("eutech", "EU", "technology")])
+    auto = tmp_path / "auto_seeds.yaml"
+    auto.write_text(yaml.safe_dump({"seeds": [
+        {"company": "Agent Tech", "ats": "lever", "board_identifier": "agenttech", "profiles": ["synthetic"],
+         "source_type": "agent_generated", "sectors": ["technology"]},
+        {"company": "Manual Tech", "ats": "lever", "board_identifier": "manualtech", "profiles": ["synthetic"],
+         "source_type": "manual", "sectors": ["technology"]},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(seeds, "auto_seeds_path", lambda: auto)
+    selected, _groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
+    assert sorted(seed.board_identifier for seed, _group in selected) == ["agenttech", "manualtech"]

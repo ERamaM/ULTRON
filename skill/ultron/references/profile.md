@@ -83,15 +83,17 @@ pack's companies when the pack fits the profile:
   `manufacturing_industrial`, `automotive`, `aerospace_defense`, `construction_engineering`,
   `marketing_advertising`, `professional_services`, `other`. Common names map to it (`healthcare`,
   `nursing` and `medical` mean `pharma_health`, `software` means `technology`, `finance` means
-  `finance_insurance`). Any other value (`fintech`) matches no pack, so its seeds rank last and
-  `profile explain` warns. Leave the list out when no sector fits; niches such as fintech go into `prompt`
-  and into the companies you propose.
+  `finance_insurance`). Any other value (`fintech`) matches no pack and `profile explain` warns. A profile
+  without `sectors` fits the packs of every sector, so set the closest sector (`finance_insurance` for
+  fintech) and put the niche into `prompt` and into the companies you propose.
 - **Region**: a European pack fits profiles whose `location_scope.preferred` is European. A pack for
   another region or country fits profiles whose `preferred` regions or `eligibility_terms` name that
   region, one of its countries, states or counties, or a main city (`Remote LATAM`, `Brazil`, `Bogotá`;
   `Ireland`, `Dublin`, `County Kildare`; `Remote US`, `Texas`, `New York`, `Austin, TX`). Names shared with
   another place are not matched: write `Georgia, USA` or `Atlanta` rather than `Georgia`, and `Washington DC`
   or `Seattle` rather than `Washington`. A profile without preferred regions fits every pack.
+
+A pack that does not fit is never queried, not even to fill leftover seed slots.
 
 `ultron run new` prints how many boards fit (`eligible_seeds`).
 

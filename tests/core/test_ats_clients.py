@@ -75,6 +75,24 @@ def test_greenhouse_falls_back_to_eu_host():
     assert out[0].apply_url == "https://boards.eu.greenhouse.io/acme/jobs/4012345"
 
 
+
+def test_greenhouse_keeps_the_primary_404_when_the_eu_fallback_cannot_resolve():
+    # A board removed from Greenhouse answers 404 on the primary API; the EU fallback host may not resolve.
+    # The reported error must stay the 404, not the fallback's dns_resolution_failed.
+    from ultron.net import URLRejected
+
+    client = FakeClient([HttpError("HTTP 404", status_code=404), URLRejected("dns_resolution_failed")])
+    with pytest.raises(HttpError) as excinfo:
+        fetch_greenhouse_jobs("acme", client=client)
+    assert excinfo.value.status_code == 404
+
+
+def test_greenhouse_policy_rejection_of_the_primary_host_is_not_hidden():
+    from ultron.net import URLRejected
+
+    with pytest.raises(URLRejected):
+        fetch_greenhouse_jobs("acme", client=FakeClient([URLRejected("domain_not_allowed")]))
+
 def test_lever_parses_board():
     out = fetch_lever_jobs("acme", client=FakeClient([load("lever_board.json")]))
     assert fields(out) == [

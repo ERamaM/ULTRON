@@ -170,3 +170,12 @@ def test_breaks_inside_a_paragraph_separate_the_text_on_both_sides(tmp_path):
     result = cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))))
     assert result.text.splitlines() == ["Experience", "Education", "Left", "Right", "Next Tabbed"]
     assert result.pages == 2
+
+@pytest.mark.parametrize("max_pages, breaks", [(cv.MAX_CV_PAGES, cv.MAX_CV_PAGES), (2, 2)])
+def test_a_docx_over_the_page_budget_is_rejected_like_a_pdf(tmp_path, max_pages, breaks):
+    body = "".join(_paragraph(f"Page {index}") + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' for index in range(breaks))
+    path = _write(tmp_path, "cv.docx", build_docx(_document(body + _paragraph("Last"))))
+    with pytest.raises(cv.CvPdfTooManyPages) as raised:
+        cv.extract_cv(path, max_pages=max_pages)
+    assert raised.value.code == "too_many_pages"
+    assert cv.extract_cv(path, max_pages=breaks + 1).pages == breaks + 1

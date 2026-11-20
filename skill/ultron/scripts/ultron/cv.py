@@ -260,6 +260,8 @@ def extract_cv(
         from ultron.cv_docx import extract_docx_text
 
         text, page_count = extract_docx_text(content)
+        if page_count > max_pages:  # the same page budget as a PDF
+            raise CvPdfTooManyPages(max_pages)
         return CvText(_clean_text(text, max_chars), page_count)
     pages = pdf_runner(content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout)
     return CvText(_clean_text("\n".join(pages), max_chars), len(pages))

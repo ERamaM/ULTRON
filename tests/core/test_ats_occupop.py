@@ -355,3 +355,37 @@ def test_verify_finds_the_occupop_embed_on_a_company_careers_page():
 
     assert res.status == "verified" and res.seed.ats == "occupop" and res.seed.board_identifier == TOKEN
     assert seen == ["https://examplecare.example.test/careers", FRAME_URL]
+
+
+def _diagnose_with(handler):
+    from ultron import diagnose, profiles
+
+    seen: list[str] = []
+
+    def recording(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return handler(request)
+
+    profiles.install_example()
+    http_factory.set_test_overrides(transport=httpx.MockTransport(recording), resolver=lambda h, p: ["93.184.216.34"],
+                                    sleep=lambda s: None, min_interval_per_host=0.0)
+    result = diagnose.diagnose("https://api.occupop.com/shared/job/staff-nurse-ab12c", profile_slug=profiles.EXAMPLE_SLUG)
+    return [t for t in result.trace if t["label"] == "offline_replay"], seen
+
+
+def test_diagnose_replays_an_occupop_link_from_the_job_json():
+    # Like fetch, diagnose must not open the posting link (a redirect to a script-only page on another host).
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/integration/job/staff-nurse-ab12c":
+            return httpx.Response(200, json=_detail(), headers={"content-type": "application/json"})
+        return httpx.Response(302, headers={"location": "https://spa.example.test/"})
+
+    trace, seen = _diagnose_with(handler)
+
+    assert seen == ["https://api.occupop.com/api/integration/job/staff-nurse-ab12c"]
+    assert [(t["stage"], t["passed"]) for t in trace][:2] == [("fetch", True), ("extraction", True)]
+
+
+def test_diagnose_reports_a_missing_occupop_job_as_closed():
+    trace, _seen = _diagnose_with(lambda r: httpx.Response(200, json={"job": None}))
+    assert [(t["stage"], t["passed"], t["reason"]) for t in trace] == [("fetch", False, "expired_or_closed")]

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
 
@@ -495,43 +494,54 @@ def test_concurrent_add_seeds_do_not_lose_each_others_rows(monkeypatch):
     a.join(10)
     b.join(10)
     assert {s.board_identifier for s in load_inventory("p1") if "p1" in s.profiles} == {"alpha", "beta"}
-    assert not _seed_lock().exists()
 
 
-def test_a_stale_seed_lock_is_broken():
+def test_a_leftover_lock_file_from_a_crashed_writer_does_not_block():
     lock = _seed_lock()
     lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_text("", encoding="utf-8")
-    old = lock.stat().st_mtime - 3600
-    os.utime(lock, (old, old))
+    lock.write_text("", encoding="utf-8")  # the file exists, but no process holds the OS lock
     assert add_seeds([seed("gamma")], profile_slug="p1") == 1
-    assert not lock.exists()
-
-
-def test_a_stale_lock_that_cannot_be_removed_still_times_out(monkeypatch):
-    lock = _seed_lock()
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_text("", encoding="utf-8")
-    monkeypatch.setattr(seeds, "SEED_LOCK_STALE", -1.0)
-    monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
-    real_unlink = type(lock).unlink
-
-    def refuse(self, missing_ok=False):
-        if self.name.endswith(".lock"):
-            raise PermissionError("in use")
-        return real_unlink(self, missing_ok=missing_ok)
-
-    monkeypatch.setattr(type(lock), "unlink", refuse)
-    with pytest.raises(seeds.SeedFileError):
-        add_seeds([seed("epsilon")], profile_slug="p1")
 
 
 def test_a_live_seed_lock_times_out_as_a_seed_file_error(monkeypatch):
-    lock = _seed_lock()
-    lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_text("", encoding="utf-8")
     monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
-    with pytest.raises(seeds.SeedFileError):
-        add_seeds([seed("delta")], profile_slug="p1")
-    assert lock.exists()  # another writer's lock is left alone
+    with seeds._seed_file_lock(seeds.auto_seeds_path()):  # another writer holds the lock
+        with pytest.raises(seeds.SeedFileError):
+            add_seeds([seed("delta")], profile_slug="p1")
+        assert _seed_lock().exists()  # another writer's lock is left alone
     assert not seeds.auto_seeds_path().exists()
+    assert add_seeds([seed("delta")], profile_slug="p1") == 1  # released: the next writer gets it
+
+
+def test_a_later_verification_promotes_an_unconfirmed_stored_seed():
+    guessed = seed("acme").model_copy(update={
+        "source_type": seeds.UNCONFIRMED_SOURCE_TYPE, "tags": ["ownership:unknown"],
+        "priority": seeds.UNCONFIRMED_SEED_PRIORITY,
+    })
+    assert add_seeds([guessed], profile_slug="p1") == 1
+    verified = seed("acme").model_copy(update={"source_type": "agent_generated", "source_label": "Agent proposal"})
+    assert add_seeds([verified], profile_slug="p2") == 0
+    [stored] = [s for s in load_inventory("p2") if s.board_identifier == "acme" and s.ats == "greenhouse"]
+    assert stored.source_type == "agent_generated" and "ownership:unknown" not in stored.tags
+    assert stored.priority != seeds.UNCONFIRMED_SEED_PRIORITY
+    assert set(stored.profiles) >= {"p1", "p2"}
+    # An unconfirmed result never downgrades a stored verified seed.
+    assert add_seeds([guessed], profile_slug="p3") == 0
+    [again] = [s for s in load_inventory("p3") if s.board_identifier == "acme" and s.ats == "greenhouse"]
+    assert again.source_type == "agent_generated" and "p3" in again.profiles
+
+
+def test_budget_exhaustion_keeps_an_unconfirmed_board_already_found():
+    def handler(request):
+        if "greenhouse" in request.url.host and "/acmedatasystems/" in request.url.path:
+            return httpx.Response(200, json=GH_JOBS)
+        return httpx.Response(404)
+
+    res = verify_proposal(Proposal("Acme Data Systems"), client=make_client(handler, max_requests=1), timeout=5)
+    assert res.reason == "budget_exhausted"
+    stored = seeds.stored_seed(res)
+    assert stored is not None and stored.board_identifier == "acmedatasystems"
+    assert stored.source_type == seeds.UNCONFIRMED_SOURCE_TYPE
+    # Without a board found first, budget exhaustion still stores nothing.
+    res = verify_proposal(Proposal("Other Data Systems"), client=make_client(handler, max_requests=1), timeout=5)
+    assert res.reason == "budget_exhausted" and seeds.stored_seed(res) is None

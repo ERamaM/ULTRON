@@ -306,6 +306,8 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
             # A guessed board not proven to be the proposal's: stored tagged at low priority (seed_yield decides).
             known.add(seed_identity(unconfirmed.ats, unconfirmed.board_identifier))
             unconfirmed_seeds.append(unconfirmed)
+            if result.reason == "budget_exhausted":
+                break
         elif result.reason == "budget_exhausted":
             break
     added = 0

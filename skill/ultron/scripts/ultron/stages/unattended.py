@@ -35,6 +35,8 @@ def verify_feed_companies(run_id: str) -> dict:
             verified.append(seeds.as_feed_company(result.seed))
         elif (unconfirmed := seeds.stored_seed(result)) is not None:
             unconfirmed_seeds.append(unconfirmed)  # tagged guessed board, low priority (seed_yield decides)
+            if result.reason == "budget_exhausted":
+                break
         elif result.reason == "budget_exhausted":
             break
     added = 0

@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-adjacent-105
+profile: ml-engineering-remote-eu
+language: en
+role_track: adjacent
+seniority: manager
+remote_mode: us_only
+eligibility_label: ineligible
+vendor: generic_html
+fixture: ../fixtures/en-adjacent-105.json
+split: dev
+labels:
+  relevant: false
+  role_fit: null
+  seniority_fit: false
+  remote_fit: false
+  eligibility: ineligible
+  open_status: false
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

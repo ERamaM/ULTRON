@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "es",
+  "title": "Manager Ingenieria Machine Learning 032",
+  "location": "Todo el mundo",
+  "remote_text": "Teletrabajo global",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; gestion de equipos y presupuesto. Se puede trabajar desde cualquier pais. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-core-032",
+  "is_open_hint": true
+}

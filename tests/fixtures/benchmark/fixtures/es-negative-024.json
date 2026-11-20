@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "es",
+  "title": "Especialista Ingenieria Frontend 024",
+  "location": "Paris",
+  "remote_text": "Presencial cinco dias por semana",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia relevante no especificada. El trabajo se realiza desde la oficina. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-negative-024",
+  "is_open_hint": true
+}

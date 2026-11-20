@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Machine Learning Engineer 073",
+  "location": "United States",
+  "remote_text": "Remote US only",
+  "body_text": "Build machine learning services and model evaluation; senior-level experience. Candidates must reside in the United States. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-core-073",
+  "is_open_hint": true
+}

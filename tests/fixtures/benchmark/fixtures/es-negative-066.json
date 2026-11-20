@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "empty_dynamic",
+  "vendor": "empty_dynamic",
+  "language": "es",
+  "title": "Junior Ingenieria Frontend 066",
+  "location": "Union Europea",
+  "remote_text": "Teletrabajo en la Union Europea",
+  "body_text": "Desarrollar interfaces web y sistemas de diseno; experiencia inicial. Se aceptan candidaturas desde la Union Europea. La oferta esta cerrada y no acepta solicitudes.",
+  "apply_url": "https://jobs.example.test/es-negative-066",
+  "is_open_hint": false
+}

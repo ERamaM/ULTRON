@@ -147,3 +147,14 @@ def test_a_posting_in_an_excluded_location_is_never_rescued():
     assert filter_stage._rescuable(result, canada, ()) is True  # no exclusion: rescued as before
     mexico = ExtractedJob(**_job(1, location="Remote - Mexico", remote_text="Remote within Mexico"))
     assert filter_stage._rescuable(result, mexico, ("canada",)) is True
+
+
+def test_profile_explain_replay_reports_rescues_like_the_filter(capsys):
+    from ultron import profile_explain
+
+    run_id = _run([_job(0), _job(1, remote_text="Hybrid, 3 days in office")])
+    out = _filter(capsys, run_id)
+    replay = profile_explain.replay_run(PROFILE, run_id)
+    assert (replay["kept"], replay["ambiguous"], replay["discarded"]) == (out["kept"], out["ambiguous"], out["discarded"])
+    assert replay["rescued_discards"] == out["rescued_discards"] == 1
+    assert replay["changes"] == {}  # same profile, same outcomes

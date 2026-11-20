@@ -22,6 +22,9 @@ ultron search [profile] [preset]      full search with the agent (default)
 ultron profile                        list profiles (default)
        profile show <profile>
        profile cv <path>              CV -> proposed profile -> user review -> save
+       profile new                    interview -> proposed profile -> user review -> save
+       profile edit <profile> [what]  change a profile in conversation, preview, confirm
+       profile undo <profile>         restore the version before the last change
        profile companies [profile]    verified companies for a profile
 ultron jobs [filter]                  list saved jobs (default)
        jobs new                       jobs new since the last run
@@ -57,6 +60,10 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 - `profile show <profile>`: `ultron profile show <slug>`; summarize roles, seniority, geography scope and languages.
 - `profile cv <path>`: the CV-to-profile steps in `references/profile.md` (extract, draft, validate, show the user,
   save only after they confirm).
+- `profile new`: the interview in `references/profile-interview.md`.
+- `profile edit <profile> [what]`: "Refining a profile in conversation" in `references/profile.md`
+  (`ultron profile edit <slug> ... --dry-run`, show the diff, apply after the user confirms).
+- `profile undo <profile>`: `ultron profile undo <slug> --dry-run`, show the diff, then `ultron profile undo <slug>`.
 - `profile companies [profile]`: `ultron seeds list --profile <slug>`; group by ATS vendor and show the count.
 
 ### jobs

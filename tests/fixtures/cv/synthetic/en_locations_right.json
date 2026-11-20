@@ -1,0 +1,30 @@
+{
+  "description": "Synthetic English single-column CV with right-aligned locations on role lines, a right-only contact row and short bullets (must NOT be split into columns).",
+  "header": [],
+  "left": [
+    "Alex Placeholder",
+    "",
+    "Product Designer",
+    "EXPERIENCE",
+    "Example Studio, Lead Designer",
+    "• Design systems",
+    "• Mobile apps",
+    "Sample Agency, Designer",
+    "• Brand work",
+    "Demo Ltd, Junior Designer",
+    "• Print layouts"
+  ],
+  "right": [
+    "",
+    "alex@example.com",
+    "",
+    "",
+    "Berlin, Germany",
+    "",
+    "",
+    "Remote",
+    "",
+    "Porto, Portugal",
+    ""
+  ]
+}

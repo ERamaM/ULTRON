@@ -1,0 +1,22 @@
+JOHN SAMPLE
+Senior Backend Engineer | john.sample@example.com | Remote (EU)
+
+SUMMARY
+Backend engineer with 9 years of experience building payment APIs.
+Not interested in people-management roles.
+
+EXPERIENCE
+Example Corp - Staff Engineer (03/2021 - present)
+  - Designed event-driven services in Go and Kafka
+  - Mentored 4 engineers; on-call lead
+Sample Labs - Backend Engineer (01/2018 - 02/2021)
+  * Python/Django REST APIs, PostgreSQL, Redis
+  * Data entry tooling for the operations team
+
+SKILLS
+Languages: Go, Python, SQL
+Infrastructure: Kubernetes, Terraform, AWS
+Spoken: English (C2), Portuguese (native), Spanish (B2)
+
+EDUCATION
+BSc Computer Science, 2015

@@ -198,12 +198,12 @@ def test_synthetic_text_and_markdown_cvs_keep_structure():
     assert "| Finanzas | NIIF, IFRS 9, presupuestación |" in spanish.splitlines()
 
 
-def test_docx_is_reported_as_unsupported(tmp_path):
+def test_a_truncated_docx_is_a_typed_extraction_error(tmp_path):
     path = tmp_path / "cv.docx"
     path.write_bytes(b"PK\x03\x04")
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv_text(path)
-    assert raised.value.code == "unsupported_type"
+    assert raised.value.code == "no_extractable_text"
 
 
 def test_rotated_text_is_not_lost_when_columns_are_reordered():

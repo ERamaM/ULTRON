@@ -557,3 +557,23 @@ def test_plain_undo_after_an_explicit_restore_brings_back_the_replaced_version(t
     assert profiles.history(SLUG)[0]["reason"] == "restore"
     assert _run(capsys, "profile", "undo", SLUG)[0] == 0
     assert profiles.user_path(SLUG).read_bytes() == c  # not B
+
+
+def test_explain_warns_about_fields_the_cli_ignores(tmp_path, capsys):
+    criteria = {**_draft()["criteria"], "company_exclusions": ["Example Consulting"], "sectors": ["fintech"]}
+    criteria["seniority"] = {**criteria["seniority"], "level": "mid"}
+    draft = tmp_path / "draft.yaml"
+    draft.write_text(yaml.safe_dump(_draft(criteria=criteria, salary_min=60000)), encoding="utf-8")
+    code, out = _run(capsys, "profile", "explain", "--from", str(draft))
+    assert code == 0
+    warnings = "\n".join(out["warnings"])
+    assert "salary_min" in warnings and "criteria.company_exclusions" in warnings
+    assert "criteria.seniority.level" in warnings and "prompt" in warnings
+    assert "'fintech' is not a known sector" in warnings
+
+
+def test_explain_has_no_field_warnings_for_bundled_and_fixture_profiles(capsys):
+    for path in sorted([*(home.data_dir() / "profiles").glob("*.yaml"), *FIXTURES.glob("*.yaml")]):
+        code, out = _run(capsys, "profile", "explain", "--from", str(path))
+        field_warnings = [w for w in out["warnings"] if "not a profile field" in w or "known sector" in w]
+        assert code == 0 and field_warnings == [], (path.name, field_warnings)

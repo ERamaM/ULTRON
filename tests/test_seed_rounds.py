@@ -256,3 +256,17 @@ def test_fitting_pack_seeds_count_as_already_tried(tmp_path, monkeypatch, capsys
     _companies, boards, names = seed_rounds.tried(run, [])
     assert {"greenhouse:pack0", "greenhouse:pack2"} <= boards and "greenhouse:healthco" not in boards
     assert "Pack 1" in names and "Health Co" not in names
+
+
+def test_feed_seeds_do_not_count_toward_the_target(requests_log, capsys):
+    # S6 fast (session 3): company-list feeds linked 56 technology boards to a US nursing profile, and
+    # fitting_seeds read 75 although only the 30 pack seeds fit; the deficit would have hidden itself.
+    from ultron.core.models import AtsBoardSeed
+
+    feed = [AtsBoardSeed(seed_id=f"lever:feed{i}", company=f"Feed {i}", ats="lever", board_identifier=f"feed{i}",
+                         source_type=kind) for i, kind in enumerate(["feed_discovered", "feed_company"] * 2)]
+    agent = [AtsBoardSeed(seed_id="ashby:agentco", company="Agent Co", ats="ashby", board_identifier="agentco",
+                          source_type="agent_generated", verification={"postings": 3})]
+    seeds.add_seeds([*feed, *agent], profile_slug=profiles.EXAMPLE_SLUG)
+    out = _new_run(capsys)
+    assert (out["fitting_seeds"], out["seed_deficit"]) == (1, 34)

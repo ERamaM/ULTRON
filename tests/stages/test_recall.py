@@ -12,6 +12,7 @@ from stage_helpers import CASES, CORPUS, PROFILE
 from ultron import http_factory, profiles, runs, seeds
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import AtsBoardSeed, CandidateUrl, ExtractedJob
+from ultron.stages import discover as discover_stage
 from ultron.stages.discover import discover_ats
 from ultron.stages.feeds import _candidate as feed_candidate
 from ultron.stages.feeds import _posting_like
@@ -68,6 +69,12 @@ def _setup(auto_seeds, overrides, log):
     return runs.new_run(profiles.EXAMPLE_SLUG, "balanced", overrides)
 
 
+def _deprioritize(monkeypatch, boards: list[str]) -> None:
+    # Pack seeds with 5+ attempts and no keep go after every group, feed seeds included. These tests use that to
+    # rank non-feed seeds after feed seeds (other-sector packs used to, but they are no longer queried at all).
+    monkeypatch.setattr(discover_stage, "load_seed_yields", lambda _slug: {f"lever:{b}": (5, 0) for b in boards})
+
+
 # --- seed selection -------------------------------------------------------------------------------
 
 
@@ -84,9 +91,10 @@ def test_feed_seeds_cannot_crowd_out_agent_and_pack_seeds(pack_dir):
     assert groups["feed"]["queried"] == 0 and groups["feed"]["capped"] == 6
 
 
-def test_feed_seeds_get_at_most_half_when_non_feed_seeds_exist(pack_dir):
-    # Pack seeds from another sector rank after feed seeds, but the 50% reserve still applies to them.
-    _write_pack(pack_dir, [_pack_row("lever", f"other{i}", 10 + i, sectors=("pharma_health",)) for i in range(6)])
+def test_feed_seeds_get_at_most_half_when_non_feed_seeds_exist(pack_dir, monkeypatch):
+    # Deprioritized pack seeds rank after feed seeds, but the 50% reserve still applies to them.
+    _write_pack(pack_dir, [_pack_row("lever", f"other{i}", 10 + i) for i in range(6)])
+    _deprioritize(monkeypatch, [f"other{i}" for i in range(6)])
     auto = [_auto("lever", f"feed{i}", "feed_discovered", priority=1) for i in range(6)]
     log: list = []
     run_id = _setup(auto, {"max_seeds_per_run": 4}, log)
@@ -94,7 +102,7 @@ def test_feed_seeds_get_at_most_half_when_non_feed_seeds_exist(pack_dir):
     boards = [b for _, b in log]
     assert len(boards) == 4
     assert sum(b.startswith("feed") for b in boards) == 2
-    assert out["seed_groups"]["feed"]["queried"] == 2 and out["seed_groups"]["other"]["queried"] == 2
+    assert out["seed_groups"]["feed"]["queried"] == 2 and out["seed_groups"]["pack"]["queried"] == 2
 
 
 def test_host_cap_follows_group_order_and_frees_slots(pack_dir):
@@ -256,16 +264,17 @@ def test_aggregator_page_linking_to_an_ats_is_not_fingerprint_allowed_in_replay(
     assert pre["reason"] == "outside_ats_allowlist"
 
 
-def test_seeds_dropped_by_feed_cap_do_not_take_host_slots(pack_dir):
-    # Feed seeds rank before the off-sector pack seed on the same host. The feed reserve leaves one slot
+def test_seeds_dropped_by_feed_cap_do_not_take_host_slots(pack_dir, monkeypatch):
+    # Feed seeds rank before the deprioritized pack seed on the same host. The feed reserve leaves one slot
     # for the pack seed, and the feed seed it drops must not use the host's second (last) request slot.
-    _write_pack(pack_dir, [_pack_row("lever", "offsector", 10, sectors=("pharma_health",))])
+    _write_pack(pack_dir, [_pack_row("lever", "offsector", 10)])
+    _deprioritize(monkeypatch, ["offsector"])
     auto = [_auto("lever", f"feed{i}", "feed_discovered", priority=1) for i in range(3)]
     log: list = []
     run_id = _setup(auto, {"max_seeds_per_run": 2, "max_requests_per_host": 2}, log)
     out = discover_ats(run_id)
     assert [b for _, b in log] == ["feed0", "offsector"]
-    assert out["seed_groups"]["other"]["queried"] == 1 and out["seed_groups"]["other"]["host_capped"] == 0
+    assert out["seed_groups"]["pack"]["queried"] == 1 and out["seed_groups"]["pack"]["host_capped"] == 0
 
 
 @pytest.mark.parametrize(("host", "expected"), [
@@ -287,7 +296,7 @@ def test_is_aggregator_host_edges(host, expected):
     assert is_aggregator_host(host) is expected
 
 
-def test_eu_pack_seeds_demoted_behind_feeds_for_non_eu_profile(pack_dir):
+def test_eu_pack_seeds_are_left_out_for_non_eu_profile(pack_dir):
     latam = yaml.safe_load((FIX / "profiles" / "backend-latam.yaml").read_text(encoding="utf-8"))
     slug = latam["slug"]
     _write_pack(
@@ -319,8 +328,8 @@ def test_eu_pack_seeds_demoted_behind_feeds_for_non_eu_profile(pack_dir):
     run_id = runs.new_run(slug, "balanced", {"max_seeds_per_run": 6, "max_requests_per_host": 3})
     out = discover_ats(run_id)
     boards = [b for _, b in log]
-    # All 3 feed seeds run ahead of any EU-scoped pack seed on a geo="other" profile.
+    # EU-scoped pack seeds do not fit a geo="other" profile: never queried, not even as filler (session 3).
     assert boards == ["feed0", "feed1", "feed2"]
     assert out["seed_groups"]["feed"]["queried"] == 3
-    assert out["seed_groups"]["other"]["host_capped"] == 4
+    assert out["seed_groups"]["other"]["host_capped"] == out["seed_groups"]["other"]["queried"] == 0
     assert out["seed_groups"]["pack"]["queried"] == 0

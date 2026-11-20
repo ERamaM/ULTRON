@@ -140,7 +140,7 @@ flowchart LR
 ```
 
 1. **Profile:** Draft a search profile from a PDF/text CV, build one by answering a few questions, or adapt the bundled template. Refine it in chat ("no management roles", "add Rust"): every change is previewed as a diff and can be undone.
-2. **Companies:** Propose target employers and verify their live ATS boards (`ultron seeds verify`).
+2. **Companies:** Propose target employers and verify their live ATS boards (`ultron seeds verify`). A profile that no bundled seed pack covers gets its companies generated in rounds until it reaches the preset's seed target (`ultron seeds plan`, then `ultron seeds verify --round`).
 3. **Discovery:** Pull structured job feeds (`ultron discover feeds` reading `skill/ultron/data/feeds.yaml`) and run targeted web queries (`candidates add`).
 4. **ATS Crawl:** Query verified boards across 19 ATS vendors (`discover ats`).
 5. **Fetch:** Download job descriptions with vendor API enrichment fallbacks (`fetch`).

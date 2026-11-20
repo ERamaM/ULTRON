@@ -27,12 +27,12 @@ executable named in `RUNTIME.md` (see SKILL.md). Every command prints **one JSON
 
 ## Presets
 
-| preset | max roles kept | pages fetched | seeds queried | web queries | new companies |
-|---|---|---|---|---|---|
-| `fast` | 5 | 70 | 120 | 20 | 10 |
-| `balanced` (default) | 250 | 400 | 180 | 40 | 25 |
-| `deep` | 250 | 4000 | 400 | 120 | 60 |
-| `seed_boost` | 250 | 4000 | 400 | 220 | 120 |
+| preset | max roles kept | pages fetched | seeds queried | web queries | new companies | seed target (rounds) |
+|---|---|---|---|---|---|---|
+| `fast` | 5 | 70 | 120 | 20 | 10 | 35 (2) |
+| `balanced` (default) | 250 | 400 | 180 | 40 | 25 | 75 (3) |
+| `deep` | 250 | 4000 | 400 | 120 | 60 | 100 (3) |
+| `seed_boost` | 250 | 4000 | 400 | 220 | 120 | 130 (4) |
 
 Use `balanced` unless the user asks otherwise ("quick" → `fast`, "thorough" → `deep`, "find more
 companies" → `seed_boost`).
@@ -48,23 +48,31 @@ Output:
 ```json
 {"run_id": "20261116-101500-a1b2c3", "preset": "balanced", "profile": "ai-ml-remote-eu",
  "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25,
- "eligible_seeds": 40, "cold_start": false}
+ "eligible_seeds": 40, "cold_start": false, "seed_target": 75, "fitting_seeds": 40, "seed_deficit": 35}
 ```
 
 - `query_plan`: web-search queries for step 4 (already capped to the preset; includes `site:` ATS queries when `query_templates.site_scopes` is set).
 - `profile_seeds`: verified companies already linked to this profile (reused automatically).
 - `new_companies_target`: how many new companies to propose in step 2.
 - `eligible_seeds`: inventory boards that fit this profile (its own seeds plus bundled packs for its
-  sectors and region). `cold_start: true` means fewer than 15: this profile has too few boards for a
-  useful ATS pass, so in this run propose about twice `new_companies_target` companies in step 2 and add
-  the extra ATS `site:` searches of step 4 (see "Cold start" there).
+  sectors and region). `cold_start: true` means fewer than 15: add the extra ATS `site:` searches of
+  step 4 (see "Cold start" there).
+- `fitting_seeds`: the boards that count toward the preset's `seed_target`, counted the way step 5 selects
+  them (seed and per-host limits). Feed seeds, guessed boards of unknown ownership and boards with no openings
+  do not count. `seed_deficit` above 0: generate the missing companies in rounds in step 2 (`references/seeds.md`,
+  "Seed rounds").
 
 If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md
 before calling `run new`. For a named saved search, use its configured profile.
 
 ## 2. Propose and verify companies
 
-Follow `references/seeds.md` to write `agent_proposals.jsonl`, then:
+With `seed_deficit` above 0, run the seed rounds of `references/seeds.md` ("Seed rounds"):
+`ultron seeds plan --run <run_id>`, write its `proposals_file`, then
+`ultron seeds verify --run <run_id> --from <run folder>/<proposals_file> --round`, and repeat while
+`more_rounds` is true. Round state is kept in `seed_rounds.jsonl`.
+
+Otherwise follow `references/seeds.md` to write `agent_proposals.jsonl`, then:
 
 ```
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
@@ -173,8 +181,9 @@ pages for those countries with unfiltered pages within the same budget.
 Seeds can be on any of the 19 supported ATS vendors (`references/seeds.md`). Order: companies you
 verified for the profile (and ATS boards discovered via web search) first, then bundled pack seeds in
 the profile's sectors, then other seeds linked to the profile, then seeds found in feeds (feed seeds
-never take more than half of the seed slots while curated seeds are left). Pack seeds for another region
-(a US or Latin America pack for a European profile) are never queried. Each ATS API gets at most
+never take more than half of the seed slots while curated seeds are left). Pack seeds for another sector
+or region (a technology pack for a nursing profile, a US pack for a European profile) are never queried,
+not even to fill leftover slots. Each ATS API gets at most
 the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled in that order; boards
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
@@ -316,4 +325,6 @@ Chains new → discover feeds → verify the feed company hints (up to `new_comp
 discover ats → fetch → filter → finalize with no company generation by you, no web search and no
 agent evaluation (ambiguous postings keep their heuristic verdict). Output: the finalize payload
 plus `run_id` and a `stages` object with each stage's counts. Suggest it for scheduled or
-zero-token runs; it searches the verified inventory plus whatever the feeds add.
+zero-token runs; it searches the verified inventory plus whatever the feeds add. It cannot generate
+seeds: `stages.seed_coverage` reports `fitting_seeds` and `seed_deficit`. A deficit above 0 means the
+profile needs an interactive run with seed rounds first.

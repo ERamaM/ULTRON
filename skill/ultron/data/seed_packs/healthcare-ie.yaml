@@ -20,11 +20,26 @@ seeds:
     region_postings: 16
     role_postings: 7
     verified_at: '2026-11-20T04:47:20+00:00'
+- company: Affidea Ireland
+  ats: recruitee
+  board_identifier: affideaireland
+  enabled: true
+  priority: 12
+  tags:
+  - nursing
+  country_scope: IE
+  sectors:
+  - pharma_health
+  verification:
+    postings: 23
+    region_postings: 22
+    role_postings: 5
+    verified_at: '2026-11-20T05:25:58+00:00'
 - company: Beaumont Hospital
   ats: icims
   board_identifier: nurses-beaumonthospital.icims.com
   enabled: true
-  priority: 12
+  priority: 14
   tags:
   - nursing
   country_scope: IE

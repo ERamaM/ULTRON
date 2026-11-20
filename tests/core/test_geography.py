@@ -110,6 +110,10 @@ def test_remote_from_a_non_eu_place_only_is_a_red_flag(place):
     assert assessment.conflict is True
 
 
+def test_generic_global_wording_does_not_unflag_a_non_eu_region():
+    assert has_region_red_flags("Remote LATAM only. Join our global team, work from anywhere in the region.") is True
+
+
 def test_spanish_us_residence_requirement_is_a_red_flag():
     assert has_region_red_flags("Remoto solo desde Estados Unidos") is True
     assert has_region_red_flags("Ubicación: EE.UU. (remoto)") is True
@@ -123,8 +127,9 @@ def test_spanish_us_residence_requirement_is_a_red_flag():
         "Remote: open to candidates in Spain, Germany or Argentina",
         "Remote from Portugal or Brazil",
         "Remote Europe. Customers in Chile and Kenya.",
-        "Remote within Europe; our founders are from Israel.",
+        "Remote within the EU; our founders are from Israel.",
         "We have offices in Bogotá, Colombia. Remote Europe.",
+        "Remote worldwide, APAC time zones preferred.",
     ],
 )
 def test_mixed_european_and_non_eu_scopes_are_not_red_flags(text):

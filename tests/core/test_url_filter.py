@@ -70,7 +70,7 @@ def test_url_normalization_preserves_job_ids_and_removes_tracking():
     assert url_filter.domain_of(normalized) == "boards.greenhouse.io"
     assert url_filter._extract_ats_board("Acme [greenhouse:acme]") == ("greenhouse", "acme")
     assert url_filter._extract_ats_board("plain query") is None
-    assert url_filter._is_domain_allowed("jobs.example.com", ["example.com"])
+    assert url_filter.is_domain_allowed("jobs.example.com", ["example.com"])
     assert url_filter._is_domain_blocked("jobs.example.com", {"example.com"})
 
 

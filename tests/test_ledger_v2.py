@@ -121,7 +121,7 @@ def test_migrate_v3_adds_seed_yield_table_and_backs_up():
         conn.execute("PRAGMA user_version = 3")
 
     with closing(ledger.connect()) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone() == (4,) == (ledger.SCHEMA_VERSION,)
+        assert conn.execute("PRAGMA user_version").fetchone() == (ledger.SCHEMA_VERSION,)
         assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (3,)
         assert conn.execute("SELECT COUNT(*) FROM job_occurrences WHERE is_new = 1").fetchone() == (3,)
         assert ledger.seed_yields(conn, "p") == {}
@@ -134,3 +134,48 @@ def test_migrate_v3_adds_seed_yield_table_and_backs_up():
         assert conn.execute("PRAGMA user_version").fetchone() == (3,)
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert "seed_yield_runs" not in tables
+
+
+def test_migrate_v5_rekeys_url_identities_that_now_have_a_vendor_identity():
+    with closing(ledger.connect()) as conn:  # a current ledger, then rolled back to v4 with legacy keys
+        conn.execute("PRAGMA user_version = 4")
+        sr_url = "https://jobs.smartrecruiters.com/Acme/744000012345678-data-engineer"
+        old = "url://jobs.smartrecruiters.com/acme/744000012345678-data-engineer"
+        taken_url = "https://acme.teamtailor.com/jobs/42-ml-engineer"
+        rows = [(old, sr_url), ("url://acme.teamtailor.com/jobs/42-ml-engineer", taken_url),
+                ("teamtailor:acme:42", taken_url), ("url://example.com/careers/1", "https://example.com/careers/1")]
+        for key, url in rows:
+            conn.execute(
+                "INSERT INTO jobs (identity_key, canonical_url, first_seen, last_seen, times_seen, review_state)"
+                " VALUES (?, ?, '2026-01-01', '2026-01-02', 1, 'applied')", (key, url))
+        conn.execute("INSERT INTO job_occurrences (identity_key, run_id, is_new, seen_at, details_json)"
+                     " VALUES (?, 'r1', 1, '2026-01-01', '{}')", (old,))
+        conn.execute("INSERT INTO job_feedback (identity_key, relevance, labeled_at) VALUES (?, 'relevant', 'x')",
+                     (old,))
+        conn.commit()
+    with closing(ledger.connect()) as conn:
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == ledger.SCHEMA_VERSION
+        keys = {row[0] for row in conn.execute("SELECT identity_key FROM jobs")}
+        new = "smartrecruiters:acme:744000012345678"
+        assert new in keys and old not in keys
+        assert conn.execute("SELECT review_state FROM jobs WHERE identity_key = ?", (new,)).fetchone()[0] == "applied"
+        assert conn.execute("SELECT COUNT(*) FROM job_occurrences WHERE identity_key = ?", (new,)).fetchone()[0] == 1
+        assert conn.execute("SELECT COUNT(*) FROM job_feedback WHERE identity_key = ?", (new,)).fetchone()[0] == 1
+        # The new key already existed: both rows are kept, nothing is merged. Plain URL identities stay.
+        assert {"url://acme.teamtailor.com/jobs/42-ml-engineer", "teamtailor:acme:42",
+                "url://example.com/careers/1"} <= keys
+
+
+def test_migrate_v5_uses_stored_source_hints():
+    embedded = "https://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789"
+    with closing(ledger.connect()) as conn:
+        conn.execute("PRAGMA user_version = 4")
+        conn.execute(
+            "INSERT INTO jobs (identity_key, canonical_url, first_seen, last_seen, times_seen, source_type, source_key)"
+            " VALUES (?, ?, '2026-01-01', '2026-01-02', 1, 'ats_api', 'ashby:acme')",
+            ("url://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789", embedded))
+        conn.commit()
+    with closing(ledger.connect()) as conn:
+        keys = {row[0] for row in conn.execute("SELECT identity_key FROM jobs")}
+    # The same key the job gets when ATS discovery records it again with its source hints.
+    assert keys == {"ashby:acme:0b1c2d3e-4f50-6789-abcd-ef0123456789"}

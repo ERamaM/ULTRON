@@ -10,7 +10,7 @@ executable named in `RUNTIME.md` (see SKILL.md). Every command prints **one JSON
 - **Your input files** (proposals, web results, evaluation batches) go in the run folder with an
   `agent_` prefix, e.g. `agent_proposals.jsonl`, `agent_web.jsonl`, `agent_eval_01.jsonl`. Never write to
   a file the CLI owns (`run.json`, `candidates.jsonl`, `postings.jsonl`, `kept.jsonl`, `ambiguous.jsonl`,
-  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`,
+  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`, `fetch_capped.jsonl`,
   `finalize_discards.jsonl`, `feed_errors.jsonl`, `seed_proposals_from_*.jsonl`, `results.*`,
   `run_summary.md`).
 - **JSONL** = one JSON object per line, UTF-8 without BOM, no surrounding array. Write these files with
@@ -47,12 +47,17 @@ Output:
 
 ```json
 {"run_id": "20261116-101500-a1b2c3", "preset": "balanced", "profile": "ai-ml-remote-eu",
- "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25}
+ "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25,
+ "eligible_seeds": 40, "cold_start": false}
 ```
 
 - `query_plan`: web-search queries for step 4 (already capped to the preset; includes `site:` ATS queries when `query_templates.site_scopes` is set).
 - `profile_seeds`: verified companies already linked to this profile (reused automatically).
 - `new_companies_target`: how many new companies to propose in step 2.
+- `eligible_seeds`: inventory boards that fit this profile (its own seeds plus bundled packs for its
+  sectors and region). `cold_start: true` means fewer than 15: this profile has too few boards for a
+  useful ATS pass, so in this run propose about twice `new_companies_target` companies in step 2 and add
+  the extra ATS `site:` searches of step 4 (see "Cold start" there).
 
 If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md
 before calling `run new`. For a named saved search, use its configured profile.
@@ -65,7 +70,7 @@ Follow `references/seeds.md` to write `agent_proposals.jsonl`, then:
 ultron seeds verify --run <run_id> --from <run folder>/agent_proposals.jsonl
 ```
 
-Output: `{"verified": 7, "new": 6, "unresolved": 3, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
+Output: `{"verified": 7, "new": 6, "unresolved": 3, "ownership_unknown": 1, "wrong_tenant": 0, "unresolved_sample": [{"company": "Acme", "reason": "no_board_found"}]}`
 
 Details are in `seeds_verified.jsonl` and `seeds_unresolved.jsonl` (both rewritten on every call).
 Verified companies are stored for this profile and used by `discover ats` from now on.
@@ -76,7 +81,7 @@ Verified companies are stored for this profile and used by `discover ats` from n
 ultron discover feeds --run <run_id>
 ```
 
-Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "company_hints": 35, "requests": 40}`
+Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "requests": 40}`
 
 Reads the public job feeds listed in the skill's `data/feeds.yaml` (remote-job APIs, RSS feeds and
 company lists). No agent input is needed. It does three things:
@@ -87,9 +92,11 @@ company lists). No agent input is needed. It does three things:
   remoteok, jobicy...) is not a candidate: such pages are never kept, and the board it links to is
   still picked up as a seed. Feed rows are ranked by title fit and geography scope.
 - Links to ATS boards found in the feeds are added to the inventory as seeds, so step 5 queries them
-  (`seeds_added`).
+  (`seeds_added`), when at least one posting of that board passes the profile's title filter (boards of
+  company-list feeds always count); boards seen only in other professions' postings are skipped
+  (`feed_boards_irrelevant`).
 - Company names whose ATS is unknown are written to `seed_proposals_from_feeds.jsonl` (`company_hints`,
-  proposal format of `references/seeds.md`). Optionally verify them by passing that file directly with
+  proposal format of `references/seeds.md`), most-mentioned companies first. Optionally verify them by passing that file directly with
   `--limit` instead of copying a subset (`--limit` defaults to the run's `new_companies_per_run` when the
   input file is `seed_proposals_from_feeds.jsonl`):
   `ultron seeds verify --run <run_id> --from <run folder>/seed_proposals_from_feeds.jsonl --limit <new_companies_target>`.
@@ -111,6 +118,13 @@ string as the query. For a SearXNG instance, send that same string as the URL-en
 parameter. If you add a supplementary query using a profile technology, record it separately
 and use the same query with each provider when comparing them. Record how many planned queries
 you actually submitted if you stopped early.
+
+**Cold start** (`cold_start: true` in `run new`): after the plan, also search the profile's two or three
+main target titles on the main ATS hosts, e.g. `site:jobs.lever.co "<title>" <region>`, then
+`site:job-boards.greenhouse.io`, `site:jobs.ashbyhq.com`, `site:apply.workable.com`,
+`site:jobs.smartrecruiters.com` and `site:*.recruitee.com` (about 10 extra queries; record them
+separately from the plan). Every posting URL on a new board becomes a seed proposal that step 5
+verifies and keeps for later runs, so this is the quickest way to grow a small inventory.
 
 Collect **individual job-posting URLs** (one opening per URL), excluding portals and aggregator
 home pages. Write them as JSONL with the required `url`, plus `title`, `company` and the exact
@@ -160,7 +174,8 @@ the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled 
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
-the stage. `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+the stage (`unparseable_board`: the page loaded but no listings could be read, e.g. a script-rendered Taleo
+career section; it is not an empty board). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
 
 Seed order also learns from past runs of the same profile. `finalize` records which boards each run
 queried and how many of their postings it kept. Within each group, boards that have produced kept roles
@@ -177,12 +192,17 @@ get explored.
 ultron fetch --run <run_id>
 ```
 
-Output: `{"fetched": 210, "failed": 40, "requests": 250}`
+Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250}`
 
-Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
+Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
+submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
+in `fetch_capped.jsonl`.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
+If at least 50 URLs failed to load at all (DNS failures, connection errors, timeouts) and they are at least half of the URLs
+tried, fetch stops early: the output has `"stopped": "navigation_failures"` and the remaining URLs are recorded as
+`skipped_navigation_failures`. Check the network or proxy, then run a new search.
 
 ## 7. Filter
 

@@ -2,23 +2,29 @@
 
 from __future__ import annotations
 
+import functools
 import html as html_lib
 import re
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 
+import yaml
 from bs4 import BeautifulSoup
 
 from ultron import runs
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
-from ultron.core.discovery.url_filter import domain_of, normalize_url
+from ultron.core.data_paths import data_dir
+from ultron.core.decision.unit import load_allowed_domains
+from ultron.core.discovery.url_filter import canonicalize_url_for_allowlist, domain_of, is_domain_allowed, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
 from ultron.core.extractors.ats_extractors.base import ats_canonical_domain, detect_ats_fingerprint
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
+from ultron.core.urlpolicy import admit_url
 from ultron.http_factory import client_for_run
 from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.stages.feeds import is_aggregator_host
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
@@ -28,6 +34,14 @@ _SPA_BODY_MIN_CHARS = 400
 # counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
 # host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
 HOST_BLOCK_THRESHOLD = 3
+# Global stop: once at least this many URLs failed to load at all (DNS failures, connection errors, timeouts)
+# and they are at least half of the URLs attempted, the network or proxy is assumed down and the rest is skipped.
+NAV_FAILURE_STOP_THRESHOLD = 50
+NAV_FAILURE_STOP_RATIO = 0.5
+
+
+def should_stop_on_nav_failures(nav_failures: int, attempted: int) -> bool:
+    return nav_failures >= NAV_FAILURE_STOP_THRESHOLD and nav_failures >= NAV_FAILURE_STOP_RATIO * max(attempted, 1)
 
 
 def _host_is(host: str, domain: str) -> bool:
@@ -345,16 +359,76 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
     return job, False
 
 
+def _lane(candidate: CandidateUrl) -> str:
+    """Round-robin lane: the ATS board or feed (``source_key``); web-search hits get one lane per submitted query."""
+    if candidate.source_type == "web_search" or not candidate.source_key:
+        query = " ".join(str(candidate.query or "").split()).casefold()
+        return f"web_search:{query}" if query else "web_search"
+    return candidate.source_key
+
+
 def _round_robin(items: list[tuple[CandidateUrl, str]]) -> list[tuple[CandidateUrl, str]]:
-    """One candidate per source_key in turn (first-seen group order), keeping within-group order."""
+    """One candidate per lane in turn (first-seen lane order), keeping within-lane order."""
     groups: dict[str, list[tuple[CandidateUrl, str]]] = {}
     for item in items:
-        groups.setdefault(item[0].source_key or "web_search", []).append(item)
+        groups.setdefault(_lane(item[0]), []).append(item)
     queues = list(groups.values())
     out: list[tuple[CandidateUrl, str]] = []
     for rank in range(max((len(q) for q in queues), default=0)):
         out.extend(q[rank] for q in queues if rank < len(q))
     return out
+
+
+def page_canonical_url(html: str, base_url: str) -> str | None:
+    """The page's ``<link rel="canonical">`` resolved against ``base_url``; ``None`` unless it is an http(s) URL."""
+    if not html or "canonical" not in html.lower():
+        return None
+    link = BeautifulSoup(html, "html.parser").find("link", attrs={"rel": "canonical"}, href=True)
+    href = str(link.get("href") or "").strip() if link is not None else ""
+    if not href:
+        return None
+    try:
+        return admit_url(urljoin(base_url, href)).url  # http(s) only, no credentials, no private IP literal
+    except (URLRejected, ValueError):
+        return None
+
+
+@functools.cache
+def _blocked_final_domains() -> tuple[str, ...]:
+    rules = yaml.safe_load((data_dir() / "domain_rules.yaml").read_text(encoding="utf-8")) or {}
+    return tuple(str(domain) for domain in rules.get("blocked_final_domains") or [])
+
+
+def _allowlist_url(raw_url: str, candidate: CandidateUrl, allowed_domains: list[str]) -> str:
+    """``raw_url`` normalized; a custom-domain ``?gh_jid=`` URL of a known Greenhouse board becomes its board URL."""
+    source_key = str(candidate.source_key or "")
+    board_label = f"[{source_key}]" if source_key.lower().startswith("greenhouse:") else ""
+    return canonicalize_url_for_allowlist(raw_url, board_label, allowed_domains)
+
+
+def resolve_apply_url(
+    candidate: CandidateUrl, final_url: str, canonical_url: str | None, allowed_domains: list[str]
+) -> str:
+    """First of final URL, rel=canonical and candidate URL that lies on the ATS allowlist; else the final URL.
+
+    A final URL on a blocked or aggregator host is kept as is, so the filter still discards it.
+
+    The canonical link is page-controlled, so it only counts when it names a vendor job (not a board root, which
+    would merge every posting of the board into one identity).
+    """
+    final_host = domain_of(normalize_url(final_url))
+    if is_aggregator_host(final_host) or is_domain_allowed(final_host, list(_blocked_final_domains())):
+        return normalize_url(final_url)  # stays discardable by the filter, whatever the page links to
+    for raw_url, page_controlled in ((final_url, False), (canonical_url, True), (candidate.normalized_url, False)):
+        if not raw_url:
+            continue
+        url = _allowlist_url(raw_url, candidate, allowed_domains)
+        if not is_domain_allowed(domain_of(url), allowed_domains):
+            continue
+        if page_controlled and canonical_job_identity(url).identity_key.startswith(("url:", "raw:")):
+            continue
+        return url
+    return _allowlist_url(final_url, candidate, allowed_domains)
 
 
 def has_ats_fingerprint(html: str) -> bool:
@@ -400,6 +474,7 @@ def fetch(run_id: str) -> dict:
     max_pages = run["settings"]["max_pages"]
     # Per-host caps limit seeds per API host in discovery, not page fetching: shared ATS hosts are bounded by max_pages.
     client = client_for_run(run, max_requests_per_host=max_pages, block_threshold=HOST_BLOCK_THRESHOLD)
+    allowed_domains = load_allowed_domains()
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
@@ -413,19 +488,31 @@ def fetch(run_id: str) -> dict:
         seen.add(identity)
         unique.append((candidate, identity))
 
-    selected = _round_robin(unique)[:max_pages]
+    ordered = _round_robin(unique)
+    selected, capped = ordered[:max_pages], ordered[max_pages:]
+    # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
+    runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
+        {"url": candidate.normalized_url, "identity_key": identity, "source_key": candidate.source_key,
+         "error": "max_pages_limit"}
+        for candidate, identity in capped
+    ])
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
-    budget_spent = False
+    budget_spent = nav_stopped = False
+    attempted = nav_failures = 0
     for candidate, identity in selected:
         url = candidate.normalized_url
+        if nav_stopped:
+            errors.append({"url": url, "error": "skipped_navigation_failures"})
+            continue
         if budget_spent:
             errors.append({"url": url, "error": "skipped_request_budget_exhausted"})
             continue
         if candidate.domain in skipped_hosts:
             errors.append({"url": url, "error": "skipped_host_budget_exhausted"})
             continue
+        attempted += 1
         try:
             status, final_url, html = client.get_text(url)
         except HostBlocked:
@@ -455,9 +542,15 @@ def fetch(run_id: str) -> dict:
                 })
                 continue
             errors.append({"url": url, "error": f"http_error: {exc}", "status": exc.status_code})
+            if exc.status_code is None:  # transport failure: no HTTP response at all
+                nav_failures += 1
+                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
             continue
         except URLRejected as exc:
             errors.append({"url": url, "error": f"url_rejected: {exc}"})
+            if str(exc) == "dns_resolution_failed":  # with no network, name resolution fails first
+                nav_failures += 1
+                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
             continue
         if status >= 400:
             if status in {403, 429} or status >= 500:
@@ -477,7 +570,8 @@ def fetch(run_id: str) -> dict:
         if _workable_closed_redirect(url, final_url):
             errors.append({"url": url, "error": "expired_or_closed", "status": status})
             continue
-        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html)
+        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
+                          canonical_url=page_canonical_url(html, final_url))
         # Same hint keys and sources as MARK III's verification_fetch.
         ats_hints = {
             "title": candidate.ats_title,
@@ -501,6 +595,9 @@ def fetch(run_id: str) -> dict:
         job, wd_enriched = _workday_api_enrich(candidate, job, client)
         job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
         enriched = gh_enriched or workable_enriched or sr_described or wd_enriched or bamboo_enriched
+        if job.apply_url == normalize_url(final_url):  # an enricher's posting URL is kept as is
+            job.apply_url = resolve_apply_url(candidate, final_url, page.canonical_url, allowed_domains)
+            job.domain = domain_of(job.apply_url)
         if not enriched and (reason := unusable_page_reason(html, job)):
             errors.append({"url": url, "error": reason, "status": status})  # left for the agent to open manually
             continue
@@ -514,4 +611,8 @@ def fetch(run_id: str) -> dict:
     runs.write_jsonl(out_dir / "postings.jsonl", postings)
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")
-    return {"fetched": len(postings), "failed": len(errors), "requests": client.requests_made}
+    summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
+               "navigation_failures": nav_failures, "requests": client.requests_made}
+    if nav_stopped:
+        summary["stopped"] = "navigation_failures"
+    return summary

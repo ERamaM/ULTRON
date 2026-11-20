@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-core-091
+profile: ml-engineering-remote-eu
+language: en
+role_track: core
+seniority: manager
+remote_mode: worldwide
+eligibility_label: medium
+vendor: ashby
+fixture: ../fixtures/en-core-091.json
+split: test
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: false
+  remote_fit: true
+  eligibility: medium
+  open_status: true
+expected_stage: keep
+notes: Synthetic fixture with independently reviewed dimensional labels.

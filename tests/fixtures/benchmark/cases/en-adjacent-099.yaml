@@ -1,0 +1,20 @@
+schema_version: 1
+id: en-adjacent-099
+profile: ml-engineering-remote-eu
+language: en
+role_track: adjacent
+seniority: senior
+remote_mode: eu
+eligibility_label: ineligible
+vendor: ashby
+fixture: ../fixtures/en-adjacent-099.json
+split: test
+labels:
+  relevant: false
+  role_fit: null
+  seniority_fit: true
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: Synthetic fixture with independently reviewed dimensional labels.

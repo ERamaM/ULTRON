@@ -308,6 +308,41 @@ def test_rate_limited_explicit_board_is_reported_as_host_blocked_not_missing(cap
     assert reasons == ["host_blocked"] * 3
 
 
+def test_a_rate_limited_board_does_not_block_another_tenant_host_of_the_same_vendor():
+    # PR #57 review: a 403 from the explicit board's host must not skip the careers_url board on another host of
+    # the same vendor; only the client's host-scoped breaker decides what is blocked.
+    offers = {"offers": [{"title": "Staff Nurse", "careers_url": "https://newco.recruitee.com/o/staff-nurse"}]}
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        if request.url.host == "oldco.recruitee.com":
+            return httpx.Response(403)
+        return httpx.Response(200, json=offers)
+
+    proposal = Proposal(company="Example Hospital", ats="recruitee", board="oldco",
+                        careers_url="https://newco.recruitee.com/")
+    result = verify_proposal(proposal, client=make_client(handler, block_threshold=3), timeout=5, verify_only=True)
+    assert result.status == "verified" and result.seed.board_identifier == "newco"
+    assert "newco.recruitee.com" in seen
+
+
+def test_a_single_rate_limited_answer_does_not_skip_the_next_board_on_that_host():
+    # Below the breaker threshold the next board on the same host is still asked (the breaker needs 3 answers).
+    calls: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        board = request.url.path.split("/")[3]
+        calls[board] = calls.get(board, 0) + 1
+        if board == "first" and calls[board] == 1:
+            return httpx.Response(429, headers={"Retry-After": "0"})
+        return httpx.Response(200, json=GH_JOBS)
+
+    client = make_client(handler, block_threshold=3)
+    result = verify_proposal(Proposal(company="Acme", ats="greenhouse", board="first"), client=client, timeout=5)
+    assert result.status == "verified"
+
+
 def test_seeds_verify_unknown_run(capsys, tmp_path):
     assert main(["seeds", "verify", "--run", "nope", "--from", str(tmp_path / "x.jsonl")]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "run_not_found"

@@ -290,7 +290,11 @@ Output:
 
 - Merges your verdicts with the heuristics, ranks, removes duplicates, applies the preset's role cap
   (`final_cap` = good roles cut by the cap; `fast` keeps only 5), records history and exports.
-- `unsure` rows stay in the results, flagged as unsure.
+- `unsure` rows stay in the results, flagged as unsure. A heuristic keep whose location is limited to a
+  country outside the profile's home country also becomes `unsure`, with eligibility `unknown` and the note
+  "location limited to <country>"; check it before recommending it.
+- For a full-remote profile, a posting listed once per city (same company, title and board) becomes one
+  row whose location lists the cities.
 - A role you kept can still be dropped here (location conflict, duplicate, cap); those are listed in
   `finalize_discards.jsonl` with a `stage` field.
 - `--xlsx` and `--html` also write `results.xlsx` / `results.html` and add `results_xlsx` / `results_html` to

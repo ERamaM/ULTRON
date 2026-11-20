@@ -1,0 +1,32 @@
+{
+  "description": "Synthetic English single-column CV with right-aligned dates on every role line and short bullets (must NOT be split into columns).",
+  "header": [],
+  "left": [
+    "John Sample",
+    "Senior Backend Engineer",
+    "Lisbon, Portugal",
+    "EXPERIENCE",
+    "Example Corp, Staff Engineer",
+    "• Go and Kafka services",
+    "• Led a team of 4",
+    "Sample Labs, Backend Engineer",
+    "• Python APIs",
+    "• PostgreSQL tuning",
+    "Demo Inc, Junior Developer",
+    "• Java maintenance"
+  ],
+  "right": [
+    "",
+    "",
+    "",
+    "",
+    "Mar 2021 – Present",
+    "",
+    "",
+    "Jan 2018 – Feb 2021",
+    "",
+    "",
+    "2015 – 2017",
+    ""
+  ]
+}

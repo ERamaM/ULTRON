@@ -100,7 +100,10 @@ A/B comparisons must change one thing only: the code.
 The tools live in `tools/` at the repository root. They are developer tools: they are not part
 of the `ultron` CLI or the installed skill. None of them uses the network, an agent, the clock
 or the real `ULTRON_HOME`. Replays run the real `filter` and `finalize` stages in a throwaway
-`ULTRON_HOME` that is deleted afterwards.
+`ULTRON_HOME` that is deleted afterwards. The report files the tools read or write (`--output`
+and the reports given to `compare` and `diff`) must be inside the repository or the system temp
+folder. Anything that resolves outside these folders, through `..` or a symlink, is rejected
+with exit code `2`.
 
 ### Labelled benchmark (120 cases)
 

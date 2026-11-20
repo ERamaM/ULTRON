@@ -20,6 +20,7 @@ from ultron.core.ranker import dedupe_final_rows, rank_final_rows
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope, other_country_restriction
+from ultron.core.rules.hard_filters import is_full_remote_only
 from ultron.stages.discover import SEED_ATTEMPTS_FILE
 
 TOP_N = 5
@@ -113,7 +114,8 @@ def finalize(run_id: str) -> dict:
         # Heuristic keeps limited to a country outside the profile's home places need a check: "Remote across
         # Germany" is not open to someone in Spain. Agent verdicts already answered the eligibility question.
         limited_to = None if key in agent or evaluation.verdict != "keep" else other_country_restriction(
-            job.location, job.remote_text, criteria, job.body_text
+            job.location, job.remote_text, criteria, job.body_text,
+            remote_job=is_full_remote_only(job.remote_text, job.body_text),
         )
         if limited_to:
             evaluation = evaluation.model_copy(update={"verdict": "unsure", "keep": False, "eligibility": "unknown"})

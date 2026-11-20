@@ -167,10 +167,15 @@ def _country_spellings(place: str) -> tuple[str, ...]:
     return next((group for group in COUNTRY_ALIASES if place in group), (place,))
 
 
-def names_wide_region(text: str) -> bool:
+# Adjectives that describe a company, a team or a market more often than where it hires ("our global payments
+# platform", "an international analytics team"). In a location field they still name a region ("Remote, Global").
+COMPANY_SCOPE_WORDS = frozenset({"global", "international"})
+
+
+def names_wide_region(text: str, *, ignore: frozenset[str] = frozenset()) -> bool:
     """True when the text names a region that spans several countries ("Remote EU", "anywhere", "LATAM")."""
     low = normalize_text(text)
-    return bool(find_terms(low, WIDE_REGION_WORDS) or find_terms(low, WIDE_REGION_PHRASES))
+    return bool(find_terms(low, WIDE_REGION_WORDS - ignore) or find_terms(low, WIDE_REGION_PHRASES))
 
 
 def profile_home_places(criteria: Mapping[str, Any] | None) -> tuple[str, ...]:
@@ -191,7 +196,8 @@ _ANYWHERE_IN_PLACE = re.compile(r"\banywhere\s+in\s+(?:the\s+)?\w+")
 
 
 def other_country_restriction(
-    location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = ""
+    location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = "",
+    *, remote_job: bool = True,
 ) -> str | None:
     """The country a posting is limited to when it is none of the profile's home places, else ``None``.
 
@@ -199,7 +205,10 @@ def other_country_restriction(
     A posting is not limited when those fields also name a home place ("Germany, Ireland or Portugal") or a
     multi-country region ("Remote EU, Germany preferred"), or when the body does
     ("work remotely from anywhere in Ireland", "hiring across the EU"): when in doubt, nothing is limited.
-    "Anywhere in the Netherlands" still names one country, so it does not count as a region.
+    "Anywhere in the Netherlands" still names one country, so it does not count as a region, and "global" or
+    "international" in the body describe the company ("our global platform"), not where it hires.
+    The body is only read for a remote job (``remote_job``): an on-site or hybrid job is done at its location,
+    whatever regions the company blurb names.
     """
     places = profile_home_places(criteria)
     countries = [spelling for place in places if place in _COUNTRY_NAMES for spelling in _country_spellings(place)]
@@ -210,8 +219,8 @@ def other_country_restriction(
     text = f"{location}\n{remote_text}"
     if names_wide_region(text) or find_terms(text, homes):
         return None
-    excerpt = normalize_text(body_text or "")
-    if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt)):
+    excerpt = normalize_text(body_text or "") if remote_job else ""
+    if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS):
         return None
     named = find_terms(text, COUNTRY_TERMS)
     return named[0] if named else None

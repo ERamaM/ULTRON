@@ -35,10 +35,11 @@ def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> Extracte
     if details is None:
         return _parse_selectors(page, ats_hints=ats_hints)
     heading = soup.find(id=f"{_PREFIX}jobTitleGroup")
+    title = ""
     if heading is not None:
         for small in heading.find_all("small"):
             small.decompose()
-    title = " ".join(heading.get_text(" ", strip=True).split()) if heading is not None else ""
+        title = " ".join(heading.get_text(" ", strip=True).split())
     location = _field_text(soup, "jobLocationFieldRow")
     category = _field_text(soup, "jobCategoryFieldRow")
     esc = html_lib.escape

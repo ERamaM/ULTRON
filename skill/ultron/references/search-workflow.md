@@ -10,7 +10,7 @@ executable named in `RUNTIME.md` (see SKILL.md). Every command prints **one JSON
 - **Your input files** (proposals, web results, evaluation batches) go in the run folder with an
   `agent_` prefix, e.g. `agent_proposals.jsonl`, `agent_web.jsonl`, `agent_eval_01.jsonl`. Never write to
   a file the CLI owns (`run.json`, `candidates.jsonl`, `postings.jsonl`, `kept.jsonl`, `ambiguous.jsonl`,
-  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`,
+  `discarded.jsonl`, `evaluations.jsonl`, `seeds_*.jsonl`, `seed_*.jsonl`, `fetch_errors.jsonl`, `fetch_capped.jsonl`,
   `finalize_discards.jsonl`, `feed_errors.jsonl`, `seed_proposals_from_*.jsonl`, `results.*`,
   `run_summary.md`).
 - **JSONL** = one JSON object per line, UTF-8 without BOM, no surrounding array. Write these files with
@@ -174,7 +174,8 @@ the preset's per-host limit of boards (e.g. 10 per ATS with `balanced`), filled 
 over it show as `host_capped` in `seed_groups` and do not use a seed slot. This is why the companies
 you verify and find matter: they are queried first. Postings are pre-filtered by the profile's title
 vocabulary and capped per company. A failing board is recorded in `seed_errors.jsonl` and never stops
-the stage. `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
+the stage (`unparseable_board`: the page loaded but no listings could be read, e.g. a script-rendered Taleo
+career section; it is not an empty board). `seeds_skipped` counts selected boards not queried because a request budget ran out at run time.
 
 Seed order also learns from past runs of the same profile. `finalize` records which boards each run
 queried and how many of their postings it kept. Within each group, boards that have produced kept roles
@@ -191,12 +192,17 @@ get explored.
 ultron fetch --run <run_id>
 ```
 
-Output: `{"fetched": 210, "failed": 40, "requests": 250}`
+Output: `{"fetched": 210, "failed": 40, "capped": 12, "navigation_failures": 0, "requests": 250}`
 
-Downloads up to the preset's page limit (round-robin across companies), extracts each posting.
+Downloads up to the preset's page limit (round-robin across companies; web-search hits get one turn per
+submitted query), extracts each posting. `capped` counts candidates left out by the page limit; they are listed
+in `fetch_capped.jsonl`.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
+If at least 50 URLs failed to load at all (DNS failures, connection errors, timeouts) and they are at least half of the URLs
+tried, fetch stops early: the output has `"stopped": "navigation_failures"` and the remaining URLs are recorded as
+`skipped_navigation_failures`. Check the network or proxy, then run a new search.
 
 ## 7. Filter
 

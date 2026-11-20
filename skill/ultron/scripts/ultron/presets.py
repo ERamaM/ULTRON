@@ -35,23 +35,47 @@ def resolve(name: str) -> dict:
     return dict(PRESETS[name])
 
 
+# Inclusive upper bounds for overrides that are percentages or scores.
+_MAX_VALUES = {"llm_ambiguity_threshold": 100}
+
+
+class PresetOverrideError(ValueError):
+    """An invalid preset override (a usage error); ``key`` names the offending setting."""
+
+    def __init__(self, message: str, *, key: str = "") -> None:
+        super().__init__(message)
+        self.key = key
+
+
 def validate_overrides(overrides: dict, reference: dict | None = None) -> dict:
-    """Return a copy of ``overrides`` after checking keys and value types against ``reference`` (default balanced)."""
+    """Return a copy of ``overrides`` after checking keys, types and bounds against ``reference`` (default balanced).
+
+    ``reference`` is the preset the overrides apply to; ``min_roles`` is checked against its merged ``max_roles``.
+    """
     reference = PRESETS[DEFAULT_PRESET] if reference is None else reference
     unknown = sorted(set(overrides) - set(reference))
     if unknown:
-        raise ValueError(f"unknown override keys: {', '.join(unknown)}")
+        raise PresetOverrideError(f"unknown override keys: {', '.join(unknown)}", key=unknown[0])
     out = {}
     for key, value in overrides.items():
         expected = reference[key]
         if isinstance(value, bool):
-            raise ValueError(f"override {key!r} must be a number, got {value!r}")  # noqa: TRY004
+            raise PresetOverrideError(f"override {key!r} must be a number, got {value!r}", key=key)
         if isinstance(expected, float):
             if not isinstance(value, int | float):
-                raise ValueError(f"override {key!r} must be a number, got {value!r}")  # noqa: TRY004
+                raise PresetOverrideError(f"override {key!r} must be a number, got {value!r}", key=key)
         elif not isinstance(value, int):
-            raise ValueError(f"override {key!r} must be an integer, got {value!r}")  # noqa: TRY004
+            raise PresetOverrideError(f"override {key!r} must be an integer, got {value!r}", key=key)
         if value <= 0:
-            raise ValueError(f"override {key!r} must be positive, got {value!r}")
+            raise PresetOverrideError(f"override {key!r} must be positive, got {value!r}", key=key)
+        if key in _MAX_VALUES and value > _MAX_VALUES[key]:
+            raise PresetOverrideError(f"override {key!r} must be at most {_MAX_VALUES[key]}, got {value!r}", key=key)
         out[key] = value
+    # min_roles is not read by any stage, so only an explicit min_roles is checked: lowering max_roles alone stays valid.
+    if "min_roles" in out and "max_roles" in reference:
+        max_roles = out.get("max_roles", reference["max_roles"])
+        if out["min_roles"] > max_roles:
+            raise PresetOverrideError(
+                f"override 'min_roles' ({out['min_roles']}) must not exceed max_roles ({max_roles})", key="min_roles"
+            )
     return out

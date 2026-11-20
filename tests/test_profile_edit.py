@@ -301,7 +301,7 @@ def test_undo_steps_back_through_several_edits_and_can_redo(tmp_path, capsys):
 
     assert _run(capsys, "profile", "undo", SLUG)[0] == 0
     assert profiles.user_path(SLUG).read_bytes() == v1
-    code, out = _run(capsys, "profile", "undo", SLUG)
+    assert _run(capsys, "profile", "undo", SLUG)[0] == 0
     assert profiles.user_path(SLUG).read_bytes() == v0
     redo = [v for v in profiles.history(SLUG) if v["reason"] == "undo"][-1]["version"]  # oldest undo = v2
     assert _run(capsys, "profile", "undo", SLUG, "--to", redo)[0] == 0

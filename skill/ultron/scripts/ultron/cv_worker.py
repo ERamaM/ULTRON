@@ -84,7 +84,8 @@ def reorder_columns(layout_text: str) -> str | None:
             continue
         columns = _two_columns(lines, col, *body)
         if columns is not None and (best is None or body[1] - body[0] > best[1] - best[0]):
-            best = (body[0], body[1], col, *columns)
+            left_column, right_column = columns
+            best = (body[0], body[1], col, left_column, right_column)
     if best is None:
         return None
     start, end, _col, left, right = best

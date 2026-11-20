@@ -50,7 +50,7 @@ seeds:
     region_postings: 20
     role_postings: 24
     verified_at: '2026-11-20T04:49:56+00:00'
-- company: NYU Langone Health
+- company: United Health Services (New York)
   ats: workday
   board_identifier: nyuhs.wd12.myworkdayjobs.com/nyuhscareers1
   enabled: true
@@ -245,7 +245,7 @@ seeds:
     region_postings: 31
     role_postings: 1
     verified_at: '2026-11-20T04:50:31+00:00'
-- company: St. Lawrence Health
+- company: Rochester Regional Health
   ats: workday
   board_identifier: rrhs.wd5.myworkdayjobs.com/RRH
   enabled: true

@@ -36,7 +36,7 @@ replays extraction plus the deterministic filters. Those trace entries carry `la
   the two are genuinely different roles.
 - `final_cap`: ranked below `max_roles`. Use a larger preset (or `ultron saved-search create --override max_roles=...`;
   `run new` has no overrides) or sharpen the profile so the role ranks higher.
-- `pending`: a stage has not run yet, so no verdict exists. `not_fetched`: the run has not done `fetch`; run it.
+- `pending`: a stage has not run yet, so no verdict exists. `not_fetched`: the run has not done `fetch` (run it), or the URL was added after `fetch` ran.
   `not_finalized`: the job passed filtering but `finalize` has not run. `pending_evaluation`: it is in
   `ambiguous.jsonl` waiting for agent evaluation; evaluate, then finalize.
 - `kept`: nothing failed; the job is in `results.json`.

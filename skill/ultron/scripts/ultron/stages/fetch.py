@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import functools
 import html as html_lib
 import re
 from urllib.parse import parse_qs, urljoin, urlsplit
 
+import yaml
 from bs4 import BeautifulSoup
 
 from ultron import runs
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
+from ultron.core.data_paths import data_dir
 from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.url_filter import canonicalize_url_for_allowlist, domain_of, is_domain_allowed, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
@@ -18,8 +21,10 @@ from ultron.core.extractors.ats_extractors.base import ats_canonical_domain, det
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
+from ultron.core.urlpolicy import admit_url
 from ultron.http_factory import client_for_run
 from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.stages.feeds import is_aggregator_host
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
 _WORKABLE_BOARD_JOB_RE = re.compile(r"^/([^/]+)/j/([A-Za-z0-9]{6,})(?:/|$)")
@@ -29,7 +34,7 @@ _SPA_BODY_MIN_CHARS = 400
 # counts (HttpClient's retries of a 429 included) and any other status resets the streak, so a rate-limiting
 # host trips the breaker after one URL's attempts. Retries, redirect hops and fallback calls are covered too.
 HOST_BLOCK_THRESHOLD = 3
-# Global stop: once at least this many URLs failed to load at the transport level (connection errors, timeouts)
+# Global stop: once at least this many URLs failed to load at all (DNS failures, connection errors, timeouts)
 # and they are at least half of the URLs attempted, the network or proxy is assumed down and the rest is skipped.
 NAV_FAILURE_STOP_THRESHOLD = 50
 NAV_FAILURE_STOP_RATIO = 0.5
@@ -382,9 +387,16 @@ def page_canonical_url(html: str, base_url: str) -> str | None:
     href = str(link.get("href") or "").strip() if link is not None else ""
     if not href:
         return None
-    url = urljoin(base_url, href)
-    parts = urlsplit(url)
-    return url if parts.scheme in {"http", "https"} and parts.hostname else None
+    try:
+        return admit_url(urljoin(base_url, href)).url  # http(s) only, no credentials, no private IP literal
+    except (URLRejected, ValueError):
+        return None
+
+
+@functools.cache
+def _blocked_final_domains() -> tuple[str, ...]:
+    rules = yaml.safe_load((data_dir() / "domain_rules.yaml").read_text(encoding="utf-8")) or {}
+    return tuple(str(domain) for domain in rules.get("blocked_final_domains") or [])
 
 
 def _allowlist_url(raw_url: str, candidate: CandidateUrl, allowed_domains: list[str]) -> str:
@@ -399,9 +411,14 @@ def resolve_apply_url(
 ) -> str:
     """First of final URL, rel=canonical and candidate URL that lies on the ATS allowlist; else the final URL.
 
+    A final URL on a blocked or aggregator host is kept as is, so the filter still discards it.
+
     The canonical link is page-controlled, so it only counts when it names a vendor job (not a board root, which
     would merge every posting of the board into one identity).
     """
+    final_host = domain_of(normalize_url(final_url))
+    if is_aggregator_host(final_host) or is_domain_allowed(final_host, list(_blocked_final_domains())):
+        return normalize_url(final_url)  # stays discardable by the filter, whatever the page links to
     for raw_url, page_controlled in ((final_url, False), (canonical_url, True), (candidate.normalized_url, False)):
         if not raw_url:
             continue
@@ -531,6 +548,9 @@ def fetch(run_id: str) -> dict:
             continue
         except URLRejected as exc:
             errors.append({"url": url, "error": f"url_rejected: {exc}"})
+            if str(exc) == "dns_resolution_failed":  # with no network, name resolution fails first
+                nav_failures += 1
+                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
             continue
         if status >= 400:
             if status in {403, 429} or status >= 500:

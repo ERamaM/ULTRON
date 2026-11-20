@@ -186,7 +186,7 @@ in `fetch_capped.jsonl`.
 Failures (closed postings, 404, blocked hosts) are in `fetch_errors.jsonl`. Rows with `blocked` (captcha or
 bot-challenge page) or `js_shell` (script-rendered page with no readable text) are worth opening manually.
 `host_blocked` rows are URLs skipped because their host kept answering 403/429 during this run.
-If at least 50 URLs failed to load at all (connection errors, timeouts) and they are at least half of the URLs
+If at least 50 URLs failed to load at all (DNS failures, connection errors, timeouts) and they are at least half of the URLs
 tried, fetch stops early: the output has `"stopped": "navigation_failures"` and the remaining URLs are recorded as
 `skipped_navigation_failures`. Check the network or proxy, then run a new search.
 

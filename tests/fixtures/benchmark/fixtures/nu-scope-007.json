@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Clinical Documentation Nurse",
+  "location": "Valencia, Spain",
+  "remote_text": "",
+  "body_text": "Work from our Valencia office on clinical terminology projects. Participation in national or international healthcare projects is a plus. We are a leading global provider of clinical research services worldwide. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-007",
+  "is_open_hint": true
+}

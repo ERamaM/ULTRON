@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Nursing Home Administrator",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Manage administration, rosters and budgets for our nursing home, working with the nursing team. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-fam-002",
+  "is_open_hint": true
+}

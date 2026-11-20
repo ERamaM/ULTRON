@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Clinical Nurse Specialist - Oncology",
+  "location": "Cork, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Lead oncology patient care and nurse-led clinics at our Cork hospital. NMBI registration required. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-fam-005",
+  "is_open_hint": true
+}

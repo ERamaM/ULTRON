@@ -1,0 +1,20 @@
+schema_version: 1
+id: da-scope-006
+profile: data-analyst-remote-latam
+language: en
+role_track: core
+seniority: senior
+remote_mode: country
+eligibility_label: confirmed
+vendor: ashby
+fixture: ../fixtures/da-scope-006.json
+split: test
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: keep
+notes: 'Added on 2026-11-20 (owner-delegated labelling, region-scope cases synthesized from session 3-4 postings), labelled from the text against data-analyst-remote-latam: relevant (data analyst role, remote, listed in Brazil, a target country).'

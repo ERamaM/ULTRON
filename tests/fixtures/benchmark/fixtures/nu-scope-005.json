@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Certified Registered Nurse Anesthetist - CRNA",
+  "location": "CA331 Vascular Care LA - Clinic",
+  "remote_text": "Onsite CA331 Vascular Care LA - Clinic",
+  "body_text": "Join our North America vascular care network. Deliver outpatient dialysis patient care in accordance with company policy, standards of nursing practice, state and federal regulations. Current appropriate state licensure and CPR BLS certification. Must meet the practice requirements in the state in which he or she is employed. We maintain a drug-free workplace in accordance with applicable federal and state laws. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-005",
+  "is_open_hint": true
+}

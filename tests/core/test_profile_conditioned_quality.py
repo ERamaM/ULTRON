@@ -283,3 +283,20 @@ def test_gender_and_plural_forms_of_a_family_noun_name_the_family(terms, title):
 )
 def test_gender_forms_do_not_widen_the_family_to_other_nouns(terms, title):
     assert not _title_has_family_noun(normalize_role_title(title.lower()), role_family_nouns(terms))
+
+@pytest.mark.parametrize(
+    "terms, title",
+    [
+        (["Software Architekt"], "Software Architekten (m/w/d)"),
+        (["Senior Actuary"], "Senior Actuaries"),
+        (["Analyst"], "Analysten Team Lead"),
+    ],
+)
+def test_irregular_and_german_plurals_name_the_family(terms, title):
+    # PR #59 review: the family-noun gate must not reject a plural form of the profile's own noun.
+    assert _title_has_family_noun(normalize_role_title(title.lower()), role_family_nouns(terms))
+
+
+def test_a_german_plural_title_keeps_its_body_evidence():
+    body = "Backend services in Python."
+    assert is_allowed_family("Software Architekten (m/w/d)", body, ["Software Architekt"], ["backend", "python"])

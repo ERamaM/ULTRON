@@ -259,3 +259,25 @@ def test_the_raw_text_budget_follows_the_callers_character_limit(tmp_path):
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv(_write(tmp_path, "cv.docx", build_docx(_document(body))), max_chars=100)
     assert raised.value.code == "too_long"
+
+
+def test_a_corrupt_compressed_body_is_an_extraction_error(tmp_path):
+    # PR #59 review: a zlib.error from a damaged DEFLATE stream must not escape as an internal error.
+    content = bytearray(build_docx(_document(_paragraph("Experience " * 200))))
+    info = zipfile.ZipFile(io.BytesIO(bytes(content))).getinfo("word/document.xml")
+    data_start = info.header_offset + 30 + len(info.filename.encode()) + len(info.extra)
+    content[data_start] = (content[data_start] & 0b11111001) | 0b110  # reserved DEFLATE block type
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", bytes(content)))
+    assert raised.value.code == "no_extractable_text"
+
+
+@pytest.mark.parametrize("method", [zipfile.ZIP_LZMA, zipfile.ZIP_BZIP2])
+def test_buffered_zip_codecs_are_rejected_before_the_body_is_opened(tmp_path, method):
+    # PR #59 security review: these codecs buffer their whole output before read() returns.
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", method) as archive:
+        archive.writestr("word/document.xml", _document(_paragraph("Experience")))
+    with pytest.raises(cv.CvExtractionError) as raised:
+        cv.extract_cv(_write(tmp_path, "cv.docx", buffer.getvalue()))
+    assert raised.value.code == "no_extractable_text"

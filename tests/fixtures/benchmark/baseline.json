@@ -1,5 +1,5 @@
 {
-  "case_count": 210,
+  "case_count": 216,
   "cases": [
     {
       "duplicate_group": null,
@@ -998,7 +998,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 15,
+        "rank": 16,
         "reason": null,
         "status": "unsure"
       },
@@ -1027,7 +1027,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 16,
+        "rank": 17,
         "reason": null,
         "status": "unsure"
       },
@@ -1056,7 +1056,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 17,
+        "rank": 18,
         "reason": null,
         "status": "unsure"
       },
@@ -1085,7 +1085,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 18,
+        "rank": 19,
         "reason": null,
         "status": "unsure"
       },
@@ -1143,7 +1143,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 19,
+        "rank": 20,
         "reason": null,
         "status": "unsure"
       },
@@ -1155,6 +1155,35 @@
         "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-list-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 13,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": true,
         "remote_fit": true,
         "role_fit": true,
         "seniority_fit": true
@@ -1346,7 +1375,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 13,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -1375,7 +1404,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 20,
+        "rank": 21,
         "reason": null,
         "status": "unsure"
       },
@@ -1404,7 +1433,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 21,
+        "rank": 22,
         "reason": null,
         "status": "unsure"
       },
@@ -1433,7 +1462,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 22,
+        "rank": 23,
         "reason": null,
         "status": "unsure"
       },
@@ -1549,7 +1578,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 14,
+        "rank": 15,
         "reason": null,
         "status": "keep"
       },
@@ -5348,7 +5377,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 16,
+        "rank": 19,
         "reason": null,
         "status": "unsure"
       },
@@ -5377,7 +5406,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 17,
+        "rank": 20,
         "reason": null,
         "status": "unsure"
       },
@@ -5406,7 +5435,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 18,
+        "rank": 21,
         "reason": null,
         "status": "unsure"
       },
@@ -5812,7 +5841,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 19,
+        "rank": 22,
         "reason": null,
         "status": "unsure"
       },
@@ -5841,7 +5870,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 20,
+        "rank": 23,
         "reason": null,
         "status": "unsure"
       },
@@ -5957,7 +5986,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 21,
+        "rank": 24,
         "reason": null,
         "status": "unsure"
       },
@@ -5986,7 +6015,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 86,
-        "rank": 22,
+        "rank": 25,
         "reason": null,
         "status": "unsure"
       },
@@ -6090,33 +6119,179 @@
         "seniority_fit": true
       },
       "vendor": "generic_html"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-scope-011",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 16,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-scope-012",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 17,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-scope-013",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 18,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": "pre_filter",
+      "id": "nu-scope-014",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": "pre_filter",
+      "id": "nu-scope-015",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "pre_filter",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_eu_remote",
+        "status": "discard"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "generic_html"
     }
   ],
-  "corpus_version": "2026-11-20.2",
+  "corpus_version": "2026-11-20.3",
   "metrics": {
-    "agent_queue": 106,
+    "agent_queue": 110,
     "classification": {
-      "abstention_rate": 0.11219512195121951,
+      "abstention_rate": 0.10900473933649289,
       "confusion_matrix": {
-        "fn": 5,
-        "fp": 5,
+        "fn": 7,
+        "fp": 8,
         "tn": 144,
-        "tp": 39
+        "tp": 40
       },
-      "f1": 0.8863636363636365,
-      "false_negative_rate": 0.11363636363636363,
-      "false_positive_rate": 0.03355704697986577,
-      "precision": 0.8863636363636364,
-      "recall": 0.8863636363636364,
-      "sample_size": 193
+      "f1": 0.8421052631578947,
+      "false_negative_rate": 0.14893617021276595,
+      "false_positive_rate": 0.05263157894736842,
+      "precision": 0.8333333333333334,
+      "recall": 0.851063829787234,
+      "sample_size": 199
     },
     "duplicate_rows": 0,
     "first_loss_counts": {
-      "evaluator": 5
+      "evaluator": 5,
+      "pre_filter": 2
     },
     "outcomes": {
-      "discard": 139,
-      "keep": 48,
+      "discard": 141,
+      "keep": 52,
       "unsure": 23
     },
     "ranking": {
@@ -6136,9 +6311,9 @@
         "ndcg_at_10": 1.0,
         "precision_at_10": 1.0,
         "precision_at_5": 1.0,
-        "recall_at_10": 0.7692307692307693,
-        "relevant_total": 13,
-        "shortlist_size": 22
+        "recall_at_10": 0.7142857142857143,
+        "relevant_total": 14,
+        "shortlist_size": 23
       },
       "ml-engineering-remote-eu": {
         "duplicate_rows": 0,
@@ -6156,27 +6331,27 @@
         "ndcg_at_10": 0.9305687780632227,
         "precision_at_10": 0.9,
         "precision_at_5": 1.0,
-        "recall_at_10": 0.6923076923076923,
-        "relevant_total": 13,
-        "shortlist_size": 22
+        "recall_at_10": 0.6,
+        "relevant_total": 15,
+        "shortlist_size": 25
       }
     },
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.1597222222222222,
+          "abstention_rate": 0.15333333333333332,
           "confusion_matrix": {
-            "fn": 1,
-            "fp": 5,
+            "fn": 3,
+            "fp": 8,
             "tn": 95,
-            "tp": 38
+            "tp": 39
           },
-          "f1": 0.9268292682926831,
-          "false_negative_rate": 0.02564102564102564,
-          "false_positive_rate": 0.05,
-          "precision": 0.8837209302325582,
-          "recall": 0.9743589743589743,
-          "sample_size": 139,
+          "f1": 0.8764044943820225,
+          "false_negative_rate": 0.07142857142857142,
+          "false_positive_rate": 0.07766990291262135,
+          "precision": 0.8297872340425532,
+          "recall": 0.9285714285714286,
+          "sample_size": 145,
           "status": "measured"
         },
         "es": {
@@ -6214,19 +6389,19 @@
           "status": "measured"
         },
         "data-analyst-remote-latam": {
-          "abstention_rate": 0.25,
+          "abstention_rate": 0.24242424242424243,
           "confusion_matrix": {
             "fn": 0,
             "fp": 1,
             "tn": 18,
-            "tp": 13
+            "tp": 14
           },
-          "f1": 0.962962962962963,
+          "f1": 0.9655172413793104,
           "false_negative_rate": 0.0,
           "false_positive_rate": 0.05263157894736842,
-          "precision": 0.9285714285714286,
+          "precision": 0.9333333333333333,
           "recall": 1.0,
-          "sample_size": 32,
+          "sample_size": 33,
           "status": "measured"
         },
         "ml-engineering-remote-eu": {
@@ -6246,37 +6421,37 @@
           "status": "measured"
         },
         "nurse-ireland-onsite": {
-          "abstention_rate": 0.23333333333333334,
+          "abstention_rate": 0.2,
           "confusion_matrix": {
-            "fn": 1,
-            "fp": 3,
+            "fn": 3,
+            "fp": 6,
             "tn": 14,
             "tp": 12
           },
-          "f1": 0.8571428571428571,
-          "false_negative_rate": 0.07692307692307693,
-          "false_positive_rate": 0.17647058823529413,
-          "precision": 0.8,
-          "recall": 0.9230769230769231,
-          "sample_size": 30,
+          "f1": 0.7272727272727272,
+          "false_negative_rate": 0.2,
+          "false_positive_rate": 0.3,
+          "precision": 0.6666666666666666,
+          "recall": 0.8,
+          "sample_size": 35,
           "status": "measured"
         }
       },
       "region": {
         "country": {
-          "abstention_rate": 0.43333333333333335,
+          "abstention_rate": 0.41935483870967744,
           "confusion_matrix": {
             "fn": 0,
             "fp": 1,
             "tn": 17,
-            "tp": 12
+            "tp": 13
           },
-          "f1": 0.9600000000000001,
+          "f1": 0.962962962962963,
           "false_negative_rate": 0.0,
           "false_positive_rate": 0.05555555555555555,
-          "precision": 0.9230769230769231,
+          "precision": 0.9285714285714286,
           "recall": 1.0,
-          "sample_size": 30,
+          "sample_size": 31,
           "status": "measured"
         },
         "eu": {
@@ -6328,19 +6503,19 @@
           "status": "measured"
         },
         "onsite": {
-          "abstention_rate": 0.14,
+          "abstention_rate": 0.12727272727272726,
           "confusion_matrix": {
-            "fn": 1,
-            "fp": 3,
+            "fn": 3,
+            "fp": 6,
             "tn": 34,
             "tp": 12
           },
-          "f1": 0.8571428571428571,
-          "false_negative_rate": 0.07692307692307693,
-          "false_positive_rate": 0.08108108108108109,
-          "precision": 0.8,
-          "recall": 0.9230769230769231,
-          "sample_size": 50,
+          "f1": 0.7272727272727272,
+          "false_negative_rate": 0.2,
+          "false_positive_rate": 0.15,
+          "precision": 0.6666666666666666,
+          "recall": 0.8,
+          "sample_size": 55,
           "status": "measured"
         },
         "unknown": {
@@ -6410,19 +6585,19 @@
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.20909090909090908,
+          "abstention_rate": 0.19827586206896552,
           "confusion_matrix": {
-            "fn": 5,
-            "fp": 4,
+            "fn": 7,
+            "fp": 7,
             "tn": 60,
-            "tp": 39
+            "tp": 40
           },
-          "f1": 0.896551724137931,
-          "false_negative_rate": 0.11363636363636363,
-          "false_positive_rate": 0.0625,
-          "precision": 0.9069767441860465,
-          "recall": 0.8863636363636364,
-          "sample_size": 108,
+          "f1": 0.8510638297872339,
+          "false_negative_rate": 0.14893617021276595,
+          "false_positive_rate": 0.1044776119402985,
+          "precision": 0.851063829787234,
+          "recall": 0.851063829787234,
+          "sample_size": 114,
           "status": "measured"
         },
         "negative": {
@@ -6476,51 +6651,51 @@
           "status": "insufficient_sample"
         },
         "generic_html": {
-          "abstention_rate": 0.06451612903225806,
+          "abstention_rate": 0.06060606060606061,
           "confusion_matrix": {
-            "fn": 2,
+            "fn": 4,
             "fp": 0,
             "tn": 22,
             "tp": 5
           },
-          "f1": 0.8333333333333333,
-          "false_negative_rate": 0.2857142857142857,
+          "f1": 0.7142857142857143,
+          "false_negative_rate": 0.4444444444444444,
           "false_positive_rate": 0.0,
           "precision": 1.0,
-          "recall": 0.7142857142857143,
-          "sample_size": 29,
+          "recall": 0.5555555555555556,
+          "sample_size": 31,
           "status": "measured"
         },
         "greenhouse": {
-          "abstention_rate": 0.10416666666666667,
+          "abstention_rate": 0.10204081632653061,
           "confusion_matrix": {
             "fn": 1,
             "fp": 2,
             "tn": 29,
-            "tp": 13
+            "tp": 14
           },
-          "f1": 0.896551724137931,
-          "false_negative_rate": 0.07142857142857142,
+          "f1": 0.9032258064516129,
+          "false_negative_rate": 0.06666666666666667,
           "false_positive_rate": 0.06451612903225806,
-          "precision": 0.8666666666666667,
-          "recall": 0.9285714285714286,
-          "sample_size": 45,
+          "precision": 0.875,
+          "recall": 0.9333333333333333,
+          "sample_size": 46,
           "status": "measured"
         },
         "json_api": {
-          "abstention_rate": 0.14285714285714285,
+          "abstention_rate": 0.13157894736842105,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 2,
+            "fp": 5,
             "tn": 28,
             "tp": 5
           },
-          "f1": 0.8333333333333333,
+          "f1": 0.6666666666666666,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.06666666666666667,
-          "precision": 0.7142857142857143,
+          "false_positive_rate": 0.15151515151515152,
+          "precision": 0.5,
           "recall": 1.0,
-          "sample_size": 35,
+          "sample_size": 38,
           "status": "measured"
         },
         "lever": {

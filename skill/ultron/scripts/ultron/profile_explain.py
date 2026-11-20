@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import Counter
 
 from ultron import presets, runs
+from ultron.core.decision.evaluation_profile import _profile_values, _seniority_from_criteria
 from ultron.core.decision.unit import _role_terms
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.remote_requirement import is_remote_required, remote_required_value
@@ -96,6 +97,10 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
     title_vocabulary = build_title_vocabulary(criteria, vocabulary=pack)
     applied = {_norm(term) for term in title_vocabulary.excluded_terms}
     ignored = [term for term in dict.fromkeys(profile_negatives) if _norm(term) not in applied]
+    own = {_norm(term) for term in profile_negatives}
+    built_in = [term for term in title_vocabulary.excluded_terms if _norm(term) not in own]
+    # The evaluator's own normalization: omitted seniority with an unqualified title means any level.
+    seniority_level = _seniority_from_criteria(criteria, _profile_values(criteria.get("target_titles")))
     settings = presets.resolve(preset)
     plan = build_query_plan(profile, settings["max_search_queries"])
     return {
@@ -112,7 +117,8 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
         "seniority": {
             "effect": "the filter checks the level: preferred_terms mark the wanted level and excluded_terms an "
                       "unwanted one (it can discard the posting); with required false, only excluded_terms count",
-            "required": bool(seniority.get("required", True)),
+            "required": seniority_level != "any",
+            "level": seniority_level,
             "preferred_terms": _list(seniority.get("preferred_terms")),
             "excluded_terms": _list(seniority.get("excluded_terms")),
         },
@@ -131,9 +137,11 @@ def explain(profile: dict, *, preset: str = presets.DEFAULT_PRESET) -> dict:
             "excluded_terms": list(scope["excluded_terms"]),
         },
         "title_exclusions": {
-            "effect": "titles containing these (exclusion_terms and seniority.excluded_terms) are skipped when "
-                      "job boards and feeds are listed; afterwards exclusion_terms only lower the score, while "
-                      "seniority.excluded_terms keep marking a posting as the wrong level",
+            "effect": "titles containing these are skipped when job boards and feeds are listed: the built-in "
+                      "terms plus exclusion_terms and seniority.excluded_terms; afterwards exclusion_terms only "
+                      "lower the score, while seniority.excluded_terms keep marking a posting as the wrong level",
+            "effective": list(title_vocabulary.excluded_terms),
+            "built_in": built_in,
             "applied": [term for term in dict.fromkeys(profile_negatives) if _norm(term) in applied],
             "ignored": ignored,
         },

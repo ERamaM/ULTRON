@@ -205,7 +205,8 @@ Operations run in the order given, and nothing is saved if any of them is invali
   case and accents. Adding a present term or removing an absent one changes nothing and is reported.
 - `--set FIELD=VALUE` sets a text field, `true`/`false`, or `full_remote`/`any`. `--unset FIELD`
   removes an optional field.
-- `--from <file>` reads operations from a UTF-8 JSON file. Use it to replace a whole list (`set` with a
+- `--from <file>` reads operations from a UTF-8 JSON file; they run at the file's place among the other
+  operations (`--from reset.json --add ...` applies the file first). Use it to replace a whole list (`set` with a
   JSON list) and for terms with accents or quotes: some shells mangle quotes and non-ASCII text in
   command arguments:
 
@@ -239,8 +240,9 @@ bundled profile saves a user copy, and undo removes that copy again.
 
 `ultron profile explain <slug>` (or `--from <file>` for a draft) shows what the profile makes the CLI do,
 using the same rules as a run: `role_match` (strict role terms and where they come from), `seniority`,
-`remote`, `geography` (scope and its effect), `title_exclusions` (`applied` ones skip matching titles when
-job boards are listed; `ignored` ones overlap the profile's own role terms), `fit_signals`, the
+`remote`, `geography` (scope and its effect), `title_exclusions` (`effective` lists every term that skips
+matching titles when job boards are listed: the `built_in` defaults plus the profile's `applied` terms;
+`ignored` ones overlap the profile's own role terms), `fit_signals`, the
 `query_plan` for `--preset` (default `balanced`), `agent_notes` (the `prompt` field) and `warnings`
 (duplicated terms, several terms in one, long phrases, oversized lists, missing query regions, empty query
 plan). Add `--run <run_id>` to replay the filter of an earlier fetched run with this profile, without

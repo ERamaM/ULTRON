@@ -493,3 +493,53 @@ def test_explain_replay_errors(capsys):
     runs.mark_stage(run_id, "fetch")
     code, out = _run(capsys, "profile", "explain", "ai-ml-remote-eu", "--run", run_id)
     assert code == 2 and out["error"] == "stage_failed"
+
+
+def test_explain_lists_built_in_title_exclusions(tmp_path, capsys):
+    criteria = {**_draft()["criteria"], "seniority": {"required": False}}
+    criteria.pop("exclusion_terms")
+    draft = tmp_path / "draft.yaml"
+    draft.write_text(yaml.safe_dump(_draft(criteria=criteria)), encoding="utf-8")
+    code, out = _run(capsys, "profile", "explain", "--from", str(draft))
+    assert code == 0
+    exclusions = out["title_exclusions"]
+    assert exclusions["applied"] == []
+    assert {"manager", "director", "head", "team lead", "tech lead", "vp"} <= set(exclusions["built_in"])
+    assert set(exclusions["built_in"]) <= set(exclusions["effective"])
+
+
+@pytest.mark.parametrize(
+    ("seniority", "titles", "required"),
+    [
+        (None, ["Nurse"], False),  # omitted seniority, unqualified title: any level
+        ({"excluded_terms": ["intern"]}, ["Nurse"], False),  # only excluded terms: still any level
+        (None, ["Senior Nurse"], True),  # a qualified title implies the level
+        ({"required": True}, ["Nurse"], True),
+    ],
+)
+def test_explain_seniority_requirement_matches_the_evaluator(tmp_path, capsys, seniority, titles, required):
+    criteria = {**_draft()["criteria"], "role_focus_terms": ["nurse"], "target_titles": titles}
+    if seniority is None:
+        criteria.pop("seniority")
+    else:
+        criteria["seniority"] = seniority
+    draft = tmp_path / "draft.yaml"
+    draft.write_text(yaml.safe_dump(_draft(criteria=criteria, query_templates={})), encoding="utf-8")
+    code, out = _run(capsys, "profile", "explain", "--from", str(draft))
+    assert code == 0
+    assert out["seniority"]["required"] is required
+
+
+def test_edit_runs_from_file_at_its_place_in_the_order(tmp_path, capsys):
+    _save_draft(tmp_path, capsys)
+    reset = tmp_path / "reset.json"
+    reset.write_text(json.dumps({"operations": [{"op": "set", "path": "criteria.specialties", "value": ["Go"]}]}),
+                     encoding="utf-8")
+    code, out = _run(capsys, "profile", "edit", SLUG, "--from", str(reset), "--add", "criteria.specialties=Rust")
+    assert code == 0, out
+    code, shown = _run(capsys, "profile", "show", SLUG)
+    assert shown["profile"]["criteria"]["specialties"] == ["Go", "Rust"]
+    code, out = _run(capsys, "profile", "edit", SLUG, "--add", "criteria.specialties=Zig", "--from", str(reset))
+    assert code == 0, out
+    code, shown = _run(capsys, "profile", "show", SLUG)
+    assert shown["profile"]["criteria"]["specialties"] == ["Go"]  # the file ran last

@@ -17,7 +17,7 @@ def _escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
-def build_positioned_pdf(pages: list[list[tuple[float, float, str]]]) -> bytes:
+def build_positioned_pdf(pages: list[list[tuple]]) -> bytes:
     """One A4 page per entry; each entry lists ``(x, y, text)`` lines drawn in that order (WinAnsi Helvetica)."""
     n = len(pages)
     objects: list[bytes] = [b"<< /Type /Catalog /Pages 2 0 R >>"]
@@ -25,7 +25,12 @@ def build_positioned_pdf(pages: list[list[tuple[float, float, str]]]) -> bytes:
     objects.append(f"<< /Type /Pages /Count {n} /Kids [{kids}] >>".encode())
     font = 3 + 2 * n
     for i, lines in enumerate(pages):
-        body = "\n".join(f"BT /F1 10 Tf 1 0 0 1 {x} {y} Tm ({_escape(t)}) Tj ET" for x, y, t in lines)
+        # An optional fourth item is the text matrix's rotation part ("0 1 -1 0" draws text rotated 90 degrees).
+        body = "\n".join(
+            f"BT /F1 10 Tf {(entry[3] if len(entry) > 3 else '1 0 0 1')} {entry[0]} {entry[1]} Tm "
+            f"({_escape(entry[2])}) Tj ET"
+            for entry in lines
+        )
         stream = (body + "\n").encode("cp1252")
         objects.append(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents {4 + 2 * i} 0 R "
@@ -199,3 +204,38 @@ def test_docx_is_reported_as_unsupported(tmp_path):
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv_text(path)
     assert raised.value.code == "unsupported_type"
+
+
+def test_rotated_text_is_not_lost_when_columns_are_reordered():
+    from ultron import cv_worker
+
+    spec = json.loads((SYNTHETIC / "es_two_column.json").read_text(encoding="utf-8"))
+    lines: list[tuple] = []
+    y = 800.0
+    for text in spec["header"]:
+        lines.append((50, y, text))
+        y -= 20
+    for left, right in zip(spec["left"], spec["right"] + [""] * len(spec["left"]), strict=False):
+        if left:
+            lines.append((50, y, left))
+        if right:
+            lines.append((360, y, right))
+        y -= 14
+    content = build_positioned_pdf([lines])
+    assert "HABILIDADES" in cv_worker.reorder_columns(_layout_text(content))  # the columns are recognized
+    rotated = build_positioned_pdf([[*lines, (585, 200, "Contacto lucia.ejemplo", "0 1 -1 0")]])
+    text = _extract(rotated)
+    assert "lucia.ejemplo" in text  # layout mode drops rotated text: the plain extraction is kept
+    assert "HABILIDADES" in text and "EXPERIENCIA" in text
+    # Without rotated text, the reordered columns are still used.
+    plain_lines = _lines(_extract(content))
+    sidebar_start = plain_lines.index("HABILIDADES")
+    assert plain_lines[sidebar_start + 1] == "Python, SQL, Spark"
+
+
+def _layout_text(content: bytes) -> str:
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    return PdfReader(BytesIO(content)).pages[0].extract_text(extraction_mode="layout")

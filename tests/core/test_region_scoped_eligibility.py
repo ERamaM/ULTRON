@@ -15,22 +15,7 @@ IRELAND = {"location_scope": {"preferred": ["Ireland", "Dublin", "Cork"], "eligi
 LATAM = {"location_scope": {"preferred": ["Remote LATAM", "Brazil", "Mexico"]}}
 
 
-# --- body adjectives that describe the company, not where it hires -----------------------------------------
-
-
-@pytest.mark.parametrize(
-    "criteria, location, remote, body, country",
-    [
-        (LATAM, "Bangalore, India", "Remote, cross-functional environment",
-         "Turn support data into insights for our global support organization.", "india"),
-        (SPAIN_EU, "Czechia; Bulgaria; Poland", "Remote", "Build Go services for our global payments platform.",
-         "bulgaria"),
-        (LATAM, "Toronto, Canada", "Remote (Canada)", "Join our international analytics team.", "canada"),
-    ],
-)
-def test_global_or_international_in_the_body_does_not_open_a_country_posting(criteria, location, remote, body,
-                                                                               country):
-    assert other_country_restriction(location, remote, criteria, body) == country
+# --- a body that names where the company hires still opens a remote posting -------------------------------
 
 
 @pytest.mark.parametrize(

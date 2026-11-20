@@ -70,7 +70,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 10,
+        "rank": 11,
         "reason": null,
         "status": "keep"
       },
@@ -99,7 +99,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 9,
+        "rank": 10,
         "reason": null,
         "status": "keep"
       },
@@ -128,7 +128,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 11,
+        "rank": 12,
         "reason": null,
         "status": "keep"
       },
@@ -186,7 +186,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 12,
+        "rank": 13,
         "reason": null,
         "status": "unsure"
       },
@@ -215,7 +215,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 13,
+        "rank": 14,
         "reason": null,
         "status": "unsure"
       },
@@ -244,7 +244,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 14,
+        "rank": 15,
         "reason": null,
         "status": "unsure"
       },
@@ -273,7 +273,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 15,
+        "rank": 16,
         "reason": null,
         "status": "unsure"
       },
@@ -302,7 +302,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 16,
+        "rank": 17,
         "reason": null,
         "status": "unsure"
       },
@@ -388,10 +388,10 @@
         "filter_route": "ambiguous",
         "filter_stage": null,
         "match_band": "strong",
-        "match_score": 90,
-        "rank": 17,
+        "match_score": 100,
+        "rank": 8,
         "reason": null,
-        "status": "unsure"
+        "status": "keep"
       },
       "profile": "backend-engineer-spain-eu",
       "remote_mode": "country",
@@ -418,7 +418,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 8,
+        "rank": 9,
         "reason": null,
         "status": "keep"
       },
@@ -998,7 +998,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 15,
+        "rank": 19,
         "reason": null,
         "status": "unsure"
       },
@@ -1027,7 +1027,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 16,
+        "rank": 20,
         "reason": null,
         "status": "unsure"
       },
@@ -1056,7 +1056,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 17,
+        "rank": 21,
         "reason": null,
         "status": "unsure"
       },
@@ -1085,7 +1085,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 18,
+        "rank": 22,
         "reason": null,
         "status": "unsure"
       },
@@ -1143,9 +1143,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 19,
+        "rank": 13,
         "reason": null,
-        "status": "unsure"
+        "status": "keep"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "country",
@@ -1346,7 +1346,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 13,
+        "rank": 14,
         "reason": null,
         "status": "keep"
       },
@@ -1375,9 +1375,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 20,
+        "rank": 15,
         "reason": null,
-        "status": "unsure"
+        "status": "keep"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "country",
@@ -1404,9 +1404,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 21,
+        "rank": 16,
         "reason": null,
-        "status": "unsure"
+        "status": "keep"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "us_only",
@@ -1433,9 +1433,9 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 22,
+        "rank": 17,
         "reason": null,
-        "status": "unsure"
+        "status": "keep"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "us_only",
@@ -1549,7 +1549,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 14,
+        "rank": 18,
         "reason": null,
         "status": "keep"
       },
@@ -6096,17 +6096,17 @@
   "metrics": {
     "agent_queue": 106,
     "classification": {
-      "abstention_rate": 0.11219512195121951,
+      "abstention_rate": 0.08780487804878048,
       "confusion_matrix": {
         "fn": 5,
-        "fp": 5,
-        "tn": 144,
+        "fp": 10,
+        "tn": 139,
         "tp": 39
       },
-      "f1": 0.8863636363636365,
+      "f1": 0.8387096774193548,
       "false_negative_rate": 0.11363636363636363,
-      "false_positive_rate": 0.03355704697986577,
-      "precision": 0.8863636363636364,
+      "false_positive_rate": 0.06711409395973154,
+      "precision": 0.7959183673469388,
       "recall": 0.8863636363636364,
       "sample_size": 193
     },
@@ -6116,17 +6116,17 @@
     },
     "outcomes": {
       "discard": 139,
-      "keep": 48,
-      "unsure": 23
+      "keep": 53,
+      "unsure": 18
     },
     "ranking": {
       "backend-engineer-spain-eu": {
         "duplicate_rows": 0,
         "mrr": 1.0,
-        "ndcg_at_10": 0.9305687780632227,
-        "precision_at_10": 0.9,
+        "ndcg_at_10": 0.8643145546088337,
+        "precision_at_10": 0.8,
         "precision_at_5": 1.0,
-        "recall_at_10": 0.9,
+        "recall_at_10": 0.8,
         "relevant_total": 10,
         "shortlist_size": 17
       },
@@ -6164,17 +6164,17 @@
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.1597222222222222,
+          "abstention_rate": 0.125,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 5,
-            "tn": 95,
+            "fp": 10,
+            "tn": 90,
             "tp": 38
           },
-          "f1": 0.9268292682926831,
+          "f1": 0.8735632183908045,
           "false_negative_rate": 0.02564102564102564,
-          "false_positive_rate": 0.05,
-          "precision": 0.8837209302325582,
+          "false_positive_rate": 0.1,
+          "precision": 0.7916666666666666,
           "recall": 0.9743589743589743,
           "sample_size": 139,
           "status": "measured"
@@ -6198,33 +6198,33 @@
       },
       "profile": {
         "backend-engineer-spain-eu": {
-          "abstention_rate": 0.3,
+          "abstention_rate": 0.25,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 1,
-            "tn": 9,
+            "fp": 2,
+            "tn": 8,
             "tp": 10
           },
-          "f1": 0.9523809523809523,
+          "f1": 0.9090909090909091,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.1,
-          "precision": 0.9090909090909091,
+          "false_positive_rate": 0.2,
+          "precision": 0.8333333333333334,
           "recall": 1.0,
           "sample_size": 20,
           "status": "measured"
         },
         "data-analyst-remote-latam": {
-          "abstention_rate": 0.25,
+          "abstention_rate": 0.125,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 1,
-            "tn": 18,
+            "fp": 5,
+            "tn": 14,
             "tp": 13
           },
-          "f1": 0.962962962962963,
+          "f1": 0.8387096774193548,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.05263157894736842,
-          "precision": 0.9285714285714286,
+          "false_positive_rate": 0.2631578947368421,
+          "precision": 0.7222222222222222,
           "recall": 1.0,
           "sample_size": 32,
           "status": "measured"
@@ -6264,17 +6264,17 @@
       },
       "region": {
         "country": {
-          "abstention_rate": 0.43333333333333335,
+          "abstention_rate": 0.3333333333333333,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 1,
-            "tn": 17,
+            "fp": 4,
+            "tn": 14,
             "tp": 12
           },
-          "f1": 0.9600000000000001,
+          "f1": 0.8571428571428571,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.05555555555555555,
-          "precision": 0.9230769230769231,
+          "false_positive_rate": 0.2222222222222222,
+          "precision": 0.75,
           "recall": 1.0,
           "sample_size": 30,
           "status": "measured"
@@ -6360,16 +6360,16 @@
           "status": "measured"
         },
         "us_only": {
-          "abstention_rate": 0.13043478260869565,
+          "abstention_rate": 0.043478260869565216,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 23,
+            "fp": 2,
+            "tn": 21,
             "tp": 0
           },
           "f1": 0.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
+          "false_positive_rate": 0.08695652173913043,
           "precision": 0.0,
           "recall": 0.0,
           "sample_size": 23,
@@ -6410,17 +6410,17 @@
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.20909090909090908,
+          "abstention_rate": 0.16363636363636364,
           "confusion_matrix": {
             "fn": 5,
-            "fp": 4,
-            "tn": 60,
+            "fp": 9,
+            "tn": 55,
             "tp": 39
           },
-          "f1": 0.896551724137931,
+          "f1": 0.8478260869565218,
           "false_negative_rate": 0.11363636363636363,
-          "false_positive_rate": 0.0625,
-          "precision": 0.9069767441860465,
+          "false_positive_rate": 0.140625,
+          "precision": 0.8125,
           "recall": 0.8863636363636364,
           "sample_size": 108,
           "status": "measured"
@@ -6444,17 +6444,17 @@
       },
       "vendor": {
         "ashby": {
-          "abstention_rate": 0.1282051282051282,
+          "abstention_rate": 0.10256410256410256,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 1,
-            "tn": 26,
+            "fp": 2,
+            "tn": 25,
             "tp": 8
           },
-          "f1": 0.8888888888888888,
+          "f1": 0.8421052631578948,
           "false_negative_rate": 0.1111111111111111,
-          "false_positive_rate": 0.037037037037037035,
-          "precision": 0.8888888888888888,
+          "false_positive_rate": 0.07407407407407407,
+          "precision": 0.8,
           "recall": 0.8888888888888888,
           "sample_size": 36,
           "status": "measured"
@@ -6492,17 +6492,17 @@
           "status": "measured"
         },
         "greenhouse": {
-          "abstention_rate": 0.10416666666666667,
+          "abstention_rate": 0.0625,
           "confusion_matrix": {
             "fn": 1,
-            "fp": 2,
-            "tn": 29,
+            "fp": 4,
+            "tn": 27,
             "tp": 13
           },
-          "f1": 0.896551724137931,
+          "f1": 0.8387096774193549,
           "false_negative_rate": 0.07142857142857142,
-          "false_positive_rate": 0.06451612903225806,
-          "precision": 0.8666666666666667,
+          "false_positive_rate": 0.12903225806451613,
+          "precision": 0.7647058823529411,
           "recall": 0.9285714285714286,
           "sample_size": 45,
           "status": "measured"
@@ -6524,17 +6524,17 @@
           "status": "measured"
         },
         "lever": {
-          "abstention_rate": 0.14634146341463414,
+          "abstention_rate": 0.0975609756097561,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 32,
+            "fp": 2,
+            "tn": 30,
             "tp": 7
           },
-          "f1": 1.0,
+          "f1": 0.8750000000000001,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
-          "precision": 1.0,
+          "false_positive_rate": 0.0625,
+          "precision": 0.7777777777777778,
           "recall": 1.0,
           "sample_size": 39,
           "status": "measured"

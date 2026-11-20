@@ -99,20 +99,32 @@ _ONSITE_BENEFIT_AFTER_RE = re.compile(
     r"(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b"
 )
 _ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*(?:,|\band|\bor)\s+$")
+# The perk noun right before the term ("gym on-site"), optionally with "is/are" and one participle
+# ("meals are provided on-site", "parking is available on-site").
+_ONSITE_BENEFIT_PRECEDES_RE = re.compile(
+    r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")(?:\s+(?:is|are))?(?:\s+(?:provided|available|offered|included))?\s+$"
+)
 
 
 def _is_onsite_benefit(text: str, match: re.Match[str]) -> bool:
     """True when the onsite term describes a perk, not the work mode.
 
-    The perk noun must follow the term, at most two modifier words later ("on-site gym", "on-site fully
-    equipped gym", "in-office lunch"), or the term must be the
-    next item of a perk list in the same clause, right after a comma/"and"/"or" ("counseling, therapy
-    placement, on-site support"). A perk elsewhere ("The position is onsite; gym membership included",
-    "We provide meals and the position is onsite") does not exempt it.
+    Recognized (deliberately bounded; other perk wordings are a known limitation and count as onsite):
+    - the perk noun after the term, at most two modifier words later: "on-site gym", "on-site fully equipped
+      gym", "in-office lunch" (line breaks from extracted HTML allowed; no conjunction or verb in between);
+    - the perk noun right before the term, optionally with "is/are" plus provided/available/offered/included:
+      "gym on-site", "meals are provided on-site", "parking is available on-site";
+    - the term as the next item of a perk list in the same clause, after a comma/"and"/"or": "counseling,
+      therapy placement, on-site support".
+    Not recognized, so still onsite: a perk in another clause ("The position is onsite; gym membership
+    included", "The role is on-site and meals are provided", "You will work on-site with gym access").
     """
     if _ONSITE_BENEFIT_AFTER_RE.match(text, match.end()):
         return True
-    return _ONSITE_BENEFIT_BEFORE_RE.search(text, max(0, match.start() - 60), match.start()) is not None
+    window_start = max(0, match.start() - 60)
+    if _ONSITE_BENEFIT_PRECEDES_RE.search(text, window_start, match.start()):
+        return True
+    return _ONSITE_BENEFIT_BEFORE_RE.search(text, window_start, match.start()) is not None
 
 
 _ONSITE_TERM_PRODUCT_SUFFIX_RE = re.compile(rules_data.ONSITE_TERM_PRODUCT_SUFFIX_PATTERN, re.IGNORECASE)

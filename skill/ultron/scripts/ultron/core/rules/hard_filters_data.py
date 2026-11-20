@@ -211,6 +211,7 @@ ONSITE_BENEFIT_CONTEXT_TERMS = {
     "meals",
     "lunch",
     "massage",
+    "parking",
 }
 ONSITE_NEGATION_TERMS = {
     "no on-site",

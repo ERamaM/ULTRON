@@ -292,3 +292,43 @@ def test_verify_truth_allows_equivalent_abbreviated_currency_metric(tmp_path):
     bad_rep = cv_truth.verify_truth(src, opt_bad, as_of=datetime.date(2026, 1, 1))
     assert bad_rep["passed"] is False
     assert any(v["type"] == "unverified_metric" for v in bad_rep["violations"])
+
+
+def test_verify_truth_rejects_currency_substitution_and_unrelated_count_as_tenure(tmp_path):
+    src = tmp_path / "src.md"
+    src.write_text(
+        "# Alex Dev\nalex@example.com\n\n"
+        "## Experience\nEngineer | Acme | Jan 2020 - Dec 2021\n"
+        "- Saved $100k annually.\n- Built 10 projects.\n",
+        encoding="utf-8",
+    )
+
+    # 1. Currency symbol swap ($100k -> €100k) must fail
+    opt_eur = tmp_path / "opt_eur.md"
+    opt_eur.write_text(src.read_text(encoding="utf-8").replace("$100k", "€100k"), encoding="utf-8")
+    eur_rep = cv_truth.verify_truth(src, opt_eur, as_of=datetime.date(2026, 1, 1))
+    assert eur_rep["passed"] is False
+    assert any(v["type"] == "unverified_metric" and "100k" in v["token"] for v in eur_rep["violations"])
+
+    # Same USD currency in canonicalized format ($100k -> 100,000 USD) must pass
+    opt_usd = tmp_path / "opt_usd.md"
+    opt_usd.write_text(src.read_text(encoding="utf-8").replace("$100k", "100,000 USD"), encoding="utf-8")
+    assert cv_truth.verify_truth(src, opt_usd, as_of=datetime.date(2026, 1, 1))["passed"] is True
+
+    # 2. Unrelated count ("Built 10 projects") must not authorize "10 years of experience" on a 2-year CV
+    opt_inflated = tmp_path / "opt_inflated.md"
+    opt_inflated.write_text(
+        src.read_text(encoding="utf-8") + "\n## Summary\nEngineer with 10 years of experience.\n",
+        encoding="utf-8",
+    )
+    inf_rep = cv_truth.verify_truth(src, opt_inflated, as_of=datetime.date(2026, 1, 1))
+    assert inf_rep["passed"] is False
+    assert any(v["type"] == "unverified_metric" and "10 years" in v["token"] for v in inf_rep["violations"])
+
+    # Explicit source tenure phrase ("ten years of experience") still authorizes "10 years of experience"
+    src_explicit = tmp_path / "src_explicit.md"
+    src_explicit.write_text(
+        src.read_text(encoding="utf-8") + "\n## Summary\nEngineer with ten years of experience.\n",
+        encoding="utf-8",
+    )
+    assert cv_truth.verify_truth(src_explicit, opt_inflated, as_of=datetime.date(2026, 1, 1))["passed"] is True

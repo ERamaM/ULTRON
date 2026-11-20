@@ -329,3 +329,37 @@ def test_cli_cv_audit_target_modes_and_redacted_report(tmp_path, capsys, monkeyp
     # Usage error when passing both --job and --job-file
     assert cli.main(["cv", "audit", str(docx_file), "--job", "x", "--job-file", str(job_file)]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "usage"
+
+
+def test_audit_cv_run_reads_heuristic_fit_signals_from_kept_jsonl_before_finalize(tmp_path):
+    docx_file = tmp_path / "candidate.docx"
+    docx_file.write_bytes(_build_docx(_document("".join(_paragraph(p) for p in _clean_cv_paragraphs()))))
+
+    profiles.save_profile({
+        "slug": "ml-eu",
+        "name": "ML EU",
+        "criteria": {
+            "role_focus_terms": ["ml engineer"],
+            "target_titles": ["ML Engineer"],
+        },
+    })
+    rid = runs.new_run("ml-eu", "balanced")
+    folder = runs.run_dir(rid)
+    runs.write_jsonl(folder / "kept.jsonl", [
+        {
+            "identity_key": "greenhouse:beta:7",
+            "job": {"title": "ML Engineer", "company": "Beta"},
+            "heuristic": {"fit_signals": ["PyTorch", "Kubernetes", "Airflow"], "matched_requirements": []},
+        }
+    ])
+    runs.mark_stage(rid, "fetch")
+    runs.mark_stage(rid, "filter")
+
+    report = cv_ats.audit_cv(docx_file, run_id=rid)
+    assert report["target"]["mode"] == "run_aggregate"
+    assert report["target"]["kept_rows_analyzed"] == 1
+    align = report["keyword_alignment"]
+    assert align["terms_checked"] == 3
+    all_terms = set(align["matched"]) | set(align["missing"])
+    assert {"PyTorch", "Kubernetes", "Airflow"} <= all_terms
+    assert report["subscores"]["target_alignment"] is not None

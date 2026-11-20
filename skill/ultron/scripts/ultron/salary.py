@@ -433,22 +433,33 @@ def _clause_window(text: str, start: int, end: int, *, radius: int = 75) -> str:
     return f"{before}{text[start:end]}{after}".strip()
 
 
-def _detect_period(text: str, start: int, end: int, window: str) -> SalaryPeriod | None:
-    immediate = normalize_text(text[end : min(len(text), end + 24)])
-    for period, pattern in _PERIOD_PATTERNS:
-        if pattern.match(immediate.lstrip()):
-            return period
-    folded = normalize_text(window)
+def _nearest_period(fragment: str, amount_text: str) -> SalaryPeriod | None:
+    folded = normalize_text(fragment)
+    anchor = folded.find(normalize_text(amount_text))
+    if anchor < 0:
+        anchor = len(folded) // 2
     best_period: SalaryPeriod | None = None
     best_dist = 10_000
-    center = len(normalize_text(text[max(0, start - 75) : start]))
     for period, pattern in _PERIOD_PATTERNS:
         for m in pattern.finditer(folded):
-            dist = abs(m.start() - center)
+            dist = abs(m.start() - anchor)
             if dist < best_dist:
                 best_dist = dist
                 best_period = period
     return best_period
+
+
+def _detect_period(
+    text: str, start: int, end: int, window: str, *, clause: str | None = None
+) -> SalaryPeriod | None:
+    immediate = normalize_text(text[end : min(len(text), end + 24)])
+    for period, pattern in _PERIOD_PATTERNS:
+        if pattern.match(immediate.lstrip()):
+            return period
+    amount_text = text[start:end]
+    if clause and (clause_period := _nearest_period(clause, amount_text)):
+        return clause_period
+    return _nearest_period(window, amount_text)
 
 
 def _has_marker(folded: str, markers: tuple[str, ...]) -> bool:
@@ -496,7 +507,7 @@ def _build_salary_hit(
     folded_clause = normalize_text(clause)
     if _has_marker(folded_clause, _FALSE_POSITIVE_CONTEXT):
         return None
-    period = _detect_period(text, match.start(), match.end(), window)
+    period = _detect_period(text, match.start(), match.end(), window, clause=clause)
     has_context = any(term in folded_win for term in _COMPENSATION_CONTEXT)
     if period is None and not has_context:
         return None

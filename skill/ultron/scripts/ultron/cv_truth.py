@@ -40,6 +40,9 @@ _WORD_NUMBERS: dict[str, int] = {
     "nueve": 9, "diez": 10,
 }
 
+_WORD_NUM_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
+_CURRENCY_SYMBOL_MAP: dict[str, str] = {"$": "USD", "€": "EUR", "£": "GBP", "¥": "JPY", "₹": "INR"}
+
 _PERCENT_RE = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)?)\s*%")
 _MULT_RE = re.compile(r"\b(\d+(?:[.,]\d+)?)\s*[xX]\b")
 _CURRENCY_RE = re.compile(
@@ -48,6 +51,10 @@ _CURRENCY_RE = re.compile(
 )
 _YEARS_METRIC_RE = re.compile(
     r"\b(\d+(?:[.,]\d+)?)\+?\s*(?:years?|yrs?|anos?|años|ans|jahre?n?)\b",
+    re.IGNORECASE,
+)
+_WORD_YEARS_RE = re.compile(
+    rf"\b({_WORD_NUM_ALT})[ \t]{{1,3}}(?:years|year|yrs|yr|años|año|anos|ano|ans|jahren|jahre|jahr)\b",
     re.IGNORECASE,
 )
 _SCALED_NUM_RE = re.compile(
@@ -89,6 +96,7 @@ _NON_TECH_ACRONYMS = frozenset({
     "GPA", "DOB", "N/A", "NA", "OK", "OR", "AND", "THE", "FOR", "WITH", "IN", "ON", "AT", "TO", "OF", "BY",
     "A1", "A2", "B1", "B2", "C1", "C2", "I", "II", "III", "IV", "PHD", "MSC", "BSC", "MBA", "BA", "BS", "MA", "MS",
     "SL", "SA", "INC", "LTD", "LLC", "GMBH", "AG", "BV",
+    "USD", "EUR", "GBP", "CHF", "JPY", "INR", "CAD", "AUD",
 })
 
 _SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
@@ -238,8 +246,10 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
     for match in _CURRENCY_RE.finditer(masked):
         raw_num = match.group(2) or match.group(4) or ""
         suffix = match.group(3) or match.group(5)
+        raw_curr = match.group(1) or match.group(6) or ""
+        curr_code = _CURRENCY_SYMBOL_MAP.get(raw_curr, raw_curr.upper())
         if (val := _scale_number(raw_num, suffix)) is not None:
-            metrics.setdefault(_metric_key("curr", val), match.group(0).strip())
+            metrics.setdefault(_metric_key(f"curr:{curr_code}", val), match.group(0).strip())
             currency_spans.append(match.span())
 
     def _overlaps_currency(span: tuple[int, int]) -> bool:
@@ -249,6 +259,11 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
     for match in _YEARS_METRIC_RE.finditer(masked):
         if (val := _scale_number(match.group(1), None)) is not None:
             years_claims.append((match.group(0).strip(), val))
+
+    for match in _WORD_YEARS_RE.finditer(masked):
+        word_val = _WORD_NUMBERS.get(match.group(1).lower())
+        if word_val is not None:
+            years_claims.append((match.group(0).strip(), float(word_val)))
 
     for match in _SCALED_NUM_RE.finditer(masked):
         if _overlaps_currency(match.span()):
@@ -414,8 +429,7 @@ def _check_metrics(
 ) -> None:
     auth_metrics, auth_years_claims = _extract_metrics(authorized_text)
     auth_metric_keys = set(auth_metrics) | _word_number_keys(authorized_text)
-    for _raw_claim, yrs_val in auth_years_claims:
-        auth_metric_keys.add(_metric_key("num", yrs_val))
+    auth_years_keys = {_metric_key("yrs", yrs_val) for _raw_claim, yrs_val in auth_years_claims}
     opt_metrics, opt_years_claims = _extract_metrics(optimized_text)
     for key, display in sorted(opt_metrics.items()):
         if key not in auth_metric_keys:
@@ -427,7 +441,7 @@ def _check_metrics(
             })
 
     for raw_claim, yrs_val in opt_years_claims:
-        if _metric_key("num", yrs_val) in auth_metric_keys:
+        if _metric_key("yrs", yrs_val) in auth_years_keys:
             continue
         if yrs_val <= verified_years + 0.5:
             info.append({

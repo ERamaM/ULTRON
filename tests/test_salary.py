@@ -305,3 +305,12 @@ def test_extract_salaries_preserves_base_salary_with_benefits_in_same_sentence()
     )
 
     assert salary.extract_salaries_from_text("401(k) match up to $20,000 per year.") == []
+
+
+def test_extract_salaries_resolves_period_within_amount_clause():
+    hits = salary.extract_salaries_from_text("Annual salary £60,000, monthly equivalent £5,000.")
+    assert len(hits) == 2
+    assert [(h["currency"], h["period"], h["annual_low"], h["annual_high"]) for h in hits] == [
+        ("GBP", "annual", 60000, 60000),
+        ("GBP", "monthly", 60000, 60000),
+    ]

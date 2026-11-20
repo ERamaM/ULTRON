@@ -758,14 +758,19 @@ def _run_aggregate_terms(run_id: str) -> tuple[list[str], dict[str, Any]]:
         for req in row.get("matched_requirements") or []:
             if isinstance(req, str) and req.strip():
                 counter[req.strip()] += 1
+    kept_rows: list[dict[str, Any]] = []
     if not counter:
-        for row in runs.read_jsonl(folder / "kept.jsonl"):
-            ev = row.get("evaluation") or {}
-            for sig in ev.get("fit_signals") or []:
-                if isinstance(sig, str) and sig.strip():
-                    counter[sig.strip()] += 1
+        kept_rows = list(runs.read_jsonl(folder / "kept.jsonl"))
+        for row in kept_rows:
+            ev = row.get("heuristic") or row.get("evaluation") or {}
+            if not isinstance(ev, dict):
+                continue
+            for field in ("fit_signals", "matched_requirements"):
+                for item in ev.get(field) or []:
+                    if isinstance(item, str) and item.strip():
+                        counter[item.strip()] += 1
     terms = [term for term, _count in counter.most_common(30)]
-    return terms, {"run_id": run_id, "kept_rows_analyzed": len(rows)}
+    return terms, {"run_id": run_id, "kept_rows_analyzed": len(rows) or len(kept_rows)}
 
 
 def _resolve_target(

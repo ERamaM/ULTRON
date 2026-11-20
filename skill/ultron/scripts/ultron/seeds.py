@@ -197,40 +197,57 @@ def _read_raw_rows(path: Path) -> list:
     return rows
 
 
-# Writers hold ``auto_seeds.yaml.lock`` across read-modify-write. A lock older than SEED_LOCK_STALE seconds was
-# left by a crashed writer (a write takes milliseconds) and is removed; waiting longer than SEED_LOCK_TIMEOUT
-# for a live one raises SeedFileError.
+# Writers hold an OS lock on ``auto_seeds.yaml.lock`` across read-modify-write. The operating system releases it
+# when the holder exits or crashes, so there is no stale-lock recovery that could delete another writer's lock;
+# the lock file itself is left in place. Waiting longer than SEED_LOCK_TIMEOUT raises SeedFileError.
 SEED_LOCK_TIMEOUT = 15.0
-SEED_LOCK_STALE = 120.0
+
+
+def _try_lock(fd: int) -> bool:
+    os.lseek(fd, 0, os.SEEK_SET)
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(fd: int) -> None:
+    os.lseek(fd, 0, os.SEEK_SET)
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 
 @contextmanager
 def _seed_file_lock(path: Path) -> Iterator[None]:
     lock = path.with_name(path.name + ".lock")
     lock.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + SEED_LOCK_TIMEOUT
-    while True:
-        try:
-            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            try:
-                if time.time() - lock.stat().st_mtime > SEED_LOCK_STALE:
-                    lock.unlink(missing_ok=True)
-                    continue
-            except OSError:
-                pass  # released meanwhile, or a stale lock that cannot be removed: wait like for a live one
-        except PermissionError:  # Windows: the lock is being deleted right now
-            pass
-        else:
-            os.close(fd)
-            break
-        if time.monotonic() >= deadline:
-            raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})")
-        time.sleep(0.05)
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR)
     try:
-        yield
+        deadline = time.monotonic() + SEED_LOCK_TIMEOUT
+        while not _try_lock(fd):
+            if time.monotonic() >= deadline:
+                raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})")
+            time.sleep(0.05)
+        try:
+            yield
+        finally:
+            _unlock(fd)
     finally:
-        lock.unlink(missing_ok=True)
+        os.close(fd)
 
 
 def add_seeds(seeds: list[AtsBoardSeed], *, profile_slug: str) -> int:
@@ -268,6 +285,15 @@ def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) 
             index[key] = fresh
             out_rows.append(fresh)
             new += 1
+        elif _is_unconfirmed(current) and not _is_unconfirmed(seed):
+            # A guessed board stored without proof of ownership, now verified: take the verified metadata and
+            # keep every profile link.
+            promoted = seed.model_copy(update={
+                "seed_id": make_seed_id(seed.ats, seed.board_identifier),
+                "profiles": list(dict.fromkeys([*current.profiles, *seed.profiles, profile_slug])),
+            })
+            index[key] = promoted
+            out_rows[out_rows.index(current)] = promoted
         elif profile_slug not in current.profiles:
             current.profiles.append(profile_slug)
     text = yaml.safe_dump(
@@ -540,6 +566,10 @@ UNCONFIRMED_SOURCE_TYPE = "guessed_unconfirmed"
 OTHER_COMPANY_SOURCE_TYPE = "guessed_other_company"
 
 
+def _is_unconfirmed(seed: AtsBoardSeed) -> bool:
+    return seed.source_type in {UNCONFIRMED_SOURCE_TYPE, OTHER_COMPANY_SOURCE_TYPE}
+
+
 def unconfirmed_seed(p: Proposal, ats: str, board: str, jobs, verdict: str) -> AtsBoardSeed | None:
     """Seed for a guessed board that answered without proof of ownership.
 
@@ -569,8 +599,13 @@ def unconfirmed_seed(p: Proposal, ats: str, board: str, jobs, verdict: str) -> A
 
 
 def stored_seed(result: VerifyResult) -> AtsBoardSeed | None:
-    """The seed a verification stores: the verified board, or a tagged unconfirmed guessed board."""
+    """The seed a verification stores: the verified board, or a tagged unconfirmed guessed board.
+
+    A verification stopped by the request budget still stores the unconfirmed board it had already found.
+    """
     if result.status == "verified" or result.reason in {"ownership_unknown", "wrong_tenant"}:
+        return result.seed
+    if result.reason == "budget_exhausted" and result.seed is not None:
         return result.seed
     return None
 
@@ -695,6 +730,13 @@ def verify_proposal(
     def unresolved(reason: str) -> VerifyResult:
         return VerifyResult(p, "unresolved", None, 0, reason)
 
+    def budget_exhausted() -> VerifyResult:
+        """Stop on the global budget, keeping a guessed board that already answered (stored tagged, unconfirmed)."""
+        if doubtful is None:
+            return unresolved("budget_exhausted")
+        _verdict, candidate, seed = doubtful
+        return VerifyResult(p, "unresolved", seed, candidate["postings"], "budget_exhausted", candidate=candidate)
+
     pairs: list[tuple[str, str]] = []
     has_explicit = bool((p.ats.strip() and p.board.strip()) or p.careers_url.strip())
     if p.ats and p.board:
@@ -785,7 +827,7 @@ def verify_proposal(
     if found is not None:
         return found
     if budget_spent:
-        return unresolved("budget_exhausted")
+        return budget_exhausted()
     target = _page_hop_target(p, explicit=has_explicit)
     if target is not None:
         url, reg, kind = target
@@ -795,14 +837,14 @@ def verify_proposal(
                 links = fetch_page_links(url, timeout, client=_DomainScopedPages(client, reg))
             except RequestBudgetExceeded as exc:
                 if getattr(exc, "scope", "global") != "host":
-                    return unresolved("budget_exhausted")
+                    return budget_exhausted()
                 links = []
             boards = _linked_boards(links)[:PAGE_HOP_MAX_BOARDS]
             found = probe(boards, f"{kind}_page")
             if found is not None:
                 return found
             if budget_spent:
-                return unresolved("budget_exhausted")
+                return budget_exhausted()
     if doubtful is not None:
         reason, candidate, seed = doubtful
         return VerifyResult(p, "unresolved", seed, candidate["postings"], reason, candidate=candidate)

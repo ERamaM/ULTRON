@@ -176,10 +176,9 @@ def _greenhouse_closed_redirect(url: str, final_url: str) -> bool:
     """A Greenhouse job URL that redirected to its board with ``?error=true`` (closed or removed job)."""
     original = urlsplit(url)
     final = urlsplit(final_url)
-    original_host = original.hostname or ""
     return (
-        _host_is(original_host, "greenhouse.io")
-        and final.hostname == original_host
+        _host_is(original.hostname or "", "greenhouse.io")
+        and _host_is(final.hostname or "", "greenhouse.io")
         and bool(_GH_JOB_RE.match(original.path))
         and parse_qs(final.query).get("error") == ["true"]
     )

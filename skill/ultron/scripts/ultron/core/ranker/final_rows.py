@@ -163,7 +163,9 @@ def _merge_location_variants(rows: list[FinalRow]) -> tuple[list[FinalRow], list
             kept.append(rows[item])
             continue
         members = groups[item]
-        best = min(members, key=_duplicate_quality)  # ties keep the first arrival
+        # Ties go to the smallest apply_url, not the first arrival, so the same row represents the posting in
+        # every run whatever order the board lists the cities in (the ledger tracks it as one job).
+        best = min(members, key=lambda member: (_duplicate_quality(member), str(member.apply_url)))
         if len(members) > 1:
             # In place: callers track rows by identity (finalize maps each row back to its posting).
             best.location = _listed_locations(members)

@@ -172,3 +172,13 @@ def test_location_variants_stay_apart_without_merging():
     ]
     kept, dupes = dedupe_final_rows(rows)
     assert len(kept) == 2 and dupes == []
+
+def test_the_merged_row_is_the_same_whatever_order_the_cities_arrive_in():
+    def rows():
+        return [
+            _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme"),
+            _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme"),
+        ]
+    forward = dedupe_final_rows(rows(), merge_locations=True)[0]
+    backward = dedupe_final_rows(rows()[::-1], merge_locations=True)[0]
+    assert [row.apply_url for row in forward] == [row.apply_url for row in backward] == ["https://x.com/j/1"]

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Specialist Frontend Engineer 095",
+  "location": "Worldwide",
+  "remote_text": "Remote worldwide",
+  "body_text": "Build web interfaces and design systems; relevant experience is not specified. Work may be performed from any country. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-negative-095",
+  "is_open_hint": true
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "es",
+  "title": "Senior Ingenieria Machine Learning 038",
+  "location": "Union Europea",
+  "remote_text": "Teletrabajo en la Union Europea",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; experiencia de nivel senior. Se aceptan candidaturas desde la Union Europea. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-core-038",
+  "is_open_hint": true
+}

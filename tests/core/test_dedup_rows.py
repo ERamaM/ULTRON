@@ -153,11 +153,11 @@ def test_non_ascii_specialty_parentheticals_are_kept():
 
 def test_location_variants_of_one_remote_posting_merge_into_one_row():
     rows = [
-        _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme"),
-        _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme"),
+        _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme", source_type="ats_api"),
+        _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme", source_type="ats_api"),
         _row(title="Senior Data Analyst", location="Lima, Peru", apply_url="https://x.com/j/3",
-             source_key="greenhouse:acme"),
-        _row(location="Quito, Ecuador", apply_url="https://x.com/j/4", source_key="greenhouse:other-board"),
+             source_key="greenhouse:acme", source_type="ats_api"),
+        _row(location="Quito, Ecuador", apply_url="https://x.com/j/4", source_key="greenhouse:other-board", source_type="ats_api"),
     ]
     kept, dupes = dedupe_final_rows(rows, merge_locations=True)
     assert [row.apply_url for row in kept] == ["https://x.com/j/1", "https://x.com/j/3", "https://x.com/j/4"]
@@ -167,8 +167,8 @@ def test_location_variants_of_one_remote_posting_merge_into_one_row():
 
 def test_location_variants_stay_apart_without_merging():
     rows = [
-        _row(location="Dublin, Ireland", apply_url="https://x.com/j/1", source_key="greenhouse:hospital"),
-        _row(location="Cork, Ireland", apply_url="https://x.com/j/2", source_key="greenhouse:hospital"),
+        _row(location="Dublin, Ireland", apply_url="https://x.com/j/1", source_key="greenhouse:hospital", source_type="ats_api"),
+        _row(location="Cork, Ireland", apply_url="https://x.com/j/2", source_key="greenhouse:hospital", source_type="ats_api"),
     ]
     kept, dupes = dedupe_final_rows(rows)
     assert len(kept) == 2 and dupes == []
@@ -176,8 +176,8 @@ def test_location_variants_stay_apart_without_merging():
 def test_the_merged_row_is_the_same_whatever_order_the_cities_arrive_in():
     def rows():
         return [
-            _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme"),
-            _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme"),
+            _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme", source_type="ats_api"),
+            _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme", source_type="ats_api"),
         ]
     forward = dedupe_final_rows(rows(), merge_locations=True)[0]
     backward = dedupe_final_rows(rows()[::-1], merge_locations=True)[0]
@@ -192,3 +192,13 @@ def test_web_results_on_different_domains_never_merge():
     ]
     kept, dupes = dedupe_final_rows(rows, merge_locations=True)
     assert [row.apply_url for row in kept] == [row.apply_url for row in rows] and dupes == []
+
+def test_web_results_on_tenants_of_one_shared_ats_host_never_merge():
+    rows = [
+        _row(location="Madrid, Spain", apply_url="https://jobs.lever.co/acme/1", source_type="web_search",
+             source_key="web_search"),
+        _row(location="Lisbon, Portugal", apply_url="https://jobs.lever.co/attacker/1", source_type="web_search",
+             source_key="web_search"),
+    ]
+    kept, dupes = dedupe_final_rows(rows, merge_locations=True)
+    assert len(kept) == 2 and dupes == []

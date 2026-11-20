@@ -206,3 +206,45 @@ def test_a_stage_role_term_of_the_profile_is_never_read_as_an_internship():
     profile = _stage_profile(role_focus_terms=["stage manager"], target_titles=["Stage Manager"],
                              role_signal_terms=["theatre"])
     assert _outcome(_job("Stage Manager - Touring", body="Theatre tours."), profile) == "keep"
+
+# --- review round 3: conservative edges ---------------------------------------------------------
+
+
+def test_body_evidence_of_a_home_place_or_a_wide_region_is_not_a_country_restriction():
+    body = "Candidates can work remotely from anywhere in Spain."
+    assert other_country_restriction("Berlin, Germany", "Fully remote", SPAIN_EU, body) is None
+    assert other_country_restriction("Berlin, Germany", "Fully remote", SPAIN_EU, "Work from anywhere.") is None
+    assert other_country_restriction("Germany", "Remote", SPAIN_EU, "Hiring across the EU.") is None
+    # "anywhere in <another country>" is still a restriction
+    body = "Work remotely from anywhere in the Netherlands."
+    assert other_country_restriction("Netherlands", "Remote - Netherlands", SPAIN_EU, body) == "netherlands"
+
+
+@pytest.mark.parametrize(
+    "title",
+    ["Internship Coordinator", "Senior Apprenticeship Programme Manager", "Apprenticeship Recruiter",
+     "Trainee Program Lead"],
+)
+def test_a_programme_role_is_not_an_intern_level(title):
+    profile = _stage_profile(role_focus_terms=["coordinator", "manager", "recruiter", "lead"],
+                             target_titles=[title], role_signal_terms=["programme", "program", "hiring"])
+    assert _outcome(_job(title, body="Run the early-careers programme and hiring."), profile) == "keep"
+
+
+def test_a_profile_role_term_with_a_student_word_is_never_an_intern_level():
+    profile = _stage_profile(role_focus_terms=["internship advisor"], target_titles=["Internship Advisor"],
+                             role_signal_terms=["students"])
+    assert _outcome(_job("Internship Advisor", body="Advise students."), profile) == "keep"
+
+
+def test_numeric_grades_are_stripped_from_family_nouns():
+    assert role_family_nouns(["Software Engineer 2", "Engineer 3", "Data Analyst L4", "Analyst Level 2"]) == {
+        "engineer", "analyst"}
+    body = "Build backend services and APIs in Python."
+    assert is_allowed_family("Software Engineer II", body, ["Software Engineer 2"], ["backend", "python"])
+
+
+def test_without_derivable_family_nouns_the_family_noun_rule_does_not_apply():
+    assert role_family_nouns(["QA", "L4"]) == set()
+    body = "Own QA automation and testing for the platform."
+    assert is_allowed_family("Senior Software Engineer", body, ["QA", "L4"], ["qa", "testing", "automation"])

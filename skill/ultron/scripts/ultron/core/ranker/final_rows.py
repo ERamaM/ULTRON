@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from urllib.parse import urlsplit
 
 from ultron.core.models import COMPANY_NOT_FOUND, LOCATION_NOT_SHOWN, TITLE_NOT_FOUND, FinalRow
 from ultron.core.rules.geo_eu import EU_COUNTRY_TERMS, SPAIN_LOCALITY_TERMS, US_CITY_TERMS
@@ -131,15 +130,16 @@ _MAX_LISTED_LOCATIONS = 10
 
 
 def _posting_key(row: FinalRow) -> tuple[str, str, str] | None:
-    """Company, title and board. Only a vendor-API row names its board in ``source_key`` ("vendor:board"); for
-    any other source (every web hit shares ``source_key="web_search"``) the apply URL's host is part of the
-    key, so results on different domains never merge and one site cannot displace another's posting."""
+    """Company, title and verified board, or ``None`` when the row may not merge.
+
+    Only a vendor-API row names its board in ``source_key`` ("vendor:board"), queried from the vendor's own
+    API. Any other row (web hits share ``source_key="web_search"``, and tenants of one ATS host share the host)
+    never merges, so one site or tenant cannot displace another's posting.
+    """
     _url, role, _location = RoleIdentityIndex._keys(row)
-    if role is None:
-        return None
     source = str(row.source_key or "").strip().lower()
-    if row.source_type != "ats_api" or ":" not in source:
-        source = f"{source}@{(urlsplit(str(row.apply_url or '')).hostname or '').lower()}"
+    if role is None or row.source_type != "ats_api" or ":" not in source:
+        return None
     return (*role, source)
 
 

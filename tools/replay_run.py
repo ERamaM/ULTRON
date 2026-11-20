@@ -55,8 +55,17 @@ def read_run_files(run_id: str) -> dict[str, str | None]:
         raise ReplayError(f"invalid run id: {run_id!r} (run ids look like YYYYMMDD-HHMMSS-xxxxxx)")
     env = os.environ.get("ULTRON_HOME")
     home = os.path.expanduser(env) if env else os.path.join(os.path.expanduser("~"), ".ultron")
-    folder = os.path.join(home, "runs", run_id)
-    if not os.path.isdir(folder):
+    # Take the folder path from the directory listing, not from the argument: the argument only
+    # selects which existing entry to use.
+    runs_root = os.path.join(home, "runs")
+    folder = None
+    if os.path.isdir(runs_root):
+        with os.scandir(runs_root) as entries:
+            for entry in entries:
+                if entry.name == run_id and entry.is_dir(follow_symlinks=False):
+                    folder = entry.path
+                    break
+    if folder is None:
         raise ReplayError(f"run not found: {run_id}")
     texts: dict[str, str | None] = {}
     for name in (*REQUIRED_FILES, *OPTIONAL_FILES):

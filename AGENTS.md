@@ -3,6 +3,26 @@
 These instructions apply to any AI coding agent working on this repository. Follow
 [CONTRIBUTING.md](CONTRIBUTING.md) for setup, commit titles, and PR guidelines.
 
+## Making changes
+
+Every change to this repository, including new features, fixes and docs, reaches `main` through a
+pull request. The `main` ruleset rejects direct pushes, so a change that is only committed locally
+is not finished.
+
+1. Start from the latest `main` on a new branch: `git fetch origin` then
+   `git switch -c <type>/<short-name> origin/main` (types: `feat`, `fix`, `docs`, `chore`, `test`).
+2. Implement the change with tests, and run the checks in
+   [CONTRIBUTING.md](CONTRIBUTING.md#verification-checklist-before-opening-a-pr).
+3. Commit with a conventional title, push the branch (`git push -u origin <branch>`) and open the
+   pull request yourself: `gh pr create --base main --fill`, or with `--title` and `--body`
+   following the [pull request template](.github/pull_request_template.md).
+4. Follow [Pull Requests and Codex Reviews](#pull-requests-and-codex-reviews) until the PR is ready
+   to merge. Do not merge with admin rights or bypass the ruleset.
+
+Do not stop after editing files or committing locally, and do not ask whether to open a pull
+request: opening it is part of the task. Ask only if `gh` is not authenticated
+(`gh auth status`) or the push is rejected.
+
 ## Review guidelines
 
 Reviewers (Codex and human) should apply these repository rules:

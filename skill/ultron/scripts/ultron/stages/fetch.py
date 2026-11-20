@@ -11,6 +11,7 @@ import yaml
 from bs4 import BeautifulSoup
 
 from ultron import runs
+from ultron.core.ats.clients.bamboohr import bamboohr_workplace
 from ultron.core.ats.clients.smartrecruiters import smartrecruiters_location, smartrecruiters_workplace
 from ultron.core.ats.clients.workable import workable_locations
 from ultron.core.data_paths import data_dir
@@ -361,10 +362,14 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
             for k in ("city", "state", "addressCountry")
             if loc_obj.get(k)
         ).strip(", ")
+        # The vendor's workplace type is authoritative: prose such as "some remote workers" must not make
+        # an on-site posting look remote.
+        remote_parts = (bamboohr_workplace(opening), job.remote_text or loc_str)
+        remote_text = " | ".join(dict.fromkeys(clean_text(part) for part in remote_parts if clean_text(part)))
         return job.model_copy(update={
             "title": clean_text(opening.get("jobOpeningName") or candidate.ats_title or job.title),
             "location": clean_text(loc_str or candidate.ats_location or job.location),
-            "remote_text": clean_text(job.remote_text or loc_str),
+            "remote_text": remote_text,
             "body_text": desc,
             "posting_date": str(opening.get("datePosted") or job.posting_date or "").strip() or None,
         }), True

@@ -164,3 +164,18 @@ def test_migrate_v5_rekeys_url_identities_that_now_have_a_vendor_identity():
         # The new key already existed: both rows are kept, nothing is merged. Plain URL identities stay.
         assert {"url://acme.teamtailor.com/jobs/42-ml-engineer", "teamtailor:acme:42",
                 "url://example.com/careers/1"} <= keys
+
+
+def test_migrate_v5_uses_stored_source_hints():
+    embedded = "https://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789"
+    with closing(ledger.connect()) as conn:
+        conn.execute("PRAGMA user_version = 4")
+        conn.execute(
+            "INSERT INTO jobs (identity_key, canonical_url, first_seen, last_seen, times_seen, source_type, source_key)"
+            " VALUES (?, ?, '2026-01-01', '2026-01-02', 1, 'ats_api', 'ashby:acme')",
+            ("url://careers.acme.example/jobs?ashby_jid=0b1c2d3e-4f50-6789-abcd-ef0123456789", embedded))
+        conn.commit()
+    with closing(ledger.connect()) as conn:
+        keys = {row[0] for row in conn.execute("SELECT identity_key FROM jobs")}
+    # The same key the job gets when ATS discovery records it again with its source hints.
+    assert keys == {"ashby:acme:0b1c2d3e-4f50-6789-abcd-ef0123456789"}

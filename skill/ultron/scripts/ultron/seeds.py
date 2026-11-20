@@ -798,10 +798,10 @@ def verify_proposal(
                 unparseable = unparseable or str(exc) == "unparseable_board"
                 continue
             except HttpError as exc:
-                # 403/429 (or a host the client stopped calling): this board was never really checked.
+                # 403/429 (or a host the client stopped calling): this board was never really checked. Other
+                # boards still get their request; the client's host-scoped breaker decides what is blocked.
                 if isinstance(exc, HostBlocked) or exc.status_code in (403, 429):
                     rate_limited = True
-                    skipped_vendors.add(ats)
                 continue
             except (URLRejected, ValueError, KeyError, TypeError, AttributeError):
                 continue

@@ -19,7 +19,7 @@ ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code
 
 - **Any role, any region:** Works across engineering, AI/ML, product, finance, operations, industrial R&D, and more, in Europe, the Americas, APAC, or global remote markets.
 - **Zero-Python bootstrap:** `install.sh` and `install.ps1` automatically provision standalone `uv` and Python 3.12 if your machine does not have Python installed.
-- **19 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
+- **20 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
 - **Hybrid precision & triage:** Deterministic rules discard off-location/off-seniority noise before your agent spends tokens reviewing only genuinely uncertain ("unsure") or high-signal postings.
 - **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, Excel (`.xlsx`), and a self-contained offline HTML report.
 - **Scheduled / zero-token mode:** Run unattended heuristic searches with `ultron run --unattended`.
@@ -133,7 +133,7 @@ The update refreshes the CLI in `$ULTRON_HOME/venv`, replaces existing skill cop
 flowchart LR
     P["1. Profile"] --> S["2. Verify Companies"]
     S --> D["3. Feeds & Web Search"]
-    D --> A["4. Query 19 ATS APIs"]
+    D --> A["4. Query 20 ATS APIs"]
     A --> F["5. Fetch Postings"]
     F --> H["6. Deterministic Filter"]
     H --> E["7. Agent Eval & Finalize"]
@@ -142,14 +142,14 @@ flowchart LR
 1. **Profile:** Draft a search profile from a PDF/text CV, build one by answering a few questions, or adapt the bundled template. Refine it in chat ("no management roles", "add Rust"): every change is previewed as a diff and can be undone.
 2. **Companies:** Propose target employers and verify their live ATS boards (`ultron seeds verify`). A profile that no bundled seed pack covers gets its companies generated in rounds until it reaches the preset's seed target (`ultron seeds plan`, then `ultron seeds verify --round`).
 3. **Discovery:** Pull structured job feeds (`ultron discover feeds` reading `skill/ultron/data/feeds.yaml`) and run targeted web queries (`candidates add`).
-4. **ATS Crawl:** Query verified boards across 19 ATS vendors (`discover ats`).
+4. **ATS Crawl:** Query verified boards across 20 ATS vendors (`discover ats`).
 5. **Fetch:** Download job descriptions with vendor API enrichment fallbacks (`fetch`).
 6. **Filter:** Apply deterministic role, seniority, language, remote-policy, and geo rules (`filter`).
 7. **Evaluate & Finalize:** Have the agent evaluate doubtful (`unsure`) postings, rank results, persist history to `$ULTRON_HOME`, and emit `results.md`, `results.json`, and optional `.xlsx` and `.html` exports.
 
-## Supported ATS Vendors (19) & Feeds
+## Supported ATS Vendors (20) & Feeds
 
-`Ashby` · `BambooHR` · `Breezy` · `Comeet` · `Factorial` · `Greenhouse` · `Homerun` · `iCIMS` · `JazzHR` · `Jobvite` · `Lever` · `Personio` · `Pinpoint` · `Recruitee` · `SmartRecruiters` · `Taleo` · `Teamtailor` · `Workable` · `Workday`
+`Ashby` · `BambooHR` · `Breezy` · `Comeet` · `Factorial` · `Greenhouse` · `HireHive` · `Homerun` · `iCIMS` · `JazzHR` · `Jobvite` · `Lever` · `Personio` · `Pinpoint` · `Recruitee` · `SmartRecruiters` · `Taleo` · `Teamtailor` · `Workable` · `Workday`
 
 Public structured feed and curated remote-company list endpoints are configured in `skill/ultron/data/feeds.yaml` and executed by `discover feeds`.
 

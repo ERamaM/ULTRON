@@ -24,6 +24,7 @@ allowed_ats_domains:
   - myworkdaysite.com
   - icims.com
   - taleo.net
+  - hirehive.com
   - wellfound.com
   - nofluffjobs.com
 blocked_final_domains:

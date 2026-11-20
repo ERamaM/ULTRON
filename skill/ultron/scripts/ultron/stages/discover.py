@@ -65,6 +65,8 @@ def _seed_request_host(seed) -> str:
     if vendor == "ashby":
         return ASHBY_API_HOST
     board = str(seed.board_identifier or "").strip()
+    if vendor == "hirehive":  # every board is its own tenant host (<board>.hirehive.com)
+        return f"{board.casefold()}.hirehive.com"
     if "://" in board or "/" in board or "." in board:
         parsed = urlparse(board if "://" in board else f"//{board}")
         if parsed.hostname:

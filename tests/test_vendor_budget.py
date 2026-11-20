@@ -167,6 +167,7 @@ def test_vendor_state_survives_into_the_next_client_of_the_same_run():
 def test_client_for_run_maps_every_tenant_host_to_its_vendor():
     assert http_factory.vendor_for_host("jj.wd5.myworkdayjobs.com") == "workday"
     assert http_factory.vendor_for_host("careers-acme.icims.com") == "icims"
+    assert http_factory.vendor_for_host("acme.hirehive.com") == "hirehive"
     assert http_factory.vendor_for_host("acme.jobs.personio.de") == "personio"
     assert http_factory.vendor_for_host("boards-api.greenhouse.io") == "greenhouse"
     assert http_factory.vendor_for_host("job-boards.greenhouse.io") == "greenhouse"

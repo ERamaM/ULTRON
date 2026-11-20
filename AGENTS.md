@@ -20,12 +20,16 @@ is not finished.
    following the [pull request template](.github/pull_request_template.md).
 4. Follow [Pull Requests and Codex Reviews](#pull-requests-and-codex-reviews) until the PR is ready
    to merge. Do not merge with admin rights or bypass the ruleset.
+5. Once the pull request is merged, clean up before reporting the task as done: leave the worktree
+   folder, then run `git worktree remove ../ULTRON-worktrees/<short-name>`, delete the local branch
+   (`git branch -D <branch>`) and the remote one (`git push origin --delete <branch>`, unless the
+   merge already deleted it). A task is finished only when its PR is merged and its worktree and
+   branches are gone.
 
 Use one worktree per branch. Several agents may work on this repository at the same time, so never
 switch branches, commit or run `git commit -a` in the main checkout or in another agent's worktree:
 a branch switch there can carry someone else's uncommitted work into your commit. Separate
-worktrees also let agents work on different branches in parallel. After the pull request merges,
-remove yours with `git worktree remove ../ULTRON-worktrees/<short-name>`.
+worktrees also let agents work on different branches in parallel.
 
 Do not stop after editing files or committing locally, and do not ask whether to open a pull
 request: opening it is part of the task. Ask only if `gh` is not authenticated

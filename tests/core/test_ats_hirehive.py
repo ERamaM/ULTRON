@@ -84,7 +84,7 @@ def test_hirehive_is_a_registered_vendor():
     assert vendor_domains("hirehive") == ("hirehive.com",)
     assert infer_vendor_from_host("examplecare.hirehive.com") == "hirehive"
     assert http_factory.vendor_for_host("examplecare.hirehive.com") == "hirehive"
-    assert "hirehive.com" in load_allowed_domains()
+    assert {"hirehive.com"} <= set(load_allowed_domains())
     assert validate_proposal({"company": "Example Care", "ats": "hirehive", "board": "examplecare"}) == []
 
 

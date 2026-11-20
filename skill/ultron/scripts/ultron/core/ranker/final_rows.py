@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from urllib.parse import urlsplit
 
 from ultron.core.models import COMPANY_NOT_FOUND, LOCATION_NOT_SHOWN, TITLE_NOT_FOUND, FinalRow
 from ultron.core.rules.geo_eu import EU_COUNTRY_TERMS, SPAIN_LOCALITY_TERMS, US_CITY_TERMS
@@ -130,8 +131,16 @@ _MAX_LISTED_LOCATIONS = 10
 
 
 def _posting_key(row: FinalRow) -> tuple[str, str, str] | None:
+    """Company, title and board. Only a vendor-API row names its board in ``source_key`` ("vendor:board"); for
+    any other source (every web hit shares ``source_key="web_search"``) the apply URL's host is part of the
+    key, so results on different domains never merge and one site cannot displace another's posting."""
     _url, role, _location = RoleIdentityIndex._keys(row)
-    return None if role is None else (*role, str(row.source_key or "").strip().lower())
+    if role is None:
+        return None
+    source = str(row.source_key or "").strip().lower()
+    if row.source_type != "ats_api" or ":" not in source:
+        source = f"{source}@{(urlsplit(str(row.apply_url or '')).hostname or '').lower()}"
+    return (*role, source)
 
 
 def _listed_locations(rows: list[FinalRow]) -> str:

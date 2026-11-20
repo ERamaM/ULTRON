@@ -122,6 +122,18 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> t
     return (1, "pack") if (sector_match and geo_match) else (4, "other")
 
 
+# Fewer seeds than this that fit the profile make a run a cold start: the skill then proposes more companies
+# and runs more ATS ``site:`` searches (MARK II cold-start mode).
+COLD_START_SEEDS = 15
+
+
+def eligible_seed_count(profile_slug: str, profile: dict) -> int:
+    """Inventory seeds that fit the profile: its linked auto seeds plus packs matching its sectors and region."""
+    sectors = {str(s) for s in (profile.get("criteria") or {}).get("sectors") or ()}
+    geo = geo_scope(profile)
+    return sum(1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo)[0] < 4)
+
+
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
     yields: dict[str, tuple[int, int]] | None = None,

@@ -47,12 +47,17 @@ Output:
 
 ```json
 {"run_id": "20261116-101500-a1b2c3", "preset": "balanced", "profile": "ai-ml-remote-eu",
- "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25}
+ "query_plan": ["Senior ML Engineer Remote Europe", "..."], "profile_seeds": 12, "new_companies_target": 25,
+ "eligible_seeds": 40, "cold_start": false}
 ```
 
 - `query_plan`: web-search queries for step 4 (already capped to the preset; includes `site:` ATS queries when `query_templates.site_scopes` is set).
 - `profile_seeds`: verified companies already linked to this profile (reused automatically).
 - `new_companies_target`: how many new companies to propose in step 2.
+- `eligible_seeds`: inventory boards that fit this profile (its own seeds plus bundled packs for its
+  sectors and region). `cold_start: true` means fewer than 15: this profile has too few boards for a
+  useful ATS pass, so in this run propose about twice `new_companies_target` companies in step 2 and add
+  the extra ATS `site:` searches of step 4 (see "Cold start" there).
 
 If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md
 before calling `run new`. For a named saved search, use its configured profile.
@@ -111,6 +116,13 @@ string as the query. For a SearXNG instance, send that same string as the URL-en
 parameter. If you add a supplementary query using a profile technology, record it separately
 and use the same query with each provider when comparing them. Record how many planned queries
 you actually submitted if you stopped early.
+
+**Cold start** (`cold_start: true` in `run new`): after the plan, also search the profile's two or three
+main target titles on the main ATS hosts, e.g. `site:jobs.lever.co "<title>" <region>`, then
+`site:job-boards.greenhouse.io`, `site:jobs.ashbyhq.com`, `site:apply.workable.com`,
+`site:jobs.smartrecruiters.com` and `site:*.recruitee.com` (about 10 extra queries; record them
+separately from the plan). Every posting URL on a new board becomes a seed proposal that step 5
+verifies and keeps for later runs, so this is the quickest way to grow a small inventory.
 
 Collect **individual job-posting URLs** (one opening per URL), excluding portals and aggregator
 home pages. Write them as JSONL with the required `url`, plus `title`, `company` and the exact

@@ -7,7 +7,9 @@ this profile, so later runs reuse them.
 ## How many and which
 
 - Propose about `new_companies_target` companies (printed by `run new`). A few extra is fine, since
-  some will not resolve.
+  some will not resolve. When `run new` printed `cold_start: true` (fewer than 15 boards fit this
+  profile), propose about twice that number, and give `domain` for each so guessed boards can be
+  tied to the company.
 - Run `ultron seeds list --profile <slug>` first. It prints the inventory size and up to 30 seeds
   (`linked: true` = already verified for this profile). Use them as examples of the kind of company
   that fits, and do not propose companies that are already there.

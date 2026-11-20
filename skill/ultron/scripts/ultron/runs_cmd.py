@@ -6,6 +6,7 @@ import argparse
 
 from ultron import presets, runs, seeds
 from ultron.output import emit, fail, fail_stage_order
+from ultron.stages.discover import COLD_START_SEEDS, eligible_seed_count
 from ultron.stages.unattended import run_unattended
 
 
@@ -51,6 +52,7 @@ def build_query_plan(profile: dict, max_queries: int) -> list[str]:
 def _new_payload(run_id: str) -> dict:
     """Assemble the ``run new`` output; later tasks extend this one function."""
     data = runs.load_run(run_id)
+    eligible = eligible_seed_count(data["profile_slug"], data["profile_snapshot"] or {})
     return {
         "run_id": run_id,
         "preset": data["preset"],
@@ -58,6 +60,8 @@ def _new_payload(run_id: str) -> dict:
         "query_plan": build_query_plan(data["profile_snapshot"], data["settings"]["max_search_queries"]),
         "profile_seeds": sum(1 for s in seeds.load_inventory(data["profile_slug"]) if data["profile_slug"] in s.profiles),
         "new_companies_target": data["settings"]["new_companies_per_run"],
+        "eligible_seeds": eligible,
+        "cold_start": eligible < COLD_START_SEEDS,
     }
 
 

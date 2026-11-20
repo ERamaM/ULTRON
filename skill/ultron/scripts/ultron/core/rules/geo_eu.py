@@ -113,14 +113,20 @@ NON_EU_LOCATION_TERMS = {
     "lahore",
     "philippines",
     "manila",
-    # Countries outside Europe that postings restrict remote work to ("Fully remote from Argentina only"),
-    # with their Spanish names. Accent-folded: the text is normalized before matching.
+    # Spanish names of the countries above (accent-folded: the text is normalized before matching).
+    "brasil",
+    "japon",
+    "reino unido",
+}
+# Countries outside Europe that postings restrict remote work to ("Fully remote from Argentina only"), with
+# their Spanish names. Unlike NON_EU_LOCATION_TERMS they only flag a posting that names no European scope
+# at all ("Remote within the EU; founders from Israel" stays eligible).
+NON_EU_SCOPED_COUNTRY_TERMS = {
     "argentina",
     "chile",
     "colombia",
     "peru",
     "uruguay",
-    "brasil",
     "vietnam",
     "south korea",
     "corea del sur",
@@ -142,11 +148,10 @@ NON_EU_LOCATION_TERMS = {
     "sudafrica",
     "egypt",
     "egipto",
-    "japon",
-    "reino unido",
 }
-# Multi-country regions outside Europe. They only flag a posting when no wider region that includes Europe
-# ("EMEA", "worldwide", ...) is named too: "Remote (EMEA or APAC)" stays eligible.
+NON_EU_SCOPED_COUNTRY_OVERRIDE_TERMS = {"emea", "europe", "europa", "eu", "ue", "eea"}
+# Multi-country regions outside Europe, flagged only when no region that includes Europe is named:
+# "Remote (EMEA or APAC)" and "Remote worldwide, APAC preferred" stay eligible.
 NON_EU_REGION_TERMS = {
     "latam",
     "latin america",
@@ -156,7 +161,7 @@ NON_EU_REGION_TERMS = {
     "asia pacific",
     "asia-pacific",
 }
-NON_EU_REGION_OVERRIDE_TERMS = {"emea", "europe", "europa", "eu", "eea", "worldwide", "global", "anywhere"}
+NON_EU_REGION_OVERRIDE_TERMS = NON_EU_SCOPED_COUNTRY_OVERRIDE_TERMS | {"worldwide"}
 
 EU_COUNTRY_TERMS = {
     "austria",
@@ -482,12 +487,17 @@ def _has_non_eu_location_in_context(text: str) -> bool:
     )
 
 
-def _has_non_eu_region_in_context(text: str) -> bool:
-    if contains_any_word_boundary(text, NON_EU_REGION_OVERRIDE_TERMS):
-        return False
-    return _has_term_in_location_context(
-        text, NON_EU_REGION_TERMS, radius=80, word_boundary=True, reject_if_us_disqualifier=False
-    )
+def _has_scoped_non_eu_place_in_context(text: str) -> bool:
+    """Non-EU countries/regions that only count when the text names no European (or worldwide) scope."""
+    for terms, overrides in (
+        (NON_EU_SCOPED_COUNTRY_TERMS, NON_EU_SCOPED_COUNTRY_OVERRIDE_TERMS),
+        (NON_EU_REGION_TERMS, NON_EU_REGION_OVERRIDE_TERMS),
+    ):
+        if contains_any_word_boundary(text, overrides):
+            continue
+        if _has_term_in_location_context(text, terms, radius=80, word_boundary=True, reject_if_us_disqualifier=False):
+            return True
+    return False
 
 
 def _has_term_in_location_context(
@@ -599,7 +609,7 @@ def has_region_red_flags(text: str) -> bool:
     has_strong_us = _has_disallowed_region_terms(low)
     has_tz_us = contains_any_word_boundary(low, DISALLOWED_REGION_TERMS_WB) or _has_est_timezone_signal(low)
     has_loc_us = _has_us_location_signal(low, raw_text=raw)
-    has_loc_non_eu = _has_non_eu_location_in_context(low) or _has_non_eu_region_in_context(low)
+    has_loc_non_eu = _has_non_eu_location_in_context(low) or _has_scoped_non_eu_place_in_context(low)
     has_eu_signal = _has_eu_eligibility_signal(low)
 
     if has_strong_us and not has_eu_signal:

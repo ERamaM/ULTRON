@@ -173,6 +173,34 @@ query_templates:
 The preset caps the plan. If `query_templates.site_scopes` is set, the plan interleaves general
 queries with `site:<domain>` queries.
 
+### Fields that steer the filters
+
+Three groups of fields decide most of what a run keeps. Set all three in every profile, from the CV
+or by asking the user:
+
+- **Target roles** (`role_focus_terms`, `target_titles`). Without a vocabulary pack, a posting passes
+  the role check only when its title names the family noun of one of these terms: the last word once
+  level words are dropped (`analyst` for "Senior Data Analyst", `nurse` for "clinical nurse"), or the
+  role word of a Spanish, Portuguese or French term (`analista` for "analista de datos"). Body terms
+  such as `sql` or `patient care` confirm a title with that noun; they never pass a title without it, so
+  "Senior Fullstack Engineer" is discarded for a data-analyst profile. List every family noun the user
+  accepts (`analyst`, `scientist`), in the languages postings use.
+- **Seniority** (`seniority.required`, `preferred_terms`, `excluded_terms`). When `excluded_terms`
+  names an intern or student level (`intern`, `internship`, `student`, `trainee`), titles with a student
+  or internship level in English, German, Dutch, French, Spanish or Portuguese ("Working Student",
+  "Werkstudent", "Praktikum", "Stage", "Becario") are discarded too. Add `intern` unless the user wants
+  internships or working-student jobs.
+- **Location scope** (`location_scope.preferred`). Name the country (or city) the user lives in, then
+  any regions they can work for: `[Spain, Remote EU]`, `[Ireland, Dublin]`, `[Remote LATAM, Brazil]`.
+  When `preferred` names a country or city, a posting whose location or remote field is limited to
+  another country ("Remote across Germany" for someone in Spain, an onsite job in Madrid for someone in
+  Ireland) is shown as `unsure` with eligibility `unknown` and the note "location limited to <country>"
+  instead of a confident keep. A profile that names only regions (`[Remote EU]`) skips this check.
+
+With `remote_policy.required: full_remote`, a posting a board lists once per city (same company,
+title and board) becomes one row whose location lists the cities. With `any`, each city stays its own
+row, because each is a different job.
+
 ## Creating a profile
 
 Draft profiles are YAML or JSON files (JSON is valid input everywhere a YAML file is accepted). Write
@@ -188,26 +216,29 @@ after the user confirms.
 
 ### From a CV
 
-1. Extract the CV text: `ultron cv extract <path>` (PDF, `.txt` or `.md`) writes
-   `<ULTRON_HOME>/cv/<stem>.txt` and prints `{"path", "chars", "pages", "source_cv"}` (never the text;
-   `source_cv` is the absolute path of the original CV). Read that file with your file-reading ability.
-   On failure it prints `{"error": <code>}`: `no_extractable_text` (blank or scanned PDF; ask for a text
-   version), `too_many_pages` (over 20), `too_long` (over 60000 characters or 2.5 MB), `timeout`,
-   `unsupported_type` (for example `.docx`: ask the user to export it as PDF or text),
-   `dependency_missing` (PDF support needs `pip install 'ultron[cv]'`), or `worker_failed` (the PDF
-   helper process exited non-zero; `detail` has the stderr tail).
+1. Extract the CV text: `ultron cv extract <path>` (PDF, Word `.docx`, `.txt` or `.md`) writes
+   `<ULTRON_HOME>/cv/<file name>.txt` (for example `cv/cv.pdf.txt`, so `cv.pdf` and `cv.docx` never
+   overwrite each other) and prints `{"path", "chars", "pages", "source_cv"}` (never the text; `source_cv`
+   is the absolute path of the original CV). Read the file at `path` with your file-reading ability.
+   On failure it prints `{"error": <code>}`: `no_extractable_text` (blank or scanned PDF, or an empty
+   document; ask for a text version), `too_many_pages` (over 20), `too_long` (over 60000 characters or
+   2.5 MB), `timeout`, `unsupported_type` (for example `.doc` or `.odt`: ask the user to save it as
+   `.docx`, PDF or text), `dependency_missing` (PDF support needs `pip install 'ultron[cv]'`), or
+   `worker_failed` (the PDF helper process exited non-zero; `detail` has the stderr tail).
 2. Check the text before trusting it. Two-column PDFs come out column by column (main column, then
    sidebar). If job titles, dates and skills still look mixed on the same lines, ask the user rather
    than guess.
 3. Derive the fields: `role_focus_terms` and `target_titles` from their recent roles and the roles
    they want (not every past job); `seniority` from years and scope; `specialties` and
-   `query_templates.technologies` from their strongest skills; `location_scope` from where they can
-   legally work. Keep lists focused: 5-12 role terms, 3-6 target titles. Do not turn every skill or past
-   task into a term: sidebar keywords, tasks done once (for example data entry) and spoken languages are
-   not role terms.
+   `query_templates.technologies` from their strongest skills; `location_scope` from where they live
+   and can legally work. Keep lists focused: 5-12 role terms, 3-6 target titles. Do not turn every skill
+   or past task into a term: sidebar keywords, tasks done once (for example data entry) and spoken
+   languages are not role terms.
 4. Summarize the draft for the user in a few lines (roles, seniority, work mode, regions, main skills)
    and ask only what the CV cannot tell you: roles they want next, roles they do not want, remote,
-   hybrid or onsite, where they can legally work, deal-breakers.
+   hybrid or onsite, where they can legally work, deal-breakers. Target roles, seniority and location
+   scope steer the filters (see "Fields that steer the filters"): when the CV does not settle one of
+   them, ask the user directly instead of guessing or leaving it out.
 5. Validate and explain the draft as above. On failure `profile validate` exits 1 with `"valid": false`
    and a list of `errors`; fix them and validate again. Fix every explain `warning`, and check
    `title_exclusions.effective` against the titles the user wants (see "Title exclusions").

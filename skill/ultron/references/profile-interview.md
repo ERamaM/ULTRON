@@ -7,14 +7,16 @@ turn, and skip anything they already said. Offer examples so they can answer qui
 ## 1. Interview
 
 Ask about these topics in this order. Stop as soon as you have enough for a first draft; the user
-can refine it later.
+can refine it later. Roles, seniority and locations are not optional: they steer the filters
+(`references/profile.md`, "Fields that steer the filters"), so if the user skips one, ask again
+before you draft.
 
 | Topic | Ask | Goes to |
 |---|---|---|
-| Roles | Which jobs do you want? What would the title say? Any role you do not want? | `criteria.role_focus_terms` (short family terms such as `backend engineer`), `criteria.target_titles` (3-6 real titles), `criteria.role_family_label` |
-| Seniority | Which level: junior, mid, senior, lead? Is any level a no? | `criteria.seniority`: `required: true` with `preferred_terms` and `excluded_terms`, or `required: false` for any level |
+| Roles | Which jobs do you want? What would the title say? Any role you do not want? | `criteria.role_focus_terms` (short family terms such as `backend engineer`), `criteria.target_titles` (3-6 real titles), `criteria.role_family_label`. A title must name one of their family nouns (`engineer`, `analyst`, `nurse`) to pass |
+| Seniority | Which level: junior, mid, senior, lead? Is any level a no? Are internships or working-student jobs fine? | `criteria.seniority`: `required: true` with `preferred_terms` and `excluded_terms`, or `required: false` for any level. Put `intern` in `excluded_terms` unless internships or working-student jobs are wanted |
 | Work mode | Remote only, or are hybrid or onsite roles fine? | `criteria.remote_policy.required`: `full_remote` or `any` |
-| Locations | Where do you live? In which countries or regions can you legally work? Which time zones work? | `criteria.location_scope.preferred`, `eligibility_terms` (every spelling postings use, such as `spain`, `españa`, `cet`), `excluded_terms` (such as `us only`); `query_templates.regions` |
+| Locations | Where do you live? In which countries or regions can you legally work? Which time zones work? | `criteria.location_scope.preferred` (the country or city they live in first, then the regions they can work for, such as `[Spain, Remote EU]`), `eligibility_terms` (every spelling postings use, such as `spain`, `españa`, `cet`), `excluded_terms` (such as `us only`); `query_templates.regions` |
 | Must-have and nice-to-have terms | Which skills, tools or domains should a good match mention? Which ones make the role clearly yours? | nice-to-have: `criteria.specialties`, `query_templates.technologies`; must-have for the family: `criteria.role_signal_terms` |
 | Exclusions | Which words in a title mean "not for me" (manager, sales, intern)? | `criteria.exclusion_terms`, `query_templates.exclusion_terms` |
 | Industry | Which industries or company types (fintech, hospitals, startups)? | `criteria.sectors` only with the fixed values in `references/profile.md` ("Sectors", such as `finance_insurance`); niches such as fintech or "no crypto" also go into `prompt` |

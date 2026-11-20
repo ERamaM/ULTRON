@@ -61,7 +61,24 @@ def test_measured_confusion_counts_are_pinned():
 
 
 def test_measurement_is_deterministic():
-    assert measure_quality.measure() == measure_quality.measure()
+    first, second = measure_quality.measure(), measure_quality.measure()
+    assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+    ids = [case["id"] for case in first["cases"]]
+    assert ids == sorted(ids), "cases are reported in a stable id order"
+
+
+def test_output_outside_the_allowed_folders_is_rejected(tmp_path, monkeypatch, capsys):
+    import safe_paths
+
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    monkeypatch.setattr(safe_paths, "default_roots", lambda: (str(allowed),))
+    for target in (allowed / ".." / "escape.json", tmp_path / "elsewhere.json"):
+        assert measure_quality.main(["--output", str(target)]) == 2
+        assert "outside the allowed folders" in json.loads(capsys.readouterr().out)["error"]
+    assert not (tmp_path / "escape.json").exists() and not (tmp_path / "elsewhere.json").exists()
+    assert measure_quality.main(["--output", str(allowed / "quality.json")]) == 0
+    assert (allowed / "quality.json").is_file()
 
 
 def test_cli_writes_the_same_report(tmp_path, capsys):

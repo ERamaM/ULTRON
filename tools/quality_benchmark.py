@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -31,6 +32,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_harness import final_status, losing_stage, replay
+from safe_paths import UnsafePathError, contained_path
 
 from ultron import presets
 
@@ -67,6 +69,8 @@ ENUMS = {
     "expected_stage": {"keep", "discard", "unsure"},
 }
 SYNTHETIC_URL_PREFIX = "https://jobs.example.test/"
+# Case ids name the fixture file, so they may never contain path separators or dots.
+CASE_ID_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)+")
 
 
 class CorpusError(ValueError):
@@ -106,6 +110,7 @@ def _check_case(case: Any, path: Path) -> list[str]:
         return [f"{path.name}: keys differ from the case contract: {sorted(set(case) ^ CASE_KEYS)}"]
     case_id = str(case["id"])
     checks = [
+        (bool(CASE_ID_RE.fullmatch(case_id)), f"id {case_id!r} must be lowercase words joined by hyphens"),
         (case_id == path.stem, f"id {case_id!r} does not match the file name"),
         (case["split"] == stable_split(case_id), "split does not match the stable hash split"),
         (case["fixture"] == f"../fixtures/{case_id}.json", f"fixture must be ../fixtures/{case_id}.json"),
@@ -423,7 +428,15 @@ def dump_report(report: dict[str, Any]) -> str:
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
-def _read_report(path: Path, label: str) -> dict[str, Any]:
+def _safe(raw: Path) -> Path:
+    try:
+        return contained_path(raw)
+    except UnsafePathError as exc:
+        raise CorpusError(str(exc)) from exc
+
+
+def _read_report(raw: Path, label: str) -> dict[str, Any]:
+    path = _safe(raw)
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -450,10 +463,14 @@ def _cmd_validate(_args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    output = _safe(args.output) if args.output else None
     report = run_benchmark()
-    if args.output:
-        args.output.write_text(dump_report(report), encoding="utf-8", newline="\n")
-        args.output.with_suffix(".md").write_text(report_markdown(report), encoding="utf-8", newline="\n")
+    if output is not None:
+        try:
+            output.write_text(dump_report(report), encoding="utf-8", newline="\n")
+            output.with_suffix(".md").write_text(report_markdown(report), encoding="utf-8", newline="\n")
+        except OSError as exc:
+            raise CorpusError(f"{output.name}: cannot write the report: {exc}") from exc
     else:
         sys.stdout.write(dump_report(report))
     return 0

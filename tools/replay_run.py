@@ -28,6 +28,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from eval_harness import final_status, read_final_outcomes, replay
+from safe_paths import UnsafePathError, contained_path
 
 from ultron import runs
 
@@ -38,19 +39,49 @@ class ReplayError(ValueError):
     """The run or a report cannot be read."""
 
 
-def resolve_run_dir(run_id: str | None, run_path: Path | None) -> Path:
-    """The run folder, resolved without creating anything under ``ULTRON_HOME``."""
-    if run_path is not None:
-        path = Path(run_path)
-    else:
-        if not run_id or not runs.RUN_ID_RE.fullmatch(run_id):
-            raise ReplayError(f"invalid run id: {run_id!r} (run ids look like YYYYMMDD-HHMMSS-xxxxxx)")
-        env = os.environ.get("ULTRON_HOME")
-        home = Path(env).expanduser() if env else Path.home() / ".ultron"
-        path = home / "runs" / run_id
-    if not (path / "run.json").is_file() or not (path / "postings.jsonl").is_file():
+RUN_FILES = ("run.json", "postings.jsonl")
+# Every file the replay reads from a run folder; each must resolve inside that folder.
+READ_FILES = (*RUN_FILES, "evaluations.jsonl", "discarded.jsonl", "kept.jsonl", "ambiguous.jsonl",
+              "finalize_discards.jsonl", "results.json")
+
+
+def _ultron_home() -> str:
+    env = os.environ.get("ULTRON_HOME")
+    return os.path.realpath(Path(env).expanduser() if env else Path.home() / ".ultron")
+
+
+def _check_run_folder(path: Path) -> Path:
+    """A run folder: named like a run id, holding ``run.json`` and ``postings.jsonl`` as regular files.
+
+    No file the replay reads may resolve outside the folder (a symlink to elsewhere is rejected).
+    """
+    if not path.is_dir() or not runs.RUN_ID_RE.fullmatch(path.name):
+        raise ReplayError(f"{path.name}: not a run folder (run folders are named YYYYMMDD-HHMMSS-xxxxxx)")
+    for name in READ_FILES:
+        try:
+            contained_path(path / name, (str(path),))
+        except UnsafePathError as exc:
+            raise ReplayError(f"{path.name}: {name} points outside the run folder") from exc
+    if not all((path / name).is_file() for name in RUN_FILES):
         raise ReplayError(f"{path.name}: run.json and postings.jsonl are required")
     return path
+
+
+def resolve_run_dir(run_id: str | None, run_path: Path | None) -> Path:
+    """The run folder, resolved and validated without creating anything under ``ULTRON_HOME``.
+
+    ``--run`` must be a run id and resolve inside ``ULTRON_HOME/runs``. ``--run-dir`` is an explicit
+    run folder (for example a snapshot copy) and must pass the same folder checks.
+    """
+    try:
+        if run_path is not None:
+            return _check_run_folder(Path(os.path.realpath(run_path)))
+        if not run_id or not runs.RUN_ID_RE.fullmatch(run_id):
+            raise ReplayError(f"invalid run id: {run_id!r} (run ids look like YYYYMMDD-HHMMSS-xxxxxx)")
+        runs_root = os.path.join(_ultron_home(), "runs")
+        return _check_run_folder(contained_path(os.path.join(runs_root, run_id), (runs_root,)))
+    except UnsafePathError as exc:
+        raise ReplayError(str(exc)) from exc
 
 
 def _recorded(path: Path) -> dict[str, str]:
@@ -87,6 +118,7 @@ def _changed(recorded: str, replayed: str) -> bool:
 
 
 def replay_run(path: Path, *, use_evaluations: bool = True) -> dict[str, Any]:
+    path = _check_run_folder(Path(os.path.realpath(path)))
     try:
         run = json.loads((path / "run.json").read_text(encoding="utf-8"))
         postings = runs.read_jsonl(path / "postings.jsonl")
@@ -152,40 +184,57 @@ def diff_reports(first: dict[str, Any], second: dict[str, Any]) -> dict[str, Any
     }
 
 
-def _read(path: Path) -> dict[str, Any]:
+def _read(raw: Path) -> dict[str, Any]:
     try:
+        path = contained_path(raw)
         return json.loads(path.read_text(encoding="utf-8"))
+    except UnsafePathError as exc:
+        raise ReplayError(str(exc)) from exc
     except (OSError, ValueError) as exc:
-        raise ReplayError(f"{path.name}: unreadable report: {exc}") from exc
+        raise ReplayError(f"{Path(raw).name}: unreadable report: {exc}") from exc
 
 
-def main(argv: list[str] | None = None) -> int:
+def _write(raw: Path, text: str) -> None:
+    try:
+        path = contained_path(raw)
+        path.write_text(text, encoding="utf-8", newline="\n")
+    except UnsafePathError as exc:
+        raise ReplayError(str(exc)) from exc
+    except OSError as exc:
+        raise ReplayError(f"{Path(raw).name}: cannot write the report: {exc}") from exc
+
+
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Replay filter + finalize over a past run and diff decisions.")
     sub = parser.add_subparsers(dest="command", required=True)
     rep = sub.add_parser("replay", help="replay one run with the current code")
     source = rep.add_mutually_exclusive_group(required=True)
     source.add_argument("--run", help="run id under ULTRON_HOME/runs")
     source.add_argument("--run-dir", type=Path, help="path to a run folder (for example a snapshot copy)")
-    rep.add_argument("--output", type=Path, help="write the JSON report here instead of stdout")
+    rep.add_argument("--output", type=Path, help="write the JSON report here (repository or temp folder)")
     rep.add_argument("--no-evaluations", action="store_true", help="ignore recorded agent evaluations")
     dif = sub.add_parser("diff", help="paired diff of two replay reports")
     dif.add_argument("first", type=Path)
     dif.add_argument("second", type=Path)
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
     try:
         if args.command == "replay":
             path = resolve_run_dir(args.run, args.run_dir)
             payload = replay_run(path, use_evaluations=not args.no_evaluations)
         else:
             payload = diff_reports(_read(args.first), _read(args.second))
+        rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+        if getattr(args, "output", None):
+            _write(args.output, rendered)
+        else:
+            sys.stdout.write(rendered)
     except ReplayError as exc:
         print(json.dumps({"error": str(exc)}))
         return 2
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    if getattr(args, "output", None):
-        args.output.write_text(rendered, encoding="utf-8", newline="\n")
-    else:
-        sys.stdout.write(rendered)
     return 0
 
 

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Data Analyst",
+  "location": "Buenos Aires, AR",
+  "remote_text": "Remote",
+  "body_text": "Build SQL dashboards and reporting for our product teams. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-list-002",
+  "is_open_hint": true
+}

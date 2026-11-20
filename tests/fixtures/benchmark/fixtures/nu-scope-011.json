@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Registered Nurse - Home Health",
+  "location": "Lewes, DE 19958",
+  "remote_text": "Onsite",
+  "body_text": "Provide skilled nursing visits and patient care in the community. Valid driver's license and reliable transportation required. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-011",
+  "is_open_hint": true
+}

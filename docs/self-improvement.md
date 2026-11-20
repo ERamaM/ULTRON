@@ -105,7 +105,7 @@ fixed folder, `<system temp>/ultron-eval`. On the command line a report is a pla
 (`--output candidate.json`), never a path. A name with a folder or `..` is rejected with exit
 code `2`. The tool prints where it wrote the report.
 
-### Labelled benchmark (210 cases)
+### Labelled benchmark (216 cases)
 
 ```sh
 uv run python tools/quality_benchmark.py validate
@@ -137,7 +137,8 @@ The corpus in `tests/fixtures/benchmark/` is synthetic. Its first 120 cases came
 deterministic template generator of the MARK II project; 63 hand-written cases added on
 2026-11-20 cover other profiles, and 27 more of the same day (`da-scope`, `da-list`, `be-list`,
 `nu-scope`, `nu-fam`) are synthesized from postings that live sessions 3 and 4 kept or lost for
-region-scoped profiles. Every URL is on `jobs.example.test`, and no case describes a
+region-scoped profiles. Session 7 added 6 US-location cases (`nu-scope-011` to `015`, `da-list-002`).
+Every URL is on `jobs.example.test`, and no case describes a
 real person or company. It maps to ULTRON's pipeline as follows:
 
 | Corpus | ULTRON |
@@ -248,6 +249,16 @@ qualifier "specialist" of "Clinical Nurse Specialist" from the family nouns (0.9
 three; breaks a Spanish family-noun test as written). Rejected: a keep that names no place of the
 scope anywhere becoming unsure (new false negative: an Irish town outside the profile's terms), and
 "Nursing" read as the noun "nurse" (admits nursing-home and assistant roles).
+
+Session 7 accepted two quality changes. The deferred "global" and "international" change came first:
+0.796 / 0.886 / 0.839 -> 0.886 / 0.886 / 0.886 (fp 10 -> 5) on 210 cases. Six US-location cases
+followed, which brought the corpus to 216 cases at 0.833 / 0.851 / 0.842 (tp 40, fp 8, fn 7, tn 144).
+Two of the six are Irish towns that the European pre-filter already loses: it reads "Virginia" and
+", CO." as US places. The second change treats a US place that names no country as outside a non-US
+home: a state code at the end of a location ("Austin, TX"; a code that is also an ISO country code
+needs a ZIP code), a state name after a comma or before "(Any City)", or a US state licence in the body
+("current state licensure"). It measures 0.930 / 0.851 / 0.889 (tp 40, fp 3, fn 7, tn 149). Neither
+change created a new false negative, and the 60-case pin did not move.
 
 The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
 fn 7, tn 60). The pull request that applies a quality change records its before and after

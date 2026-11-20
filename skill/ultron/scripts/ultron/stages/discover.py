@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass, replace
@@ -24,7 +25,7 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, GeoScope
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope
-from ultron.core.rules.term_matching import contains_term
+from ultron.core.rules.term_matching import contains_term, normalize_text
 from ultron.core.sectors import profile_sector_values
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
@@ -118,11 +119,44 @@ SCOPE_REGION_TERMS: dict[str, tuple[str, ...]] = {
         "mexico", "argentina", "colombia", "chile", "peru", "uruguay", "paraguay", "bolivia", "ecuador", "venezuela",
         "costa rica", "panama", "guatemala", "honduras", "el salvador", "nicaragua", "dominican republic",
         "puerto rico", "sao paulo", "rio de janeiro", "buenos aires", "bogota", "medellin", "cali", "mexico city",
-        "cdmx", "guadalajara", "monterrey", "lima", "montevideo", "quito", "curitiba",
+        "ciudad de mexico", "cdmx", "guadalajara", "monterrey", "puebla", "queretaro", "tijuana", "lima",
+        "montevideo", "quito", "curitiba", "belo horizonte", "porto alegre", "recife", "brasilia", "fortaleza",
+        "florianopolis", "rosario", "mendoza", "barranquilla", "valparaiso", "asuncion", "santo domingo",
+        "san salvador", "tegucigalpa", "managua", "guatemala city",
     ),
-    "IE": ("ireland", "irish", "dublin", "cork", "galway", "limerick", "waterford", "kilkenny", "sligo", "drogheda"),
-    "US": ("united states", "usa", "us", "u.s.", "north america"),
+    "IE": (
+        "ireland", "irish", "dublin", "cork", "galway", "limerick", "waterford", "kilkenny", "sligo", "drogheda",
+        "dundalk", "athlone", "navan", "ennis", "tralee", "letterkenny", "wexford", "carlow", "kildare", "wicklow",
+        "meath", "westmeath", "louth", "kerry", "mayo", "donegal", "tipperary", "cavan", "monaghan", "offaly",
+        "laois", "roscommon", "leitrim", "longford",
+    ),
+    # States and major cities. Left out on purpose: "Georgia" (also a country), a bare "Washington" (only
+    # "Washington DC"/"Washington State"), and cities that share their name with a city elsewhere ("San José",
+    # "Portland", "Columbus", "Panama City").
+    "US": (
+        "united states", "usa", "us", "u.s.", "north america",
+        "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware", "florida",
+        "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
+        "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+        "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio",
+        "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", "tennessee", "texas",
+        "utah", "vermont", "virginia", "west virginia", "wisconsin", "wyoming", "washington dc", "washington d.c.",
+        "washington state", "district of columbia",
+        "new york city", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio",
+        "san diego", "dallas", "austin", "san francisco", "seattle", "boston", "atlanta", "miami", "denver",
+        "nashville", "detroit", "minneapolis", "baltimore", "pittsburgh", "orlando", "tampa", "las vegas",
+        "salt lake city", "kansas city", "st. louis", "saint louis", "raleigh", "sacramento", "indianapolis",
+        "jacksonville", "memphis", "milwaukee", "oklahoma city", "albuquerque", "tucson", "honolulu",
+        "new orleans", "charlotte nc",
+    ),
 }
+# Phrases removed from the profile text before matching a scope: "New Mexico" is a US state, not Mexico.
+SCOPE_EXCLUDED_PHRASES: dict[str, tuple[str, ...]] = {"LATAM": ("new mexico",)}
+# US state codes after a comma ("Austin, TX"), only those that are not also ISO country codes ("IN" is India,
+# "CA" Canada, "DE" Germany), so "Bangalore, IN" never reads as Indiana.
+_US_STATE_CODE = re.compile(
+    r",\s*(?:AK|CT|FL|HI|IA|KS|MI|NH|NJ|NM|NY|ND|OH|OK|OR|RI|TX|UT|VT|WA|WV|WI|WY|DC)\b"
+)
 # Scopes that fit every profile.
 GLOBAL_SCOPES = frozenset({"GLOBAL", "WORLDWIDE"})
 # ``_rank`` order of a pack seed scoped to another region: it is left out of the selection entirely.
@@ -152,6 +186,10 @@ def seed_scope_fits(scope: str, profile: dict | None, *, geo: GeoScope | None = 
     if terms is None:
         return True
     text = _profile_region_text(profile) if region_text is None else region_text
+    if scope == "US" and _US_STATE_CODE.search(text):
+        return True
+    for phrase in SCOPE_EXCLUDED_PHRASES.get(scope, ()):
+        text = re.sub(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", " ", normalize_text(text))
     return any(contains_term(text, term) for term in terms)
 
 

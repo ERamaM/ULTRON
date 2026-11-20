@@ -24,6 +24,11 @@ this profile, so later runs reuse them.
   say so in the proposal. For a non-European profile (e.g. LATAM), pick companies that hire in the
   profile's own regions (regional tech employers, international companies hiring remotely there),
   not European ones.
+- Outside technology (healthcare, public sector, retail...) many employers use careers systems outside
+  the 19 supported vendors, so fewer proposals verify. Still propose the full number: large employers
+  (hospital groups, universities, retailers) often use Workday or iCIMS, which you can propose with
+  their careers URL. Search by sector and place ("<role> jobs <city> <employer type>", "<employer> careers")
+  rather than by remote or technology terms.
 
 ## Proposal format (JSONL)
 

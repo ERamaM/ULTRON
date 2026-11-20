@@ -99,8 +99,14 @@ def _duplicate_quality(row: FinalRow) -> tuple[int, int, float, bool]:
     )
 
 
-def dedupe_final_rows(rows: list[FinalRow]) -> tuple[list[FinalRow], list[FinalRow]]:
-    """Keep each group's best row in its first arrival's position."""
+def dedupe_final_rows(
+    rows: list[FinalRow], *, merge_locations: bool = False
+) -> tuple[list[FinalRow], list[FinalRow]]:
+    """Keep each group's best row in its first arrival's position.
+
+    With ``merge_locations`` (remote-only profiles), the location variants of one posting (same company,
+    title and board, one listing per city) also collapse into one row that lists every location.
+    """
     kept: list[FinalRow] = []
     duplicates: list[FinalRow] = []
     identities = RoleIdentityIndex()
@@ -114,6 +120,55 @@ def dedupe_final_rows(rows: list[FinalRow]) -> tuple[list[FinalRow], list[FinalR
             kept[int(group)] = row
         else:
             duplicates.append(row)
+    if merge_locations:
+        kept, merged = _merge_location_variants(kept)
+        duplicates.extend(merged)
+    return kept, duplicates
+
+
+_MAX_LISTED_LOCATIONS = 10
+
+
+def _posting_key(row: FinalRow) -> tuple[str, str, str] | None:
+    _url, role, _location = RoleIdentityIndex._keys(row)
+    return None if role is None else (*role, str(row.source_key or "").strip().lower())
+
+
+def _listed_locations(rows: list[FinalRow]) -> str:
+    locations = list(dict.fromkeys(
+        str(row.location).strip() for row in rows if str(row.location or "").strip() not in {"", LOCATION_NOT_SHOWN}
+    ))
+    if not locations:
+        return rows[0].location
+    extra = len(locations) - _MAX_LISTED_LOCATIONS
+    return "; ".join(locations[:_MAX_LISTED_LOCATIONS]) + (f" (+{extra} more)" if extra > 0 else "")
+
+
+def _merge_location_variants(rows: list[FinalRow]) -> tuple[list[FinalRow], list[FinalRow]]:
+    groups: dict[tuple[str, str, str], list[FinalRow]] = {}
+    order: list[tuple[str, str, str] | int] = []
+    for index, row in enumerate(rows):
+        key = _posting_key(row)
+        if key is None:
+            order.append(index)
+        elif key in groups:
+            groups[key].append(row)
+        else:
+            groups[key] = [row]
+            order.append(key)
+    kept: list[FinalRow] = []
+    duplicates: list[FinalRow] = []
+    for item in order:
+        if isinstance(item, int):
+            kept.append(rows[item])
+            continue
+        members = groups[item]
+        best = min(members, key=_duplicate_quality)  # ties keep the first arrival
+        if len(members) > 1:
+            # In place: callers track rows by identity (finalize maps each row back to its posting).
+            best.location = _listed_locations(members)
+        kept.append(best)
+        duplicates.extend(member for member in members if member is not best)
     return kept, duplicates
 
 

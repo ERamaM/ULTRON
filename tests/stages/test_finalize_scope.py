@@ -19,10 +19,10 @@ def _run(capsys, postings, profile=PROFILE):
     run["profile_snapshot"] = profile
     runs._write_run(run_id, run)
     rows = []
-    for index, (title, location, remote, body) in enumerate(postings):
+    for index, (title, location, remote, body, *company) in enumerate(postings):
         job = {
-            "title": title, "company": f"Synthetic Employer {index}", "location": location, "remote_text": remote,
-            "body_text": body, "apply_url": f"https://boards.greenhouse.io/example/jobs/{index}",
+            "title": title, "company": company[0] if company else f"Synthetic Employer {index}",
+            "location": location, "remote_text": remote, "body_text": body, "apply_url": f"https://boards.greenhouse.io/example/jobs/{index}",
             "domain": "boards.greenhouse.io", "apply_available": True, "is_open_hint": True,
         }
         rows.append({"candidate": {}, "job": job, "identity_key": f"id:{index}"})
@@ -52,3 +52,23 @@ def test_a_profile_without_a_home_country_keeps_single_country_postings(capsys):
     profile["criteria"]["location_scope"]["preferred"] = ["Remote EU", "Remote Europe"]
     rows = _run(capsys, [("Senior Machine Learning Engineer", "Germany", "Remote across Germany", ML_BODY)], profile)
     assert rows["Germany"]["evaluation_verdict"] == "keep"
+
+
+def test_a_remote_profile_sees_one_row_for_a_posting_listed_per_city(capsys):
+    title = "Senior Machine Learning Engineer - Remote EU"
+    rows = _run(capsys, [
+        (title, "Madrid, Spain", "Remote within the EU", ML_BODY, "Synthetic Employer"),
+        (title, "Lisbon, Portugal", "Remote within the EU", ML_BODY, "Synthetic Employer"),
+    ])
+    assert list(rows) == ["Madrid, Spain; Lisbon, Portugal"]
+
+
+def test_an_onsite_profile_keeps_one_row_per_city(capsys):
+    profile = json.loads(json.dumps(PROFILE))
+    profile["criteria"]["remote_policy"] = {"required": "any"}
+    title = "Senior Machine Learning Engineer"
+    rows = _run(capsys, [
+        (title, "Madrid, Spain", "On-site", ML_BODY, "Synthetic Employer"),
+        (title, "Barcelona, Spain", "On-site", ML_BODY, "Synthetic Employer"),
+    ], profile)
+    assert sorted(rows) == ["Barcelona, Spain", "Madrid, Spain"]

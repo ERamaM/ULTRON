@@ -60,7 +60,7 @@ def _round_rows(run_id: str, rows: list) -> tuple[list[dict], list[str], dict] |
         fresh.append(row)
     if not fresh:  # nothing to verify: the round is not consumed
         return "no new proposal: every line is empty or repeats a company or board tried before"
-    return fresh[: ask["ask"]], repeats, ask
+    return fresh[: ask["ask"]], repeats, {**ask, "over_ask": max(0, len(fresh) - ask["ask"])}
 
 
 def _verify(args: argparse.Namespace) -> int:
@@ -140,13 +140,15 @@ def _verify(args: argparse.Namespace) -> int:
     extra: dict = {}
     if round_info is not None:
         record = seed_rounds.round_record(
-            number=round_info["round"], received=len(rows) + len(repeats), repeats=repeats, rows=rows,
+            number=round_info["round"], received=len(rows) + len(repeats) + round_info["over_ask"], repeats=repeats,
+            rows=rows,
             results=results, fitting_before=fitting_before, fitting_after=seed_rounds.fitting_seeds(run)[0],
         )
         seed_rounds.append_round(args.run, record)
         after = seed_rounds.plan(args.run)
         extra["seed_round"] = {
-            "round": record["round"], "repeats_skipped": len(repeats), "fitting_seeds": after["fitting_seeds"],
+            "round": record["round"], "repeats_skipped": len(repeats), "over_ask_ignored": round_info["over_ask"],
+            "fitting_seeds": after["fitting_seeds"],
             "seed_target": after["seed_target"], "seed_deficit": after["seed_deficit"], "status": after["status"],
             "more_rounds": after["more_rounds"], "next_ask": after["ask"],
         }

@@ -6,7 +6,10 @@ and footers (often contact details) are left out. The archive and the XML are un
 - the archive may hold at most ``MAX_ARCHIVE_ENTRIES`` entries, and the body is streamed with a hard cap
   of ``MAX_DOCUMENT_XML_BYTES`` inflated bytes (a declared size can lie, so the read itself is bounded);
 - the body must be UTF-8 (as Word writes it), and any document type declaration is rejected before
-  parsing, so no entity is ever defined or expanded and nothing outside the archive is fetched.
+  parsing (and again by the parser's handlers), so no entity is ever defined or expanded and nothing
+  outside the archive is fetched;
+- the body is parsed as a stream (expat handlers, no tree), with at most ``MAX_XML_ELEMENTS`` elements
+  and ``MAX_XML_DEPTH`` levels of nesting.
 """
 
 from __future__ import annotations
@@ -14,14 +17,19 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from xml.etree import ElementTree
+from xml.parsers import expat
 
 MAX_ARCHIVE_ENTRIES = 2_000
 MAX_DOCUMENT_XML_BYTES = 25_000_000
+MAX_XML_ELEMENTS = 300_000  # a long CV has a few tens of thousands
+MAX_XML_DEPTH = 128
 _CHUNK = 64 * 1024
 _BODY = "word/document.xml"
-_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
+_MC_FALLBACK = "http://schemas.openxmlformats.org/markup-compatibility/2006 Fallback"
+_W_P, _W_T, _W_TAB, _W_TYPE = f"{_W}p", f"{_W}t", f"{_W}tab", f"{_W}type"
+_W_NO_BREAK_HYPHEN = f"{_W}noBreakHyphen"
+_W_BREAKS = frozenset({f"{_W}br", f"{_W}cr"})
 _DOCTYPE = re.compile(rb"<!\s*(?:DOCTYPE|ENTITY)", re.IGNORECASE)
 
 
@@ -58,44 +66,94 @@ def _read_body(content: bytes) -> bytes:
     return bytes(data)
 
 
+class _BodyText:
+    """Streaming expat handlers: no tree is built, so memory stays bounded by the nesting depth."""
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+        self.stack: list[list[str]] = []  # one text buffer per open w:p (text boxes nest paragraphs)
+        self.loose: list[str] = []  # text outside any paragraph
+        self.pages = 1
+        self.elements = 0
+        self.depth = 0
+        self.skipped = 0  # depth inside mc:Fallback (the same content as its mc:Choice)
+        self.in_text = 0
+
+    def _buffer(self) -> list[str]:
+        return self.stack[-1] if self.stack else self.loose
+
+    def start(self, name: str, attributes: dict[str, str]) -> None:
+        self.elements += 1
+        self.depth += 1
+        if self.elements > MAX_XML_ELEMENTS or self.depth > MAX_XML_DEPTH:
+            raise _error("The Word document body has too many elements", code="too_long")
+        if name == _MC_FALLBACK:
+            self.skipped += 1
+        if self.skipped:
+            return
+        if name == _W_P:
+            # A paragraph nested in another (a text box) ends the outer paragraph's text so far.
+            if self.stack and self.stack[-1]:
+                self.lines.append("".join(self.stack[-1]))
+                self.stack[-1] = []
+            self.stack.append([])
+        elif name == _W_T:
+            self.in_text += 1
+        elif name == _W_TAB:
+            self._buffer().append("\t")
+        elif name == _W_NO_BREAK_HYPHEN:
+            self._buffer().append("-")
+        elif name in _W_BREAKS:
+            if attributes.get(_W_TYPE) == "page":
+                self.pages += 1
+            # Every break (line, column or page) separates the text on its two sides.
+            self._buffer().append("\n")
+
+    def end(self, name: str) -> None:
+        self.depth -= 1
+        if name == _MC_FALLBACK:
+            self.skipped -= 1
+            return
+        if self.skipped:
+            return
+        if name == _W_P and self.stack:
+            self.lines.append("".join(self.stack.pop()))
+        elif name == _W_T:
+            self.in_text -= 1
+
+    def characters(self, data: str) -> None:
+        if self.in_text and not self.skipped:
+            self._buffer().append(data)
+
+
+def _reject_declaration(*_args) -> None:
+    raise _error("The Word document declares a document type, which is not supported")
+
+
 def _text(body: bytes) -> tuple[str, int]:
     """Paragraph text and the page count (explicit page breaks plus one)."""
     # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
     if b"\x00" in body or body.startswith((b"\xff\xfe", b"\xfe\xff")):
         raise _error("The Word document body is not UTF-8")
     if _DOCTYPE.search(body):
-        raise _error("The Word document declares a document type, which is not supported")
-    lines: list[str] = []
-    current: list[str] = []
-    pages = 1
-    skipped = 0  # depth inside mc:Fallback (the same content as its mc:Choice)
+        _reject_declaration()
+    handlers = _BodyText()
+    parser = expat.ParserCreate(encoding="UTF-8", namespace_separator=" ")
+    parser.StartElementHandler = handlers.start
+    parser.EndElementHandler = handlers.end
+    parser.CharacterDataHandler = handlers.characters
+    # Defence in depth behind the byte check: any declaration stops the parse.
+    parser.StartDoctypeDeclHandler = _reject_declaration
+    parser.EntityDeclHandler = _reject_declaration
+    parser.ExternalEntityRefHandler = _reject_declaration
     try:
-        for event, element in ElementTree.iterparse(io.BytesIO(body), events=("start", "end")):
-            tag = element.tag
-            if tag == f"{_MC}Fallback":
-                skipped += 1 if event == "start" else -1
-                continue
-            if skipped or event == "start":
-                continue
-            if tag == f"{_W}t" and element.text:
-                current.append(element.text)
-            elif tag == f"{_W}tab":
-                current.append("\t")
-            elif tag in {f"{_W}br", f"{_W}cr"}:
-                if element.get(f"{_W}type") == "page":
-                    pages += 1
-                # Every break (line, column or page) separates the text on its two sides.
-                current.append("\n")
-            elif tag == f"{_W}p":
-                lines.append("".join(current))
-                current = []
-            element.clear()
-    except ElementTree.ParseError as exc:
+        for offset in range(0, len(body), _CHUNK):
+            parser.Parse(body[offset : offset + _CHUNK], False)
+        parser.Parse(b"", True)
+    except expat.ExpatError as exc:
         raise _error("The Word document body is not valid XML") from exc
-    if current:
-        lines.append("".join(current))
-    return "\n".join(lines), pages
-
+    lines = handlers.lines + (["".join(handlers.loose)] if handlers.loose else [])
+    return "\n".join(lines), handlers.pages
 
 def extract_docx_text(content: bytes) -> tuple[str, int]:
     """Return the raw body text of a ``.docx`` file and its page count, or raise a CV extraction error."""

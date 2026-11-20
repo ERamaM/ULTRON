@@ -575,3 +575,17 @@ def test_onsite_perk_exemption_needs_the_perk_attached_to_the_onsite_term(body, 
 )
 def test_onsite_benefit_allows_modifiers_but_not_another_clause(body, remote_only):
     assert h.is_full_remote_only("Remote", body) is remote_only
+
+
+def test_onsite_benefit_split_across_extracted_lines():
+    from ultron.core.extractors.ats_extractors.base import parse_generic
+    from ultron.core.models import JobRawPage
+
+    url = "https://boards.greenhouse.io/acme/jobs/1"
+    html = ("<html><body><h1>Engineer</h1><p>Remote work. Benefits include an on-site <b>gym</b> and "
+            "<i>fully equipped</i> on-site <span>fitness</span> room.</p></body></html>")
+    body = parse_generic(JobRawPage(url=url, final_url=url, status_code=200, html=html)).body_text
+    assert "on-site\ngym" in body  # the extractor joins text nodes with newlines
+    assert h.is_full_remote_only("Remote", body) is True
+    assert h.is_full_remote_only("Remote", "Remote work. Benefits include an on-site\ngym.") is True
+    assert h.is_full_remote_only("Remote", "Remote. The position is on-site\nand gym access is included.") is False

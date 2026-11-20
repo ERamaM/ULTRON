@@ -170,6 +170,19 @@ def _country_spellings(place: str) -> tuple[str, ...]:
 # Adjectives that describe a company, a team or a market more often than where it hires ("our global payments
 # platform", "an international analytics team"). In a location field they still name a region ("Remote, Global").
 COMPANY_SCOPE_WORDS = frozenset({"global", "international"})
+# The same words in a statement about who can apply still name a region: "a global remote role", "we hire
+# globally", "international candidates are welcome", "no country restrictions", "anywhere in the world".
+# Matched on normalized (lower-case) text.
+_HIRING_SCOPE = re.compile(
+    r"\bglobal(?:ly)?[\s-]+remote\b"
+    r"|\bremote\s*[-,:(]\s*global(?:ly)?\b"
+    r"|\bhir(?:e|es|ing)\s+(?:\w+\s+)?(?:globally|internationally)\b"
+    r"|\bopen\s+to\s+(?:\w+\s+)?(?:candidates|applicants|talent)\s+(?:globally|internationally)\b"
+    r"|\bopen\s+to\s+(?:international|global)\s+(?:candidates|applicants|talent)\b"
+    r"|\b(?:international|global)\s+(?:candidates|applicants)\s+(?:are\s+)?welcome\b"
+    r"|\bno\s+(?:country|location|geographic(?:al)?)\s+restrictions?\b"
+    r"|\banywhere\s+in\s+the\s+(?:world|globe)\b"
+)
 
 
 def names_wide_region(text: str, *, ignore: frozenset[str] = frozenset()) -> bool:
@@ -236,14 +249,31 @@ _ISO_COUNTRY_OF_STATE_CODE = {
     "MT": "malta", "NC": "new caledonia", "NE": "niger", "PA": "panama", "SC": "seychelles", "SD": "sudan",
     "TN": "tunisia", "VA": "vatican city",
 }
+# Codes that are also a region of another country: Italian provinces ("Milano, MI 20121" has a five-digit postal
+# code too), Brazilian states, Indian states, Bogota D.C. and Western Australia. Such a code
+# never counts when that country is a home place.
+_REGION_CODE_COUNTRIES: dict[str, frozenset[str]] = {
+    code: frozenset(countries) for code, countries in {
+        "AL": ("italy", "brazil", "brasil"), "AR": ("italy", "india"), "CA": ("italy",),
+        "CO": ("italy",), "CT": ("italy",), "GA": ("india",), "MA": ("brazil", "brasil"),
+        "ME": ("italy",), "MI": ("italy",), "MN": ("italy", "india"), "MO": ("italy",),
+        "MS": ("italy", "brazil", "brasil"), "MT": ("italy", "brazil", "brasil"), "OR": ("italy", "india"),
+        "PA": ("italy", "brazil", "brasil"), "PR": ("italy", "brazil", "brasil"), "RI": ("italy",),
+        "SC": ("brazil", "brasil"), "TN": ("italy", "india"), "UT": ("india",), "VA": ("italy",),
+        "VT": ("italy",), "DC": ("colombia",), "WA": ("australia",),
+    }.items()
+}
+# Federations whose own states license professions: a "state licence" there is not US evidence.
+_STATE_LICENSING_COUNTRIES = frozenset({"australia", "india", "nigeria", "malaysia"})
 _US_STATE_CODE_AT_END = re.compile(r",\s*([A-Z]{2})(\s+\d{5}(?:-\d{4})?)?\s*(?=$|[;|/\n])", re.MULTILINE)
 # State names at the end of a location part ("Memphis, Tennessee") or before "(Any City)". Left out: "Georgia"
-# (also a country) and a bare "Washington" (also a town in England). "Virginia, Co. Cavan" is an Irish town:
-# a state name only counts after a comma.
+# (also a country), a bare "Washington" (also a town in England), "Florida" (also a department of Uruguay) and
+# "Montana" (also a province of Bulgaria). "Virginia, Co. Cavan" is an Irish town: a state name only counts after a
+# comma.
 US_STATE_NAMES = (
-    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware", "florida",
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware",
     "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
-    "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "nebraska", "nevada",
     "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio", "oklahoma",
     "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", "tennessee", "texas", "utah",
     "vermont", "virginia", "west virginia", "wisconsin", "wyoming", "washington state", "district of columbia",
@@ -264,11 +294,14 @@ def _names_us_place(fields: str, body_text: str, homes: Iterable[str]) -> bool:
     homes = set(homes)
     for match in _US_STATE_CODE_AT_END.finditer(fields):
         code, zip_code = match.group(1), match.group(2)
-        if code in _US_STATE_CODES_ALONE or (
-            zip_code and code in _US_STATE_CODES and _ISO_COUNTRY_OF_STATE_CODE.get(code) not in homes
-        ):
+        if code in _US_STATE_CODES_ALONE:
             return True
-    return bool(_US_STATE_NAME_IN_PLACE.search(fields) or _US_STATE_LICENSURE.search(body_text or ""))
+        other_uses = {_ISO_COUNTRY_OF_STATE_CODE.get(code), *_REGION_CODE_COUNTRIES.get(code, ())}
+        if zip_code and code in _US_STATE_CODES and not other_uses & homes:
+            return True
+    if _US_STATE_NAME_IN_PLACE.search(fields):
+        return True
+    return not _STATE_LICENSING_COUNTRIES & homes and bool(_US_STATE_LICENSURE.search(body_text or ""))
 
 
 def other_country_restriction(
@@ -282,7 +315,8 @@ def other_country_restriction(
     multi-country region ("Remote EU, Germany preferred"), or when the body does
     ("work remotely from anywhere in Ireland", "hiring across the EU"): when in doubt, nothing is limited.
     "Anywhere in the Netherlands" still names one country, so it does not count as a region, and "global" or
-    "international" in the body describe the company ("our global platform"), not where it hires.
+    "international" in the body describe the company ("our global platform"), not where it hires, unless they
+    state who can apply ("a global remote role", "international candidates are welcome").
     The body is only read for a remote job (``remote_job``): an on-site or hybrid job is done at its location,
     whatever regions the company blurb names.
     A US place that names no country ("Austin, TX", "Nebraska (Any City)") or a US state licence in the body of
@@ -299,7 +333,9 @@ def other_country_restriction(
     if names_wide_region(text) or _names_home(fields, homes):
         return None
     excerpt = _place_text(body_text) if remote_job else ""
-    body_region = names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS)
+    body_region = bool(_HIRING_SCOPE.search(excerpt)) or names_wide_region(
+        _ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS
+    )
     if (remote_job and _names_home(body_text, homes)) or body_region:
         return None
     named = find_terms(text, COUNTRY_TERMS)

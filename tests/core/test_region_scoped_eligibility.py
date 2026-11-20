@@ -26,6 +26,11 @@ LATAM = {"location_scope": {"preferred": ["Remote LATAM", "Brazil", "Mexico"]}}
         (SPAIN_EU, "Czechia; Bulgaria; Poland", "Remote", "Build Go services for our global payments platform.",
          "bulgaria"),
         (LATAM, "Toronto, Canada", "Remote (Canada)", "Join our international analytics team.", "canada"),
+        (LATAM, "US", "Remote", "Put the global economy within everyone's reach.", "united states"),
+        (LATAM, "Toronto, Canada", "Remote", "We are a global leader in payments with international clients.",
+         "canada"),
+        (LATAM, "Toronto, Canada", "Remote", "Our globally distributed team ships every day.", "canada"),
+        (LATAM, "Toronto, Canada", "Remote", "Read our Global Candidate Privacy Notice.", "canada"),
     ],
 )
 def test_global_or_international_in_the_body_does_not_open_a_country_posting(criteria, location, remote, body,
@@ -40,6 +45,17 @@ def test_global_or_international_in_the_body_does_not_open_a_country_posting(cri
         (SPAIN_EU, "Berlin, Germany", "Fully remote", "Work from anywhere."),
         (LATAM, "Toronto, Canada", "Remote", "We are a global team hiring across Latin America."),
         (LATAM, "Toronto, Canada", "Remote", "We hire worldwide."),
+        # PR #67 review: "global" and "international" in a hiring-scope statement still open the posting.
+        (LATAM, "Toronto, Canada", "Remote (Canada)", "This is a global remote role with no country restrictions."),
+        (LATAM, "Toronto, Canada", "Remote", "This role is globally remote."),
+        (LATAM, "Toronto, Canada", "Remote", "Remote - Global."),
+        (LATAM, "Toronto, Canada", "Remote", "We are hiring globally across all time zones."),
+        (LATAM, "Toronto, Canada", "Remote", "We hire internationally."),
+        (LATAM, "Toronto, Canada", "Remote", "Work from anywhere in the world."),
+        (LATAM, "Toronto, Canada", "Remote", "International candidates are welcome."),
+        (LATAM, "Toronto, Canada", "Remote", "The role is open to candidates globally."),
+        (LATAM, "Toronto, Canada", "Remote", "We are open to international applicants."),
+        (LATAM, "Toronto, Canada", "Remote", "There are no location restrictions."),
     ],
 )
 def test_a_body_that_names_where_the_company_hires_still_opens_the_posting(criteria, location, remote, body):
@@ -143,6 +159,7 @@ US_LICENSURE = "Current appropriate state licensure is required. Comply with fed
         (IRELAND, "Wyoming", "Remote", "Multiple state licenses are a strong advantage.", True),
         (LATAM, "Riverside Clinic", "Remote", "You must be licensed in the state where your patients live.", True),
         (LATAM, "Remote - Denver, CO 80202", "Remote", "", True),
+        (IRELAND, "Ann Arbor, MI 48104", "On-site", "", False),
     ],
 )
 def test_a_us_place_without_a_country_name_is_outside_a_non_us_home(criteria, location, remote, body, remote_job):
@@ -163,6 +180,23 @@ def test_a_us_place_without_a_country_name_is_outside_a_non_us_home(criteria, lo
         ({"location_scope": {"preferred": ["Remote LATAM", "Colombia"]}}, "Bogota, DC", "Remote", ""),
         ({"location_scope": {"preferred": ["Italy"]}}, "Milano, MI", "On-site", ""),
         ({"location_scope": {"preferred": ["Australia"]}}, "Perth, WA", "On-site", ""),
+        # PR #67 review: a five-digit postal code is not a US ZIP code when the code is a region of a home country.
+        ({"location_scope": {"preferred": ["Italy"]}}, "Milano, MI 20121", "On-site", ""),
+        ({"location_scope": {"preferred": ["Italy"]}}, "Catania, CT 95121", "On-site", ""),
+        ({"location_scope": {"preferred": ["Italy"]}}, "Varese, VA 21100", "On-site", ""),
+        ({"location_scope": {"preferred": ["Italy"]}}, "Parma, PR 43121", "On-site", ""),
+        ({"location_scope": {"preferred": ["Italy"]}}, "Como, CO 22100", "On-site", ""),
+        ({"location_scope": {"preferred": ["Remote LATAM", "Brazil"]}}, "Curitiba, PR 80010", "Remote", ""),
+        ({"location_scope": {"preferred": ["Remote LATAM", "Brazil"]}}, "Florianopolis, SC 88010-000", "Remote", ""),
+        ({"location_scope": {"preferred": ["Remote LATAM", "Colombia"]}}, "Bogota, DC 11001", "Remote", ""),
+        ({"location_scope": {"preferred": ["India"]}}, "Chennai, TN 60001", "On-site", ""),
+        ({"location_scope": {"preferred": ["Australia"]}}, "Perth, WA 6000", "On-site", ""),
+        # A state that licenses professions in a home federation: the licence is not US evidence.
+        ({"location_scope": {"preferred": ["Australia"]}}, "Northside Clinic", "On-site", US_LICENSURE),
+        ({"location_scope": {"preferred": ["India"]}}, "Northside Clinic", "On-site", US_LICENSURE),
+        # State names that are also places elsewhere: a department of Uruguay, a province of Bulgaria.
+        ({"location_scope": {"preferred": ["Remote LATAM", "Brazil"]}}, "Sarandi Grande, Florida", "Remote", ""),
+        ({"location_scope": {"preferred": ["Bulgaria"]}}, "Lom, Montana", "On-site", ""),
         ({"location_scope": {"preferred": ["Germany"]}}, "Berlin, DE 10115", "On-site", ""),
         ({"location_scope": {"preferred": ["United Kingdom"]}}, "Washington, Tyne and Wear", "On-site", ""),
         ({"location_scope": {"preferred": ["United States"]}}, "Lewes, DE 19958", "Onsite", US_LICENSURE),

@@ -10,12 +10,21 @@ import yaml
 
 from ultron.core.models import JobEvaluation
 from ultron.profiles import validate_profile
+from ultron.salary import SalaryEstimate
 from ultron.seeds import Proposal
 
 SKILL = Path(__file__).resolve().parents[1] / "skill" / "ultron"
 SKILL_MD = SKILL / "SKILL.md"
 REFERENCES = SKILL / "references"
-EXPECTED_REFERENCES = {"search-workflow.md", "evaluation.md", "profile.md", "seeds.md", "commands.md"}
+EXPECTED_REFERENCES = {
+    "search-workflow.md",
+    "evaluation.md",
+    "profile.md",
+    "seeds.md",
+    "commands.md",
+    "salary.md",
+    "cv-ats.md",
+}
 
 
 def _frontmatter(text: str) -> dict:
@@ -182,5 +191,15 @@ def test_commands_reference_covers_every_group_and_action():
         for action in actions:
             assert f"{group} {action}" in text, f"commands.md lacks `{group} {action}`"
     for cli in ("ultron run --unattended", "ultron seeds list", "ultron jobs new-since", "ultron diagnose",
-                "ultron export xlsx", "ultron doctor", "ultron profile list"):
+                "ultron export xlsx", "ultron doctor", "ultron profile list",
+                "ultron salary analyze", "ultron salary save", "ultron cv audit", "ultron cv build-docx"):
         assert cli in text, f"commands.md does not map to {cli}"
+
+
+def test_salary_reference_json_example_is_valid():
+    text = (REFERENCES / "salary.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```json\r?\n(.*?)```", text, re.DOTALL)
+    assert blocks
+    for block in blocks:
+        estimate = SalaryEstimate.model_validate(json.loads(block))
+        assert estimate.low <= estimate.median <= estimate.high

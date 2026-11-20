@@ -1,0 +1,202 @@
+"""Tests for CV truthfulness verification and pure-stdlib ATS-clean .docx generation."""
+
+from __future__ import annotations
+
+import datetime
+import json
+import zipfile
+
+from ultron import cli, cv, cv_docx, cv_truth
+
+SOURCE_CV_MD = """# Jane Example
+Senior Data Engineer
+jane@example.com | +34 600 111 222 | https://linkedin.com/in/jane
+
+## Summary
+Engineer focused on ML data pipelines and cloud infrastructure.
+
+## Experience
+### Senior Data Engineer — Acme Labs
+#### Jan 2021 - Present | Madrid, Spain
+- Built Python and Spark ETL pipelines cutting batch latency by 35%.
+- Deployed services on Kubernetes across AWS.
+- Mentored 4 engineers.
+
+### Data Analyst — Beta Corp
+#### Jan 2019 - Dec 2020 | Madrid, Spain
+- Maintained SQL reporting models for 50k active users.
+
+## Skills
+Python, SQL, Spark, Kubernetes, AWS, ML
+
+## Education
+BSc Computer Science, Universidad Example, 2014 - 2018
+"""
+
+
+def test_verify_truth_passes_faithful_rewrite_and_safe_expansions(tmp_path):
+    src = tmp_path / "source.md"
+    opt = tmp_path / "opt.md"
+    src.write_text(SOURCE_CV_MD, encoding="utf-8")
+    opt.write_text(
+        SOURCE_CV_MD.replace("ML data pipelines", "Machine Learning (ML) data pipelines")
+        .replace("on Kubernetes", "on Kubernetes (K8s)")
+        .replace("cloud infrastructure.", "cloud infrastructure with 7 years of experience.")
+        + "\nReady to go on day one.\n",
+        encoding="utf-8",
+    )
+    report = cv_truth.verify_truth(src, opt, as_of=datetime.date(2026, 6, 1))
+    assert report["passed"] is True
+    assert report["violations"] == []
+    info_types = {item["type"] for item in report["info"]}
+    assert "safe_acronym_expansion" in info_types
+    assert "derived_tenure_statement" in info_types
+
+
+def test_verify_truth_catches_fabrications_and_allows_confirmed_facts(tmp_path, capsys):
+    src = tmp_path / "source.md"
+    opt = tmp_path / "opt.md"
+    src.write_text(SOURCE_CV_MD, encoding="utf-8")
+    opt.write_text(
+        SOURCE_CV_MD.replace("Jan 2019", "Jan 2017")
+        .replace("35%", "60%")
+        .replace("BSc Computer Science", "PhD Computer Science")
+        .replace("Python, SQL, Spark", "Python, SQL, Spark, Rust")
+        + "\n- Saved $2M annually across 10 million requests.\n- AWS Certified Solutions Architect\n",
+        encoding="utf-8",
+    )
+
+    assert cli.main([
+        "cv", "verify-truth", "--source", str(src), "--optimized", str(opt),
+        "--as-of", "2026-06-01", "--strict",
+    ]) == 1
+    report = json.loads(capsys.readouterr().out)
+    assert report["passed"] is False
+    v_types = {v["type"] for v in report["violations"]}
+    assert {
+        "invented_year",
+        "inflated_experience_duration",
+        "unverified_metric",
+        "unverified_credential",
+        "unverified_term_or_entity",
+    } <= v_types
+    assert any(w["type"] == "dropped_source_year" and w["token"] == "2019" for w in report["warnings"])
+
+    confirmed = tmp_path / "confirmed.json"
+    confirmed.write_text(
+        json.dumps({
+            "confirmed": [
+                "Worked at Beta Corp from Jan 2017 to Dec 2020 (2017, 2019).",
+                "Achieved 60% latency reduction, saved $2M, handled 10 million requests.",
+                "Completed PhD Computer Science and AWS Certified Solutions Architect.",
+                "Production experience with Rust.",
+            ]
+        }),
+        encoding="utf-8",
+    )
+    assert cli.main([
+        "cv", "verify-truth", "--source", str(src), "--optimized", str(opt),
+        "--confirmed", str(confirmed), "--as-of", "2026-06-01", "--strict",
+    ]) == 0
+    ok_report = json.loads(capsys.readouterr().out)
+    assert ok_report["passed"] is True
+
+
+def test_build_ats_docx_from_markdown_and_json_roundtrips_as_preferred(tmp_path, capsys):
+    src = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    src.write_text(SOURCE_CV_MD, encoding="utf-8")
+    # Include XML special chars and a control char to verify sanitization under --strict truth check
+    draft.write_text(
+        SOURCE_CV_MD.replace(
+            "Mentored 4 engineers.",
+            "Mentored 4 engineers & built [Docs](https://example.org/docs).\x07",
+        ),
+        encoding="utf-8",
+    )
+
+    out_docx = tmp_path / "optimized.docx"
+    assert cli.main([
+        "cv", "build-docx", "--from", str(draft), "--out", str(out_docx),
+        "--source-cv", str(src), "--font", "Calibri", "--strict",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["font"] == "Calibri"
+    assert payload["ats_audit"]["format_tier"] == "preferred"
+    assert payload["ats_audit"]["formatting_issues_count"] == 0
+    assert payload["truth"]["passed"] is True
+    assert out_docx.is_file()
+
+    # Check archive structure & security invariants (including javascript: hyperlink rejection)
+    unsafe_md = tmp_path / "unsafe_link.md"
+    unsafe_md.write_text(SOURCE_CV_MD + "\n- [Portal](javascript:alert(1)) & [Docs](https://example.org/docs)\n", encoding="utf-8")
+    unsafe_docx = tmp_path / "unsafe_checked.docx"
+    assert cli.main(["cv", "build-docx", "--from", str(unsafe_md), "--out", str(unsafe_docx)]) == 0
+    capsys.readouterr()
+
+    with zipfile.ZipFile(unsafe_docx) as zf:
+        names = set(zf.namelist())
+        assert all("\\" not in n for n in names)
+        assert not any("header" in n or "footer" in n for n in names)
+        rels = zf.read("word/_rels/document.xml.rels").decode("utf-8")
+        assert "https://example.org/docs" in rels
+        assert "javascript:" not in rels
+    with zipfile.ZipFile(out_docx) as zf:
+        doc_xml = zf.read("word/document.xml").decode("utf-8")
+        assert "\x07" not in doc_xml
+        assert "<w:tbl" not in doc_xml
+
+    struct = cv_docx.inspect_docx(out_docx.read_bytes())
+    assert struct.table_count == 0
+    assert struct.textbox_count == 0
+    assert struct.header_footer_parts == 0
+    assert struct.list_paragraph_count >= 3
+    assert "Calibri" in struct.fonts
+    extracted = cv.extract_cv_text(out_docx)
+    assert "jane@example.com" in extracted
+    assert "Mentored 4 engineers" in extracted
+
+    # Overwrite protection without --force
+    assert cli.main(["cv", "build-docx", "--from", str(draft), "--out", str(out_docx)]) == 2
+    assert json.loads(capsys.readouterr().out)["error"] == "output_exists"
+
+    # Build from JSON spec with --force
+    json_draft = tmp_path / "draft.json"
+    json_draft.write_text(
+        json.dumps({
+            "name": "Jane Example",
+            "headline": "Senior Data Engineer",
+            "contact": ["jane@example.com", "+34 600 111 222"],
+            "sections": [
+                {"heading": "Experience", "blocks": [
+                    {"kind": "subheading", "text": "Senior Data Engineer — Acme"},
+                    {"kind": "meta", "text": "Jan 2021 - Present"},
+                    {"kind": "bullets", "items": ["Built Spark ETL cutting latency by 35%.", "Used Python and SQL."]},
+                ]},
+                {"heading": "Skills", "blocks": ["Python, SQL, Spark"]},
+                {"heading": "Education", "blocks": ["BSc Computer Science, 2014 - 2018"]},
+            ],
+        }),
+        encoding="utf-8",
+    )
+    assert cli.main(["cv", "build-docx", "--from", str(json_draft), "--out", str(out_docx), "--font", "Arial", "--force"]) == 0
+    j_out = json.loads(capsys.readouterr().out)
+    assert j_out["font"] == "Arial"
+    assert j_out["ats_audit"]["format_tier"] == "preferred"
+
+
+def test_build_ats_docx_strict_refuses_to_write_on_truth_violation(tmp_path, capsys):
+    src = tmp_path / "source.md"
+    bad_draft = tmp_path / "bad_draft.md"
+    out_docx = tmp_path / "never_written.docx"
+    src.write_text(SOURCE_CV_MD, encoding="utf-8")
+    bad_draft.write_text(SOURCE_CV_MD + "\n- Won $5M contract in 2015.\n", encoding="utf-8")
+
+    assert cli.main([
+        "cv", "build-docx", "--from", str(bad_draft), "--out", str(out_docx),
+        "--source-cv", str(src), "--strict",
+    ]) == 1
+    err = json.loads(capsys.readouterr().out)
+    assert err["error"] == "truthfulness_failed"
+    assert err["truth"]["passed"] is False
+    assert not out_docx.exists()

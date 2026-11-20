@@ -228,6 +228,13 @@ Relabelled baseline of 2026-11-20 (`balanced` preset, no agent), before that day
 | 60-case not relevant | 1 kept, 0 unsure, 20 discarded |
 | 60-case ambiguous | 3 kept, 3 unsure, 13 discarded |
 
+After the four accepted fixes of 2026-11-20 (off-family titles, student levels, postings limited to
+another country, location variants), `baseline.json` measures 1.000 / 0.879 / 0.935 (tp 29, fp 0,
+fn 4, tn 133) with 0 duplicate rows; the 60-case pin did not move. A fifth hypothesis, unknown
+eligibility lowering the verdict, was not accepted: the first attempt demoted seven relevant on-site
+Irish nursing jobs, and the second moved no case. These numbers come from cases written for these
+hypotheses, so read them as a regression gate, not as live precision.
+
 The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
 fn 7, tn 60). The pull request that applies a quality change records its before and after
 numbers; `baseline.json` always holds the latest accepted state.

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "es",
+  "title": "Senior Ingenieria Machine Learning 074",
+  "location": "Estados Unidos",
+  "remote_text": "Teletrabajo solo desde Estados Unidos",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; experiencia de nivel senior. Es obligatorio residir en Estados Unidos. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-core-074",
+  "is_open_hint": true
+}

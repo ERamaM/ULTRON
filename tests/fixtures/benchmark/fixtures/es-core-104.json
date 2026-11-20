@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "es",
+  "title": "Manager Ingenieria Machine Learning 104",
+  "location": "Estados Unidos",
+  "remote_text": "Teletrabajo solo desde Estados Unidos",
+  "body_text": "Desarrollar servicios de machine learning y evaluacion de modelos; gestion de equipos y presupuesto. Es obligatorio residir en Estados Unidos. La candidatura esta abierta.",
+  "apply_url": "https://jobs.example.test/es-core-104",
+  "is_open_hint": true
+}

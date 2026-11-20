@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "generic_html",
+  "vendor": "generic_html",
+  "language": "en",
+  "title": "Specialist Frontend Engineer 107",
+  "location": "Berlin or Madrid",
+  "remote_text": "Hybrid, office attendance required",
+  "body_text": "Build web interfaces and design systems; relevant experience is not specified. Office attendance is required on selected days. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-negative-107",
+  "is_open_hint": true
+}

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pytest
 
+from ultron import __version__
+
 REPO = Path(__file__).resolve().parents[1]
 
 
@@ -425,11 +427,11 @@ def test_runtime_md_points_to_executable(inst, fake_home, capsys):
     runtime = (dest / "RUNTIME.md").read_text(encoding="utf-8")
     assert f"```\n{exe}\n```" in runtime
     assert f'& "{exe}"' in runtime
-    assert "0.1.0" in runtime  # version
+    assert __version__ in runtime  # version
     marker = json.loads((dest / ".ultron-install.json").read_text(encoding="utf-8"))
     assert marker["installed_at"][:10] in runtime  # date
     assert marker["ultron"] == str(exe)
-    assert marker["version"] == "0.1.0"
+    assert marker["version"] == __version__
     assert marker["mode"] == "copy"
 
 

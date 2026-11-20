@@ -17,7 +17,7 @@ dev = ["diff-cover", "pytest", "pytest-cov", "ruff"]
 testpaths = ["tests"]
 
 [tool.coverage.run]
-source = ["skill/ultron/scripts/ultron"]
+source = ["skill/ultron/scripts/ultron", "tools"]
 relative_files = true
 
 [tool.ruff]

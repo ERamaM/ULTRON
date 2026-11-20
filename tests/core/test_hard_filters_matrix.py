@@ -589,3 +589,27 @@ def test_onsite_benefit_split_across_extracted_lines():
     assert h.is_full_remote_only("Remote", body) is True
     assert h.is_full_remote_only("Remote", "Remote work. Benefits include an on-site\ngym.") is True
     assert h.is_full_remote_only("Remote", "Remote. The position is on-site\nand gym access is included.") is False
+
+
+@pytest.mark.parametrize(
+    ("body", "remote_only"),
+    [
+        # Perk after the term.
+        ("Remote work. Benefits include an on-site gym.", True),
+        ("Remote work. Benefits include an on-site fully equipped gym.", True),
+        ("Remote work. Benefits include on-site mental-health counseling.", True),
+        ("Remote work. Benefits include an on-site\ngym.", True),
+        # Perk before the term.
+        ("Remote work. Benefits include a gym on-site.", True),
+        ("Remote work. Free meals are provided on-site.", True),
+        ("Remote work. Parking is available on-site for office visits.", True),
+        ("Remote work. Lunch offered onsite on Fridays.", True),
+        # Another clause: still onsite.
+        ("Remote. The position is onsite; gym membership included.", False),
+        ("Remote. You will work on-site with gym access.", False),
+        ("Remote. The role is on-site and meals are provided.", False),
+        ("Remote. The position is on-site and gym access is included.", False),
+    ],
+)
+def test_onsite_perk_wordings(body, remote_only):
+    assert h.is_full_remote_only("Remote", body) is remote_only

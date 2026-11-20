@@ -555,6 +555,8 @@ def test_office_attendance_without_negation_is_still_a_conflict(body):
         ("We offer on-site therapy sessions. This is a remote position.", True),
         ("Remote role. Perks: on-site gym at every hub, in-office lunch on Fridays.", True),
         ("Remote role. Benefits include counseling, therapy placement, on-site support and legal guidance.", True),
+        ("Remote interviews available. We provide meals and the position is onsite.", False),
+        ("Remote interviews. Free lunch, and you work on-site in Madrid.", False),
     ],
 )
 def test_onsite_perk_exemption_needs_the_perk_attached_to_the_onsite_term(body, full_remote):

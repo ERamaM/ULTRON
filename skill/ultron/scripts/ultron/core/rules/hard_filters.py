@@ -92,15 +92,16 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
 
 _ONSITE_BENEFIT_TERMS_RE = "|".join(re.escape(term) for term in sorted(rules_data.ONSITE_BENEFIT_CONTEXT_TERMS))
 _ONSITE_BENEFIT_AFTER_RE = re.compile(r"[ \t-]*(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b")
-_ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*$")
+_ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*(?:,|\band|\bor)\s+$")
 
 
 def _is_onsite_benefit(text: str, match: re.Match[str]) -> bool:
     """True when the onsite term describes a perk, not the work mode.
 
-    The perk noun must follow the term directly ("on-site gym", "in-office lunch") or the term must sit in a
-    list of perks in the same clause ("counseling, therapy placement, on-site support"). A perk elsewhere in
-    the sentence ("The position is onsite; gym membership included") does not exempt it.
+    The perk noun must follow the term directly ("on-site gym", "in-office lunch") or the term must be the
+    next item of a perk list in the same clause, right after a comma/"and"/"or" ("counseling, therapy
+    placement, on-site support"). A perk elsewhere ("The position is onsite; gym membership included",
+    "We provide meals and the position is onsite") does not exempt it.
     """
     if _ONSITE_BENEFIT_AFTER_RE.match(text, match.end()):
         return True

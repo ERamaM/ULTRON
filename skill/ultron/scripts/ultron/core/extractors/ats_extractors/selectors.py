@@ -150,6 +150,20 @@ VENDOR_SELECTORS: dict[str, SelectorSet] = {
         "location": (".hh-job-location",),
         "remote": (".hh-job-location", ".hh-job-type"),
     },
+    # Occupop posting links open a script-only page; the fetch stage reads the vendor's job JSON instead.
+    "occupop": {
+        "title": ("h1",),
+        "company": (".company-name",),
+        "location": (".location",),
+        "remote": (".location",),
+    },
+    # The candidatemanager parser rebuilds the vacancy's own fields into this minimal markup.
+    "candidatemanager": {
+        "title": (".cm-job-title", "h1"),
+        "company": (".cm-company-name",),
+        "location": (".cm-job-location",),
+        "remote": (".cm-job-location",),
+    },
 }
 
 

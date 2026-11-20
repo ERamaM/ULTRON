@@ -36,6 +36,8 @@ from ultron.core.ats.registry import (
         ("https://acme.icims.com/jobs/1", "icims"),
         ("https://acme.taleo.net/careersection/acme/job/1", "taleo"),
         ("https://acme.hirehive.com/staff-nurse-Ab12Cd", "hirehive"),
+        ("https://api.occupop.com/api/jobs-frame/AcmeTok3n0123456789", "occupop"),
+        ("https://www.candidatemanager.net/cm/p/pJobs.aspx?mid=ACME&sid=JOBS", "candidatemanager"),
     ],
 )
 def test_extract_seed_supports_each_registered_vendor(url, vendor):

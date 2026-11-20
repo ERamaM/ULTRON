@@ -25,7 +25,7 @@ this profile, so later runs reuse them.
   profile's own regions (regional tech employers, international companies hiring remotely there),
   not European ones.
 - Outside technology (healthcare, public sector, retail...) many employers use careers systems outside
-  the 20 supported vendors, so fewer proposals verify. Still propose the full number: large employers
+  the 22 supported vendors, so fewer proposals verify. Still propose the full number: large employers
   (hospital groups, universities, retailers) often use Workday or iCIMS, which you can propose with
   their careers URL. Search by sector and place ("<role> jobs <city> <employer type>", "<employer> careers")
   rather than by remote or technology terms.
@@ -123,19 +123,25 @@ stored under `stored_as`. Giving `domain` gets the company's own board verified 
 
 ## Supported job boards
 
-20 ATS vendors are supported. Two groups:
+22 ATS vendors are supported. Two groups:
 
 - **Probed by slug** (the CLI guesses boards from the company name/domain, in this order):
   greenhouse, lever, ashby, workable, recruitee, teamtailor, smartrecruiters, personio, pinpoint,
   homerun, breezy, jobvite, bamboohr, jazzhr, factorial.
 - **Only via `careers_url` or an explicit `ats` + `board`** (the board needs a host or a vendor-specific
   locator that cannot be guessed, or guessing would cost too many requests): comeet, workday, icims, taleo,
-  hirehive. A HireHive board is the tenant's own subdomain (`https://<board>.hirehive.com/`), often linked from a
-  small employer's careers page; propose it as `{"company": "...", "ats": "hirehive", "board": "<board>"}`.
+  hirehive, occupop, candidatemanager. A HireHive board is the tenant's own subdomain
+  (`https://<board>.hirehive.com/`), often linked from a small employer's careers page; propose it as
+  `{"company": "...", "ats": "hirehive", "board": "<board>"}`. Occupop and CandidateManager boards are opaque
+  tokens: propose the board's URL as `careers_url`, exactly as the careers page links or embeds it
+  (`https://api.occupop.com/api/jobs-frame/<token>`, or
+  `https://www.candidatemanager.net/cm/p/pJobs.aspx?mid=<mid>&sid=<sid>`), or the careers page itself when it
+  embeds the board. A single posting link (`https://api.occupop.com/shared/job/...`) does not name a board.
+  Keep the token's upper and lower case as written.
   For these, search the web for the company's careers page, then propose it with its URL, e.g.
   `{"company": "Big Bank", "careers_url": "https://bigbank.wd3.myworkdayjobs.com/en-US/External"}`.
 
-A proposal on an ATS outside the 20 (a custom careers site, an unknown vendor) comes back as
+A proposal on an ATS outside the 22 (a custom careers site, an unknown vendor) comes back as
 `vendor_not_supported_yet`, or `no_board_found` when nothing was found at all. Those companies can
 still contribute postings through web search in step 4.
 
@@ -158,7 +164,7 @@ next call.
 | reason | what to do |
 |---|---|
 | `no_board_found` | Search the web for "<company> careers" / "<company> jobs" and look for a link to a supported ATS (including the careers-URL-only vendors); if found, retry with `ats` + `board` or `careers_url`. Otherwise drop it. |
-| `vendor_not_supported_yet` | The company uses an ATS outside the 20. Drop it for now (its postings can still arrive through web search in step 4). |
+| `vendor_not_supported_yet` | The company uses an ATS outside the 22. Drop it for now (its postings can still arrive through web search in step 4). |
 | `budget_exhausted` | That call's overall request budget ran out. Verify the affected companies again in a new call. |
 | `host_budget_exhausted` | The call's request budget for that ATS host ran out before the board was checked. Verify the company again in a new call. |
 | `vendor_budget_exhausted` | The run's request cap for that ATS vendor (all its hosts together) left no room for verification: verification may use half of it, and fetch keeps the rest. Keep the company: it can be verified in a later run. |

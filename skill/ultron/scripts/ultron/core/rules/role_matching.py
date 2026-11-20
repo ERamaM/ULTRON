@@ -122,6 +122,14 @@ def filter_negatives_against_focus(
     return kept
 
 
+_NUMERIC_GRADE = re.compile(r"l?\d+")
+
+
+def _is_level_word(word: str) -> bool:
+    """A level word ("senior", "ii") or a numeric grade ("2", "l4")."""
+    return word in rules_data.ROLE_LEVEL_WORDS or bool(_NUMERIC_GRADE.fullmatch(word))
+
+
 def role_family_nouns(allowed_terms: Iterable[str] | None) -> set[str]:
     """The family noun of each role term: its last word once trailing level words are dropped.
 
@@ -138,9 +146,9 @@ def role_family_nouns(allowed_terms: Iterable[str] | None) -> set[str]:
             preposition = next((i for i, word in enumerate(words) if word in rules_data.ROLE_FIELD_PREPOSITIONS), None)
             if preposition:
                 words = words[:preposition]
-            while len(words) > 1 and words[-1] in rules_data.ROLE_LEVEL_WORDS:
+            while len(words) > 1 and _is_level_word(words[-1]):
                 words.pop()
-            if words and len(words[-1]) >= 3 and words[-1] not in rules_data.ROLE_LEVEL_WORDS:
+            if words and len(words[-1]) >= 3 and not _is_level_word(words[-1]):
                 nouns.add(words[-1])
     return nouns
 
@@ -269,13 +277,18 @@ def score_role_family(
         str(term).strip().casefold() for term in (strong_signal_terms or allowed_terms or ()) if str(term).strip()
     }
     # Without a vocabulary pack, body signals only count for a title that names the profile's family noun
-    # (from role_focus_terms / target_titles): signal terms alone never pass an off-family title.
-    has_role_noun = bool(
-        score >= 0
-        and custom_role_terms
-        and not vocabulary.role_terms
-        and _title_has_family_noun(normalize_role_title(t), role_family_nouns((*raw_terms, *(allowed_terms or ()))))
-    )
+    # (from role_focus_terms / target_titles): signal terms alone never pass an off-family title. When no family
+    # noun can be derived from the profile ("QA", "L4"), the rule does not apply and the earlier, looser check
+    # (a bridge title or any role word of four letters or more) is kept.
+    family_nouns = role_family_nouns((*raw_terms, *(allowed_terms or ())))
+    if family_nouns:
+        title_names_family = _title_has_family_noun(normalize_role_title(t), family_nouns)
+    else:
+        focus_tokens = _role_focus_words(allowed_terms)
+        title_names_family = any(term in t for term in rules_data.ROLE_BRIDGE_TITLE_TERMS) or any(
+            len(word) >= 4 and word in focus_tokens for word in re.findall(r"\w+", t)
+        )
+    has_role_noun = bool(score >= 0 and custom_role_terms and not vocabulary.role_terms and title_names_family)
     title_strong_hit = any(term in t for term in effective_strong_signals)
     normalized_body = normalize_title_separators(b)
     raw_body_hits = [

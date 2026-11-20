@@ -166,3 +166,26 @@ def test_page_hops_are_capped_per_host_and_in_total():
         verify_proposal(Proposal("Acme", careers_url="https://acme0.example/careers"), client=client, timeout=5,
                         page_hops=hops)
     assert len(seen) == 1
+
+
+def test_careers_page_redirecting_into_a_blocked_vendor_is_unchecked_not_boardless():
+    # Session 4 review: a page hop that the vendor breaker refused read as an empty page, so `seeds verify` said
+    # no_board_found (a checked company) instead of host_blocked.
+    from ultron.net import VendorBudget
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.host == "acme.example":
+            return httpx.Response(302, headers={"Location": "https://acme.wd3.myworkdayjobs.com/External"})
+        return httpx.Response(200, text="unexpected")
+
+    budget = VendorBudget(max_requests=100, state={"blocked": ["workday"]})
+    client = HttpClient(max_requests=300, max_requests_per_host=300, min_interval_per_host=0.0,
+                        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+                        sleep=lambda s: None, vendor_budget=budget,
+                        vendor_of=lambda h: "workday" if h.endswith(".myworkdayjobs.com") else None)
+    res = verify_proposal(Proposal("Acme", careers_url="https://acme.example/careers"), client=client, timeout=5)
+    assert res.reason == "host_blocked"
+    assert all("myworkdayjobs" not in url for url in seen)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting
-from ultron.net import RequestBudgetExceeded
+from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 
 
 def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
@@ -14,7 +13,7 @@ def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
         url = f"https://{host}/v0/postings/{board_identifier}?mode=json"
         try:
             payload = fetch_json(url, timeout=timeout)
-        except RequestBudgetExceeded:
+        except UNCHECKED_ERRORS:
             raise
         except Exception as exc:
             last_exc = exc

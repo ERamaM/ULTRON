@@ -5,6 +5,7 @@ import re
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
@@ -13,7 +14,6 @@ from ultron.core.ats.clients.base import (
     parse_card_listings,
     refuse_browser_fallback,
 )
-from ultron.net import RequestBudgetExceeded
 
 # Empty-state wording of a career section with no openings. Without listings or this wording the markup is
 # unparseable (script-rendered or changed), which is reported as an error rather than as an empty board.
@@ -38,7 +38,7 @@ def fetch_taleo_jobs(
     board_url = locator_url(board_identifier)
     try:
         html = fetch_text(board_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception:
         refuse_browser_fallback()

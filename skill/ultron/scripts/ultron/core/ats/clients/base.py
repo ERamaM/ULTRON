@@ -6,6 +6,12 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
+from ultron.net import HostBlocked, RequestBudgetExceeded
+
+# Errors raised before any request (a spent budget, a blocked host or vendor): clients re-raise them untouched, never
+# as a board failure and never followed by a fallback request, so callers can report the board as unchecked.
+UNCHECKED_ERRORS = (RequestBudgetExceeded, HostBlocked)
+
 
 @dataclass(slots=True)
 class AtsPosting:

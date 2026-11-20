@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsHTTPClient,
     AtsPosting,
     locator_url,
     parse_card_listings,
 )
-from ultron.net import RequestBudgetExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def fetch_factorial_jobs(
     api_url = locator_url("jobs.factorialhr.com", board_identifier, "api", "jobs")
     try:
         payload = fetch_json(api_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception as exc:
         logger.warning(

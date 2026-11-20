@@ -6,6 +6,7 @@ from collections import deque
 from urllib.parse import urlparse
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
@@ -15,7 +16,7 @@ from ultron.core.ats.clients.base import (
 )
 from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.rules.term_matching import normalize_text
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,11 @@ def fetch_workday_jobs(
                 )
                 return out
             raise
+        except HostBlocked:
+            # The host or the whole vendor is blocked for this run: keep what was collected, no HTML fallback.
+            if out:
+                return out
+            raise
         except HttpError as exc:
             if page == 0:
                 initial_cxs_error = exc
@@ -211,7 +217,7 @@ def fetch_workday_jobs(
     html = ""
     try:
         html = fetch_text(base_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except Exception:
         if initial_cxs_error is not None:

@@ -3,12 +3,13 @@ from __future__ import annotations
 import logging
 
 from ultron.core.ats.clients.base import (
+    UNCHECKED_ERRORS,
     AtsHTTPClient,
     AtsPosting,
     locator_url,
     parse_card_listings,
 )
-from ultron.net import HttpError, RequestBudgetExceeded
+from ultron.net import HttpError
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def fetch_pinpoint_jobs(
     api_url = locator_url(f"{board_identifier}.pinpointhq.com", "api", "jobs")
     try:
         payload = fetch_json(api_url, timeout=timeout)
-    except RequestBudgetExceeded:
+    except UNCHECKED_ERRORS:
         raise
     except HttpError as exc:
         if exc.status_code == 404:

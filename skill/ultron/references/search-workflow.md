@@ -58,8 +58,8 @@ Output:
   sectors and region). `cold_start: true` means fewer than 15: add the extra ATS `site:` searches of
   step 4 (see "Cold start" there).
 - `fitting_seeds`: the boards that count toward the preset's `seed_target`, counted the way step 5 selects
-  them (seed and per-host limits; guessed boards of unknown ownership and boards with no openings do not
-  count). `seed_deficit` above 0: generate the missing companies in rounds in step 2 (`references/seeds.md`,
+  them (seed and per-host limits). Feed seeds, guessed boards of unknown ownership and boards with no openings
+  do not count. `seed_deficit` above 0: generate the missing companies in rounds in step 2 (`references/seeds.md`,
   "Seed rounds").
 
 If the user has yet to select a profile, follow the interactive profile selection steps in SKILL.md

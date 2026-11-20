@@ -23,6 +23,7 @@ from ultron.core.rules.geography import geo_scope
 from ultron.core.sectors import profile_sector_values
 from ultron.stages.discover import (
     EXCLUDED_RANK,
+    FEED_SOURCE_TYPES,
     _profile_region_text,
     _rank,
     _seed_request_host,
@@ -111,8 +112,10 @@ def append_round(run_id: str, record: dict) -> None:
 
 
 def _counts(seed) -> bool:
-    """A seed counts toward the target when it is confirmed and its board had open postings when verified."""
-    if seeds.is_unconfirmed(seed):
+    """A seed counts toward the target when it was chosen for the profile (a fitting pack seed, or one the agent or
+    user added), is confirmed, and its board had open postings when verified. Feed seeds are opportunistic: a
+    company-list feed links its boards to every profile, so counting them would hide a deficit."""
+    if seeds.is_unconfirmed(seed) or seed.source_type in FEED_SOURCE_TYPES:
         return False
     return (seed.verification or {}).get("postings") != 0
 

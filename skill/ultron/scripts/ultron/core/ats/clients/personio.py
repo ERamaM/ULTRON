@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from defusedxml import ElementTree as ET
 
-from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, locator_url
+from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, locator_has_host, locator_url
 from ultron.net import RequestBudgetExceeded
 
 
@@ -17,11 +17,14 @@ def fetch_personio_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
     fetch_text = client.request_text
-    candidates = (
+    candidates = [
         locator_url(f"{board_identifier}.jobs.personio.de", "xml"),
         locator_url(f"{board_identifier}.jobs.personio.com", "xml"),
-        locator_url(board_identifier, "xml"),
-    )
+    ]
+    if locator_has_host(board_identifier):
+        # Only a host-like locator is tried as is: a bare slug ("https://acme/xml") is always rejected, and that
+        # rejection would replace the real reason (e.g. a 404 for a removed board) as the reported error.
+        candidates.append(locator_url(board_identifier, "xml"))
     payload = ""
     feed_url = ""
     last_exc: Exception | None = None

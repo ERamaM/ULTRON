@@ -41,6 +41,13 @@ SECURITY_CHECK_CHALLENGE_PAGE = """<html><head><title>Security check</title></he
 SPLIT_CHALLENGE_PAGE = """<html><head><title>One more step</title></head><body>
 <p>Verify you are <b>human</b></p></body></html>"""
 
+# A JavaScript bot challenge served by some careers sites instead of the page (seen live in a backend run).
+CLIENT_CHALLENGE_PAGE = """<html><head><title>Client Challenge</title><script src="/challenge.js"></script></head>
+<body><p>JavaScript is disabled in your browser.</p><p>Please enable JavaScript to proceed.</p>
+<p>A required part of this site couldn't load. This may be due to a browser extension, network issues, or
+browser settings. Please check your connection, disable any ad blockers, or try using a different browser.</p>
+</body></html>"""
+
 
 def _short_posting(sentence: str) -> str:
     return (
@@ -74,7 +81,9 @@ def _fetch_single(html: str) -> tuple[list[dict], list[dict]]:
     return runs.read_jsonl(d / "postings.jsonl"), runs.read_jsonl(d / "fetch_errors.jsonl")
 
 
-@pytest.mark.parametrize("html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE, SPLIT_CHALLENGE_PAGE, SECURITY_CHECK_CHALLENGE_PAGE])
+@pytest.mark.parametrize(
+    "html", [CAPTCHA_PAGE, JUST_A_MOMENT_PAGE, SPLIT_CHALLENGE_PAGE, SECURITY_CHECK_CHALLENGE_PAGE, CLIENT_CHALLENGE_PAGE]
+)
 def test_challenge_page_recorded_as_blocked(html):
     postings, errors = _fetch_single(html)
     assert postings == []
@@ -99,6 +108,7 @@ def test_real_postings_still_pass(html):
     "Our forms are protected by reCAPTCHA.",
     "Applicants must pass a security check.",
     "You will run regular security checks.",
+    "You will solve each client challenge with our browser extension team.",
 ])
 def test_challenge_words_inside_other_words_do_not_block(sentence):
     postings, errors = _fetch_single(_short_posting(sentence))

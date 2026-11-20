@@ -71,10 +71,29 @@ def test_domain_derived_slug_verifies(domain):
     assert res.status == "verified" and (res.seed.ats, res.seed.board_identifier) == ("greenhouse", "acme")
 
 
-def test_name_slug_differing_from_the_domain_slug_is_not_domain_derived():
-    client = make_client(handler_for({("greenhouse", "acme"): gh_jobs("acme")}))
-    res = verify_proposal(Proposal("Acme", domain="acmeinsurance.com"), client=client, timeout=5)
-    assert res.reason == "ownership_unknown"
+def test_short_name_with_a_domain_only_probes_the_domain_slug():
+    seen: list[str] = []
+    handler = handler_for({("greenhouse", "acme"): gh_jobs("acme")})
+
+    def recording(request):
+        seen.append(request.url.path)
+        return handler(request)
+
+    res = verify_proposal(Proposal("Acme", domain="acmeinsurance.com"), client=make_client(recording), timeout=5)
+    assert res.reason == "no_board_found"
+    assert not any(path.rstrip("/").endswith(("/acme", "/acme/jobs")) for path in seen)
+
+
+def test_short_name_without_a_domain_stops_at_the_first_board_that_answers():
+    seen: list[str] = []
+    handler = handler_for({("greenhouse", "acme"): gh_jobs("acme")})
+
+    def recording(request):
+        seen.append(request.url.host)
+        return handler(request)
+
+    res = verify_proposal(Proposal("Acme"), client=make_client(recording), timeout=5)
+    assert res.reason == "ownership_unknown" and seen == ["boards-api.greenhouse.io"]
 
 
 def test_multi_word_name_verifies_when_the_vendor_names_the_same_company():

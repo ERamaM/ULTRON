@@ -29,7 +29,16 @@ def test_domain_label_is_the_registrable_name_not_a_generic_subdomain(domain):
     assert out == ["acme"], out
 
 
-@pytest.mark.parametrize("domain", ["acme.github.io", "acme.notion.site", "careers.co.uk"])
+@pytest.mark.parametrize(("company", "domain", "expected"), [
+    ("GitLab", "gitlab.com", ["gitlab"]),
+    ("Notion Labs", "https://www.notion.so/", ["notionlabs", "notion-labs", "notion"]),
+    ("Medium", "medium.com", ["medium"]),
+])
+def test_a_platform_company_keeps_its_own_apex_domain(company, domain, expected):
+    assert slug_candidates(company, domain) == expected
+
+
+@pytest.mark.parametrize("domain", ["acme.github.io", "acme.notion.site", "careers.co.uk", "docs.google.com"])
 def test_shared_hosting_and_bare_country_domains_give_no_domain_label(domain):
     out = slug_candidates("Zyxcorp", domain)
     assert out == ["zyxcorp"], out

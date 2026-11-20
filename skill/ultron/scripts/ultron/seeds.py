@@ -429,7 +429,10 @@ def registrable_domain(domain: str) -> str:
     else:
         reg = labels[-2:]
     registrable = ".".join(reg)
-    if any(host == d or host.endswith("." + d) for d in THIRD_PARTY_DOMAINS):
+    # A customer page on a platform (acme.github.io, docs.google.com) is not the company's site; the platform's
+    # own apex (gitlab.com for GitLab) is.
+    bare = host.removeprefix("www.")
+    if any(bare.endswith("." + d) for d in THIRD_PARTY_DOMAINS):
         return ""
     return registrable
 
@@ -503,13 +506,17 @@ def guessed_board_ownership(p: Proposal, board: str, jobs) -> Literal["owned", "
     domain_label = domain_slug(p.domain).replace("-", "")
     if domain_label and slug == domain_label:
         return "owned"
-    words = _core_company_words(p.company)
     vendor_names = _vendor_company_names(jobs)
     if vendor_names and not vendor_names & _company_keys(p.company):
         return "wrong_tenant"
-    if len(words) < 2 or len("".join(words)) < _SHORT_COMPANY_KEY:
+    if _is_short_name(p.company):
         return "ownership_unknown"
     return "owned" if vendor_names else "ownership_unknown"
+
+
+def _is_short_name(company: str) -> bool:
+    words = _core_company_words(company)
+    return len(words) < 2 or len("".join(words)) < _SHORT_COMPANY_KEY
 
 
 def _build_seed(p: Proposal, ats: str, board: str, postings: int) -> AtsBoardSeed:
@@ -644,8 +651,14 @@ def verify_proposal(
         # Literal and domain slugs are probed on every vendor before any normalized guess, so "acme" on an
         # early vendor cannot preempt the company's literal "acmegmbh" board on a later one.
         primary, normalized = _slug_candidate_passes(p.company, p.domain)
+        own_slug = domain_slug(p.domain)
+        if own_slug and _is_short_name(p.company):
+            # Only the domain slug can prove a short name's board, so the other guesses would only spend requests.
+            primary, normalized = [own_slug], []
         for slugs in (primary, normalized):
             pairs.extend((vendor, slug) for vendor in PROBE_VENDORS for slug in slugs)
+    # A short name without a domain slug can never be proven by guessing: report the first board that answers.
+    stop_at_first_hit = not has_explicit and _is_short_name(p.company) and not domain_slug(p.domain)
 
     unsupported = invalid = host_budget = budget_spent = False
     doubtful: tuple[str, dict] | None = None  # (reason, candidate) of the best guessed board not proven owned
@@ -695,6 +708,8 @@ def verify_proposal(
                     # Keep probing: a later vendor or slug may hold the company's own board.
                     if doubtful is None or (verdict == "ownership_unknown" and doubtful[0] == "wrong_tenant"):
                         doubtful = (verdict, {"ats": ats, "board": board, "postings": len(jobs)})
+                    if stop_at_first_hit:
+                        return None
                     continue
             if mode == "aggregator_page" and not _aggregator_board_is_company(p, board, jobs):
                 continue

@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
 from ultron import ledger, presets, profiles, runs
+from ultron.core.ats.clients.occupop import occupop_job_ref
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.extractors.ats_extractors import parse_ats_page
@@ -17,7 +18,13 @@ from ultron.core.rules.geography import location_scope
 from ultron.http_factory import client_for_run
 from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
 from ultron.stages.feeds import is_aggregator_host
-from ultron.stages.fetch import has_ats_fingerprint, page_canonical_url, resolve_apply_url
+from ultron.stages.fetch import (
+    get_posting_page,
+    has_ats_fingerprint,
+    occupop_posting_job,
+    page_canonical_url,
+    resolve_apply_url,
+)
 
 FILTER_STAGES = {"pre_filter": "prefilter", "heuristic_evaluator": "evaluator", "hard_filter": "hard_filter"}
 FINALIZE_STAGES = {
@@ -155,31 +162,40 @@ def _replay(url: str, profile: dict, run: dict | None, profile_slug: str, trace:
     run = run or {"settings": presets.resolve("balanced"), "profile_slug": profile_slug}
     client = client_for_run(run)
     try:
-        status, final_url, html = client.get_text(url)
+        status, final_url, html = get_posting_page(client, url)  # an Occupop link reads the vendor's job JSON
     except (HttpError, URLRejected, RequestBudgetExceeded) as exc:
         _step(trace, "fetch", False, f"{type(exc).__name__}: {exc}", label)
         return
     if status >= 400:
         _step(trace, "fetch", False, "expired_or_closed" if status in {404, 410} else "inaccessible", label)
         return
-    _step(trace, "fetch", True, label=label)
-    page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
-                      canonical_url=page_canonical_url(html, final_url))
-    try:
-        job = parse_ats_page(page, ats_hints={})
-    except (ValueError, KeyError, TypeError, AttributeError) as exc:
-        _step(trace, "extraction", False, f"extract_failed: {exc!r}", label)
-        return
     allowed_domains = load_allowed_domains()
-    submitted = CandidateUrl(query_id="diagnose", query="", source_url=url, normalized_url=normalize_url(url),
-                             domain=domain_of(normalize_url(url)))
-    job.apply_url = resolve_apply_url(submitted, final_url, page.canonical_url, allowed_domains)
-    job.domain = domain_of(job.apply_url)
+    if occupop_job_ref(url):
+        job, reason = occupop_posting_job(url, html)
+        if job is None:
+            _step(trace, "fetch", False, reason, label)
+            return
+        _step(trace, "fetch", True, label=label)
+        fingerprint = True
+    else:
+        _step(trace, "fetch", True, label=label)
+        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
+                          canonical_url=page_canonical_url(html, final_url))
+        try:
+            job = parse_ats_page(page, ats_hints={})
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            _step(trace, "extraction", False, f"extract_failed: {exc!r}", label)
+            return
+        submitted = CandidateUrl(query_id="diagnose", query="", source_url=url, normalized_url=normalize_url(url),
+                                 domain=domain_of(normalize_url(url)))
+        job.apply_url = resolve_apply_url(submitted, final_url, page.canonical_url, allowed_domains)
+        job.domain = domain_of(job.apply_url)
+        fingerprint = has_ats_fingerprint(html)
     _step(trace, "extraction", True, label=label)
     # Same override as the filter stage; the replay has no candidate, so only the page fingerprint counts.
     result = characterize_job(
         job, profile, allowed_domains,
-        allow_outside_ats_allowlist=has_ats_fingerprint(html) and not is_aggregator_host(job.domain),
+        allow_outside_ats_allowlist=fingerprint and not is_aggregator_host(job.domain),
         target_regions=location_scope(profile)["preferred"],
     )
     pre = result["pre_filter"]

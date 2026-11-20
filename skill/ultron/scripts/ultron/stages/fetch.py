@@ -384,6 +384,26 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
     return job, False
 
 
+def get_posting_page(client, url: str) -> tuple[int, str, str]:
+    """``(status, final_url, body)`` of a posting. An Occupop posting link answers a redirect to a script-only page
+    on another host, so its body is the vendor's job JSON instead (requested on the vendor's domain only)."""
+    if ref := occupop_job_ref(url):
+        return client.get_text(occupop_detail_url(ref), allowed_domains=vendor_domains("occupop"))
+    return client.get_text(url)
+
+
+def occupop_posting_job(url: str, body: str, *, company_hint: str = "") -> tuple[ExtractedJob | None, str]:
+    """``(job, "")`` from the Occupop job JSON fetched by :func:`get_posting_page`, or ``(None, reason)``."""
+    try:
+        payload = json.loads(body or "")
+    except ValueError:
+        return None, "extract_failed: invalid Occupop job JSON"
+    job = occupop_job_from_detail(payload, occupop_posting_url(occupop_job_ref(url)), company_hint=company_hint)
+    if job is None:  # {"job": null}, or a job marked closed or inactive
+        return None, "expired_or_closed"
+    return job, ""
+
+
 def _lane(candidate: CandidateUrl) -> str:
     """Round-robin lane: the ATS board or feed (``source_key``); web-search hits get one lane per submitted query."""
     if candidate.source_type == "web_search" or not candidate.source_key:
@@ -549,15 +569,9 @@ def fetch(run_id: str) -> dict:
             slots -= 1
             continue
         attempted += 1
-        # An Occupop posting link redirects to a script-only page on another host: read the vendor's job JSON.
         occupop_ref = occupop_job_ref(url)
         try:
-            if occupop_ref:
-                status, final_url, html = client.get_text(
-                    occupop_detail_url(occupop_ref), allowed_domains=vendor_domains("occupop"),
-                )
-            else:
-                status, final_url, html = client.get_text(url)
+            status, final_url, html = get_posting_page(client, url)
         except VendorBlocked as exc:
             # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
             errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
@@ -626,15 +640,9 @@ def fetch(run_id: str) -> dict:
             errors.append({"url": url, "error": "expired_or_closed", "status": status})
             continue
         if occupop_ref:
-            try:
-                payload = json.loads(html or "")
-            except ValueError:
-                errors.append({"url": url, "error": "extract_failed: invalid Occupop job JSON", "status": status})
-                continue
-            job = occupop_job_from_detail(payload, occupop_posting_url(occupop_ref),
-                                          company_hint=candidate.ats_company)
-            if job is None:  # {"job": null}, or a job marked closed or inactive
-                errors.append({"url": url, "error": "expired_or_closed", "status": status})
+            job, reason = occupop_posting_job(url, html, company_hint=candidate.ats_company)
+            if job is None:
+                errors.append({"url": url, "error": reason, "status": status})
                 continue
             postings.append({"candidate": candidate.model_dump(mode="json"), "job": job.model_dump(mode="json"),
                              "identity_key": identity, "ats_fingerprint": True})

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from ultron.net import HttpClient
 
+# Consecutive 403/429 answers after which a stage stops calling that host for the rest of its run.
+HOST_BLOCK_THRESHOLD = 3
+
 # Test hook: merged into every client built by ``client_for_run`` (transport, resolver, sleep, ...).
 TEST_OVERRIDES: dict = {}
 

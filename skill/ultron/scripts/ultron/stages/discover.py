@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import closing
 from dataclasses import dataclass, replace
@@ -24,10 +25,12 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, GeoScope
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope
+from ultron.core.rules.term_matching import contains_term, normalize_text
+from ultron.core.sectors import profile_sector_values
 from ultron.core.text_clean import clean_text
 from ultron.core.vocabulary import active_pack
-from ultron.http_factory import client_for_run
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected, top_hosts
+from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.seeds import load_inventory
 
 
@@ -108,8 +111,90 @@ def load_seed_yields(profile_slug: str) -> dict[str, tuple[int, int]]:
         return {}
 
 
-def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> tuple[int, str]:
-    """``(order, group)``: agent → pack matching sectors & geo → other auto → feed → non-matching pack."""
+# Pack seed scopes beyond the legacy ``EU``, and the words of a profile's preferred regions or eligibility terms
+# that select them. A scoped pack never competes for the seed slots of a profile in another region.
+SCOPE_REGION_TERMS: dict[str, tuple[str, ...]] = {
+    "LATAM": (
+        "latam", "latin america", "latinoamerica", "south america", "central america", "americas", "brazil", "brasil",
+        "mexico", "argentina", "colombia", "chile", "peru", "uruguay", "paraguay", "bolivia", "ecuador", "venezuela",
+        "costa rica", "panama", "guatemala", "honduras", "el salvador", "nicaragua", "dominican republic",
+        "puerto rico", "sao paulo", "rio de janeiro", "buenos aires", "bogota", "medellin", "cali", "mexico city",
+        "ciudad de mexico", "cdmx", "guadalajara", "monterrey", "puebla", "queretaro", "tijuana", "lima",
+        "montevideo", "quito", "curitiba", "belo horizonte", "porto alegre", "recife", "brasilia", "fortaleza",
+        "florianopolis", "rosario", "mendoza", "barranquilla", "valparaiso", "asuncion", "santo domingo",
+        "san salvador", "tegucigalpa", "managua", "guatemala city",
+    ),
+    "IE": (
+        "ireland", "irish", "dublin", "cork", "galway", "limerick", "waterford", "kilkenny", "sligo", "drogheda",
+        "dundalk", "athlone", "navan", "ennis", "tralee", "letterkenny", "wexford", "carlow", "kildare", "wicklow",
+        "meath", "westmeath", "louth", "kerry", "mayo", "donegal", "tipperary", "cavan", "monaghan", "offaly",
+        "laois", "roscommon", "leitrim", "longford",
+    ),
+    # States and major cities. Left out on purpose: "Georgia" (also a country), a bare "Washington" (only
+    # "Washington DC"/"Washington State"), and cities that share their name with a city elsewhere ("San José",
+    # "Portland", "Columbus", "Panama City").
+    "US": (
+        "united states", "usa", "us", "u.s.", "north america",
+        "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut", "delaware", "florida",
+        "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine", "maryland",
+        "massachusetts", "michigan", "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+        "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota", "ohio",
+        "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota", "tennessee", "texas",
+        "utah", "vermont", "virginia", "west virginia", "wisconsin", "wyoming", "washington dc", "washington d.c.",
+        "washington state", "district of columbia",
+        "new york city", "los angeles", "chicago", "houston", "phoenix", "philadelphia", "san antonio",
+        "san diego", "dallas", "austin", "san francisco", "seattle", "boston", "atlanta", "miami", "denver",
+        "nashville", "detroit", "minneapolis", "baltimore", "pittsburgh", "orlando", "tampa", "las vegas",
+        "salt lake city", "kansas city", "st. louis", "saint louis", "raleigh", "sacramento", "indianapolis",
+        "jacksonville", "memphis", "milwaukee", "oklahoma city", "albuquerque", "tucson", "honolulu",
+        "new orleans", "charlotte nc",
+    ),
+}
+# Phrases removed from the profile text before matching a scope: "New Mexico" is a US state, not Mexico.
+SCOPE_EXCLUDED_PHRASES: dict[str, tuple[str, ...]] = {"LATAM": ("new mexico",)}
+# US state codes after a comma ("Austin, TX"), only those that are not also ISO country codes ("IN" is India,
+# "CA" Canada, "DE" Germany), so "Bangalore, IN" never reads as Indiana.
+_US_STATE_CODE = re.compile(
+    r",\s*(?:AK|CT|FL|HI|IA|KS|MI|NH|NJ|NM|NY|ND|OH|OK|OR|RI|TX|UT|VT|WA|WV|WI|WY|DC)\b"
+)
+# Scopes that fit every profile.
+GLOBAL_SCOPES = frozenset({"GLOBAL", "WORLDWIDE"})
+# ``_rank`` order of a pack seed scoped to another region: it is left out of the selection entirely.
+EXCLUDED_RANK = 5
+
+
+def _profile_region_text(profile: dict | None) -> str:
+    scope = location_scope(profile)
+    return " | ".join((*scope["preferred"], *scope["eligibility_terms"]))
+
+
+def seed_scope_fits(scope: str, profile: dict | None, *, geo: GeoScope | None = None,
+                    region_text: str | None = None) -> bool:
+    """Whether a pack seed's ``country_scope`` fits the profile's regions.
+
+    ``EU`` (also a missing scope) fits European and region-free profiles, as before. ``GLOBAL`` fits every
+    profile. A scope from ``SCOPE_REGION_TERMS`` fits a region-free profile, or one whose preferred regions or
+    eligibility terms name it (a country, a city or the region itself). Any other scope fits every profile.
+    """
+    scope = str(scope or "").strip().upper() or "EU"
+    geo = geo or geo_scope(profile)
+    if scope == "EU":
+        return geo != "other"
+    if scope in GLOBAL_SCOPES or geo == "global":
+        return True
+    terms = SCOPE_REGION_TERMS.get(scope)
+    if terms is None:
+        return True
+    text = _profile_region_text(profile) if region_text is None else region_text
+    if scope == "US" and _US_STATE_CODE.search(text):
+        return True
+    for phrase in SCOPE_EXCLUDED_PHRASES.get(scope, ()):
+        text = re.sub(r"(?<!\w)" + re.escape(phrase) + r"(?!\w)", " ", normalize_text(text))
+    return any(contains_term(text, term) for term in terms)
+
+
+def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu", region_text: str = "") -> tuple[int, str]:
+    """``(order, group)``: agent → pack matching sectors & region → other auto → feed → non-matching pack."""
     if profile_slug in seed.profiles:
         if seed.source_type == "agent_generated":
             return 0, "agent"
@@ -117,8 +202,10 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> t
             return 3, "feed"
         return 2, "other"
     sector_match = not sectors or not seed.sectors or bool(sectors.intersection(seed.sectors))
-    seed_scope = str(getattr(seed, "country_scope", "") or "").strip().upper()
-    geo_match = geo != "other" or seed_scope != "EU"
+    scope = str(getattr(seed, "country_scope", "") or "").strip().upper()
+    geo_match = seed_scope_fits(scope, None, geo=geo, region_text=region_text)
+    if not geo_match and scope in SCOPE_REGION_TERMS:
+        return EXCLUDED_RANK, "excluded"  # a pack for another region never fills this profile's slots
     return (1, "pack") if (sector_match and geo_match) else (4, "other")
 
 
@@ -129,14 +216,17 @@ COLD_START_SEEDS = 15
 
 def eligible_seed_count(profile_slug: str, profile: dict) -> int:
     """Inventory seeds that fit the profile: its linked auto seeds plus packs matching its sectors and region."""
-    sectors = {str(s) for s in (profile.get("criteria") or {}).get("sectors") or ()}
+    sectors = profile_sector_values((profile.get("criteria") or {}).get("sectors"))
     geo = geo_scope(profile)
-    return sum(1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo)[0] < 4)
+    region_text = _profile_region_text(profile)
+    return sum(
+        1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo, region_text)[0] < 4
+    )
 
 
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
-    yields: dict[str, tuple[int, int]] | None = None,
+    yields: dict[str, tuple[int, int]] | None = None, profile: dict | None = None,
 ) -> tuple[list[tuple[object, str]], dict[str, dict[str, int]], dict[str, int]]:
     """Curated seeds first, then ``limit`` with a non-feed reserve, then the MARK III per-host cap.
 
@@ -153,15 +243,17 @@ def _select_seeds(
     in query order, per-group counts (``host_capped``, ``capped``) and yield stats
     (``deprioritized``, ``exploration_reserved``).
     """
-    sectors = {str(s) for s in profile_sectors or ()}
+    sectors = profile_sector_values(profile_sectors)
+    region_text = _profile_region_text(profile)
     history = yields or {}
 
     def stat(seed) -> SeedYield:
         attempts, keeps = history.get(seed_key(seed), (0, 0))
         return SeedYield(max(0, int(attempts)), max(0, int(keeps or 0)))
 
+    ranked_all = ((seed, *_rank(seed, profile_slug, sectors, geo, region_text)) for seed in load_inventory(profile_slug))
     ranked = sorted(
-        ((seed, *_rank(seed, profile_slug, sectors, geo)) for seed in load_inventory(profile_slug)),
+        (item for item in ranked_all if item[1] < EXCLUDED_RANK),
         key=lambda item: (
             stat(item[0]).deprioritized,
             item[1],
@@ -277,7 +369,7 @@ def _verify_search_proposals(
     rows = runs.read_jsonl(out_dir / seed_store.SEARCH_PROPOSALS_FILE)
     if not rows:
         return 0, 0, {}, {}
-    verify_client = client_for_run(run)
+    verify_client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
     known = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     keys = ("company", "domain", "ats", "board", "careers_url", "source_url")
     limit = run["settings"]["new_companies_per_run"]
@@ -338,11 +430,11 @@ def discover_ats(run_id: str) -> dict:
     per_seed = settings["ats_api_max_jobs_per_seed"]
     timeout = settings["ats_api_timeout"]
     search_verified, search_added, prefetched, verify_requests = _verify_search_proposals(run, out_dir, timeout=timeout)
-    client = client_for_run(run)
+    client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD)
     seeds, groups, yield_stats = _select_seeds(
         run["profile_slug"], criteria.get("sectors"),
         settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
-        yields=load_seed_yields(run["profile_slug"]),
+        yields=load_seed_yields(run["profile_slug"]), profile=profile,
     )
 
     candidates: list[CandidateUrl] = []
@@ -375,6 +467,11 @@ def discover_ats(run_id: str) -> dict:
                 continue
             except AtsClientError as exc:
                 errors.append({"seed_id": seed.seed_id, "error": str(exc)})
+                continue
+            except HostBlocked as exc:
+                # The host kept answering 429/403: no request was sent for this board.
+                errors.append({"seed_id": seed.seed_id, "error": "host_blocked", "host": str(exc).split(": ", 1)[-1],
+                               "skipped": True})
                 continue
             except HttpError as exc:
                 errors.append({"seed_id": seed.seed_id, "error": f"http_error: {exc} (status={exc.status_code})"})

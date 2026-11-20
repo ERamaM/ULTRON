@@ -577,3 +577,15 @@ def test_explain_has_no_field_warnings_for_bundled_and_fixture_profiles(capsys):
         code, out = _run(capsys, "profile", "explain", "--from", str(path))
         field_warnings = [w for w in out["warnings"] if "not a profile field" in w or "known sector" in w]
         assert code == 0 and field_warnings == [], (path.name, field_warnings)
+
+
+def test_explain_accepts_sector_aliases_that_select_packs(tmp_path, capsys):
+    # "healthcare" maps to pharma_health for pack selection, so explain must not call it unknown.
+    criteria = {**_draft()["criteria"], "sectors": ["healthcare", "Software", "fintech"]}
+    draft = tmp_path / "draft.yaml"
+    draft.write_text(yaml.safe_dump(_draft(criteria=criteria)), encoding="utf-8")
+    code, out = _run(capsys, "profile", "explain", "--from", str(draft))
+    warnings = "\n".join(out["warnings"])
+    assert code == 0
+    assert "'fintech' is not a known sector" in warnings
+    assert "'healthcare'" not in warnings and "'Software'" not in warnings

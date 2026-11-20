@@ -79,7 +79,7 @@ def test_discover_ats_summary_reports_requests_by_domain():
     run_id = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
     summary = discover_ats(run_id)
     hosts = [row["host"] for row in summary["requests_by_domain"]]
-    assert hosts and all("greenhouse.io" in host for host in hosts)
+    assert hosts and all(host == "greenhouse.io" or host.endswith(".greenhouse.io") for host in hosts)
     assert sum(row["requests"] for row in summary["requests_by_domain"]) == summary["requests"]
 
 

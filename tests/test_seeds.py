@@ -262,6 +262,32 @@ def test_seeds_verify_cli(monkeypatch, capsys, tmp_path):
     assert load_inventory(profiles.EXAMPLE_SLUG)[0].board_identifier == "acme"
 
 
+def test_seeds_verify_stops_probing_a_rate_limited_vendor_host(capsys, tmp_path):
+    # Slug guessing sends many requests to few vendor hosts (the per-host cap is the whole page budget): a host
+    # that keeps answering 429 must get no more probes in this call.
+    profiles.install_example()
+    run_id = runs.new_run(profiles.EXAMPLE_SLUG, "fast")
+    hits: dict[str, int] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hits[request.url.host] = hits.get(request.url.host, 0) + 1
+        return httpx.Response(429 if request.url.host == "apply.workable.com" else 404)
+
+    http_factory.set_test_overrides(
+        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+        sleep=lambda s: None, min_interval_per_host=0.0,
+    )
+    src = tmp_path / "proposals.jsonl"
+    src.write_text("".join(json.dumps({"company": f"Example Health {i}", "domain": f"example-health{i}.test"}) + "\n"
+                           for i in range(4)), encoding="utf-8")
+    try:
+        assert main(["seeds", "verify", "--run", run_id, "--from", str(src)]) == 0
+    finally:
+        http_factory.reset_test_overrides()
+    assert json.loads(capsys.readouterr().out)["unresolved"] == 4
+    assert hits["apply.workable.com"] <= 3
+
+
 def test_seeds_verify_unknown_run(capsys, tmp_path):
     assert main(["seeds", "verify", "--run", "nope", "--from", str(tmp_path / "x.jsonl")]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "run_not_found"

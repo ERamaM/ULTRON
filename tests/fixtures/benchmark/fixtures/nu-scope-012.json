@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "en",
+  "title": "Registered Nurse - Oncology Navigator",
+  "location": "Nebraska (Any City)",
+  "remote_text": "Field-based",
+  "body_text": "Support oncology patients through diagnosis and treatment across our clinical sites. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-scope-012",
+  "is_open_hint": true
+}

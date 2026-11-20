@@ -14,7 +14,7 @@ import pytest
 import quality_benchmark as qb
 
 CORPUS = qb.CORPUS_DIR
-CASE_COUNT = 210
+CASE_COUNT = 216
 
 
 def _case(case_id, relevant, status, rank=None, **slices):

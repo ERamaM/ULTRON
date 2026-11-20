@@ -122,6 +122,18 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu") -> t
     return (1, "pack") if (sector_match and geo_match) else (4, "other")
 
 
+# Fewer seeds than this that fit the profile make a run a cold start: the skill then proposes more companies
+# and runs more ATS ``site:`` searches (MARK II cold-start mode).
+COLD_START_SEEDS = 15
+
+
+def eligible_seed_count(profile_slug: str, profile: dict) -> int:
+    """Inventory seeds that fit the profile: its linked auto seeds plus packs matching its sectors and region."""
+    sectors = {str(s) for s in (profile.get("criteria") or {}).get("sectors") or ()}
+    geo = geo_scope(profile)
+    return sum(1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo)[0] < 4)
+
+
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
     yields: dict[str, tuple[int, int]] | None = None,
@@ -266,7 +278,9 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
     limit = run["settings"]["new_companies_per_run"]
     verified = []
     prefetched: dict[str, list] = {}
+    unconfirmed_seeds = []
     tried = 0
+    page_hops = seed_store.PageHops()
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -279,7 +293,7 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
         tried += 1
         result = seed_store.verify_proposal(
             seed_store.Proposal(**{k: str(row.get(k) or "").strip() for k in keys}),
-            client=verify_client, timeout=timeout, verify_only=True,
+            client=verify_client, timeout=timeout, verify_only=True, page_hops=page_hops,
         )
         if result.status == "verified" and result.seed:
             known.add(seed_identity(result.seed.ats, result.seed.board_identifier))
@@ -288,12 +302,18 @@ def _verify_search_proposals(run: dict, out_dir, *, timeout: int) -> tuple[int, 
             # discovery budget and location preferences, just like an existing seed.
             if result.seed.ats != "workday":
                 prefetched[result.seed.seed_id] = [_clean_posting(p) for p in result.jobs]
+        elif (unconfirmed := seed_store.stored_seed(result)) is not None:
+            # A guessed board not proven to be the proposal's: stored tagged at low priority (seed_yield decides).
+            known.add(seed_identity(unconfirmed.ats, unconfirmed.board_identifier))
+            unconfirmed_seeds.append(unconfirmed)
+            if result.reason == "budget_exhausted":
+                break
         elif result.reason == "budget_exhausted":
             break
     added = 0
-    if verified:
+    if verified or unconfirmed_seeds:
         try:
-            added = seed_store.add_seeds(verified, profile_slug=run["profile_slug"])
+            added = seed_store.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seed_store.SeedFileError:
             added = 0
     return len(verified), added, prefetched, verify_client.requests_made

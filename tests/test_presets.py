@@ -65,3 +65,30 @@ def test_saved_search_overrides_are_checked_against_its_preset():
     profiles.install_example()
     with pytest.raises(presets.PresetOverrideError, match="min_roles"):
         saved.create("quick", profiles.EXAMPLE_SLUG, preset="fast", overrides={"min_roles": 6})
+
+
+def test_new_run_caps_min_roles_when_only_max_roles_is_lowered():
+    from ultron import profiles, runs
+
+    profiles.install_example()
+    settings = runs.load_run(runs.new_run(profiles.EXAMPLE_SLUG, "balanced", overrides={"max_roles": 2}))["settings"]
+    assert settings["max_roles"] == 2 and settings["min_roles"] == 2
+
+
+def test_saved_search_run_reports_a_stored_out_of_bounds_override(capsys):
+    import json
+    from contextlib import closing
+
+    from ultron import ledger, profiles
+    from ultron.cli import main
+
+    profiles.install_example()
+    with closing(ledger.connect()) as conn, conn:  # a row stored before the bounds existed
+        conn.execute(
+            "INSERT INTO saved_searches (name, profile_slug, preset, prompt, overrides_json, created_at, updated_at)"
+            " VALUES ('old', ?, 'balanced', '', ?, 'x', 'x')",
+            (profiles.EXAMPLE_SLUG, json.dumps({"llm_ambiguity_threshold": 150})),
+        )
+    assert main(["saved-search", "run", "old"]) != 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["error"] == "invalid_value" and "llm_ambiguity_threshold" in out["detail"]

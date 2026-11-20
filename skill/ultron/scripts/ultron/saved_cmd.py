@@ -52,6 +52,8 @@ def _run(args: argparse.Namespace) -> int:
         return fail("profile_not_found", str(exc))
     except runs.StageOrderError as exc:
         return fail_stage_order(exc)
+    except presets.PresetOverrideError as exc:  # a stored override outside the current bounds
+        return fail("invalid_value", str(exc))
     except (OSError, ValueError) as exc:
         return fail("stage_failed", str(exc))
     return 0

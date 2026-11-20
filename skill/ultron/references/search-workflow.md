@@ -81,7 +81,7 @@ Verified companies are stored for this profile and used by `discover ats` from n
 ultron discover feeds --run <run_id>
 ```
 
-Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "requests": 40}`
+Output: `{"sources_ok": 12, "sources_failed": 1, "sources_skipped": 0, "candidates": 140, "seeds_added": 6, "feed_boards_irrelevant": 9, "company_hints": 35, "feed_links_not_postings": 4, "requests": 40}`
 
 Reads the public job feeds listed in the skill's `data/feeds.yaml` (remote-job APIs, RSS feeds and
 company lists). No agent input is needed. It does three things:
@@ -90,7 +90,9 @@ company lists). No agent input is needed. It does three things:
   fetched in step 6 like any other candidate. The candidate URL is the posting's direct ATS link when
   the feed gives one. A posting whose only link is the aggregator's own page (arbeitnow, remotive,
   remoteok, jobicy...) is not a candidate: such pages are never kept, and the board it links to is
-  still picked up as a seed. Feed rows are ranked by title fit and geography scope.
+  still picked up as a seed. A link to a whole ATS board or to a company home page or careers index is
+  not fetched as a posting either (`feed_links_not_postings`): its board becomes a seed and its company
+  a hint. Feed rows are ranked by title fit and geography scope.
 - Links to ATS boards found in the feeds are added to the inventory as seeds, so step 5 queries them
   (`seeds_added`), when at least one posting of that board passes the profile's title filter (boards of
   company-list feeds always count); boards seen only in other professions' postings are skipped

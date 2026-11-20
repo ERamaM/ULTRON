@@ -193,14 +193,20 @@ _LANDING_SEGMENTS = frozenset({
     "open-positions", "team", "vacancies", "work-with-us",
 })
 _LOCALE_SEGMENT_RE = re.compile(r"[a-z]{2}(?:[-_][a-z]{2})?")
+# ATS hosts whose first path segment is the board (a posting always adds more segments).
+_PATH_BOARD_HOSTS = frozenset({
+    "apply.workable.com", "boards.greenhouse.io", "careers.smartrecruiters.com", "job-boards.greenhouse.io",
+    "jobs.ashbyhq.com", "jobs.eu.jobvite.com", "jobs.eu.lever.co", "jobs.jobvite.com", "jobs.lever.co",
+    "jobs.smartrecruiters.com",
+})
 
 
 def feed_link_kind(url: str) -> str:
     """``posting``, ``board_root`` (a whole ATS board), ``company_page`` (home page or careers index) or ``unknown``.
 
     Only ``posting`` and ``unknown`` links are fetched as postings. A posting has a vendor job identity
-    (``canonical_job_identity``); a board root is an ATS URL with at most one path segment (the board) or a
-    Workable company page; a company page is a bare host or a path made only of careers words and locales.
+    (``canonical_job_identity``); a board root is an ATS URL with no path, only the board segment, only a
+    careers index word, or a Workable company page; a company page is a bare host or a path made only of careers words and locales.
     """
     parsed = urlparse(str(url or "").strip())
     host = (parsed.hostname or "").lower()
@@ -210,9 +216,13 @@ def feed_link_kind(url: str) -> str:
         return "posting"
     segments = [segment.lower() for segment in parsed.path.split("/") if segment]
     if is_direct_supported_ats_host(host):
-        if domain_matches(host, "workable.com") and segments[:1] == ["company"]:
+        if not segments or (domain_matches(host, "workable.com") and segments[0] == "company"):
             return "board_root"
-        return "board_root" if len(segments) <= 1 else "unknown"
+        # One segment is the board on path-style hosts (jobs.lever.co/<board>); on tenant subdomains it may be
+        # a posting slug (Homerun), so only a careers index word ("/careers", "/jobs") counts there.
+        if len(segments) == 1 and (host in _PATH_BOARD_HOSTS or segments[0] in _LANDING_SEGMENTS):
+            return "board_root"
+        return "unknown"
     if parsed.query:
         return "unknown"
     if all(segment in _LANDING_SEGMENTS or _LOCALE_SEGMENT_RE.fullmatch(segment) for segment in segments):

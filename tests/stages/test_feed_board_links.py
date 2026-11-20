@@ -19,6 +19,9 @@ from ultron.stages import feeds as feeds_stage
         ("https://apply.workable.com/examplecorp/", "board_root"),
         ("https://jobs.workable.com/company/AbC123xyz/jobs-at-examplecorp", "board_root"),
         ("https://examplecorp.teamtailor.com/", "board_root"),
+        ("https://examplecorp.bamboohr.com/careers", "board_root"),
+        # A tenant-subdomain slug can be a posting (Homerun): fetched as before.
+        ("https://examplecorp.homerun.co/senior-data-engineer", "unknown"),
         ("https://www.examplecorp.test", "company_page"),
         ("https://examplecorp.test/careers", "company_page"),
         ("https://examplecorp.test/company/careers/", "company_page"),

@@ -11,6 +11,7 @@ from collections.abc import Iterable, Sequence
 TITLE_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
     ("data scientist", "cientifico de datos"),
     ("data engineer", "ingeniero de datos"),
+    ("data analyst", "analista de datos", "analista de dados"),
     ("software engineer", "software developer", "ingeniero de software", "desarrollador de software"),
     (
         "materials engineer", "materials and processes engineer", "materials and process engineer",

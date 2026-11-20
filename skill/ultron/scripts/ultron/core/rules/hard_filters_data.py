@@ -325,6 +325,13 @@ ROLE_NEGATIVE_BODY_TERMS = {
     "recruiting coordinator",
 }
 
+# Level words that never name a role family on their own ("Senior" in a target title, "lead" in "design lead").
+ROLE_LEVEL_WORDS = frozenset({
+    "senior", "sr", "staff", "principal", "lead", "distinguished", "junior", "jr", "mid", "level", "entry",
+    "head", "chief", "intern", "trainee", "i", "ii", "iii", "iv",
+})
+# Prepositions that join a role to its field in Spanish, Portuguese and French titles ("analista de datos").
+ROLE_FIELD_PREPOSITIONS = frozenset({"de", "del", "da", "do", "das", "dos", "des", "du"})
 ROLE_FAMILY_PASS_SCORE = 2
 ROLE_FAMILY_CLEAR_REJECT_SCORE = -2
 

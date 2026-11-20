@@ -1,11 +1,11 @@
-"""``ultron seeds list|verify``."""
+"""``ultron seeds list|plan|verify``."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
 
-from ultron import runs, seeds
+from ultron import runs, seed_rounds, seeds
 from ultron.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.output import emit, fail
 
@@ -28,6 +28,39 @@ def _proposal(row: dict) -> seeds.Proposal:
     return seeds.Proposal(**{k: str(row.get(k) or "").strip() for k in keys})
 
 
+def _plan(args: argparse.Namespace) -> int:
+    try:
+        emit(seed_rounds.plan(args.run))
+    except runs.RunNotFoundError as exc:
+        return fail("run_not_found", str(exc))
+    return 0
+
+
+def _round_rows(run_id: str, rows: list) -> tuple[list[dict], list[str], dict] | str:
+    """Check a round file before any request: every line must match the schema (else an error string), at most
+    ``ask`` lines are kept, and companies or boards tried before are set aside as repeats."""
+    ask = seed_rounds.plan(run_id)
+    if not ask["more_rounds"]:
+        return f"no seed round is open (status {ask['status']}); run `ultron seeds plan --run {run_id}`"
+    errors = [
+        f"line {i}: {'; '.join(errs)}" for i, row in enumerate(rows, 1) if (errs := seed_rounds.validate_proposal(row))
+    ]
+    if errors:
+        return "proposals do not match the schema of `ultron seeds plan`: " + " | ".join(errors[:10])
+    run = runs.load_run(run_id)
+    companies, boards, _names = seed_rounds.tried(run, seed_rounds.load_rounds(run_id))
+    fresh: list[dict] = []
+    repeats: list[str] = []
+    for row in rows:
+        keys = seed_rounds.board_keys(row)
+        if seeds.company_key(row["company"]) in companies or any(key in boards for key in keys):
+            repeats.append(row["company"])
+            continue
+        boards.update(keys)
+        fresh.append(row)
+    return fresh[: ask["ask"]], repeats, ask
+
+
 def _verify(args: argparse.Namespace) -> int:
     if args.limit is not None and args.limit < 0:
         return fail("usage", "--limit must be >= 0")
@@ -40,6 +73,15 @@ def _verify(args: argparse.Namespace) -> int:
     except (OSError, ValueError) as exc:
         return fail("invalid_proposals", str(exc))
     is_feed_proposals = Path(args.source).name == seeds.FEED_PROPOSALS_FILE
+    round_info: dict | None = None
+    repeats: list[str] = []
+    if args.round:
+        if is_feed_proposals:
+            return fail("usage", "--round takes the proposals file named by `ultron seeds plan`")
+        checked = _round_rows(args.run, rows)
+        if isinstance(checked, str):
+            return fail("invalid_proposals", checked)
+        rows, repeats, round_info = checked
     limit = args.limit
     if limit is None and is_feed_proposals:
         limit = run["settings"]["new_companies_per_run"]
@@ -54,6 +96,8 @@ def _verify(args: argparse.Namespace) -> int:
     failed: list[dict] = []
     unconfirmed: list[seeds.AtsBoardSeed] = []
     page_hops = seeds.PageHops()
+    results: list[seeds.VerifyResult] = []
+    fitting_before = seed_rounds.fitting_seeds(run)[0] if round_info else 0
     for row in rows:
         if not isinstance(row, dict) or not str(row.get("company") or "").strip():
             failed.append({"company": None, "reason": "invalid_proposal", "proposal": row})
@@ -61,6 +105,7 @@ def _verify(args: argparse.Namespace) -> int:
         result = seeds.verify_proposal(
             _proposal(row), client=client, timeout=timeout, verify_only=True, page_hops=page_hops,
         )
+        results.append(result)
         if result.status == "verified":
             verified.append(result)
         else:
@@ -90,6 +135,19 @@ def _verify(args: argparse.Namespace) -> int:
     ))
     runs.write_jsonl(out / "seeds_unresolved.jsonl", failed)
     runs.mark_stage(args.run, "seeds")
+    extra: dict = {}
+    if round_info is not None:
+        record = seed_rounds.round_record(
+            number=round_info["round"], received=len(rows) + len(repeats), repeats=repeats, rows=rows,
+            results=results, fitting_before=fitting_before, fitting_after=seed_rounds.fitting_seeds(run)[0],
+        )
+        seed_rounds.append_round(args.run, record)
+        after = seed_rounds.plan(args.run)
+        extra["seed_round"] = {
+            "round": record["round"], "repeats_skipped": len(repeats), "fitting_seeds": after["fitting_seeds"],
+            "seed_target": after["seed_target"], "seed_deficit": after["seed_deficit"], "status": after["status"],
+            "more_rounds": after["more_rounds"], "next_ask": after["ask"],
+        }
     emit({
         "verified": len(verified),
         "new": new_added,
@@ -98,6 +156,7 @@ def _verify(args: argparse.Namespace) -> int:
         "ownership_unknown": sum(1 for f in failed if f["reason"] == "ownership_unknown"),
         "wrong_tenant": sum(1 for f in failed if f["reason"] == "wrong_tenant"),
         "unresolved_sample": [{"company": f["company"], "reason": f["reason"]} for f in failed[:5]],
+        **extra,
     })
     return 0
 
@@ -108,6 +167,9 @@ def register(subparsers) -> None:
     lst = sub.add_parser("list", help="list inventory seeds, profile-linked first")
     lst.add_argument("--profile", default=None)
     lst.set_defaults(func=_list)
+    plan = sub.add_parser("plan", help="seed deficit of a run and the next seed-generation round to propose")
+    plan.add_argument("--run", required=True)
+    plan.set_defaults(func=_plan)
     verify = sub.add_parser("verify", help="verify agent-proposed companies and store them")
     verify.add_argument("--run", required=True)
     verify.add_argument("--from", dest="source", required=True)
@@ -116,5 +178,9 @@ def register(subparsers) -> None:
         type=int,
         default=None,
         help="maximum proposals to process (defaults to new_companies_per_run for seed_proposals_from_feeds.jsonl)",
+    )
+    verify.add_argument(
+        "--round", action="store_true",
+        help="the file answers `seeds plan`: check it strictly against its schema and record the round",
     )
     verify.set_defaults(func=_verify)

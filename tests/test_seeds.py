@@ -443,3 +443,19 @@ def test_seeds_verify_reports_new_count_and_respects_limit(capsys, tmp_path):
     # Negative --limit is rejected as usage error.
     assert main(["seeds", "verify", "--run", run_id, "--from", str(feed_file), "--limit", "-1"]) == 2
     assert json.loads(capsys.readouterr().out)["error"] == "usage"
+
+
+def test_run_new_flags_cold_start_below_fifteen_eligible_seeds(capsys, tmp_path, monkeypatch):
+    empty = tmp_path / "no_packs"
+    empty.mkdir()
+    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    profiles.install_example()
+    add_seeds([seed(f"board{i}") for i in range(14)], profile_slug=profiles.EXAMPLE_SLUG)
+    add_seeds([seed(f"other{i}") for i in range(5)], profile_slug="another-profile")
+    assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG, "--preset", "fast"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["eligible_seeds"], out["cold_start"]) == (14, True)
+    add_seeds([seed("board14")], profile_slug=profiles.EXAMPLE_SLUG)
+    assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG, "--preset", "fast"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (out["eligible_seeds"], out["cold_start"]) == (15, False)

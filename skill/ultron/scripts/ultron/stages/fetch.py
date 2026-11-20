@@ -24,7 +24,7 @@ from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.core.urlpolicy import admit_url
 from ultron.http_factory import client_for_run
-from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.stages.feeds import is_aggregator_host
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -629,7 +629,8 @@ def fetch(run_id: str) -> dict:
     runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
     runs.mark_stage(run_id, "fetch")
     summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
-               "navigation_failures": nav_failures, "requests": client.requests_made}
+               "navigation_failures": nav_failures, "requests": client.requests_made,
+               "requests_by_domain": top_hosts(client.requests_by_host())}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
     return summary

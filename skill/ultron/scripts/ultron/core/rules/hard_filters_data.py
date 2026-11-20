@@ -10,6 +10,17 @@ ROLE_FAMILY_NEGATIVE_TERMS_WB = {"recruiter", "sales", "account", "marketing", "
 # "International", "postgraduate", "Sentry", etc. ("entry" with \b still matches
 # "entry-level" / "entry level" because "-" and " " are non-word characters).
 JUNIOR_TITLE_TERMS_WB = {"intern", "junior", "graduate", "entry"}
+# Student and internship levels in titles (English, German, Dutch, French, Spanish, Portuguese). They only
+# discard a posting for a profile whose ``seniority.excluded_terms`` names one of STUDENT_LEVEL_TRIGGER_TERMS.
+# The Dutch and French "stage" is only read at the start of a title ("Stage Data Analyst"), never in
+# "Early Stage".
+STUDENT_LEVEL_TITLE_TERMS = (
+    "intern", "interns", "internship", "working student", "student assistant", "werkstudent", "werkstudentin",
+    "werkstudierende", "praktikant", "praktikantin", "praktikum", "pflichtpraktikum", "trainee", "apprentice",
+    "apprenticeship", "azubi", "stagiair", "stagiaire", "afstudeerstage", "meewerkstage", "becario", "becaria",
+    "practicas", "estagio", "estagiario", "estagiaria",
+)
+STUDENT_LEVEL_TRIGGER_TERMS = frozenset({*STUDENT_LEVEL_TITLE_TERMS, "student", "students", "stage"})
 SENIOR_REQUIRED_TERMS = {"senior", "sr.", "sr "}
 DISALLOWED_REMOTE_TERMS = {
     "hybrid",

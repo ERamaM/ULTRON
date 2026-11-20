@@ -7,7 +7,39 @@ country restriction from the countries named in ``location_scope.preferred``.
 
 from __future__ import annotations
 
+import pytest
+
+from ultron.core.decision.unit import characterize_job, load_allowed_domains
+from ultron.core.models import ExtractedJob
 from ultron.core.rules.role_matching import is_allowed_family, role_family_nouns
+
+
+def _analyst_profile(**seniority) -> dict:
+    return {
+        "slug": "analyst",
+        "criteria": {
+            "role_focus_terms": ["data analyst", "bi analyst"],
+            "target_titles": ["Data Analyst", "Senior Data Analyst"],
+            "seniority": {"required": False, **seniority},
+            "remote_policy": {"required": "full_remote"},
+            "location_scope": {"preferred": ["Remote LATAM", "Brazil"], "eligibility_terms": ["latam", "brazil"]},
+            "role_signal_terms": ["sql", "dashboards", "reporting"],
+        },
+    }
+
+
+def _job(title: str, *, location: str = "Brazil", remote: str = "Remote - Brazil", body: str = "") -> ExtractedJob:
+    return ExtractedJob(
+        title=title, company="Synthetic Employer", domain="jobs.example.test",
+        apply_url="https://jobs.example.test/case", location=location, remote_text=remote,
+        body_text=(body or "Write SQL and build dashboards and reporting.") + " Applications are open.",
+        apply_available=True, is_open_hint=True,
+    )
+
+
+def _outcome(job: ExtractedJob, profile: dict) -> str:
+    result = characterize_job(job, profile, load_allowed_domains(), allow_outside_ats_allowlist=True)
+    return result["pipeline_characterization"]["outcome"]
 
 DATA_ANALYST_TERMS = ["data analyst", "bi analyst", "product analyst", "Senior Data Analyst"]
 NURSE_TERMS = ["registered nurse", "staff nurse", "clinical nurse", "Clinical Nurse Specialist"]
@@ -56,3 +88,34 @@ def test_titles_with_the_family_noun_still_pass_on_signal_terms():
     assert is_allowed_family("Senior Analyst, Growth", body, DATA_ANALYST_TERMS, ANALYST_SIGNALS)
     assert is_allowed_family("Senior Data Analyst", body, DATA_ANALYST_TERMS, ANALYST_SIGNALS)
     assert is_allowed_family("Nurse, Surgical Ward", "Patient care on the ward.", NURSE_TERMS, NURSE_SIGNALS)
+
+
+# --- (e) student and intern levels, when the profile excludes them ---------------------------------
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Working Student Data Analyst (f/m/d)",
+        "Werkstudent:in Data Analyst",
+        "Werkstudentin Data Analyst",
+        "Data Analyst Praktikum",
+        "Data Analyst Trainee",
+        "Stage Data Analyst",
+        "Becario Data Analyst",
+        "Data Analyst Apprentice",
+    ],
+)
+def test_student_levels_are_discarded_when_the_profile_excludes_interns(title):
+    assert _outcome(_job(title), _analyst_profile(excluded_terms=["intern"])) == "discard"
+
+
+@pytest.mark.parametrize("title", ["Working Student Data Analyst", "Data Analyst Trainee"])
+def test_student_levels_stay_when_the_profile_does_not_exclude_them(title):
+    assert _outcome(_job(title), _analyst_profile()) == "keep"
+    assert _outcome(_job(title), _analyst_profile(excluded_terms=["junior"])) == "keep"
+
+
+@pytest.mark.parametrize("title", ["Senior Data Analyst, Student Success", "Data Analyst, Early Stage Ventures"])
+def test_student_words_that_do_not_name_a_level_are_kept(title):
+    assert _outcome(_job(title), _analyst_profile(excluded_terms=["intern"])) == "keep"

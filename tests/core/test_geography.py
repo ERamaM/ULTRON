@@ -176,3 +176,15 @@ def test_worldwide_eligibility_overrides_scoped_non_eu_countries():
     assert has_region_red_flags("Remote worldwide, including Argentina.") is False
     assert has_region_red_flags("Location: Remote worldwide; candidates in Israel welcome.") is False
     assert has_region_red_flags("Location: Fully remote from Argentina only.") is True
+
+
+@pytest.mark.parametrize("country", ["Norway", "Norge", "Iceland", "Liechtenstein"])
+def test_eea_country_profiles_keep_eligibility(country):
+    from ultron.core.rules.geo_eu import classify_eu_eligibility, classify_eu_remote_policy, has_region_red_flags
+
+    text = f"Fully remote from anywhere in {country}. Location: {country}."
+    assert classify_eu_eligibility(text) == "high"
+    assert classify_eu_remote_policy(text) == "remote_europe"
+    assert has_region_red_flags(text) is False
+    assessment = assess_geography(location=country, remote_text="Remote", body_text=text, target_regions=[country])
+    assert assessment.eligibility == "high"

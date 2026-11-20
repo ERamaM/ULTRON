@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
+from itertools import islice
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
@@ -625,6 +626,10 @@ def _looks_generic_title(value: str, page_url: str) -> bool:
 _PAGE_TITLE_SOURCES = frozenset({"meta_og", "meta_twitter", "title_tag"})
 _STRONG_TITLE_SEPARATOR_RE = re.compile(r"\s+(?:\||::|·|•)\s+")
 _DASH_TITLE_SEPARATOR_RE = re.compile(r"\s+[-–—]\s+")
+# Page titles come from untrusted pages: a longer title, or more separators than this, is returned as is
+# instead of being split (each split copies and compares the text, so the work stays bounded).
+_MAX_STRIPPABLE_TITLE_CHARS = 300
+_MAX_TITLE_SEPARATORS = 16
 _SITE_SUFFIX_CAREER_WORDS = frozenset({
     "career", "careers", "job", "jobs", "hiring", "vacancies", "openings", "karriere", "stellenangebote",
     "empleo", "empleos", "carreras", "emplois", "vacatures", "lavora",
@@ -681,7 +686,7 @@ def _strip_page_title_suffix(title: str, *, anchors: Iterable[str], site_names: 
     site or careers name.
     """
     clean = _clean_text(title)
-    if not clean:
+    if not clean or len(clean) > _MAX_STRIPPABLE_TITLE_CHARS:
         return clean
     phrases = _site_name_phrases(site_names)
     # An anchor that is only the site name or a careers word ("<h1>Acme</h1>", "<h1>Careers</h1>") is no title.
@@ -690,16 +695,15 @@ def _strip_page_title_suffix(title: str, *, anchors: Iterable[str], site_names: 
         for anchor in anchors
         if (words := [w for w in _title_words(anchor) if w not in _SITE_SUFFIX_CAREER_WORDS]) and words not in phrases
     ]
-    matches = sorted(
-        [*_STRONG_TITLE_SEPARATOR_RE.finditer(clean), *_DASH_TITLE_SEPARATOR_RE.finditer(clean)],
-        key=lambda m: m.start(),
-    )
+    strong = list(islice(_STRONG_TITLE_SEPARATOR_RE.finditer(clean), _MAX_TITLE_SEPARATORS))
+    dashes = list(islice(_DASH_TITLE_SEPARATOR_RE.finditer(clean), _MAX_TITLE_SEPARATORS))
+    matches = sorted([*strong, *dashes], key=lambda m: m.start())
     for match in matches:
         prefix = clean[: match.start()].strip()
         if prefix and any(_same_text(prefix, anchor) for anchor in trusted):
             return prefix
-    for regex, strict in ((_STRONG_TITLE_SEPARATOR_RE, False), (_DASH_TITLE_SEPARATOR_RE, True)):
-        for match in regex.finditer(clean):
+    for separators, strict in ((strong, False), (dashes, True)):
+        for match in separators:
             prefix = clean[: match.start()].strip()
             if len(prefix) >= 3 and _site_like_suffix(clean[match.end() :], phrases, strict=strict):
                 return prefix

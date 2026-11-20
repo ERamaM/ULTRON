@@ -610,3 +610,24 @@ def test_identity_matching_is_bounded_on_pages_with_many_postings(monkeypatch):
     own = f'{{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01", "url": "{page_url}"}}'
     html = f'<html><head><script type="application/ld+json">[{own}, {many}]</script></head><body></body></html>'
     assert base.parse_generic(_page(html, final_url=page_url)).valid_through_expired is True
+
+
+def test_page_title_suffix_stripping_is_bounded(monkeypatch):
+    calls = []
+    real = base._site_like_suffix
+
+    def counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(base, "_site_like_suffix", counting)
+    hostile = " | ".join(["x"] * 4000)  # ~24 KB with 4000 separators
+    assert base._strip_page_title_suffix(hostile, anchors=(), site_names=("Acme",)) == hostile
+    assert calls == []  # over the length cap: returned as is, never split
+    many = " - ".join(["ab"] * 70)[:290]  # under the length cap, but more separators than the cap
+    base._strip_page_title_suffix(many, anchors=(), site_names=("Acme",))
+    assert len(calls) <= base._MAX_TITLE_SEPARATORS
+    # Normal titles are still stripped.
+    assert base._strip_page_title_suffix("Data Engineer | Acme Careers", anchors=(), site_names=("Acme",)) == (
+        "Data Engineer"
+    )

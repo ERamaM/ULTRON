@@ -38,6 +38,53 @@ CLOSED_STATUS_PHRASES = {
     "inscripcion cerrada",
     "ya no aceptamos solicitudes",
 }
+
+
+def _closed_posting_phrases() -> set[str]:
+    """Explicit "this posting is filled / no longer available" phrases (EN, ES, DE, FR), accent-folded.
+
+    Each phrase names the posting ("position", "oferta", "Stelle", "offre", ...) so open postings that use
+    the same verbs ("the form has been filled", "die Stelle soll besetzt werden") never match.
+    """
+    phrases = {
+        "deadline for applications has passed",
+        "application deadline has passed",
+        "applications deadline has passed",
+        "no se admiten mas solicitudes",
+        "no se admiten mas candidaturas",
+        "no se aceptan mas solicitudes",
+        "no se aceptan mas candidaturas",
+    }
+    for noun in ("position", "role", "job", "vacancy", "posting", "opening", "requisition", "job offer"):
+        for state in (
+            "has been filled", "has already been filled", "is no longer available", "is no longer active",
+            "is closed", "is now closed", "has expired",
+        ):
+            phrases.add(f"{noun} {state}")
+    for noun in ("oferta", "vacante", "plaza", "puesto", "posicion"):
+        for ending in ("a", "o"):
+            phrases.update({
+                f"{noun} esta cerrad{ending}", f"{noun} ha sido cubiert{ending}",
+                f"{noun} ya ha sido cubiert{ending}", f"{noun} ya esta cubiert{ending}",
+            })
+        phrases.add(f"{noun} ya no esta disponible")
+    for noun in ("stelle", "position", "stellenanzeige", "stellenangebot", "anzeige"):
+        for state in (
+            "ist besetzt", "ist bereits besetzt", "ist leider bereits besetzt", "wurde besetzt",
+            "wurde bereits besetzt", "ist nicht mehr verfugbar", "ist leider nicht mehr verfugbar",
+        ):
+            phrases.add(f"{noun} {state}")
+    for noun in ("offre", "poste", "annonce", "offre d'emploi"):
+        for state in (
+            "n'est plus disponible", "n'est plus active", "est pourvu", "est pourvue", "est deja pourvu",
+            "est deja pourvue", "a ete pourvu", "a ete pourvue",
+        ):
+            phrases.add(f"{noun} {state}")
+    return phrases
+
+
+# One list for every closed-status check: the hard filters and the extractor's ``is_open_hint``.
+CLOSED_STATUS_PHRASES |= _closed_posting_phrases()
 # Agency boilerplate ("not accepting applications from recruitment agencies.") is not a closed posting.
 # Conservative rule: an application-acceptance phrase is exempt only when a channel word ("from", "via",
 # "through", "de"; never "by", as in "closed by the agency") is followed by a list made only of agency or
@@ -49,6 +96,10 @@ AGENCY_EXEMPTABLE_CLOSED_PHRASES = frozenset({
     "not accepting applications",
     "applications closed",
     "ya no aceptamos solicitudes",
+    "no se admiten mas solicitudes",
+    "no se admiten mas candidaturas",
+    "no se aceptan mas solicitudes",
+    "no se aceptan mas candidaturas",
 })
 _AGENCY_TERM = (
     r"(?:(?:external|third[- ]party|recruitment|staffing|unsolicited|recruiting|executive)\s+)*"
@@ -160,6 +211,7 @@ ONSITE_BENEFIT_CONTEXT_TERMS = {
     "meals",
     "lunch",
     "massage",
+    "parking",
 }
 ONSITE_NEGATION_TERMS = {
     "no on-site",

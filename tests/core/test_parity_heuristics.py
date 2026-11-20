@@ -27,6 +27,45 @@ INTENTIONAL_DEVIATIONS = {
     "en-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
     "es-positive-shape-02": {"heuristic_evaluator": {"fit_signals": ["LLM", "retrieval"]}},
     "q-cet-substring": {"heuristic_evaluator": {"fit_signals": []}},
+    # Explicit closed-status phrases ("the previous research role has been filled"; ES "la oferta esta cerrada",
+    # "la plaza ya ha sido cubierta") now reject the posting as expired_or_closed. Both cases are labelled
+    # not_relevant (closed) in the quality labels, and MARK III kept them open only because its phrase list
+    # missed these forms.
+    **{
+        case_id: {
+            "pre_filter": {"keep": False, "reason": "expired_or_closed"},
+            "heuristic_evaluator": {
+                "discard_category": "closed_or_invalid", "discard_reason": "expired_or_closed", "keep": False,
+                "open_status_ok": False, "verdict": "discard",
+            },
+            "hard_filter": {"keep": False, "reason": "expired_or_closed"},
+            "pipeline_characterization": {"outcome": "discard", "reason": "expired_or_closed", "stage": "pre_filter"},
+        }
+        for case_id in ("en-negative-shape-08", "es-negative-shape-07")
+    },
+    # "No geographic restriction or office attendance" negates office attendance too; MARK III read it as an
+    # onsite conflict and discarded a fully remote worldwide role that the quality labels mark relevant.
+    "en-positive-shape-07": {
+        "heuristic_evaluator": {
+            "discard_category": None, "discard_reason": None, "is_full_remote": True, "keep": True, "verdict": "keep",
+        },
+        "hard_filter": {"keep": True, "reason": None},
+        "pipeline_characterization": {"outcome": "keep", "reason": None, "stage": "completed"},
+    },
+    # Spanish word order: "Ingeniero Senior de Machine Learning" and "Ingeniero/a de Machine Learning Senior"
+    # now match the "ingeniero de machine learning" synonym (level word between noun and field dropped, "/a"
+    # folded). MARK III scored the title 0 and discarded both relevant postings as non_matching_role_family.
+    **{
+        case_id: {
+            "classification_signals": {"role_ambiguous": False, "role_score": role_score},
+            "heuristic_evaluator": {
+                "discard_category": None, "discard_reason": None, "is_allowed_family": True, "keep": True,
+                "verdict": "keep",
+            },
+            "pipeline_characterization": {"outcome": "keep", "reason": None, "stage": "completed"},
+        }
+        for case_id, role_score in (("es-positive-shape-01", 6), ("q-es-senior-remoto-espana", 4))
+    },
 }
 
 

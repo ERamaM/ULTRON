@@ -247,7 +247,7 @@ matching titles when job boards are listed: the `built_in` defaults plus the pro
 `query_plan` for `--preset` (default `balanced`), `agent_notes` (the `prompt` field) and `warnings`
 (duplicated terms, several terms in one, long phrases, oversized lists, missing query regions, empty query
 plan). Add `--run <run_id>` to replay the filter of an earlier fetched run with this profile, without
-writing anything: `replay` gives the new kept, ambiguous and discarded counts and, when that run was
+writing anything: `replay` gives the new kept, ambiguous (including `rescued_discards`) and discarded counts and, when that run was
 filtered, the `changes` (for example `"kept -> discarded": 3`) with a few `examples`. Only postings that
 run fetched can appear.
 

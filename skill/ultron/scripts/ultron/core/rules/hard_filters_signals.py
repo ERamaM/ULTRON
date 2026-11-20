@@ -10,7 +10,13 @@ from __future__ import annotations
 import re
 from functools import lru_cache
 
-from ultron.core.rules.hard_filters_data import REMOTE_HINT_TERMS
+from ultron.core.rules.hard_filters_data import (
+    AGENCY_EXEMPTABLE_CLOSED_PHRASES,
+    CLOSED_STATUS_AGENCY_SUFFIX_PATTERN,
+    CLOSED_STATUS_PHRASES,
+    REMOTE_HINT_TERMS,
+)
+from ultron.core.rules.term_matching import normalize_text
 
 _REMOTE_HINT_NEGATION = re.compile(r"(?:\bnot-|\bnon-|\bisn't\b|\bnot\b|\bno\b)\s*$")
 _REMOTE_BENEFIT_SUFFIX = re.compile(
@@ -20,6 +26,26 @@ _REMOTE_BENEFIT_SUFFIX = re.compile(
 _DISTRIBUTED_TEAM_HINT = re.compile(r"\bdistributed teams?\b", re.IGNORECASE)
 _GEORGIA_COUNTRY_CUES = re.compile(r"\b(?:tbilisi|batumi|caucasus)\b")
 _GEORGIA_US_CUES = re.compile(r"\b(?:atlanta|savannah|ga|usa|united states)\b")
+
+
+CLOSED_STATUS_AGENCY_SUFFIX_RE = re.compile(CLOSED_STATUS_AGENCY_SUFFIX_PATTERN, re.IGNORECASE)
+_TYPOGRAPHIC_APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
+# Every phrase at every position (zero-width lookahead), longest first, in one scan.
+_CLOSED_STATUS_PHRASES_RE = re.compile(
+    r"(?<![^\W_])(?=("
+    + "|".join(re.escape(phrase) for phrase in sorted(CLOSED_STATUS_PHRASES, key=lambda p: (-len(p), p)))
+    + r")(?![^\W_]))"
+)
+# "Applications accepted until the position has been filled" describes the future, not a closed posting.
+# Only a condition in the same clause counts: a comma ends it, so an introductory clause ("If you reached this
+# page, we are no longer accepting applications") never exempts the closure that follows. "after" is not a
+# condition word ("After careful review we are not accepting applications" is a closure).
+_CLOSED_STATUS_CONDITION_BEFORE_RE = re.compile(
+    r"\b(?:until|till|once|when|whenever|if|unless|before|hasta que|una vez que|cuando|sobald|bis|wenn"
+    r"|jusqu'a ce que|des que|lorsque|quand)\b[^.;:!?\n,]{0,40}$"
+)
+# French "pourvu de/d'" means "provided with" ("le poste est pourvu d'un vehicule").
+_PROVIDED_WITH_AFTER_RE = re.compile(r"\s+(?:d'|de\b|du\b|des\b)")
 
 
 @lru_cache(maxsize=64)
@@ -59,4 +85,26 @@ def has_remote_work_hint(text: str) -> bool:
                 if _REMOTE_BENEFIT_SUFFIX.search(suffix):
                     continue
             return True
+    return False
+
+
+def has_closed_status_phrase(text: str) -> bool:
+    """Whole-phrase ``CLOSED_STATUS_PHRASES`` match, accent- and apostrophe-insensitive.
+
+    "Not accepting applications from agencies" style boilerplate does not count (see
+    ``AGENCY_EXEMPTABLE_CLOSED_PHRASES``), nor does a phrase in a condition ("until the position has been
+    filled") or French "pourvu de" (provided with). Shared by the hard filters and the extractor's
+    ``is_open_hint``.
+    """
+    low = normalize_text(text).translate(_TYPOGRAPHIC_APOSTROPHES)
+    for match in _CLOSED_STATUS_PHRASES_RE.finditer(low):
+        phrase = match.group(1)
+        end = match.start() + len(phrase)
+        if phrase in AGENCY_EXEMPTABLE_CLOSED_PHRASES and CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, end):
+            continue
+        if _CLOSED_STATUS_CONDITION_BEFORE_RE.search(low, max(0, match.start() - 60), match.start()):
+            continue
+        if phrase.endswith(("pourvu", "pourvue")) and _PROVIDED_WITH_AFTER_RE.match(low, end):
+            continue
+        return True
     return False

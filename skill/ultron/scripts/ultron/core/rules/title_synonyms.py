@@ -26,9 +26,20 @@ TITLE_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
 )
 
 
+# Spanish titles put the level between the role noun and its field ("Ingeniero Senior de Machine Learning").
+# Dropping only that word lets the plain form ("ingeniero de machine learning") match; the level itself is
+# still read from the original title by the seniority checks. Junior levels are deliberately not moved:
+# those titles keep failing the role match early, exactly as before.
+_SPANISH_LEVEL_BEFORE_FIELD_RE = re.compile(
+    r"\b(ingenier[oa]|cientific[oa]|desarrollador(?:a)?|arquitect[oa]|investigador(?:a)?|analista|especialista)"
+    r"\s+(?:senior|sr\.?|principal|lead|staff)\s+(?=de\b)"
+)
+
+
 def normalize_role_title(title: str) -> str:
-    """Normalize dash separators and appended Spanish gender alternatives."""
+    """Normalize dash separators, appended Spanish gender alternatives and Spanish level word order."""
     normalized = re.sub(r"(?<=\w)(o/a|a/o)\b", lambda match: match[0][0], _normalize_term(title))
+    normalized = _SPANISH_LEVEL_BEFORE_FIELD_RE.sub(r"\1 ", normalized)
     return normalize_title_separators(normalized).strip()
 
 

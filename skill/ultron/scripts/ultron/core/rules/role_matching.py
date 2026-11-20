@@ -196,8 +196,8 @@ def score_role_family(
     if custom_role_terms and not vocabulary.role_terms:
         title_exact_hits = find_terms(normalize_role_title(t), sorted(role_terms))
     else:
-        normalized_title = normalize_title_separators(t)
-        title_exact_hits = [term for term in role_terms if normalize_title_separators(term) in normalized_title]
+        normalized_title = normalize_role_title(t)
+        title_exact_hits = [term for term in role_terms if normalize_role_title(term) in normalized_title]
     custom_exact_title_match = custom_role_terms and bool(title_exact_hits)
 
     # Suppress negative-terms penalties whose own words overlap with the user's

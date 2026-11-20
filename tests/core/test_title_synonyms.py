@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ultron.core.rules.role_matching import score_role_family
 from ultron.core.rules.title_synonyms import expand_role_terms
 from ultron.core.vocabulary import load_packs
@@ -41,3 +43,34 @@ def test_role_focus_synonyms_are_used_by_score_role_family():
     )
     assert score >= 4
     assert any(signal.startswith("title:") for signal in signals)
+
+
+ML_FOCUS = ["machine learning engineer", "ml engineer", "ai engineer"]
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Ingeniero Senior de Machine Learning",
+        "Ingeniero/a de Machine Learning Senior",
+        "Ingeniera Sr. de Machine Learning",
+        "Ingeniero/a Senior de Inteligencia Artificial",
+        "Ingeniero de Machine Learning",
+    ],
+)
+def test_spanish_titles_with_level_or_gender_forms_match_the_role_family(title):
+    score, signals = score_role_family(title, "Desarrollar sistemas.", allowed_terms=ML_FOCUS, vocabulary=AI)
+    assert score >= 4, signals
+    assert any(signal.startswith("title:") for signal in signals)
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Ingeniero Senior de Ventas", "Ingeniero/a Senior de Software", "Ingeniero Junior de Machine Learning",
+        "Senior Machine Learning Researcher Manager",
+    ],
+)
+def test_spanish_level_reordering_does_not_widen_the_family(title):
+    _score, signals = score_role_family(title, "Desarrollar sistemas.", allowed_terms=ML_FOCUS, vocabulary=AI)
+    assert not any(signal.startswith("title:") for signal in signals)

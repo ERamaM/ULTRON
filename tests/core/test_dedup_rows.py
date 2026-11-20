@@ -149,3 +149,26 @@ def test_non_ascii_specialty_parentheticals_are_kept():
     kept, dupes = dedupe_final_rows(rows)
     assert len(kept) == 2
     assert dupes == []
+
+
+def test_location_variants_of_one_remote_posting_merge_into_one_row():
+    rows = [
+        _row(location="Bogota, Colombia", apply_url="https://x.com/j/1", source_key="greenhouse:acme"),
+        _row(location="Lima, Peru", apply_url="https://x.com/j/2", source_key="greenhouse:acme"),
+        _row(title="Senior Data Analyst", location="Lima, Peru", apply_url="https://x.com/j/3",
+             source_key="greenhouse:acme"),
+        _row(location="Quito, Ecuador", apply_url="https://x.com/j/4", source_key="greenhouse:other-board"),
+    ]
+    kept, dupes = dedupe_final_rows(rows, merge_locations=True)
+    assert [row.apply_url for row in kept] == ["https://x.com/j/1", "https://x.com/j/3", "https://x.com/j/4"]
+    assert kept[0].location == "Bogota, Colombia; Lima, Peru"
+    assert [row.apply_url for row in dupes] == ["https://x.com/j/2"]
+
+
+def test_location_variants_stay_apart_without_merging():
+    rows = [
+        _row(location="Dublin, Ireland", apply_url="https://x.com/j/1", source_key="greenhouse:hospital"),
+        _row(location="Cork, Ireland", apply_url="https://x.com/j/2", source_key="greenhouse:hospital"),
+    ]
+    kept, dupes = dedupe_final_rows(rows)
+    assert len(kept) == 2 and dupes == []

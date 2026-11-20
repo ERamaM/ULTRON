@@ -505,7 +505,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 5,
+        "rank": 2,
         "reason": null,
         "status": "keep"
       },
@@ -534,7 +534,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 6,
+        "rank": 3,
         "reason": null,
         "status": "keep"
       },
@@ -563,7 +563,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 7,
+        "rank": 4,
         "reason": null,
         "status": "keep"
       },
@@ -592,7 +592,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 8,
+        "rank": 5,
         "reason": null,
         "status": "keep"
       },
@@ -621,7 +621,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 9,
+        "rank": 6,
         "reason": null,
         "status": "keep"
       },
@@ -650,7 +650,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 12,
+        "rank": 9,
         "reason": null,
         "status": "keep"
       },
@@ -679,7 +679,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 10,
+        "rank": 7,
         "reason": null,
         "status": "keep"
       },
@@ -735,11 +735,11 @@
       "prediction": {
         "filter_route": "ambiguous",
         "filter_stage": null,
-        "match_band": "strong",
-        "match_score": 100,
-        "rank": 2,
-        "reason": null,
-        "status": "keep"
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "duplicate_role",
+        "status": "discard"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "latam",
@@ -764,11 +764,11 @@
       "prediction": {
         "filter_route": "ambiguous",
         "filter_stage": null,
-        "match_band": "strong",
-        "match_score": 100,
-        "rank": 3,
-        "reason": null,
-        "status": "keep"
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "duplicate_role",
+        "status": "discard"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "latam",
@@ -793,11 +793,11 @@
       "prediction": {
         "filter_route": "ambiguous",
         "filter_stage": null,
-        "match_band": "strong",
-        "match_score": 100,
-        "rank": 4,
-        "reason": null,
-        "status": "keep"
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "duplicate_role",
+        "status": "discard"
       },
       "profile": "data-analyst-remote-latam",
       "remote_mode": "latam",
@@ -911,7 +911,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 13,
+        "rank": 10,
         "reason": null,
         "status": "unsure"
       },
@@ -940,7 +940,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 14,
+        "rank": 11,
         "reason": null,
         "status": "unsure"
       },
@@ -969,7 +969,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 15,
+        "rank": 12,
         "reason": null,
         "status": "unsure"
       },
@@ -998,7 +998,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 88,
-        "rank": 16,
+        "rank": 13,
         "reason": null,
         "status": "unsure"
       },
@@ -1027,7 +1027,7 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 11,
+        "rank": 8,
         "reason": null,
         "status": "keep"
       },
@@ -5327,13 +5327,13 @@
       "recall": 0.8787878787878788,
       "sample_size": 166
     },
-    "duplicate_rows": 3,
+    "duplicate_rows": 0,
     "first_loss_counts": {
       "evaluator": 4
     },
     "outcomes": {
-      "discard": 133,
-      "keep": 36,
+      "discard": 136,
+      "keep": 33,
       "unsure": 14
     },
     "ranking": {
@@ -5348,14 +5348,14 @@
         "shortlist_size": 14
       },
       "data-analyst-remote-latam": {
-        "duplicate_rows": 3,
+        "duplicate_rows": 0,
         "mrr": 1.0,
-        "ndcg_at_10": 0.7008947874285988,
-        "precision_at_10": 0.7,
-        "precision_at_5": 0.4,
-        "recall_at_10": 0.7777777777777778,
+        "ndcg_at_10": 1.0,
+        "precision_at_10": 0.9,
+        "precision_at_5": 1.0,
+        "recall_at_10": 1.0,
         "relevant_total": 9,
-        "shortlist_size": 16
+        "shortlist_size": 13
       },
       "ml-engineering-remote-eu": {
         "duplicate_rows": 0,

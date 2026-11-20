@@ -139,7 +139,7 @@ flowchart LR
     H --> E["7. Agent Eval & Finalize"]
 ```
 
-1. **Profile:** Draft a search profile from a PDF/text CV or adapt the bundled template.
+1. **Profile:** Draft a search profile from a PDF/text CV, build one by answering a few questions, or adapt the bundled template. Refine it in chat ("no management roles", "add Rust"): every change is previewed as a diff and can be undone.
 2. **Companies:** Propose target employers and verify their live ATS boards (`ultron seeds verify`).
 3. **Discovery:** Pull structured job feeds (`ultron discover feeds` reading `skill/ultron/data/feeds.yaml`) and run targeted web queries (`candidates add`).
 4. **ATS Crawl:** Query verified boards across 19 ATS vendors (`discover ats`).

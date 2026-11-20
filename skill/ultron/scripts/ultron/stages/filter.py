@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 
 from ultron import runs
 from ultron.core.decision.ambiguity import AmbiguityScorer
@@ -62,6 +63,30 @@ def filter_run(run_id: str) -> dict:
     profile = run.get("profile_snapshot") or {}
     threshold = run["settings"]["llm_ambiguity_threshold"]
     out_dir = runs.run_dir(run_id)
+    kept, ambiguous, discarded, reasons = classify_postings(
+        runs.read_jsonl(out_dir / "postings.jsonl"), profile, threshold
+    )
+    runs.write_jsonl(out_dir / "discarded.jsonl", discarded)
+    runs.write_jsonl(out_dir / "kept.jsonl", kept)
+    runs.write_jsonl(out_dir / "ambiguous.jsonl", ambiguous)
+    runs.mark_stage(run_id, "filter")
+    return {
+        "kept": len(kept),
+        "ambiguous": len(ambiguous),
+        "discarded": len(discarded),
+        "rescued_discards": sum(1 for entry in ambiguous if "rescued_discard" in entry),
+        "discard_reasons": dict(reasons.most_common()),
+    }
+
+
+def classify_postings(
+    rows: Iterable[dict], profile: dict, threshold: float
+) -> tuple[list[dict], list[dict], list[dict], Counter[str]]:
+    """Split fetched posting rows into ``(kept, ambiguous, discarded, discard reasons)`` for ``profile``.
+
+    Pure: it reads and writes nothing, so ``profile explain --run`` can replay a run with a draft profile.
+    Rescued discards (``rescued_discard`` set) are part of ``ambiguous``, exactly as ``filter_run`` writes them.
+    """
     allowed = load_allowed_domains()
     pack = active_pack(profile)
     geo = geo_scope(profile)
@@ -77,7 +102,7 @@ def filter_run(run_id: str) -> dict:
     rescue_candidates: list[tuple[int, int, dict, dict]] = []
     reasons: Counter[str] = Counter()
 
-    for order, row in enumerate(runs.read_jsonl(out_dir / "postings.jsonl")):
+    for order, row in enumerate(rows):
         job = ExtractedJob(**row["job"])
         identity = row["identity_key"]
         result = characterize_job(
@@ -123,21 +148,11 @@ def filter_run(run_id: str) -> dict:
         else:
             kept.append(entry)
 
+    # Borderline evaluator-stage discards go to the agent, highest ambiguity first, at most
+    # MAX_RESCUED_DISCARDS; the rest stay discarded in their original order.
     rescue_candidates.sort(key=lambda item: (-item[0], item[1]))
-    rescued = rescue_candidates[:MAX_RESCUED_DISCARDS]
-    ambiguous.extend(entry for _score, _order, entry, _discard in rescued)
+    ambiguous.extend(entry for _score, _order, entry, _discard in rescue_candidates[:MAX_RESCUED_DISCARDS])
     for _score, _order, _entry, discard in sorted(rescue_candidates[MAX_RESCUED_DISCARDS:], key=lambda c: c[1]):
         discarded.append(discard)
         reasons[discard["reason"]] += 1
-
-    runs.write_jsonl(out_dir / "discarded.jsonl", discarded)
-    runs.write_jsonl(out_dir / "kept.jsonl", kept)
-    runs.write_jsonl(out_dir / "ambiguous.jsonl", ambiguous)
-    runs.mark_stage(run_id, "filter")
-    return {
-        "kept": len(kept),
-        "ambiguous": len(ambiguous),
-        "discarded": len(discarded),
-        "rescued_discards": len(rescued),
-        "discard_reasons": dict(reasons.most_common()),
-    }
+    return kept, ambiguous, discarded, reasons

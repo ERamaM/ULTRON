@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -179,9 +180,23 @@ def subprocess_pdf_runner(content: bytes, *, max_pages: int, max_chars: int, tim
     return _pages_from_worker_stdout(stdout, completed.returncode, max_chars=max_chars, stderr=stderr)
 
 
+# Characters that word processors and typesetters leave in CV text: invisible ones are dropped, Latin
+# ligatures are expanded (so U+FB01 + "nance" reads and greps as "finance"), and the private-use bullets of
+# the Symbol/Wingdings fonts become a plain bullet.
+_CHAR_FIXES: dict[int, str | None] = {
+    **dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"), None),
+    **{code: unicodedata.normalize("NFKC", chr(code)) for code in range(0xFB00, 0xFB07)},
+    0xF0B7: "•",
+    0xF0A7: "•",
+    0x2028: "\n",
+    0x2029: "\n",
+}
+
+
 def _normalize_text(text: str) -> str:
-    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
-    lines = [re.sub(r"[ \t\f\v]+", " ", line).strip() for line in normalized.split("\n")]
+    """Collapse every kind of horizontal whitespace (no-break and em spaces too) and runs of blank lines."""
+    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n").translate(_CHAR_FIXES)
+    lines = [re.sub(r"[^\S\n]+", " ", line).strip() for line in normalized.split("\n")]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 

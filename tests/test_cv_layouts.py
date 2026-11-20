@@ -94,6 +94,13 @@ def test_single_column_with_right_aligned_dates_is_not_split():
     assert "Demo Inc, Junior Developer 2015 – 2017" in lines
 
 
+def test_single_column_with_right_aligned_locations_is_not_split():
+    lines = _lines(_extract(_layout_pdf("en_locations_right.json", right_x=430)))
+    assert "Example Studio, Lead Designer Berlin, Germany" in lines
+    assert "Sample Agency, Designer Remote" in lines
+    assert "Demo Ltd, Junior Designer Porto, Portugal" in lines
+
+
 def test_single_column_prose_pdf_unchanged():
     rows = [
         "Senior Data Engineer with eight years of experience designing batch and streaming pipelines.",
@@ -129,6 +136,28 @@ def test_layout_mode_failure_falls_back_to_plain_text(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "pypdf", SimpleNamespace(PdfReader=Reader))
     assert extract_pdf_pages_text(b"%PDF", max_pages=1, max_chars=100) == ["Jane Doe Skills\nData Engineer Python"]
+
+
+def test_column_reordering_failure_falls_back_to_plain_text(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+
+    from ultron import cv_worker
+
+    class Page:
+        def extract_text(self, **kwargs):
+            return "layout text" if kwargs else "plain text"
+
+    class Reader:
+        def __init__(self, _stream):
+            self.pages = [Page()]
+
+    def broken(_text):
+        raise IndexError("unexpected layout")
+
+    monkeypatch.setitem(sys.modules, "pypdf", SimpleNamespace(PdfReader=Reader))
+    monkeypatch.setattr(cv_worker, "reorder_columns", broken)
+    assert extract_pdf_pages_text(b"%PDF", max_pages=1, max_chars=100) == ["plain text"]
 
 
 @pytest.mark.parametrize(

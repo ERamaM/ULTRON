@@ -46,13 +46,24 @@ def _two_columns(lines: list[str], col: int, start: int, end: int) -> tuple[list
     both = sum(1 for a, b in zip(left, right, strict=True) if a and b)
     one_sided = sum(1 for a, b in zip(left, right, strict=True) if bool(a) != bool(b))
     right_cells = [b for b in right if b]
-    # Real side-by-side columns run independently: some rows hold only one of them. Rows where the
-    # right part is mostly dates (a role line with right-aligned dates) must stay on one line.
+    # Real side-by-side columns run independently: some rows hold only one of them, and the right
+    # column is a dense block of consecutive lines. Right-aligned details of a single column (dates,
+    # cities, a contact line) are sparse, one per role line, and must stay on their line.
     if both < 3 or one_sided < 2 or not any(b and not a for a, b in zip(left, right, strict=True)):
+        return None
+    if len(right_cells) * 5 < len(right) * 2 or _longest_run(right) < 3:
         return None
     if sum(1 for b in right_cells if _DATE_LIKE.search(b)) * 2 >= len(right_cells):
         return None
     return [a for a in left if a], right_cells
+
+
+def _longest_run(cells: list[str]) -> int:
+    best = run = 0
+    for cell in cells:
+        run = run + 1 if cell else 0
+        best = max(best, run)
+    return best
 
 
 def reorder_columns(layout_text: str) -> str | None:
@@ -85,11 +96,10 @@ def _page_text(page) -> str:
     plain = page.extract_text() or ""
     try:
         layout = page.extract_text(extraction_mode="layout")
+        reordered = reorder_columns(layout) if isinstance(layout, str) else None
     except Exception:  # older pypdf, odd fonts or a stub page: keep plain extraction
         return plain
-    if not isinstance(layout, str):
-        return plain
-    return reorder_columns(layout) or plain
+    return reordered or plain
 
 
 def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) -> list[str]:

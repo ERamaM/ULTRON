@@ -89,6 +89,8 @@ ATS_VENDOR_HOST_LABELS = (
     "icims",
     "taleo",
     "hirehive",
+    "occupop",
+    "candidatemanager",
 )
 LOCATION_VERB_HINTS = (
     "build",

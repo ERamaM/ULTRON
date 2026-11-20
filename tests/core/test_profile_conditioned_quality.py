@@ -165,3 +165,17 @@ def test_home_places_are_the_single_places_of_the_profile():
     assert profile_home_places(LATAM) == ("brazil", "mexico")
     assert profile_home_places(EU_ONLY) == ()
     assert "madrid" in profile_home_places(SPAIN_EU)
+
+@pytest.mark.parametrize(
+    "criteria, location, remote",
+    [
+        ({"location_scope": {"preferred": ["Brazil"]}}, "Sao Paulo, Brasil", "Remote - Brasil"),
+        ({"location_scope": {"preferred": ["United Kingdom"]}}, "London", "Remote UK"),
+        ({"location_scope": {"preferred": ["Remote US", "Texas"]}}, "Austin, TX, United States", "Remote"),
+        ({"location_scope": {"preferred": ["Dublin"]}}, "Cork, Ireland", "On-site"),
+        ({"location_scope": {"preferred": ["Spain"], "eligibility_terms": ["portugal"]}}, "Lisbon, Portugal",
+         "Remote - Portugal"),
+    ],
+)
+def test_other_spellings_of_the_home_country_and_city_only_profiles_are_not_flagged(criteria, location, remote):
+    assert other_country_restriction(location, remote, criteria) is None

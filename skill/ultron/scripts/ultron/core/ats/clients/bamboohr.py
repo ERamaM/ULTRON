@@ -13,6 +13,20 @@ from ultron.net import RequestBudgetExceeded
 
 logger = logging.getLogger(__name__)
 
+# BambooHR ``locationType``: "0" on-site (seen on a live onsite posting), "1" remote, "2" hybrid.
+_LOCATION_TYPES = {"0": "On-site", "1": "Remote", "2": "Hybrid"}
+
+
+def bamboohr_workplace(job: object) -> str:
+    """Workplace label of a BambooHR list row or detail ``jobOpening`` (``""`` when unknown)."""
+    if not isinstance(job, dict):
+        return ""
+    location_type = job.get("locationType")
+    label = _LOCATION_TYPES.get(str(location_type).strip()) if isinstance(location_type, (str, int)) else None
+    if label:
+        return label
+    return "Remote" if job.get("isRemote") is True else ""
+
 
 def fetch_bamboohr_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
@@ -47,6 +61,7 @@ def fetch_bamboohr_jobs(
                         title=title,
                         apply_url=locator_url(host, "careers", job_id),
                         location=location,
+                        remote_hint=bamboohr_workplace(job),
                         raw_payload=job,
                     )
                 )

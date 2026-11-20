@@ -196,6 +196,8 @@ EU_COUNTRY_TERMS = {
     "sweden",
 }
 EU_SCOPE_TERMS = {"eea", "european economic area", "schengen", "european union"}
+# EEA members outside the EU: a profile targeting them is European too (they never count as EU locations).
+EEA_NON_EU_COUNTRY_TERMS = {"iceland", "liechtenstein", "norway"}
 EU_TIMEZONE_TERMS = {"cet", "cest", "gmt+1", "gmt+2", "utc+1", "utc+2"}
 EU_DIRECT_REMOTE_TERMS = {
     "remote eu",

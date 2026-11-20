@@ -20,7 +20,16 @@ from ultron import presets, runs, seeds
 from ultron.core.ats.identity import seed_identity
 from ultron.core.ats.vendors import AtsVendorName
 from ultron.core.rules.geography import geo_scope
-from ultron.stages.discover import _seed_request_host, _select_seeds, load_seed_yields, seed_key
+from ultron.core.sectors import profile_sector_values
+from ultron.stages.discover import (
+    EXCLUDED_RANK,
+    _profile_region_text,
+    _rank,
+    _seed_request_host,
+    _select_seeds,
+    load_seed_yields,
+    seed_key,
+)
 
 ROUNDS_FILE = "seed_rounds.jsonl"
 PROPOSALS_FILE = "agent_seed_round_{n}.jsonl"
@@ -153,14 +162,18 @@ def board_keys(row: dict) -> list[str]:
 
 
 def tried(run: dict, rounds: list[dict]) -> tuple[set[str], set[str], list[str]]:
-    """What a round proposal may not repeat: the company keys of the profile's own seeds, and every board or
-    careers URL already tried (the profile's seeds and this run's rounds). A company that failed in an earlier
-    round may come back with a different board. Also the company names to show the agent."""
+    """What a round proposal may not repeat: the company keys of the seeds the profile already has (its own and
+    the bundled pack seeds that fit it), and every board or careers URL already tried (those seeds and this
+    run's rounds). A company that failed in an earlier round may come back with a different board. Also the
+    company names to show the agent."""
+    profile = run.get("profile_snapshot") or {}
+    sectors = profile_sector_values((profile.get("criteria") or {}).get("sectors"))
+    geo, region_text = geo_scope(profile), _profile_region_text(profile)
     companies: set[str] = set()
     boards: set[str] = set()
     names: list[str] = []
     for seed in seeds.load_inventory(run["profile_slug"]):
-        if run["profile_slug"] not in seed.profiles:
+        if _rank(seed, run["profile_slug"], sectors, geo, region_text)[0] >= EXCLUDED_RANK:
             continue
         boards.add(seed_key(seed))
         if (key := seeds.company_key(seed.company)) and key not in companies:
@@ -186,7 +199,8 @@ def round_status(run: dict, rounds: list[dict], fitting: int) -> str:
         last = rounds[-1]
         if last.get("host_blocked", 0):
             return "host_blocked"
-        if int(last.get("fitting_after", 0)) <= int(last.get("fitting_before", 0)):
+        # A round whose proposals were all left unchecked (request budget) says nothing about progress.
+        if int(last.get("checked", 0)) and int(last.get("fitting_after", 0)) <= int(last.get("fitting_before", 0)):
             return "no_progress"
     return "open"
 

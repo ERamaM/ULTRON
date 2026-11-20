@@ -34,7 +34,7 @@ this profile, so later runs reuse them.
 
 Bundled packs cover only some sectors and regions (technology in Europe and Latin America, healthcare
 in the US and Ireland), and a pack that does not fit the profile is never queried. A profile with fewer
-fitting boards than its preset's `seed_target` (40 `fast`, 80 `balanced`, 110 `deep`, 140 `seed_boost`)
+fitting boards than its preset's `seed_target` (35 `fast`, 75 `balanced`, 100 `deep`, 130 `seed_boost`)
 gets the rest from you, in rounds:
 
 1. `ultron seeds plan --run <run_id>` prints the next round: `ask` (how many companies to propose; it

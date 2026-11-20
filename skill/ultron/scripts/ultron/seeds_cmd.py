@@ -58,6 +58,8 @@ def _round_rows(run_id: str, rows: list) -> tuple[list[dict], list[str], dict] |
             continue
         boards.update(keys)
         fresh.append(row)
+    if not fresh:  # nothing to verify: the round is not consumed
+        return "no new proposal: every line is empty or repeats a company or board tried before"
     return fresh[: ask["ask"]], repeats, ask
 
 

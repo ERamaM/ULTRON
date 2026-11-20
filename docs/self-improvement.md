@@ -251,8 +251,8 @@ scope anywhere becoming unsure (new false negative: an Irish town outside the pr
 "Nursing" read as the noun "nurse" (admits nursing-home and assistant roles).
 
 Session 7 accepted two quality changes. The deferred "global" and "international" change came first.
-After review it is a closed list: these words in a body still name a region unless the next three words
-make them a company description ("the global economy", "our global support organization",
+After review it is a closed list: these words in a body still name a region unless they directly modify
+a company noun from a closed list ("the global economy", "our global support organization",
 "international clients"). Ambiguous text never demotes a keep, so a negated statement ("we are not
 hiring internationally") still opens a posting, which is a known limit. It measured
 0.796 / 0.886 / 0.839 -> 0.886 / 0.886 / 0.886 (fp 10 -> 5) on 210 cases. Six US-location cases

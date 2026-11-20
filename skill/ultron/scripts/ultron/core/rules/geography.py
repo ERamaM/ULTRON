@@ -167,9 +167,9 @@ def _country_spellings(place: str) -> tuple[str, ...]:
     return next((group for group in COUNTRY_ALIASES if place in group), (place,))
 
 
-# "global", "international" and "worldwide" in a body name a region, as any wide-region word does, unless the next
-# few words make them a company description: "the global economy", "our global support organization", "a global
-# leader", "international clients", "our globally distributed team", "Global Candidate Privacy Notice". The list
+# "global", "international" and "worldwide" in a body name a region, as any wide-region word does, unless they
+# directly modify a company noun: "the global economy", "our global support organization", "a global leader",
+# "international clients", "Global Candidate Privacy Notice". The list
 # is closed on purpose: anything else ("a global remote role", "international applicants may apply") still opens
 # the posting, because ambiguous text must never demote a keep. A negated statement ("we are not hiring
 # internationally") also still opens it: a known limit of this conservative reading. In a location field these
@@ -185,7 +185,15 @@ _COMPANY_NOUNS = frozenset({
     "providers", "firm", "enterprise", "group", "distributed", "privacy", "notice", "policy", "reach", "impact",
     "partners", "portfolio", "supply", "chain", "player", "payments", "payouts",
 })
-_COMPANY_NOUN_WINDOW = 3
+# The scope word must modify the company noun directly: the noun is the next word ("global economy",
+# "international clients") or follows one modifier inside the same noun phrase ("global support organization",
+# "global payments platform"). A function or work-arrangement word in between ends the noun phrase, so
+# "worldwide with our team" and "a global remote team" keep their scope.
+_NOUN_PHRASE_BREAKERS = frozenset({
+    "a", "an", "the", "our", "your", "their", "its", "this", "that", "we", "you", "and", "or", "but", "with",
+    "to", "for", "in", "of", "on", "at", "by", "from", "as", "across", "within", "is", "are", "be", "remote",
+    "remotely", "hybrid", "virtual", "flexible",
+})
 # Statements that open a posting without a wide-region word. "Globally" alone is an adverb ("monitor quality
 # globally"), so only these hiring statements use it.
 _OPEN_SCOPE_PHRASES = (
@@ -196,15 +204,23 @@ _OPEN_SCOPE_PHRASES = (
 )
 
 
+def _modifies_company_noun(following: list[str]) -> bool:
+    """True when the words after a scope word make it a company description (see above)."""
+    if not following:
+        return False
+    if following[0] in _COMPANY_NOUNS:
+        return True
+    return len(following) > 1 and following[0] not in _NOUN_PHRASE_BREAKERS and following[1] in _COMPANY_NOUNS
+
+
 def _body_names_region(text: str) -> bool:
     """True when a body names a multi-country scope, not counting company descriptions (see above)."""
     low = normalize_text(text)
     for match in _SCOPE_WORD.finditer(low):
         window_end = match.end() + 80
         clause_end = _CLAUSE_BREAK.search(low, match.end(), window_end)  # the window stops at its sentence
-        following = _WORD.findall(low, match.end(), clause_end.start() if clause_end else window_end)
-        following = following[:_COMPANY_NOUN_WINDOW]
-        if not _COMPANY_NOUNS.intersection(following):
+        following = _WORD.findall(low, match.end(), clause_end.start() if clause_end else window_end)[:2]
+        if not _modifies_company_noun(following):
             return True
     if find_terms(low, _OPEN_SCOPE_PHRASES):
         return True
@@ -338,14 +354,22 @@ _HORIZONTAL_SPACE = re.compile(r"[^\S\n]+")
 
 def _bounded_body(text: str) -> str:
     return _HORIZONTAL_SPACE.sub(" ", (text or "")[:_MAX_BODY_CHARS])
+
+
+# A negation or a preference in the clause blocks a licence match: "not required", "optional", "a plus".
 _NEGATION_WORDS = frozenset({"no", "not", "never", "without", "cannot", "unable", "none"})
+_PREFERENCE_WORDS = frozenset({
+    "optional", "preferred", "desirable", "desired", "plus", "advantage", "advantageous", "beneficial", "bonus",
+    "ideally", "preferably", "nice",
+})
 
 
 def _requires_us_state_licence(body_text: str) -> bool:
     """True when the body requires the applicant to hold or be eligible for a US state licence (see above)."""
     for clause in _CLAUSE_BREAK.split(normalize_text(body_text).replace("’", "'")):
         words = clause.split()
-        if _NEGATION_WORDS.intersection(words) or any(word.endswith("n't") for word in words):
+        tokens = set(_WORD.findall(clause))
+        if (_NEGATION_WORDS | _PREFERENCE_WORDS) & tokens or any(word.endswith("n't") for word in words):
             continue
         if _US_STATE_LICENCE_REQUIREMENT.search(" ".join(words)):
             return True
@@ -390,7 +414,9 @@ def other_country_restriction(
     if not countries:  # only cities ("Dublin") or regions: the home country is not known, so nothing is limited
         return None
     extra = [normalize_text(term) for term in location_scope({"criteria": criteria or {}})["eligibility_terms"]]
-    homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
+    # Eligibility terms are read through the alias table too: "us" or "usa" makes "united states" a home.
+    extra_countries = [spelling for term in extra if term in _COUNTRY_NAMES for spelling in _country_spellings(term)]
+    homes = (*places, *countries, *extra_countries)
     fields = f"{location}\n{remote_text}"
     text = _place_text(fields)
     if names_wide_region(text) or _names_home(fields, homes):

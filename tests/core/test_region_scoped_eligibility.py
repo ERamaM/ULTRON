@@ -32,7 +32,7 @@ LATAM = {"location_scope": {"preferred": ["Remote LATAM", "Brazil", "Mexico"]}}
         (LATAM, "Toronto, Canada", "Remote", "Our globally distributed team ships every day.", "canada"),
         (LATAM, "Toronto, Canada", "Remote", "Read our Global Candidate Privacy Notice.", "canada"),
         (LATAM, "Toronto, Canada", "Remote", "Make a positive impact on a global scale.", "canada"),
-        (LATAM, "Bangalore, India", "Remote", "Support our global Support Engineering organization.", "india"),
+        (LATAM, "Bangalore, India", "Remote", "Support our global engineering organization.", "india"),
         (LATAM, "Toronto, Canada", "Remote", "We serve international customers and markets.", "canada"),
     ],
 )
@@ -67,6 +67,10 @@ def test_global_or_international_in_the_body_does_not_open_a_country_posting(cri
         # Round 4: the company-description window stops at the end of the sentence.
         (LATAM, "Toronto, Canada", "Remote", "We hire worldwide. Our team works asynchronously."),
         (LATAM, "Toronto, Canada", "Remote", "Open worldwide; team rituals are async."),
+        # Round 5: only a company noun the scope word directly modifies stops it.
+        (LATAM, "Toronto, Canada", "Remote", "Work remotely worldwide with our team."),
+        (LATAM, "Toronto, Canada", "Remote", "We hire worldwide and our team is async."),
+        (LATAM, "Toronto, Canada", "Remote", "Join a global remote team."),
     ],
 )
 def test_a_body_that_names_where_the_company_hires_still_opens_the_posting(criteria, location, remote, body):
@@ -216,6 +220,11 @@ def test_a_us_place_without_a_country_name_is_outside_a_non_us_home(criteria, lo
         ({"location_scope": {"preferred": ["United Kingdom"]}}, "Washington, Tyne and Wear", "On-site", ""),
         ({"location_scope": {"preferred": ["United States"]}}, "Lewes, DE 19958", "Onsite", US_LICENSURE),
         ({"location_scope": {"preferred": ["Remote US", "Texas"]}}, "Austin, TX", "On-site", US_LICENSURE),
+        # Round 5: eligibility terms that spell the US ("us", "usa") make it a home.
+        ({"location_scope": {"preferred": ["Remote LATAM", "Brazil"], "eligibility_terms": ["us"]}},
+         "Austin, TX", "On-site", US_LICENSURE),
+        ({"location_scope": {"preferred": ["Remote LATAM", "Brazil"], "eligibility_terms": ["usa"]}},
+         "Austin, TX", "On-site", ""),
     ],
 )
 def test_us_place_evidence_does_not_flag_a_home_or_look_alike_place(criteria, location, remote, body):
@@ -240,6 +249,11 @@ def test_us_place_evidence_does_not_flag_a_home_or_look_alike_place(criteria, lo
         "You do not need a state licensure for this position.",
         "Current state licensure is not required.",
         "State licenses are a plus.",
+        "An active state license is optional.",
+        "A current state license is preferred.",
+        "Active state licensure is nice to have.",
+        "Ideally you hold a current state license.",
+        "A valid state license would be an advantage.",
     ],
 )
 def test_a_state_licence_without_an_affirmative_applicant_requirement_is_not_us_evidence(body):

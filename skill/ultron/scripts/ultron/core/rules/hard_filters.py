@@ -91,14 +91,20 @@ def _has_contextual_onsite_conflict(body_text: str) -> bool:
 
 
 _ONSITE_BENEFIT_TERMS_RE = "|".join(re.escape(term) for term in sorted(rules_data.ONSITE_BENEFIT_CONTEXT_TERMS))
-_ONSITE_BENEFIT_AFTER_RE = re.compile(r"[ \t-]*(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b")
+# Up to two modifier words may sit between the term and the perk noun ("on-site fully equipped gym",
+# "on-site mental-health counseling"), but not a conjunction or verb that starts another clause.
+_ONSITE_BENEFIT_AFTER_RE = re.compile(
+    r"[ \t-]*(?:(?!(?:and|or|but|with|is|are|was|were|be|to|for)\b)[\w-]+[ \t]+){0,2}?"
+    r"(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b"
+)
 _ONSITE_BENEFIT_BEFORE_RE = re.compile(r"\b(?:" + _ONSITE_BENEFIT_TERMS_RE + r")\b[^.;:!?\n]*(?:,|\band|\bor)\s+$")
 
 
 def _is_onsite_benefit(text: str, match: re.Match[str]) -> bool:
     """True when the onsite term describes a perk, not the work mode.
 
-    The perk noun must follow the term directly ("on-site gym", "in-office lunch") or the term must be the
+    The perk noun must follow the term, at most two modifier words later ("on-site gym", "on-site fully
+    equipped gym", "in-office lunch"), or the term must be the
     next item of a perk list in the same clause, right after a comma/"and"/"or" ("counseling, therapy
     placement, on-site support"). A perk elsewhere ("The position is onsite; gym membership included",
     "We provide meals and the position is onsite") does not exempt it.

@@ -128,3 +128,22 @@ def test_pending_lists_rescued_discards_after_unsure_and_before_keeps(capsys):
     assert main(["evaluate", "pending", "--run", run_id]) == 0
     items = json.loads(capsys.readouterr().out)["items"]
     assert [item["heuristic"]["verdict"] for item in items] == ["discard", "keep"]
+
+
+def test_a_posting_in_an_excluded_location_is_never_rescued():
+    from types import SimpleNamespace
+
+    from ultron.core.models import ExtractedJob
+
+    result = {
+        "pipeline_characterization": {"stage": "heuristic_evaluator"},
+        "hard_filter": {"keep": True},
+        # The evaluator reported seniority first; it never got to the location exclusion.
+        "_evaluation": SimpleNamespace(open_status_ok=True, discard_category="seniority",
+                                       discard_reason="seniority_not_senior"),
+    }
+    canada = ExtractedJob(**_job(0, location="Remote - Canada", remote_text="Remote within Canada"))
+    assert filter_stage._rescuable(result, canada, ("canada",)) is False
+    assert filter_stage._rescuable(result, canada, ()) is True  # no exclusion: rescued as before
+    mexico = ExtractedJob(**_job(1, location="Remote - Mexico", remote_text="Remote within Mexico"))
+    assert filter_stage._rescuable(result, mexico, ("canada",)) is True

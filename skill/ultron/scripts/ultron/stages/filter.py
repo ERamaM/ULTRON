@@ -9,6 +9,7 @@ from ultron.core.decision.ambiguity import AmbiguityScorer
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import DiscardRecord, ExtractedJob
 from ultron.core.rules.geography import geo_scope, location_scope
+from ultron.core.rules.hard_filters import location_excluded
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
 from ultron.stages.feeds import is_aggregator_host
@@ -35,8 +36,12 @@ def allows_outside_allowlist(row: dict) -> bool:
     return row.get("ats_fingerprint") is True and not is_aggregator_host(domain)
 
 
-def _rescuable(result: dict) -> bool:
-    """An evaluator-stage heuristic discard that passed every authoritative gate and has no hard evidence."""
+def _rescuable(result: dict, job: ExtractedJob, excluded_locations: tuple[str, ...] = ()) -> bool:
+    """An evaluator-stage heuristic discard that passed every authoritative gate and has no hard evidence.
+
+    A posting that names one of the profile's excluded locations is never rescued, even when another reason
+    (seniority, say) was the one the evaluator reported: the evaluator stops at its first discard reason.
+    """
     evaluation = result["_evaluation"]
     return (
         result["pipeline_characterization"]["stage"] == "heuristic_evaluator"
@@ -44,6 +49,10 @@ def _rescuable(result: dict) -> bool:
         and evaluation.open_status_ok
         and evaluation.discard_category != "closed_or_invalid"
         and evaluation.discard_reason not in HARD_EVIDENCE_REASONS
+        and not (
+            excluded_locations
+            and location_excluded(f"{job.location}\n{job.remote_text}\n{job.body_text}", excluded_locations)
+        )
     )
 
 
@@ -57,6 +66,8 @@ def filter_run(run_id: str) -> dict:
     pack = active_pack(profile)
     geo = geo_scope(profile)
     target_regions = location_scope(profile)["preferred"]
+    # Location exclusions only apply to non-European scopes, as in the heuristic evaluator.
+    excluded_locations = tuple(location_scope(profile)["excluded_terms"]) if geo in {"other", "global"} else ()
     role_negatives = role_negatives_for(profile)
     scorer = AmbiguityScorer(vocabulary=pack)
 
@@ -83,7 +94,7 @@ def filter_run(run_id: str) -> dict:
                 location=job.location, remote_text=job.remote_text,
             ).model_dump(mode="json")
             discard = {**record, "stage": decision["stage"], "identity_key": identity}
-            if _rescuable(result):
+            if _rescuable(result, job, excluded_locations):
                 score = scorer.score(job, evaluation, classification_signals=result["_signals"])
                 if score >= threshold:
                     entry = {

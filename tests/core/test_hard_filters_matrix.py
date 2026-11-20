@@ -561,3 +561,17 @@ def test_office_attendance_without_negation_is_still_a_conflict(body):
 )
 def test_onsite_perk_exemption_needs_the_perk_attached_to_the_onsite_term(body, full_remote):
     assert h.is_full_remote_only("", body) is full_remote
+
+
+@pytest.mark.parametrize(
+    ("body", "remote_only"),
+    [
+        ("Remote work. Benefits include an on-site fully equipped gym.", True),
+        ("Remote work. Benefits include on-site mental-health counseling.", True),
+        ("Remote. The position is on-site and gym access is included.", False),
+        ("Remote. You will work on-site with gym access.", False),
+        ("Remote. The position is onsite; gym membership included.", False),
+    ],
+)
+def test_onsite_benefit_allows_modifiers_but_not_another_clause(body, remote_only):
+    assert h.is_full_remote_only("Remote", body) is remote_only

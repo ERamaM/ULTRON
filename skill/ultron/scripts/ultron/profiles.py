@@ -92,15 +92,33 @@ TERM_LIST_FIELDS = (
     "query_templates.specialties",
     "query_templates.exclusion_terms",
 )
+EXPECTED_SALARY_FIELDS = (
+    "expected_salary.currency",
+    "expected_salary.period",
+    "expected_salary.low",
+    "expected_salary.median",
+    "expected_salary.high",
+    "expected_salary.gross_or_net",
+    "expected_salary.compensation_type",
+    "expected_salary.experience_years",
+    "expected_salary.seniority_band",
+    "expected_salary.location_market",
+    "expected_salary.confidence",
+    "expected_salary.methodology",
+    "expected_salary.assumptions",
+    "expected_salary.sources",
+    "expected_salary.updated_at",
+)
 # Sections that the stages read only when they are mappings (anything else is silently ignored).
 MAPPING_FIELDS = ("criteria.seniority", "criteria.remote_policy", "criteria.location_scope", "query_templates")
 FLAG_FIELDS = ("enabled", "criteria.seniority.required")
 # Every field some code reads or writes; any other key is ignored by the CLI (``profile explain`` warns about it).
 KNOWN_FIELDS = frozenset({
     "slug", "name", "description", "enabled", "source_cv", "prompt", "criteria", "query_templates",
-    "worked_examples", "examples", "role_family_label", "criteria.role_family_label",
+    "expected_salary", "worked_examples", "examples", "role_family_label", "criteria.role_family_label",
     "source_kind", "created_at",  # metadata written by the bundled example and the MARK III import
     "criteria.seniority.required", "criteria.remote_policy.required", *MAPPING_FIELDS, *TERM_LIST_FIELDS,
+    *EXPECTED_SALARY_FIELDS,
 })
 
 
@@ -144,7 +162,7 @@ def unknown_fields(data: dict) -> list[str]:
             path = f"{prefix}.{key}" if prefix else str(key)
             if path not in KNOWN_FIELDS:
                 found.append(path)
-            elif path in MAPPING_FIELDS or path == "criteria":
+            elif path in MAPPING_FIELDS or path in {"criteria", "expected_salary"}:
                 walk(value, path)
 
     walk(data, "")
@@ -187,7 +205,24 @@ def validate_profile(data: dict) -> list[str]:
         errors.extend(_term_list_errors(data["query_templates"], "query_templates"))
     errors.extend(_shape_errors(data))
     errors.extend(_vocabulary_pack_errors(criteria.get("vocabulary_packs")))
+    errors.extend(_expected_salary_errors(data.get("expected_salary")))
     return errors
+
+
+def _expected_salary_errors(value: object) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, dict):
+        return ["expected_salary must be a mapping"]
+    from pydantic import ValidationError
+
+    from ultron.salary import SalaryEstimate
+
+    try:
+        SalaryEstimate.model_validate(value)
+    except ValidationError as exc:
+        return [f"expected_salary: {err['msg']}" for err in exc.errors()]
+    return []
 
 
 def _vocabulary_pack_errors(value) -> list[str]:

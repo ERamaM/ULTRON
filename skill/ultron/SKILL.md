@@ -1,6 +1,6 @@
 ---
 name: ultron
-description: ULTRON (Universal Locator & Triage of Roles, Openings and Niches) runs job searches for the user. Use it when the user wants to find job offers, openings, vacancies or roles that match a profile or CV (job search, find jobs, remote roles, job openings, vacancies), wants to create or edit a job-search profile from a CV, or mentions ULTRON. It works for any role family and region (not only tech or Europe). It proposes and verifies companies, queries their ATS job boards (22 vendors) and structured job feeds, adds web-search results, filters and evaluates postings against the profile, and exports a ranked shortlist with new-since-last-run flags.
+description: ULTRON (Universal Locator & Triage of Roles, Openings and Niches) runs job searches for the user. Use it when the user wants to find job offers, openings, vacancies or roles that match a profile or CV (job search, find jobs, remote roles, job openings, vacancies), wants to create or edit a job-search profile from a CV, wants an expected salary calculation from their CV/profile, wants to audit or optimize a CV for ATS matching, or mentions ULTRON. It works for any role family and region (not only tech or Europe). It proposes and verifies companies, queries their ATS job boards (22 vendors) and structured job feeds, adds web-search results, filters and evaluates postings against the profile, exports a ranked shortlist with new-since-last-run flags, estimates expected salary ranges, and builds truthful ATS-clean .docx CVs.
 ---
 
 # ULTRON — Universal Locator & Triage of Roles, Openings and Niches
@@ -99,6 +99,8 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | what is new since the last run | `ultron jobs new-since <run_id>`; `references/jobs-ledger.md` |
 | to know why a job did not show up | `ultron diagnose <url>`; `references/diagnose.md` |
 | to start from a CV, or create or edit a profile | `ultron cv extract`; `references/profile.md` |
+| expected salary range from a CV or profile | `ultron salary analyze`, `ultron salary save`; `references/salary.md` |
+| audit or optimize a CV for ATS compatibility | `ultron cv audit`, `ultron cv verify-truth`, `ultron cv build-docx`; `references/cv-ats.md` |
 | a custom search built in conversation, without a CV | `references/profile-interview.md` |
 | to change a saved profile ("no management roles", "add Rust") | `ultron profile edit --dry-run`, confirm, apply; `references/profile.md` |
 | a saved search, or a scheduled or repeated run | `references/scheduling.md` |

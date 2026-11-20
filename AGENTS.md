@@ -21,6 +21,13 @@ Reviewers (Codex and human) should apply these repository rules:
   delete folders the installer did not create.
 - Code must work on Windows, macOS and Linux.
 
+## Self-improvement sessions
+
+Sessions that run live searches and change the code from what they find follow
+[docs/self-improvement.md](docs/self-improvement.md). It sets the finding types, the live budgets
+and stop conditions, and the rule that quality changes are accepted only through the labelled
+benchmark in `tools/`.
+
 ## Pull Requests and Codex Reviews
 
 Codex (`chatgpt-codex-connector[bot]`) reviews pull requests against `main` with a code review

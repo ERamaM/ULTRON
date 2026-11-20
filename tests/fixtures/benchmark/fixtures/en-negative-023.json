@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Specialist Frontend Engineer 023",
+  "location": "Paris",
+  "remote_text": "On-site, five days per week",
+  "body_text": "Build web interfaces and design systems; relevant experience is not specified. The work is performed from the office. Applications are open.",
+  "apply_url": "https://jobs.example.test/en-negative-023",
+  "is_open_hint": true
+}

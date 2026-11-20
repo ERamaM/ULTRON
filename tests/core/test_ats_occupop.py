@@ -389,3 +389,13 @@ def test_diagnose_replays_an_occupop_link_from_the_job_json():
 def test_diagnose_reports_a_missing_occupop_job_as_closed():
     trace, _seen = _diagnose_with(lambda r: httpx.Response(200, json={"job": None}))
     assert [(t["stage"], t["passed"], t["reason"]) for t in trace] == [("fetch", False, "expired_or_closed")]
+
+
+def test_a_huge_tenant_description_is_bounded_per_posting():
+    # PR #66 security review: a hostile tenant's multi-MB description must not be kept whole per posting.
+    from ultron.core.ats.clients import occupop
+
+    payload = _detail(description="<p>" + "nurse " * 1_000_000 + "</p>")
+    job = occupop_job_from_detail(payload, "https://api.occupop.com/shared/job/x-1")
+    assert job is not None
+    assert len(job.body_text) <= occupop.MAX_BODY_CHARS

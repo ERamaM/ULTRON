@@ -232,6 +232,27 @@ def _http_client(handler) -> HttpClient:
     )
 
 
+def test_run_client_paces_hirehive_tenants_slowly():
+    # Session 5 (S5): ten HireHive boards verified 0.5 s apart, then the eleventh got HTTP 429 twice and the vendor
+    # breaker blocked HireHive. Every tenant shares one rate limit, so the run client spaces them out.
+    assert http_factory.VENDOR_MIN_INTERVALS.get("hirehive", 0) >= 3.0
+    clock = {"now": 0.0, "slept": []}
+
+    def sleep(seconds):
+        clock["slept"].append(seconds)
+        clock["now"] += seconds
+
+    run = {"settings": {"max_pages": 10, "max_seeds_per_run": 10, "max_requests_per_host": 5, "ats_api_timeout": 5,
+                        "max_requests_per_vendor": 50}}
+    client = http_factory.client_for_run(
+        run, transport=httpx.MockTransport(lambda r: httpx.Response(200, text=BOARD)),
+        resolver=lambda h, p: ["93.184.216.34"], sleep=sleep, clock=lambda: clock["now"], min_interval_per_host=0.0,
+    )
+    for board in ("examplecare", "othercare", "thirdcare"):
+        fetch_vendor_jobs("hirehive", board, client=client, timeout=5)
+    assert clock["slept"] == [http_factory.VENDOR_MIN_INTERVALS["hirehive"]] * 2
+
+
 def test_verify_hirehive_careers_url_queries_only_the_tenant_board():
     seen: list[str] = []
 

@@ -1,6 +1,6 @@
 ---
 name: ultron
-description: ULTRON (Universal Locator & Triage of Roles, Openings and Niches) runs job searches for the user. Use it when the user wants to find job offers, openings, vacancies or roles that match a profile or CV (job search, find jobs, remote roles, job openings, vacancies), wants to create or edit a job-search profile from a CV, or mentions ULTRON. It works for any role family and region (not only tech or Europe). It proposes and verifies companies, queries their ATS job boards (20 vendors) and structured job feeds, adds web-search results, filters and evaluates postings against the profile, and exports a ranked shortlist with new-since-last-run flags.
+description: ULTRON (Universal Locator & Triage of Roles, Openings and Niches) runs job searches for the user. Use it when the user wants to find job offers, openings, vacancies or roles that match a profile or CV (job search, find jobs, remote roles, job openings, vacancies), wants to create or edit a job-search profile from a CV, or mentions ULTRON. It works for any role family and region (not only tech or Europe). It proposes and verifies companies, queries their ATS job boards (22 vendors) and structured job feeds, adds web-search results, filters and evaluates postings against the profile, and exports a ranked shortlist with new-since-last-run flags.
 ---
 
 # ULTRON — Universal Locator & Triage of Roles, Openings and Niches
@@ -70,7 +70,7 @@ explicit `--profile` argument.
 | # | Who | Action | Load |
 |---|---|---|---|
 | 1 | CLI | `ultron run new --profile <slug> --preset <p>` → `run_id`, `query_plan`, `new_companies_target`, `seed_deficit` (above 0: generate seeds in rounds in step 2), `cold_start` (true: add ATS `site:` searches) | `references/search-workflow.md` (read once at start) |
-| 2 | you + CLI | `seed_deficit` above 0: loop `ultron seeds plan --run <id>` → write the requested proposals → `ultron seeds verify --run <id> --from <file> --round` while `more_rounds`. Otherwise propose companies (JSONL; 20 ATS vendors supported) → `ultron seeds verify --run <id> --from <file>`; retry unresolved | `references/seeds.md` |
+| 2 | you + CLI | `seed_deficit` above 0: loop `ultron seeds plan --run <id>` → write the requested proposals → `ultron seeds verify --run <id> --from <file> --round` while `more_rounds`. Otherwise propose companies (JSONL; 22 ATS vendors supported) → `ultron seeds verify --run <id> --from <file>`; retry unresolved | `references/seeds.md` |
 | 3 | CLI (+ you) | `ultron discover feeds --run <id>` (structured job feeds: candidates, ATS boards added as seeds, company names in `seed_proposals_from_feeds.jsonl`); then pass that file directly to `ultron seeds verify --run <id> --from <run>/seed_proposals_from_feeds.jsonl --limit <new_companies_target>` (instead of copying a subset) | `references/search-workflow.md` §3 |
 | 4 | you + CLI | web-search the `query_plan`, write posting URLs (JSONL) → `ultron candidates add --run <id> --from <file>` | `references/search-workflow.md` §4 |
 | 5 | CLI | `ultron discover ats --run <id>` (run after feed verification and web search: automatically verifies new ATS boards from `seed_proposals_from_search.jsonl`, saves them to the inventory, and queries all selected boards in this run) | `references/search-workflow.md` §5 |
@@ -120,7 +120,7 @@ filter → finalize with heuristics only (no web search, no evaluation).
 - Never set `evaluation_source` in verdicts; the CLI sets it (to `agent`).
 - Before step 1, read the profile's `location_scope.preferred`: European regions use the built-in
   EU rules; any other region (or none) uses only the profile's own eligibility/excluded terms.
-- Companies on ATSs outside the 20 supported ones cannot be queried directly; their postings can
+- Companies on ATSs outside the 22 supported ones cannot be queried directly; their postings can
   still arrive through web search.
 - Do not skip step 4 silently. If you have no web search tool (or it keeps failing), go on with step 5
   and tell the user in the summary that the run has no web-search results.

@@ -24,6 +24,8 @@ AtsVendorName = Literal[
     "icims",
     "taleo",
     "hirehive",
+    "occupop",
+    "candidatemanager",
 ]
 
 
@@ -191,6 +193,20 @@ VENDOR_DATA: tuple[AtsVendorData, ...] = (
         canonical_domain="hirehive.com",
         domains=("hirehive.com",),
         fingerprint_terms=("hirehive.com", "hh-job-listings", "hh-job-title"),
+    ),
+    AtsVendorData(
+        name="occupop",
+        label="Occupop",
+        canonical_domain="api.occupop.com",
+        domains=("occupop.com",),
+        fingerprint_terms=("api.occupop.com",),
+    ),
+    AtsVendorData(
+        name="candidatemanager",
+        label="CandidateManager",
+        canonical_domain="www.candidatemanager.net",
+        domains=("candidatemanager.net",),
+        fingerprint_terms=("candidatemanager.net", "masterpagebodycontentplaceholder_jobdetailsgroup"),
     ),
 )
 

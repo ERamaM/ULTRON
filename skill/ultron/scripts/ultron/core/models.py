@@ -109,6 +109,8 @@ class AtsBoardSeed(BaseModel):
         "icims",
         "taleo",
         "hirehive",
+        "occupop",
+        "candidatemanager",
     ]
     board_identifier: str
     enabled: bool = True

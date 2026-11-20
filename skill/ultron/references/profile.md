@@ -94,7 +94,7 @@ The scope is derived from `criteria.location_scope.preferred`:
 
 | `preferred` | scope | effect |
 |---|---|---|
-| contains a European region (Spain, EU, Europe, EMEA, ...) | `eu` | the built-in Spain/EU/Europe remote and eligibility rules apply (UK-only, US-only etc. are out of scope) |
+| contains a European region (EU, Europe, EMEA) or an EU/EEA country (Spain, Ireland, Germany, France, Norway...) | `eu` | the built-in Spain/EU/Europe remote and eligibility rules apply (UK-only, US-only etc. are out of scope) |
 | non-European regions (LATAM, Brazil, Canada, India...) | `other` | no EU geography filter; eligibility and exclusion come from the profile's own terms |
 | empty or missing | `global` | like `other`, with no preferred region |
 

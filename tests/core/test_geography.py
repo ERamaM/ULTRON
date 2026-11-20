@@ -12,7 +12,8 @@ from ultron.core.rules.geography import assess_geography, is_european_scope
         ("Remote EMEA", True),
         ("Europa", True),
         ("España", True),
-        ("Leuven, Belgium", False),
+        ("Leuven", False),
+        ("Leuven, Belgium", True),  # Belgium is an EU country; "eu" inside "Leuven" still does not count
         ("Neuquén", False),
         ("Remote LATAM", False),
         ("Seoul", False),
@@ -46,7 +47,7 @@ def test_positive_source_signal_overrides_conflict():
     assert not result.conflict
 
 
-@pytest.mark.parametrize("region", ["Leuven, Belgium", "Neuquén"])
+@pytest.mark.parametrize("region", ["Leuven", "Neuquén"])
 def test_heuristic_does_not_infer_europe_from_partial_region_name(region):
     from types import SimpleNamespace
 

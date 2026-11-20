@@ -68,7 +68,8 @@ company name and domain on the probed ATSs (below), and a guessed board must hav
 
 - a slug equal to the main label of the proposal's `domain` (`acme` for `careers.acme.com`) is accepted;
 - otherwise, for a name with two or more words (legal forms such as GmbH or Inc do not count), the ATS
-  must report the same company name in its postings (Greenhouse, Recruitee and SmartRecruiters do);
+  must report the same company name in its postings (only some ATS APIs include it, e.g. a
+  `company_name` field);
 - a one-word or short name ("Acme", "Acme GmbH") needs the domain slug.
 
 A guessed board that answers without that proof is not stored: it comes back as `ownership_unknown`

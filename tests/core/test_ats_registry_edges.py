@@ -83,6 +83,7 @@ def test_vendor_marketing_hosts_are_never_boards(url):
     ("https://acme.pinpointhq.com/postings/1", "acme"),
     ("https://acme.applytojob.com/apply/x", "acme"),
     ("https://www.comeet.com/jobs/acme/41.001", "acme"),
+    ("https://www.smartrecruiters.com/Acme/743999123456789-senior-engineer", "acme"),
 ])
 def test_tenant_hosts_next_to_marketing_hosts_still_give_boards(url, board):
     assert extract_seed_from_url(url, "Acme").board_identifier == board

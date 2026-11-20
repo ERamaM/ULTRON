@@ -76,7 +76,7 @@ def _warnings(profile: dict, criteria: dict, ignored_exclusions: list[str], plan
     for sector in dict.fromkeys(_list(criteria.get("sectors"))):
         if not profile_sector_values([sector]) <= known_sectors:
             out.append(f"criteria.sectors: {sector!r} is not a known sector ({', '.join(sorted(known_sectors))}); "
-                       "bundled seed packs then rank as non-matching")
+                       "it matches no bundled seed pack")
     return out
 
 

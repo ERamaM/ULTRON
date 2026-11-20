@@ -43,7 +43,7 @@ def _identity(candidate: dict) -> str:
 
 
 # Seed groups, in query order. ``other`` = profile-linked auto seeds that are neither agent nor feed seeds
-# (manual, imported) plus pack seeds outside the profile's sectors, which rank last.
+# (manual, imported). Pack seeds outside the profile's sectors or regions are never queried.
 GROUPS = ("agent", "pack", "other", "feed")
 FEED_SOURCE_TYPES = {"feed_discovered", "feed_company"}
 NON_FEED_RESERVE = 0.5
@@ -159,7 +159,9 @@ _US_STATE_CODE = re.compile(
 )
 # Scopes that fit every profile.
 GLOBAL_SCOPES = frozenset({"GLOBAL", "WORLDWIDE"})
-# ``_rank`` order of a pack seed scoped to another region: it is left out of the selection entirely.
+# ``_rank`` order of a pack seed that does not fit the profile (another sector or another region): it is left
+# out of the selection entirely, never queried as filler. A profile without a matching pack relies on the seeds
+# the agent generates for it (``ultron seeds plan``).
 EXCLUDED_RANK = 5
 
 
@@ -194,7 +196,11 @@ def seed_scope_fits(scope: str, profile: dict | None, *, geo: GeoScope | None = 
 
 
 def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu", region_text: str = "") -> tuple[int, str]:
-    """``(order, group)``: agent → pack matching sectors & region → other auto → feed → non-matching pack."""
+    """``(order, group)``: agent → pack matching sectors & region → other auto → feed; other packs are excluded.
+
+    A pack seed fits when the profile declares no sector or the seed has none, or they share one (free-text
+    profile sectors outside the vocabulary share none), and when its ``country_scope`` fits the profile.
+    """
     if profile_slug in seed.profiles:
         if seed.source_type == "agent_generated":
             return 0, "agent"
@@ -203,10 +209,9 @@ def _rank(seed, profile_slug: str, sectors: set[str], geo: GeoScope = "eu", regi
         return 2, "other"
     sector_match = not sectors or not seed.sectors or bool(sectors.intersection(seed.sectors))
     scope = str(getattr(seed, "country_scope", "") or "").strip().upper()
-    geo_match = seed_scope_fits(scope, None, geo=geo, region_text=region_text)
-    if not geo_match and scope in SCOPE_REGION_TERMS:
-        return EXCLUDED_RANK, "excluded"  # a pack for another region never fills this profile's slots
-    return (1, "pack") if (sector_match and geo_match) else (4, "other")
+    if sector_match and seed_scope_fits(scope, None, geo=geo, region_text=region_text):
+        return 1, "pack"
+    return EXCLUDED_RANK, "excluded"
 
 
 # Fewer seeds than this that fit the profile make a run a cold start: the skill then proposes more companies
@@ -220,7 +225,7 @@ def eligible_seed_count(profile_slug: str, profile: dict) -> int:
     geo = geo_scope(profile)
     region_text = _profile_region_text(profile)
     return sum(
-        1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo, region_text)[0] < 4
+        1 for seed in load_inventory(profile_slug) if _rank(seed, profile_slug, sectors, geo, region_text)[0] < EXCLUDED_RANK
     )
 
 

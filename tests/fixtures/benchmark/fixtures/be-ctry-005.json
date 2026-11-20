@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Staff Backend Engineer",
+  "location": "Portugal",
+  "remote_text": "Remote - Portugal",
+  "body_text": "Lead backend microservices in Go. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-005",
+  "is_open_hint": true
+}

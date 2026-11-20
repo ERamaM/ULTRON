@@ -5,16 +5,16 @@ language: es
 role_track: adjacent
 seniority: ambiguous
 remote_mode: eu
-eligibility_label: ineligible
+eligibility_label: confirmed
 vendor: greenhouse
 fixture: ../fixtures/es-adjacent-070.json
 split: dev
 labels:
-  relevant: false
+  relevant: null
   role_fit: null
   seniority_fit: null
   remote_fit: true
-  eligibility: ineligible
+  eligibility: confirmed
   open_status: true
-expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+expected_stage: unsure
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: undetermined (a data-platform role adjacent to AI does not establish the AI/ML family; the level is not stated).'

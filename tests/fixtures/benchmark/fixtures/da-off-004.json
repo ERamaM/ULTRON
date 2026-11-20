@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Product Designer",
+  "location": "Remote LATAM",
+  "remote_text": "Remote across Latin America",
+  "body_text": "Design analytics dashboards and reporting views with the data team. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-004",
+  "is_open_hint": true
+}

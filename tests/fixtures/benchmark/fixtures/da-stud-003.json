@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Data Analytics Trainee",
+  "location": "Remote LATAM",
+  "remote_text": "Remote within Latin America",
+  "body_text": "Trainee programme for graduates: SQL, dashboards and reporting. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-stud-003",
+  "is_open_hint": true
+}

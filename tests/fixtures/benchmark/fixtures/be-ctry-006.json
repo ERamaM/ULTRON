@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "Germany, Spain or Portugal",
+  "remote_text": "Remote in Germany, Spain or Portugal",
+  "body_text": "Build Python APIs for the travel platform. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-006",
+  "is_open_hint": true
+}

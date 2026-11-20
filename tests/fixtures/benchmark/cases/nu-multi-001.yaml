@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-multi-001
+profile: nurse-ireland-onsite
+language: en
+role_track: core
+seniority: ambiguous
+remote_mode: onsite
+eligibility_label: confirmed
+vendor: greenhouse
+fixture: ../fixtures/nu-multi-001.json
+split: dev
+labels:
+  relevant: true
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: keep
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against nurse-ireland-onsite: relevant (one on-site vacancy per hospital: distinct jobs in different Irish cities).'

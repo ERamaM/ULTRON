@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Staff Nurse - Theatre",
+  "location": "Dublin, Ireland",
+  "remote_text": "On-site",
+  "body_text": "Join the theatre team at our Dublin hospital. Perioperative patient care. Applications are open.",
+  "apply_url": "https://jobs.example.test/nu-multi-001",
+  "is_open_hint": true,
+  "employer": "hospital-group"
+}

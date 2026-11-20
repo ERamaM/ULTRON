@@ -5,7 +5,7 @@ language: es
 role_track: adjacent
 seniority: junior
 remote_mode: eu
-eligibility_label: ineligible
+eligibility_label: confirmed
 vendor: generic_html
 fixture: ../fixtures/es-adjacent-100.json
 split: dev
@@ -14,7 +14,7 @@ labels:
   role_fit: null
   seniority_fit: false
   remote_fit: true
-  eligibility: ineligible
+  eligibility: confirmed
   open_status: true
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (junior role (the profile requires senior)).'

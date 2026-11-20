@@ -5,7 +5,7 @@ language: en
 role_track: adjacent
 seniority: senior
 remote_mode: unknown
-eligibility_label: medium
+eligibility_label: unknown
 vendor: lever
 fixture: ../fixtures/en-adjacent-087.json
 split: test
@@ -14,7 +14,7 @@ labels:
   role_fit: null
   seniority_fit: true
   remote_fit: null
-  eligibility: medium
+  eligibility: unknown
   open_status: true
 expected_stage: unsure
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: undetermined (a data-platform role adjacent to AI does not establish the AI/ML family; the workplace arrangement is not stated).'

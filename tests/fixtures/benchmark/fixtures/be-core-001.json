@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Backend Engineer",
+  "location": "Spain",
+  "remote_text": "Remote - Spain",
+  "body_text": "Build Python APIs and microservices on PostgreSQL. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-core-001",
+  "is_open_hint": true
+}

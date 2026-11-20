@@ -1,0 +1,20 @@
+schema_version: 1
+id: ml-ctry-001
+profile: ml-engineering-remote-eu
+language: en
+role_track: core
+seniority: senior
+remote_mode: country
+eligibility_label: ineligible
+vendor: greenhouse
+fixture: ../fixtures/ml-ctry-001.json
+split: dev
+labels:
+  relevant: false
+  role_fit: true
+  seniority_fit: true
+  remote_fit: true
+  eligibility: ineligible
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against ml-engineering-remote-eu: not relevant (remote only across Germany; the profile is based in Spain).'

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Python Engineer",
+  "location": "Germany",
+  "remote_text": "Remote across Germany",
+  "body_text": "Own Python backend services for logistics. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-002",
+  "is_open_hint": true
+}

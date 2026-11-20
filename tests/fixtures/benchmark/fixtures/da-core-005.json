@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "json_api",
+  "vendor": "json_api",
+  "language": "es",
+  "title": "Analista de Datos Senior",
+  "location": "Argentina",
+  "remote_text": "Teletrabajo desde Argentina",
+  "body_text": "Crear tableros en Looker y consultas SQL para el equipo de producto. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-core-005",
+  "is_open_hint": true
+}

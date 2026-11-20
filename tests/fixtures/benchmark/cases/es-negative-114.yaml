@@ -5,7 +5,7 @@ language: es
 role_track: negative
 seniority: junior
 remote_mode: onsite
-eligibility_label: high
+eligibility_label: ineligible
 vendor: json_api
 fixture: ../fixtures/es-negative-114.json
 split: dev
@@ -14,7 +14,7 @@ labels:
   role_fit: false
   seniority_fit: false
   remote_fit: false
-  eligibility: high
+  eligibility: ineligible
   open_status: true
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (frontend engineering is outside the AI/ML family; junior role (the profile requires senior); onsite work (the profile requires full remote)).'

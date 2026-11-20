@@ -1,0 +1,20 @@
+schema_version: 1
+id: nu-off-004
+profile: nurse-ireland-onsite
+language: en
+role_track: negative
+seniority: junior
+remote_mode: onsite
+eligibility_label: confirmed
+vendor: json_api
+fixture: ../fixtures/nu-off-004.json
+split: dev
+labels:
+  relevant: false
+  role_fit: false
+  seniority_fit: true
+  remote_fit: true
+  eligibility: confirmed
+  open_status: true
+expected_stage: discard
+notes: 'Added on 2026-11-20 (owner-delegated labelling), labelled from the text against nurse-ireland-onsite: not relevant (a healthcare assistant is not a registered nurse).'

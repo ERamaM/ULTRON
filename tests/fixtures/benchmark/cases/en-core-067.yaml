@@ -5,7 +5,7 @@ language: en
 role_track: core
 seniority: manager
 remote_mode: eu
-eligibility_label: ineligible
+eligibility_label: confirmed
 vendor: greenhouse
 fixture: ../fixtures/en-core-067.json
 split: dev
@@ -14,7 +14,7 @@ labels:
   role_fit: true
   seniority_fit: false
   remote_fit: true
-  eligibility: ineligible
+  eligibility: confirmed
   open_status: true
 expected_stage: discard
-notes: Synthetic fixture with independently reviewed dimensional labels.
+notes: 'Relabelled on 2026-11-20 by the written rule in docs/self-improvement.md against ml-engineering-remote-eu: not relevant (manager-level role (the profile wants senior individual contributors)).'

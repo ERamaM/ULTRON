@@ -1,7 +1,1313 @@
 {
-  "case_count": 120,
+  "case_count": 183,
   "cases": [
     {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 1,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 5,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 15,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 14,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "high",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 90,
+        "rank": 16,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-core-006",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 2,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-ctry-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 6,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-ctry-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 7,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-ctry-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 8,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-ctry-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 9,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-ctry-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 10,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-ctry-006",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 3,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-ctry-007",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 11,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "eu",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-stud-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 94,
+        "rank": 12,
+        "reason": null,
+        "status": "unsure"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-stud-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 94,
+        "rank": 13,
+        "reason": null,
+        "status": "unsure"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "be-stud-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "discarded",
+        "filter_stage": "heuristic_evaluator",
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "be-stud-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 4,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "backend-engineer-spain-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 5,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 6,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 7,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 8,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-005",
+      "language": "es",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 9,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-006",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 23,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "worldwide",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-core-007",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 10,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": "da-dup-a",
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-dup-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 1,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": "da-dup-a",
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-dup-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 2,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": "da-dup-a",
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-dup-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 3,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": "da-dup-a",
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-dup-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 4,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": "da-dup-b",
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-dup-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 20,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": "da-dup-b",
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-dup-006",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 21,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": "da-dup-b",
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-dup-007",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 22,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-elig-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 24,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "us_only",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-elig-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 25,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-elig-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 26,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-elig-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 88,
+        "rank": 27,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "da-elig-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 11,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 12,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 13,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 14,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 15,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 16,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-off-006",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 17,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-stud-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 18,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-stud-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "seniority_not_senior",
+        "status": "discard"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "da-stud-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 19,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "data-analyst-remote-latam",
+      "remote_mode": "latam",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": false
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "en-adjacent-003",
@@ -11,10 +1317,11 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 5,
+        "rank": 8,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "dev",
@@ -29,26 +1336,28 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-009",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": false
@@ -56,7 +1365,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-015",
       "language": "en",
@@ -69,21 +1379,23 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": null,
         "seniority_fit": true
       },
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-021",
       "language": "en",
@@ -96,13 +1408,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -110,6 +1423,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-027",
@@ -123,6 +1437,7 @@
         "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "dev",
@@ -137,24 +1452,26 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-033",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -164,6 +1481,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "en-adjacent-039",
@@ -173,10 +1491,11 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 1,
+        "rank": 2,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
@@ -191,7 +1510,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-045",
       "language": "en",
@@ -204,21 +1524,23 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": null,
         "seniority_fit": false
       },
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-051",
       "language": "en",
@@ -231,13 +1553,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": true
@@ -245,26 +1568,28 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-057",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
         "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": null,
         "seniority_fit": false
@@ -272,6 +1597,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "en-adjacent-063",
@@ -281,15 +1607,16 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 6,
+        "rank": 9,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": null,
         "remote_fit": true,
@@ -299,24 +1626,26 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-069",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -326,7 +1655,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-075",
       "language": "en",
@@ -339,21 +1669,23 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": null,
         "seniority_fit": true
       },
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-081",
       "language": "en",
@@ -366,13 +1698,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -380,24 +1713,26 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "en-adjacent-087",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": null,
         "remote_fit": null,
@@ -407,26 +1742,28 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-093",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": false
@@ -434,7 +1771,8 @@
       "vendor": "ashby"
     },
     {
-      "expected_stage": "discard",
+      "duplicate_group": null,
+      "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "en-adjacent-099",
       "language": "en",
@@ -443,17 +1781,18 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 2,
+        "rank": 3,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": false,
+        "relevant": null,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": true
@@ -461,6 +1800,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-105",
@@ -474,6 +1814,7 @@
         "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "adjacent",
       "split": "dev",
@@ -481,14 +1822,15 @@
         "eligibility": "ineligible",
         "open_status": false,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": null,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-111",
       "language": "en",
@@ -501,13 +1843,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": true
@@ -515,26 +1858,28 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-adjacent-117",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": null,
         "seniority_fit": false
@@ -542,6 +1887,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-001",
@@ -555,6 +1901,7 @@
         "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "dev",
@@ -569,26 +1916,28 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
       "id": "en-core-007",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
       "truth": {
         "eligibility": "confirmed",
         "open_status": true,
-        "relevant": true,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
@@ -596,7 +1945,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-013",
       "language": "en",
@@ -609,21 +1959,23 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": true
       },
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-019",
       "language": "en",
@@ -636,13 +1988,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": false
@@ -650,7 +2003,8 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-025",
       "language": "en",
@@ -663,13 +2017,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -677,24 +2032,26 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-031",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -704,6 +2061,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
       "first_loss_stage": null,
       "id": "en-core-037",
@@ -713,10 +2071,11 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 3,
+        "rank": 4,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
@@ -731,7 +2090,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-043",
       "language": "en",
@@ -744,21 +2104,23 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-049",
       "language": "en",
@@ -771,13 +2133,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
         "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -785,7 +2148,8 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-055",
       "language": "en",
@@ -798,13 +2162,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": false
@@ -812,6 +2177,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
       "first_loss_stage": null,
       "id": "en-core-061",
@@ -821,15 +2187,16 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 90,
-        "rank": 7,
+        "rank": 10,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": true,
         "remote_fit": true,
@@ -839,24 +2206,26 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-067",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -866,7 +2235,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-073",
       "language": "en",
@@ -879,20 +2249,22 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": true
       },
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-079",
@@ -906,6 +2278,7 @@
         "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
@@ -920,7 +2293,8 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-085",
       "language": "en",
@@ -933,13 +2307,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -947,26 +2322,28 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
       "id": "en-core-091",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "seniority_not_senior",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": true,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
@@ -974,6 +2351,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
       "first_loss_stage": null,
       "id": "en-core-097",
@@ -983,15 +2361,16 @@
         "filter_stage": null,
         "match_band": "strong",
         "match_score": 100,
-        "rank": 4,
+        "rank": 5,
         "reason": null,
         "status": "keep"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": true,
         "remote_fit": true,
@@ -1001,6 +2380,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-103",
@@ -1014,6 +2394,7 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "test",
@@ -1021,14 +2402,15 @@
         "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-109",
       "language": "en",
@@ -1041,13 +2423,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -1055,7 +2438,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-core-115",
       "language": "en",
@@ -1068,13 +2452,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": false
@@ -1082,6 +2467,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-005",
@@ -1095,6 +2481,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "negative",
       "split": "test",
@@ -1109,6 +2496,7 @@
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-011",
@@ -1122,20 +2510,22 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": null
       },
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-017",
@@ -1149,11 +2539,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1163,6 +2554,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-023",
@@ -1176,11 +2568,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1190,6 +2583,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-029",
@@ -1203,11 +2597,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -1217,24 +2612,26 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-035",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -1244,6 +2641,7 @@
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-041",
@@ -1257,20 +2655,22 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-047",
@@ -1284,6 +2684,7 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
@@ -1298,6 +2699,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-053",
@@ -1311,11 +2713,12 @@
         "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": false,
         "relevant": false,
         "remote_fit": false,
@@ -1325,19 +2728,21 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-059",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
@@ -1352,6 +2757,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-065",
@@ -1365,11 +2771,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -1379,6 +2786,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-071",
@@ -1392,20 +2800,22 @@
         "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": null
       },
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-077",
@@ -1419,11 +2829,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1433,6 +2844,7 @@
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-083",
@@ -1446,11 +2858,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1460,6 +2873,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-089",
@@ -1473,11 +2887,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -1487,24 +2902,26 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-095",
       "language": "en",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -1514,6 +2931,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-101",
@@ -1527,6 +2945,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "dev",
@@ -1534,13 +2953,14 @@
         "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-107",
@@ -1554,11 +2974,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1568,6 +2989,7 @@
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-113",
@@ -1581,11 +3003,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -1595,6 +3018,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "en-negative-119",
@@ -1608,11 +3032,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -1622,7 +3047,8 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-004",
       "language": "es",
@@ -1635,13 +3061,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
         "eligibility": "confirmed",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": false
@@ -1649,6 +3076,7 @@
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-adjacent-010",
@@ -1662,11 +3090,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": null,
         "remote_fit": true,
@@ -1676,7 +3105,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-016",
       "language": "es",
@@ -1689,13 +3119,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -1703,7 +3134,8 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-022",
       "language": "es",
@@ -1716,13 +3148,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": null
@@ -1730,7 +3163,8 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-028",
       "language": "es",
@@ -1743,13 +3177,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
         "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": null,
         "seniority_fit": false
@@ -1757,7 +3192,8 @@
       "vendor": "ashby"
     },
     {
-      "expected_stage": "discard",
+      "duplicate_group": null,
+      "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-adjacent-034",
       "language": "es",
@@ -1770,13 +3206,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": false,
+        "relevant": null,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": null
@@ -1784,6 +3221,7 @@
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-040",
@@ -1794,9 +3232,10 @@
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
@@ -1811,7 +3250,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-046",
       "language": "es",
@@ -1824,13 +3264,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
         "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": null
@@ -1838,7 +3279,8 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-052",
       "language": "es",
@@ -1851,13 +3293,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -1865,6 +3308,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-adjacent-058",
@@ -1878,6 +3322,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "dev",
@@ -1892,6 +3337,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-064",
@@ -1905,11 +3351,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -1919,7 +3366,8 @@
       "vendor": "empty_dynamic"
     },
     {
-      "expected_stage": "discard",
+      "duplicate_group": null,
+      "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-adjacent-070",
       "language": "es",
@@ -1932,13 +3380,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": false,
+        "relevant": null,
         "remote_fit": true,
         "role_fit": null,
         "seniority_fit": null
@@ -1946,7 +3395,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-076",
       "language": "es",
@@ -1959,13 +3409,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -1973,7 +3424,8 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-082",
       "language": "es",
@@ -1986,13 +3438,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": null
@@ -2000,7 +3453,8 @@
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-088",
       "language": "es",
@@ -2013,13 +3467,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": null,
         "seniority_fit": false
@@ -2027,6 +3482,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-adjacent-094",
@@ -2040,11 +3496,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": null,
         "remote_fit": true,
@@ -2054,6 +3511,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-100",
@@ -2067,11 +3525,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -2081,7 +3540,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-106",
       "language": "es",
@@ -2094,13 +3554,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": null
@@ -2108,7 +3569,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-112",
       "language": "es",
@@ -2121,13 +3583,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "adjacent",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": null,
         "seniority_fit": false
@@ -2135,24 +3598,26 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-adjacent-118",
       "language": "es",
       "prediction": {
         "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_stage": "pre_filter",
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "adjacent",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "unknown",
         "open_status": false,
         "relevant": false,
         "remote_fit": null,
@@ -2162,19 +3627,21 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "first_loss_stage": "evaluator",
       "id": "es-core-002",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "dev",
@@ -2189,8 +3656,9 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "keep",
-      "first_loss_stage": "pre_filter",
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
       "id": "es-core-008",
       "language": "es",
       "prediction": {
@@ -2202,13 +3670,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "confirmed",
         "open_status": true,
-        "relevant": true,
+        "relevant": false,
         "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
@@ -2216,34 +3685,37 @@
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-014",
       "language": "es",
       "prediction": {
         "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_stage": "pre_filter",
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": false,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": true
       },
       "vendor": "lever"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-020",
       "language": "es",
@@ -2256,13 +3728,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": false
@@ -2270,19 +3743,21 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-core-026",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "core",
       "split": "test",
@@ -2297,6 +3772,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-032",
@@ -2310,11 +3786,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -2324,19 +3801,21 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "first_loss_stage": "evaluator",
       "id": "es-core-038",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
@@ -2351,7 +3830,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-044",
       "language": "es",
@@ -2364,21 +3844,23 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-050",
       "language": "es",
@@ -2391,13 +3873,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -2405,7 +3888,8 @@
       "vendor": "json_api"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-056",
       "language": "es",
@@ -2418,13 +3902,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": true,
         "seniority_fit": false
@@ -2432,24 +3917,26 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "first_loss_stage": "evaluator",
       "id": "es-core-062",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": true,
         "remote_fit": true,
@@ -2459,6 +3946,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-068",
@@ -2472,11 +3960,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -2486,34 +3975,37 @@
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-074",
       "language": "es",
       "prediction": {
         "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_stage": "pre_filter",
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
-        "relevant": null,
-        "remote_fit": false,
+        "relevant": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": true
       },
       "vendor": "greenhouse"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-080",
       "language": "es",
@@ -2526,13 +4018,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "dev",
       "truth": {
         "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": false
@@ -2540,24 +4033,26 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "unsure",
       "first_loss_stage": null,
       "id": "es-core-086",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": null,
         "remote_fit": null,
@@ -2567,6 +4062,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-092",
@@ -2577,14 +4073,15 @@
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "worldwide",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": false,
         "relevant": false,
         "remote_fit": true,
@@ -2594,24 +4091,26 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "keep",
-      "first_loss_stage": "heuristic_evaluator",
+      "first_loss_stage": "evaluator",
       "id": "es-core-098",
       "language": "es",
       "prediction": {
-        "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_route": "ambiguous",
+        "filter_stage": null,
         "match_band": null,
         "match_score": null,
         "rank": null,
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": true,
         "remote_fit": true,
@@ -2621,6 +4120,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-104",
@@ -2634,6 +4134,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "core",
       "split": "dev",
@@ -2641,14 +4142,15 @@
         "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": true,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-110",
       "language": "es",
@@ -2661,13 +4163,14 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "core",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": false,
         "role_fit": true,
         "seniority_fit": true
@@ -2675,7 +4178,8 @@
       "vendor": "generic_html"
     },
     {
-      "expected_stage": "unsure",
+      "duplicate_group": null,
+      "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-core-116",
       "language": "es",
@@ -2688,13 +4192,14 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "core",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "unknown",
         "open_status": true,
-        "relevant": null,
+        "relevant": false,
         "remote_fit": null,
         "role_fit": true,
         "seniority_fit": false
@@ -2702,6 +4207,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-006",
@@ -2715,6 +4221,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "negative",
       "split": "test",
@@ -2729,33 +4236,36 @@
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-012",
       "language": "es",
       "prediction": {
         "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_stage": "pre_filter",
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": null
       },
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-018",
@@ -2769,11 +4279,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "high",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -2783,6 +4294,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-024",
@@ -2796,11 +4308,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -2810,6 +4323,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-030",
@@ -2823,11 +4337,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -2837,6 +4352,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-036",
@@ -2850,6 +4366,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "negative",
       "split": "test",
@@ -2864,6 +4381,7 @@
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-042",
@@ -2877,20 +4395,22 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-048",
@@ -2904,6 +4424,7 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
@@ -2918,6 +4439,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-054",
@@ -2931,11 +4453,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -2945,6 +4468,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-060",
@@ -2958,6 +4482,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
@@ -2972,6 +4497,7 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-066",
@@ -2982,14 +4508,15 @@
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "expired_or_closed",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "ineligible",
+        "eligibility": "confirmed",
         "open_status": false,
         "relevant": false,
         "remote_fit": true,
@@ -2999,33 +4526,36 @@
       "vendor": "empty_dynamic"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-072",
       "language": "es",
       "prediction": {
         "filter_route": "discarded",
-        "filter_stage": "heuristic_evaluator",
+        "filter_stage": "pre_filter",
         "match_band": null,
         "match_score": null,
         "rank": null,
-        "reason": "non_matching_role_family",
+        "reason": "non_eu_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": null
       },
       "vendor": "greenhouse"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-078",
@@ -3039,6 +4569,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
@@ -3053,6 +4584,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-084",
@@ -3066,11 +4598,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -3080,6 +4613,7 @@
       "vendor": "lever"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-090",
@@ -3093,11 +4627,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -3107,6 +4642,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-096",
@@ -3120,11 +4656,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "eu",
       "role_track": "negative",
       "split": "test",
       "truth": {
-        "eligibility": "unknown",
+        "eligibility": "confirmed",
         "open_status": true,
         "relevant": false,
         "remote_fit": true,
@@ -3134,6 +4671,7 @@
       "vendor": "ashby"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-102",
@@ -3147,6 +4685,7 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "us_only",
       "role_track": "negative",
       "split": "dev",
@@ -3154,13 +4693,14 @@
         "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
-        "remote_fit": false,
+        "remote_fit": true,
         "role_fit": false,
         "seniority_fit": false
       },
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-108",
@@ -3174,11 +4714,12 @@
         "reason": "hybrid_or_not_explicit_remote",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "hybrid",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "confirmed",
+        "eligibility": "high",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -3188,6 +4729,7 @@
       "vendor": "generic_html"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-114",
@@ -3201,11 +4743,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "onsite",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "high",
+        "eligibility": "ineligible",
         "open_status": true,
         "relevant": false,
         "remote_fit": false,
@@ -3215,6 +4758,7 @@
       "vendor": "json_api"
     },
     {
+      "duplicate_group": null,
       "expected_stage": "discard",
       "first_loss_stage": null,
       "id": "es-negative-120",
@@ -3228,11 +4772,12 @@
         "reason": "non_matching_role_family",
         "status": "discard"
       },
+      "profile": "ml-engineering-remote-eu",
       "remote_mode": "unknown",
       "role_track": "negative",
       "split": "dev",
       "truth": {
-        "eligibility": "medium",
+        "eligibility": "unknown",
         "open_status": true,
         "relevant": false,
         "remote_fit": null,
@@ -3240,93 +4785,731 @@
         "seniority_fit": null
       },
       "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "ml-ctry-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 6,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "ml-engineering-remote-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "ml-ctry-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 7,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "ml-engineering-remote-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "ml-ctry-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 1,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "ml-engineering-remote-eu",
+      "remote_mode": "country",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-core-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 5,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-core-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 6,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-core-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 7,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-core-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 8,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-elig-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 100,
+        "rank": 1,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-elig-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 9,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-elig-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 10,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "ineligible",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-multi-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 2,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-multi-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 3,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "keep",
+      "first_loss_stage": null,
+      "id": "nu-multi-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 4,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "core",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": true,
+        "remote_fit": true,
+        "role_fit": true,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-off-001",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 11,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-off-002",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 12,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "lever"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-off-003",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": "strong",
+        "match_score": 86,
+        "rank": 13,
+        "reason": null,
+        "status": "keep"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "ashby"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-off-004",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "dev",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "json_api"
+    },
+    {
+      "duplicate_group": null,
+      "expected_stage": "discard",
+      "first_loss_stage": null,
+      "id": "nu-off-005",
+      "language": "en",
+      "prediction": {
+        "filter_route": "ambiguous",
+        "filter_stage": null,
+        "match_band": null,
+        "match_score": null,
+        "rank": null,
+        "reason": "non_matching_role_family",
+        "status": "discard"
+      },
+      "profile": "nurse-ireland-onsite",
+      "remote_mode": "onsite",
+      "role_track": "negative",
+      "split": "test",
+      "truth": {
+        "eligibility": "confirmed",
+        "open_status": true,
+        "relevant": false,
+        "remote_fit": true,
+        "role_fit": false,
+        "seniority_fit": true
+      },
+      "vendor": "greenhouse"
     }
   ],
-  "corpus_version": "2026-07-09.1",
+  "corpus_version": "2026-11-20.1",
   "metrics": {
-    "agent_queue": 7,
+    "agent_queue": 89,
     "classification": {
-      "abstention_rate": 0.0,
+      "abstention_rate": 0.011235955056179775,
       "confusion_matrix": {
-        "fn": 7,
-        "fp": 1,
-        "tn": 60,
-        "tp": 3
+        "fn": 4,
+        "fp": 26,
+        "tn": 107,
+        "tp": 29
       },
-      "f1": 0.4285714285714285,
-      "false_negative_rate": 0.7,
-      "false_positive_rate": 0.01639344262295082,
-      "precision": 0.75,
-      "recall": 0.3,
-      "sample_size": 71
+      "f1": 0.6590909090909091,
+      "false_negative_rate": 0.12121212121212122,
+      "false_positive_rate": 0.19548872180451127,
+      "precision": 0.5272727272727272,
+      "recall": 0.8787878787878788,
+      "sample_size": 166
     },
+    "duplicate_rows": 5,
     "first_loss_counts": {
-      "heuristic_evaluator": 6,
-      "pre_filter": 1
+      "evaluator": 4
     },
     "outcomes": {
-      "discard": 113,
-      "keep": 7
+      "discard": 117,
+      "keep": 64,
+      "unsure": 2
     },
     "ranking": {
-      "mrr": 0.3333333333333333,
-      "ndcg_at_10": 0.2781981696179509,
-      "precision_at_10": 0.3,
-      "precision_at_5": 0.4,
-      "recall_at_10": 0.3,
-      "relevant_total": 10,
-      "shortlist_size": 7
+      "backend-engineer-spain-eu": {
+        "duplicate_rows": 0,
+        "mrr": 1.0,
+        "ndcg_at_10": 0.6930221935231563,
+        "precision_at_10": 0.5,
+        "precision_at_5": 1.0,
+        "recall_at_10": 0.5555555555555556,
+        "relevant_total": 9,
+        "shortlist_size": 16
+      },
+      "data-analyst-remote-latam": {
+        "duplicate_rows": 5,
+        "mrr": 1.0,
+        "ndcg_at_10": 0.7008947874285988,
+        "precision_at_10": 0.7,
+        "precision_at_5": 0.4,
+        "recall_at_10": 0.7777777777777778,
+        "relevant_total": 9,
+        "shortlist_size": 27
+      },
+      "ml-engineering-remote-eu": {
+        "duplicate_rows": 0,
+        "mrr": 1.0,
+        "ndcg_at_10": 0.5328476284644834,
+        "precision_at_10": 0.4,
+        "precision_at_5": 0.6,
+        "recall_at_10": 0.5,
+        "relevant_total": 8,
+        "shortlist_size": 10
+      },
+      "nurse-ireland-onsite": {
+        "duplicate_rows": 0,
+        "mrr": 0.5,
+        "ndcg_at_10": 0.8118374955798289,
+        "precision_at_10": 0.7,
+        "precision_at_5": 0.8,
+        "recall_at_10": 1.0,
+        "relevant_total": 7,
+        "shortlist_size": 13
+      }
     },
     "slices": {
       "language": {
         "en": {
-          "abstention_rate": 0.0,
+          "abstention_rate": 0.017094017094017096,
           "confusion_matrix": {
-            "fn": 2,
-            "fp": 1,
-            "tn": 29,
-            "tp": 3
+            "fn": 0,
+            "fp": 26,
+            "tn": 58,
+            "tp": 28
           },
-          "f1": 0.6666666666666665,
-          "false_negative_rate": 0.4,
-          "false_positive_rate": 0.03333333333333333,
-          "precision": 0.75,
-          "recall": 0.6,
-          "sample_size": 35,
+          "f1": 0.6829268292682926,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.30952380952380953,
+          "precision": 0.5185185185185185,
+          "recall": 1.0,
+          "sample_size": 112,
           "status": "measured"
         },
         "es": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
-            "fn": 5,
+            "fn": 4,
             "fp": 0,
-            "tn": 31,
-            "tp": 0
+            "tn": 49,
+            "tp": 1
           },
-          "f1": 0.0,
-          "false_negative_rate": 1.0,
+          "f1": 0.33333333333333337,
+          "false_negative_rate": 0.8,
           "false_positive_rate": 0.0,
-          "precision": 0.0,
-          "recall": 0.0,
-          "sample_size": 36,
+          "precision": 1.0,
+          "recall": 0.2,
+          "sample_size": 54,
+          "status": "measured"
+        }
+      },
+      "profile": {
+        "backend-engineer-spain-eu": {
+          "abstention_rate": 0.11764705882352941,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 5,
+            "tn": 3,
+            "tp": 9
+          },
+          "f1": 0.782608695652174,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.625,
+          "precision": 0.6428571428571429,
+          "recall": 1.0,
+          "sample_size": 17,
+          "status": "measured"
+        },
+        "data-analyst-remote-latam": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 13,
+            "tn": 1,
+            "tp": 9
+          },
+          "f1": 0.5806451612903226,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.9285714285714286,
+          "precision": 0.4090909090909091,
+          "recall": 1.0,
+          "sample_size": 23,
+          "status": "measured"
+        },
+        "ml-engineering-remote-eu": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 4,
+            "fp": 2,
+            "tn": 101,
+            "tp": 4
+          },
+          "f1": 0.5714285714285715,
+          "false_negative_rate": 0.5,
+          "false_positive_rate": 0.019417475728155338,
+          "precision": 0.6666666666666666,
+          "recall": 0.5,
+          "sample_size": 111,
+          "status": "measured"
+        },
+        "nurse-ireland-onsite": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 6,
+            "tn": 2,
+            "tp": 7
+          },
+          "f1": 0.7000000000000001,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.75,
+          "precision": 0.5384615384615384,
+          "recall": 1.0,
+          "sample_size": 15,
           "status": "measured"
         }
       },
       "region": {
+        "country": {
+          "abstention_rate": 0.09090909090909091,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 11,
+            "tn": 3,
+            "tp": 8
+          },
+          "f1": 0.5925925925925926,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.7857142857142857,
+          "precision": 0.42105263157894735,
+          "recall": 1.0,
+          "sample_size": 22,
+          "status": "measured"
+        },
         "eu": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
-            "fn": 4,
-            "fp": 1,
-            "tn": 10,
-            "tp": 2
+            "fn": 2,
+            "fp": 0,
+            "tn": 12,
+            "tp": 7
           },
-          "f1": 0.4444444444444444,
-          "false_negative_rate": 0.6666666666666666,
-          "false_positive_rate": 0.09090909090909091,
-          "precision": 0.6666666666666666,
-          "recall": 0.3333333333333333,
-          "sample_size": 17,
+          "f1": 0.8750000000000001,
+          "false_negative_rate": 0.2222222222222222,
+          "false_positive_rate": 0.0,
+          "precision": 1.0,
+          "recall": 0.7777777777777778,
+          "sample_size": 21,
           "status": "measured"
         },
         "hybrid": {
@@ -3334,7 +5517,7 @@
           "confusion_matrix": {
             "fn": 0,
             "fp": 0,
-            "tn": 9,
+            "tn": 20,
             "tp": 0
           },
           "f1": 0.0,
@@ -3342,31 +5525,47 @@
           "false_positive_rate": 0.0,
           "precision": 0.0,
           "recall": 0.0,
-          "sample_size": 9,
-          "status": "insufficient_sample"
+          "sample_size": 20,
+          "status": "measured"
+        },
+        "latam": {
+          "abstention_rate": 0.0,
+          "confusion_matrix": {
+            "fn": 0,
+            "fp": 8,
+            "tn": 1,
+            "tp": 4
+          },
+          "f1": 0.5,
+          "false_negative_rate": 0.0,
+          "false_positive_rate": 0.8888888888888888,
+          "precision": 0.3333333333333333,
+          "recall": 1.0,
+          "sample_size": 13,
+          "status": "measured"
         },
         "onsite": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 8,
-            "tp": 0
+            "fp": 6,
+            "tn": 22,
+            "tp": 7
           },
-          "f1": 0.0,
+          "f1": 0.7000000000000001,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
-          "precision": 0.0,
-          "recall": 0.0,
-          "sample_size": 8,
-          "status": "insufficient_sample"
+          "false_positive_rate": 0.21428571428571427,
+          "precision": 0.5384615384615384,
+          "recall": 1.0,
+          "sample_size": 35,
+          "status": "measured"
         },
         "unknown": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
             "fp": 0,
-            "tn": 10,
+            "tn": 16,
             "tp": 0
           },
           "f1": 0.0,
@@ -3374,39 +5573,39 @@
           "false_positive_rate": 0.0,
           "precision": 0.0,
           "recall": 0.0,
-          "sample_size": 10,
+          "sample_size": 16,
           "status": "measured"
         },
         "us_only": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 12,
+            "fp": 1,
+            "tn": 20,
             "tp": 0
           },
           "f1": 0.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
+          "false_positive_rate": 0.047619047619047616,
           "precision": 0.0,
           "recall": 0.0,
-          "sample_size": 12,
+          "sample_size": 21,
           "status": "measured"
         },
         "worldwide": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
-            "fn": 3,
+            "fn": 2,
             "fp": 0,
-            "tn": 11,
-            "tp": 1
+            "tn": 13,
+            "tp": 3
           },
-          "f1": 0.4,
-          "false_negative_rate": 0.75,
+          "f1": 0.7499999999999999,
+          "false_negative_rate": 0.4,
           "false_positive_rate": 0.0,
           "precision": 1.0,
-          "recall": 0.25,
-          "sample_size": 15,
+          "recall": 0.6,
+          "sample_size": 18,
           "status": "measured"
         }
       },
@@ -3415,48 +5614,48 @@
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 1,
-            "tn": 10,
+            "fp": 0,
+            "tn": 30,
             "tp": 0
           },
           "f1": 0.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.09090909090909091,
+          "false_positive_rate": 0.0,
           "precision": 0.0,
           "recall": 0.0,
-          "sample_size": 11,
+          "sample_size": 30,
           "status": "measured"
         },
         "core": {
-          "abstention_rate": 0.0,
+          "abstention_rate": 0.023255813953488372,
           "confusion_matrix": {
-            "fn": 7,
-            "fp": 0,
-            "tn": 10,
-            "tp": 3
+            "fn": 4,
+            "fp": 16,
+            "tn": 35,
+            "tp": 29
           },
-          "f1": 0.4615384615384615,
-          "false_negative_rate": 0.7,
-          "false_positive_rate": 0.0,
-          "precision": 1.0,
-          "recall": 0.3,
-          "sample_size": 20,
+          "f1": 0.7435897435897436,
+          "false_negative_rate": 0.12121212121212122,
+          "false_positive_rate": 0.3137254901960784,
+          "precision": 0.6444444444444445,
+          "recall": 0.8787878787878788,
+          "sample_size": 84,
           "status": "measured"
         },
         "negative": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 40,
+            "fp": 10,
+            "tn": 42,
             "tp": 0
           },
           "f1": 0.0,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
+          "false_positive_rate": 0.19230769230769232,
           "precision": 0.0,
           "recall": 0.0,
-          "sample_size": 40,
+          "sample_size": 52,
           "status": "measured"
         }
       },
@@ -3464,17 +5663,17 @@
         "ashby": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
-            "fn": 2,
-            "fp": 1,
-            "tn": 13,
-            "tp": 1
+            "fn": 1,
+            "fp": 6,
+            "tn": 19,
+            "tp": 6
           },
-          "f1": 0.4,
-          "false_negative_rate": 0.6666666666666666,
-          "false_positive_rate": 0.07142857142857142,
+          "f1": 0.631578947368421,
+          "false_negative_rate": 0.14285714285714285,
+          "false_positive_rate": 0.24,
           "precision": 0.5,
-          "recall": 0.3333333333333333,
-          "sample_size": 17,
+          "recall": 0.8571428571428571,
+          "sample_size": 32,
           "status": "measured"
         },
         "empty_dynamic": {
@@ -3482,7 +5681,7 @@
           "confusion_matrix": {
             "fn": 1,
             "fp": 0,
-            "tn": 5,
+            "tn": 7,
             "tp": 1
           },
           "f1": 0.6666666666666666,
@@ -3490,7 +5689,7 @@
           "false_positive_rate": 0.0,
           "precision": 1.0,
           "recall": 0.5,
-          "sample_size": 7,
+          "sample_size": 9,
           "status": "insufficient_sample"
         },
         "generic_html": {
@@ -3498,7 +5697,7 @@
           "confusion_matrix": {
             "fn": 1,
             "fp": 0,
-            "tn": 14,
+            "tn": 18,
             "tp": 1
           },
           "f1": 0.6666666666666666,
@@ -3506,56 +5705,56 @@
           "false_positive_rate": 0.0,
           "precision": 1.0,
           "recall": 0.5,
-          "sample_size": 16,
+          "sample_size": 20,
           "status": "measured"
         },
         "greenhouse": {
-          "abstention_rate": 0.0,
+          "abstention_rate": 0.023809523809523808,
           "confusion_matrix": {
-            "fn": 3,
-            "fp": 0,
-            "tn": 11,
-            "tp": 0
+            "fn": 1,
+            "fp": 7,
+            "tn": 20,
+            "tp": 11
           },
-          "f1": 0.0,
-          "false_negative_rate": 1.0,
-          "false_positive_rate": 0.0,
-          "precision": 0.0,
-          "recall": 0.0,
-          "sample_size": 14,
+          "f1": 0.7333333333333334,
+          "false_negative_rate": 0.08333333333333333,
+          "false_positive_rate": 0.25925925925925924,
+          "precision": 0.6111111111111112,
+          "recall": 0.9166666666666666,
+          "sample_size": 39,
           "status": "measured"
         },
         "json_api": {
           "abstention_rate": 0.0,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 9,
-            "tp": 0
+            "fp": 4,
+            "tn": 22,
+            "tp": 4
           },
-          "f1": 0.0,
+          "f1": 0.6666666666666666,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
-          "precision": 0.0,
-          "recall": 0.0,
-          "sample_size": 9,
-          "status": "insufficient_sample"
+          "false_positive_rate": 0.15384615384615385,
+          "precision": 0.5,
+          "recall": 1.0,
+          "sample_size": 30,
+          "status": "measured"
         },
         "lever": {
-          "abstention_rate": 0.0,
+          "abstention_rate": 0.02631578947368421,
           "confusion_matrix": {
             "fn": 0,
-            "fp": 0,
-            "tn": 8,
-            "tp": 0
+            "fp": 9,
+            "tn": 21,
+            "tp": 6
           },
-          "f1": 0.0,
+          "f1": 0.5714285714285715,
           "false_negative_rate": 0.0,
-          "false_positive_rate": 0.0,
-          "precision": 0.0,
-          "recall": 0.0,
-          "sample_size": 8,
-          "status": "insufficient_sample"
+          "false_positive_rate": 0.3,
+          "precision": 0.4,
+          "recall": 1.0,
+          "sample_size": 36,
+          "status": "measured"
         }
       }
     }

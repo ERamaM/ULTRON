@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior Python/React Fullstack Engineer - Remote, Latin America",
+  "location": "Buenos Aires, Argentina",
+  "remote_text": "Fully remote within Latin America",
+  "body_text": "Build product features in Python and React; write SQL and maintain internal dashboards. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-dup-006",
+  "is_open_hint": true,
+  "employer": "software-co"
+}

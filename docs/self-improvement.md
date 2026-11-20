@@ -105,7 +105,7 @@ fixed folder, `<system temp>/ultron-eval`. On the command line a report is a pla
 (`--output candidate.json`), never a path. A name with a folder or `..` is rejected with exit
 code `2`. The tool prints where it wrote the report.
 
-### Labelled benchmark (120 cases)
+### Labelled benchmark (183 cases)
 
 ```sh
 uv run python tools/quality_benchmark.py validate
@@ -120,36 +120,58 @@ gates passed, `1` regression, `2` invalid corpus or report.
 The gates are:
 
 - Global precision, recall or F1 dropping by more than 1 point is a regression.
-- In a slice (language, region, vendor, role track) with at least 10 labelled cases, precision,
+- In a slice (language, region, vendor, role track, profile) with at least 10 labelled cases, precision,
   recall or F1 dropping by more than 5 points is a regression. Smaller slices are reported as
   `insufficient_sample` and are never presented as an improvement.
 - A relevant case that the baseline kept and the candidate loses is a regression ("new false
   negative"), unless it is justified with `--allow-case <id>` and explained in the PR.
 
-The report also gives the false-negative rate, P@5, P@10, recall@10, MRR, NDCG@10, the number
-of postings routed to the agent queue, and the first losing stage of every relevant case that
+The report also gives the false-negative rate, P@5, P@10, recall@10, MRR and NDCG@10 per profile
+(ranks are only comparable within one profile's replay), the number of duplicate shortlist rows,
+the number of postings routed to the agent queue, and the first losing stage of every relevant case that
 did not end as a confident keep. That stage is a filter stage (`pre_filter`,
 `heuristic_evaluator`, `hard_filter`), a finalize stage (`evaluator`, `post_eval_geo`, `dedup`,
 `final_cap`), or `unsure_in_shortlist`.
 
-The corpus in `tests/fixtures/benchmark/` is synthetic. It came from the deterministic template
-generator of the MARK II project: every text is templated, every URL is on
-`jobs.example.test`, and no case describes a real person or company. It maps to ULTRON's
-pipeline as follows:
+The corpus in `tests/fixtures/benchmark/` is synthetic. Its first 120 cases came from the
+deterministic template generator of the MARK II project; 63 hand-written cases added on
+2026-11-20 cover other profiles. Every URL is on `jobs.example.test`, and no case describes a
+real person or company. It maps to ULTRON's pipeline as follows:
 
 | Corpus | ULTRON |
 |---|---|
 | fixture `title`, `location`, `remote_text`, `body_text`, `is_open_hint` | `ExtractedJob` fields; `apply_available` follows `is_open_hint` |
-| fixture `apply_url` | `apply_url` and identity; the company is `Synthetic Employer <case id>` |
+| fixture `apply_url` | `apply_url` and identity |
+| fixture `employer` (optional) | the company is `Synthetic Employer <employer>` and the board `<vendor>:<employer>`; without it, the case id is used, so every case is its own employer |
 | `vendor` | a vendor-API posting (`source_type: ats_api`), so the ATS-domain allowlist does not apply; the vendor is only a slice |
-| `profile: ml-engineering-remote-eu` | the bundled example profile `tests/fixtures/profiles/ai-ml-remote-eu.yaml` |
+| `profile` | `ml-engineering-remote-eu` is the bundled example profile `tests/fixtures/profiles/ai-ml-remote-eu.yaml`; every other profile is `tests/fixtures/benchmark/profiles/<profile>.yaml`. Each profile is replayed on its own, and it is also a slice |
 | `remote_mode` | the `region` slice |
+| `duplicate_group` (optional) | one posting listed several times (one row per city). Its members share one label and count as one unit: the unit is kept when any member is kept, and every further row of it in a shortlist is a duplicate row |
 | `labels.relevant: true / false` | positive / negative; `null` is left out of the binary metrics |
 | prediction | the shortlist after `filter` + `finalize` with the `balanced` preset and no agent: a `keep` row is a positive, an `unsure` row is an abstention, anything else is a negative |
-| ranking | the shortlist order finalize produced |
+| ranking | the shortlist order finalize produced, per profile |
 
 The labels are human-owned. No tool writes them. Change a label only by hand, with the reason
 in the PR, and never to match what the code currently outputs.
+
+**Labelling rule.** A case is `relevant: true` when its posting text fits its case profile on
+every dimension: the role family, the level the profile accepts (`seniority`), the remote policy,
+the location scope (someone living in the profile's target countries or regions can apply) and an
+open application. It is `false` when the text shows any dimension does not fit (a closed posting,
+another family, an excluded level, hybrid or on-site work for a remote-only profile, a residence
+requirement outside the scope). It is `null` when the text leaves a dimension undetermined and
+nothing else rules the posting out (an adjacent family, an unstated level or workplace).
+
+**Delegated relabelling (2026-11-20).** The owner delegated one relabelling of the benchmark to an
+agent on 2026-11-20. Under the rule above, 46 of the 120 legacy cases changed their `relevant`
+label: manager roles were relevant against a profile that excludes managers, and on-site, hybrid
+and US-only postings were `null`. The 63 new cases (a data-analyst profile with a Latin American
+scope, a backend profile based in Spain, an on-site nursing profile in Ireland, and
+country-restricted ML postings) were labelled from their text before they were replayed. In the
+60-case labels, three remote-EMEA cases and a distinguished-level case became relevant, and a case
+whose only location is a Belgian city became ambiguous. The same day the owner also asked for five
+profile-conditioned quality fixes in one session; this one-time override of the two-change cap
+of the QUALITY gate is recorded in that pull request. The cap itself is unchanged.
 
 To update the baseline after an accepted change, run
 `uv run python tools/quality_benchmark.py run --update-baseline` and put the before/after
@@ -196,30 +218,29 @@ repository for this reason.
 
 ### Current baseline
 
-Measured on this charter's introduction (`balanced` preset, no agent):
+Relabelled baseline of 2026-11-20 (`balanced` preset, no agent), before that day's quality fixes:
 
 | Benchmark | Value |
 |---|---|
-| 120-case precision / recall / F1 | 0.750 / 0.300 / 0.429 (tp 3, fp 1, fn 7, tn 60) |
-| 120-case P@5 / P@10 / MRR / NDCG@10 | 0.400 / 0.300 / 0.333 / 0.278 |
-| 120-case first losing stage | `heuristic_evaluator` 6, `pre_filter` 1 |
-| 60-case relevant | 14 kept, 0 unsure, 3 discarded |
-| 60-case not relevant | 5 kept, 0 unsure, 16 discarded |
-| 60-case ambiguous | 6 kept, 3 unsure, 13 discarded |
+| 183-case precision / recall / F1 | 0.527 / 0.879 / 0.659 (tp 29, fp 26, fn 4, tn 107), 5 duplicate rows |
+| per profile (P / R) | ML 0.667 / 0.500, data analyst 0.409 / 1.000, backend 0.643 / 1.000, nurse 0.538 / 1.000 |
+| 60-case relevant | 20 kept, 0 unsure, 0 discarded |
+| 60-case not relevant | 1 kept, 0 unsure, 20 discarded |
+| 60-case ambiguous | 3 kept, 3 unsure, 13 discarded |
 
-Known limits of the 120-case corpus:
+The legacy 120 cases with their original labels measured 0.750 / 0.300 / 0.429 (tp 3, fp 1,
+fn 7, tn 60). The pull request that applies a quality change records its before and after
+numbers; `baseline.json` always holds the latest accepted state.
 
-- Only 10 cases are labelled relevant, so one case moves recall by 10 points. Several slices with
-  10 or more labelled cases have no relevant case at all.
-- `relevant` ignores seniority. 3 of the 10 relevant cases are manager-level roles, but the
-  example profile excludes managers. Two of the misses are these cases.
-- `eligibility_label` does not appear in the fixture text.
-- Spanish core titles are templated as "Senior Ingenieria Machine Learning". Five of the seven
-  misses are these titles failing role-family matching, which may be an artifact of the
-  template.
+Known limits of the corpus:
 
-Review these labels by hand before reading recall as an absolute number. As they are, they work
-as a regression gate.
+- The legacy 120 cases are templated for one ML profile. Spanish core titles read "Senior
+  Ingenieria Machine Learning", and the four ML misses are these titles failing role-family
+  matching, which may be an artifact of the template.
+- `eligibility_label` does not appear in the legacy fixture text; it records the rule's reading of
+  `remote_mode`.
+- The added profiles have 15 to 23 labelled cases each, so one case moves a profile's recall by
+  about 10 points.
 
 ## Vendor no-go decisions
 

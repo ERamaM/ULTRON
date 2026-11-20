@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "lever",
+  "vendor": "lever",
+  "language": "en",
+  "title": "Senior Go Engineer",
+  "location": "Warsaw, Poland",
+  "remote_text": "Remote (Poland)",
+  "body_text": "Build Go microservices for retail. Applications are open.",
+  "apply_url": "https://jobs.example.test/be-ctry-003",
+  "is_open_hint": true
+}

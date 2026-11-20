@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "greenhouse",
+  "vendor": "greenhouse",
+  "language": "en",
+  "title": "Senior Data Analyst - Remote, Latin America",
+  "location": "Sao Paulo, Brazil",
+  "remote_text": "Fully remote within Latin America",
+  "body_text": "Write SQL, build Looker dashboards and recurring reporting for product teams. Hiring across Latin America. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-dup-004",
+  "is_open_hint": true,
+  "employer": "analytics-co"
+}

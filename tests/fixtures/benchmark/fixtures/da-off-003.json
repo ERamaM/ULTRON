@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "source_kind": "ashby",
+  "vendor": "ashby",
+  "language": "en",
+  "title": "Senior Data Engineer",
+  "location": "Remote LATAM",
+  "remote_text": "Remote within Latin America",
+  "body_text": "Build pipelines that feed Looker dashboards; SQL and dbt; reporting reliability. Applications are open.",
+  "apply_url": "https://jobs.example.test/da-off-003",
+  "is_open_hint": true
+}

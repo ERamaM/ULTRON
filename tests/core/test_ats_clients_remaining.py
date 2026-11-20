@@ -233,6 +233,29 @@ def test_bamboohr_html_fallback():
     assert _fields(out) == [("QA", "https://acme.bamboohr.com/careers/9", "Remote", None)]
 
 
+def test_bamboohr_empty_json_list_is_an_empty_board_without_the_html_fallback():
+    client = FakeClient({"result": []}, "<html>never read</html>")
+    assert fetch("bamboohr", "acme", client) == []
+    assert client.urls == ["https://acme.bamboohr.com/careers/list"]
+
+
+class _UnknownBambooTenant(FakeClient):
+    # An unknown tenant redirects to the vendor's marketing site: the JSON call fails, the page is marketing HTML.
+    def request_json(self, url, method="GET", json_body=None, timeout=None):
+        self.urls.append(url)
+        raise ValueError("response was not valid JSON")
+
+    def request_text(self, url, timeout=None):
+        self.urls.append(url)
+        return "<html><body><h1>HR software for growing teams</h1><a href='/pricing'>Pricing</a></body></html>"
+
+
+def test_bamboohr_unknown_tenant_is_not_an_empty_board():
+    # It used to come back as a board with zero jobs, so `seeds verify` verified any made-up slug.
+    with pytest.raises(AtsClientError, match="board_not_found"):
+        fetch("bamboohr", "made-up-tenant", _UnknownBambooTenant())
+
+
 def test_factorial_json_api():
     payload = {"jobs": [{"title": "Dev", "url": "https://jobs.factorialhr.com/acme/1"}]}
     assert len(fetch("factorial", "acme", FakeClient(payload))) == 1

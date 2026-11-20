@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from ultron.core.ats.clients.base import (
+    AtsClientError,
     AtsHTTPClient,
     AtsPosting,
     location_text,
@@ -65,11 +66,15 @@ def fetch_bamboohr_jobs(
                         raw_payload=job,
                     )
                 )
-    if postings:
+    if postings or (isinstance(payload, dict) and isinstance(payload.get("result"), list) and not rows):
+        # A JSON list, even an empty one, is the tenant's answer: an empty board needs no HTML fallback.
         return postings
 
     # Fallback: scrape the rendered careers page HTML.
     html = fetch_text(locator_url(host, "careers"), timeout=timeout)
+    if payload is None and "BambooHR-ATS" not in (html or ""):
+        # No JSON and no careers markup: an unknown tenant redirects to the vendor's marketing site.
+        raise AtsClientError("board_not_found")
     for listing in parse_card_listings(
         html, "BambooHR-ATS-Jobs-Item-Title", location_class="BambooHR-ATS-Jobs-Item-Location"
     ):

@@ -12,7 +12,10 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import unicodedata
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -193,13 +196,59 @@ def _read_raw_rows(path: Path) -> list:
     return rows
 
 
+# Writers hold ``auto_seeds.yaml.lock`` across read-modify-write. A lock older than SEED_LOCK_STALE seconds was
+# left by a crashed writer (a write takes milliseconds) and is removed; waiting longer than SEED_LOCK_TIMEOUT
+# for a live one raises SeedFileError.
+SEED_LOCK_TIMEOUT = 15.0
+SEED_LOCK_STALE = 120.0
+
+
+@contextmanager
+def _seed_file_lock(path: Path) -> Iterator[None]:
+    lock = path.with_name(path.name + ".lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + SEED_LOCK_TIMEOUT
+    while True:
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > SEED_LOCK_STALE:
+                    lock.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                continue  # released (or broken) meanwhile: try again
+            if time.monotonic() >= deadline:
+                raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})") from None
+            time.sleep(0.05)
+            continue
+        except PermissionError:  # Windows: the lock is being deleted right now
+            if time.monotonic() >= deadline:
+                raise SeedFileError(f"{path.name} is locked by another ULTRON process ({lock.name})") from None
+            time.sleep(0.05)
+            continue
+        os.close(fd)
+        break
+    try:
+        yield
+    finally:
+        lock.unlink(missing_ok=True)
+
+
 def add_seeds(seeds: list[AtsBoardSeed], *, profile_slug: str) -> int:
     """Persist seeds to ``auto_seeds.yaml`` atomically; return how many are new.
 
-    Raises ``SeedFileError`` (file untouched, backup copied) if the existing file is
-    unparseable. Rows that fail validation are preserved verbatim on rewrite.
+    The read-modify-write runs under a lock file, so concurrent writers (two runs of different profiles)
+    never drop each other's rows. Raises ``SeedFileError`` (file untouched, backup copied) if the existing
+    file is unparseable or the lock cannot be taken. Rows that fail validation are preserved verbatim on
+    rewrite.
     """
     path = auto_seeds_path()
+    with _seed_file_lock(path):
+        return _add_seeds_locked(path, seeds, profile_slug)
+
+
+def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) -> int:
     out_rows: list = []
     index: dict[tuple[str, str], AtsBoardSeed] = {}
     for raw in _read_raw_rows(path):

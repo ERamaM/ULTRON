@@ -99,20 +99,132 @@ def _words(text: str) -> Counter:
 
 
 def _page_text(page) -> str:
+    text, _two_col, _rotated = _inspect_page_text(page)
+    return text
+
+
+def _inspect_page_text(page) -> tuple[str, bool, bool]:
     plain = page.extract_text() or ""
     try:
         layout = page.extract_text(extraction_mode="layout")
         reordered = reorder_columns(layout) if isinstance(layout, str) else None
     except Exception:  # older pypdf, odd fonts or a stub page: keep plain extraction
-        return plain
-    # Layout mode skips rotated text: the reordered page is used only if it keeps every word of the plain one.
-    if reordered and not (_words(plain) - _words(reordered)):
-        return reordered
-    return plain
+        return plain, False, False
+    if reordered:
+        if not (_words(plain) - _words(reordered)):
+            return reordered, True, False
+        # Layout mode drops rotated text: report it and keep the plain extraction.
+        return plain, False, True
+    return plain, False, False
+
+
+def _deref(obj):
+    if hasattr(obj, "get_object"):
+        try:
+            return obj.get_object()
+        except Exception:
+            return obj
+    return obj
+
+
+def _obj_key(raw, resolved) -> tuple[str, int, int] | int:
+    ref = getattr(raw, "indirect_reference", None)
+    if ref is not None and hasattr(ref, "idnum"):
+        return ("ref", int(ref.idnum), int(getattr(ref, "generation", 0)))
+    return id(resolved)
+
+
+def _walk_page_resources(
+    page,
+    fonts: set[str],
+    *,
+    max_fonts: int = 30,
+    max_depth: int = 8,
+    max_objects: int = 500,
+) -> int:
+    """Walk PDF page /Resources safely (bounded depth, object cap, cycle-safe) for fonts and images."""
+    if not hasattr(page, "get"):
+        return 0
+    seen: set[object] = set()
+    visited = 0
+    images = 0
+
+    def walk_resources(res_raw, depth: int) -> None:
+        nonlocal visited, images
+        if depth > max_depth or visited >= max_objects or res_raw is None:
+            return
+        res = _deref(res_raw)
+        if not hasattr(res, "get"):
+            return
+        key = _obj_key(res_raw, res)
+        if key in seen:
+            return
+        seen.add(key)
+        visited += 1
+
+        if len(fonts) < max_fonts:
+            font_dict = _deref(res.get("/Font"))
+            if hasattr(font_dict, "values"):
+                for f_raw in font_dict.values():
+                    if visited >= max_objects or len(fonts) >= max_fonts:
+                        break
+                    visited += 1
+                    f_obj = _deref(f_raw)
+                    if hasattr(f_obj, "get"):
+                        base = str(f_obj.get("/BaseFont") or "").lstrip("/")
+                        base = re.sub(r"^[A-Z]{6}\+", "", base)
+                        if base:
+                            fonts.add(base[:100])
+
+        xobjs = _deref(res.get("/XObject"))
+        if hasattr(xobjs, "values"):
+            for x_raw in xobjs.values():
+                if visited >= max_objects:
+                    break
+                x_obj = _deref(x_raw)
+                x_key = _obj_key(x_raw, x_obj)
+                if x_key in seen:
+                    continue
+                seen.add(x_key)
+                visited += 1
+                if hasattr(x_obj, "get"):
+                    subtype = str(x_obj.get("/Subtype") or "")
+                    if subtype == "/Image":
+                        images += 1
+                    elif subtype == "/Form":
+                        walk_resources(x_obj.get("/Resources"), depth + 1)
+
+    walk_resources(page.get("/Resources"), 0)
+    return images
+
+
+def _meta_str(meta, key: str) -> str:
+    if meta is None:
+        return ""
+    val = None
+    if hasattr(meta, "get"):
+        val = meta.get(key)
+    if not val:
+        attr = key.lstrip("/").lower()
+        val = getattr(meta, attr, None)
+    if not val:
+        return ""
+    from ultron.core.privacy import redact
+
+    text = " ".join(str(redact(str(val))).split())
+    return text[:200]
 
 
 def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) -> list[str]:
     """Return normalized text for each non-empty page, enforcing both budgets."""
+    pages, _meta = extract_pdf_inspection(content, max_pages=max_pages, max_chars=max_chars, collect_metadata=False)
+    return pages
+
+
+def extract_pdf_inspection(
+    content: bytes, *, max_pages: int, max_chars: int, collect_metadata: bool = True
+) -> tuple[list[str], dict[str, object]]:
+    """Return ``(pages, inspection_metadata)`` while enforcing page and character budgets."""
 
     from ultron.cv import CvDependencyMissing, CvExtractionError, CvPdfTooManyPages, CvTextTooLong
 
@@ -121,6 +233,15 @@ def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) ->
     except ImportError as exc:  # optional dependency: ultron[cv]
         raise CvDependencyMissing() from exc
 
+    two_col_pages: list[int] = []
+    rotated_pages: list[int] = []
+    chars_per_page: list[int] = []
+    fonts: set[str] = set()
+    image_count = 0
+    raw_ligatures = 0
+    raw_pua = 0
+    raw_replacement = 0
+
     try:
         reader = PdfReader(BytesIO(content))
         pages = reader.pages
@@ -128,13 +249,33 @@ def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) ->
             raise CvPdfTooManyPages(max_pages)
         chunks: list[str] = []
         used_chars = 0
-        for page in pages:
-            page_text = _normalize_text(_page_text(page))
+        for idx, page in enumerate(pages, start=1):
+            if collect_metadata:
+                raw_text, is_two_col, is_rotated = _inspect_page_text(page)
+                if is_two_col:
+                    two_col_pages.append(idx)
+                if is_rotated:
+                    rotated_pages.append(idx)
+                for ch in raw_text:
+                    code = ord(ch)
+                    if 0xFB00 <= code <= 0xFB06:
+                        raw_ligatures += 1
+                    elif 0xE000 <= code <= 0xF8FF:
+                        raw_pua += 1
+                    elif code == 0xFFFD:
+                        raw_replacement += 1
+                image_count += _walk_page_resources(page, fonts)
+            else:
+                raw_text = _page_text(page)
+
+            page_text = _normalize_text(raw_text)
             added = len(page_text) + (1 if chunks and page_text else 0)
             # Stop before extracting later pages once the explicit text
             # budget is exhausted; never materialize an unbounded suffix.
             if used_chars + added > max_chars:
                 raise CvTextTooLong(used_chars + added, max_chars)
+            if collect_metadata:
+                chars_per_page.append(len(page_text))
             if page_text:
                 chunks.append(page_text)
                 used_chars += added
@@ -142,21 +283,45 @@ def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) ->
         raise
     except Exception as exc:
         raise CvExtractionError("Could not extract text from PDF", code="no_extractable_text") from exc
-    return chunks
+
+    if not collect_metadata:
+        return chunks, {}
+
+    raw_meta = getattr(reader, "metadata", None)
+    metadata: dict[str, object] = {
+        "page_count": len(pages),
+        "is_encrypted": bool(getattr(reader, "is_encrypted", False)),
+        "producer": _meta_str(raw_meta, "/Producer"),
+        "creator": _meta_str(raw_meta, "/Creator"),
+        "two_column_pages": two_col_pages,
+        "rotated_text_pages": rotated_pages,
+        "image_count": image_count,
+        "fonts": sorted(fonts),
+        "raw_ligature_count": raw_ligatures,
+        "private_use_glyph_count": raw_pua,
+        "replacement_char_count": raw_replacement,
+        "chars_per_page": chars_per_page,
+    }
+    return chunks, metadata
 
 
-def _limits(argv: list[str]) -> tuple[int, int]:
-    """Read max_pages and max_chars from the fixed argv tail."""
+def _limits(argv: list[str]) -> tuple[int, int, bool]:
+    """Read max_pages, max_chars and optional ``--inspect`` flag from argv."""
 
-    if len(argv) != 3:
-        raise ValueError("PDF worker requires max_pages and max_chars")
-    return int(argv[1]), int(argv[2])
+    if len(argv) == 3:
+        return int(argv[1]), int(argv[2]), False
+    if len(argv) == 4 and argv[3] == "--inspect":
+        return int(argv[1]), int(argv[2]), True
+    raise ValueError("PDF worker requires max_pages and max_chars (and optional --inspect)")
 
 
-def _payload(content: bytes, max_pages: int, max_chars: int) -> dict[str, object]:
+def _payload(content: bytes, max_pages: int, max_chars: int, *, inspect: bool = False) -> dict[str, object]:
     from ultron.cv import CvDependencyMissing, CvPdfTooManyPages, CvTextTooLong
 
     try:
+        if inspect:
+            pages, metadata = extract_pdf_inspection(content, max_pages=max_pages, max_chars=max_chars)
+            return {"pages": pages, "metadata": metadata}
         pages = extract_pdf_pages_text(content, max_pages=max_pages, max_chars=max_chars)
     except CvPdfTooManyPages as exc:
         return {"error": "too_many_pages", "limit": exc.limit}
@@ -173,8 +338,8 @@ def main() -> None:
     """Read one PDF from stdin and write one JSON object to stdout."""
 
     try:
-        max_pages, max_chars = _limits(sys.argv)
-        payload = _payload(sys.stdin.buffer.read(), max_pages, max_chars)
+        max_pages, max_chars, inspect = _limits(sys.argv)
+        payload = _payload(sys.stdin.buffer.read(), max_pages, max_chars, inspect=inspect)
     except Exception:
         payload = {"error": "extract_failed"}
     sys.stdout.buffer.write(json.dumps(payload).encode("utf-8"))

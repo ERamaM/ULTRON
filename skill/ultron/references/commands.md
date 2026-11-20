@@ -26,6 +26,9 @@ ultron profile                        list profiles (default)
        profile edit <profile> [what]  change a profile in conversation, preview, confirm
        profile undo <profile>         restore the version before the last change
        profile companies [profile]    verified companies for a profile
+ultron salary [cv|profile]            estimate expected salary from CV experience + market research
+ultron cv audit <path>                audit CV formatting/ATS compatibility and build clean .docx
+       cv optimize <path>             optimize CV truthfully for ATS and generate clean .docx
 ultron jobs [filter]                  list saved jobs (default)
        jobs new                       jobs new since the last run
        jobs mark <job> <state> [note]
@@ -65,6 +68,18 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
   (`ultron profile edit <slug> ... --dry-run`, show the diff, apply after the user confirms).
 - `profile undo <profile>`: `ultron profile undo <slug> --dry-run`, show the diff, then `ultron profile undo <slug>`.
 - `profile companies [profile]`: `ultron seeds list --profile <slug>`; group by ATS vendor and show the count.
+
+### salary
+
+- `salary [cv|profile]`: follow `references/salary.md` (`ultron salary analyze` to inspect CV tenure
+  and local run disclosures, web research on `research_queries`, then `ultron salary save --dry-run`
+  and apply after user confirmation).
+
+### cv
+
+- `cv audit <path>` / `cv optimize <path>`: follow `references/cv-ats.md` (`ultron cv audit` for
+  formatting/structure/keyword analysis, truthful rewrite, `ultron cv verify-truth`, and
+  `ultron cv build-docx` to output a clean single-column `.docx`).
 
 ### jobs
 

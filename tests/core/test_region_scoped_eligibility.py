@@ -105,6 +105,22 @@ def test_us_and_northern_ireland_do_not_flag_a_home_posting(criteria, location, 
     assert other_country_restriction(location, remote, criteria, "", remote_job=False) is None
 
 
+@pytest.mark.parametrize(
+    "criteria, location, remote",
+    [
+        ({"location_scope": {"preferred": ["Ireland", "Northern Ireland"]}}, "Belfast, Northern Ireland", "On-site"),
+        ({"location_scope": {"preferred": ["Ireland", "Belfast"]}}, "Belfast, Northern Ireland", "On-site"),
+        ({"location_scope": {"preferred": ["Ireland", "United Kingdom"]}}, "Belfast, Northern Ireland", "On-site"),
+        ({"location_scope": {"preferred": ["US"]}}, "Chicago, US Remote", "Remote"),
+        ({"location_scope": {"preferred": ["United States"]}}, "US-SF or US-Remote", ""),
+        ({"location_scope": {"preferred": ["United States", "Texas"]}}, "Austin, Texas, US", "On-site"),
+    ],
+)
+def test_a_profile_that_names_northern_ireland_or_the_us_keeps_those_postings(criteria, location, remote):
+    # PR #65 review: rewriting "Northern Ireland" and "US" must not hide a home place the profile names.
+    assert other_country_restriction(location, remote, criteria, "", remote_job=False) is None
+
+
 def test_northern_ireland_in_the_body_of_a_remote_job_is_not_ireland():
     body = "Work remotely from anywhere in Northern Ireland."
     assert other_country_restriction("Belfast", "Remote - United Kingdom", IRELAND, body) == "united kingdom"

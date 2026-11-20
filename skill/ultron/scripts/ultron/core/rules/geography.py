@@ -204,6 +204,18 @@ def _place_text(text: str) -> str:
     return _NORTHERN_IRELAND.sub("united kingdom", normalize_text(_US_CODE.sub("United States", text or "")))
 
 
+def _names_home(text: str, homes: Iterable[str]) -> bool:
+    """True when the text names a home place, read both as written and through ``_place_text``.
+
+    The rewritten text catches "US" for a United States profile; the text as written keeps a home place the
+    profile names itself ("Northern Ireland", "Belfast"). Only a plain "Ireland" home is not matched in the
+    text as written, because "Northern Ireland" contains it.
+    """
+    homes = tuple(homes)
+    as_written = tuple(home for home in homes if home != "ireland")
+    return bool(find_terms(_place_text(text), homes) or find_terms(normalize_text(text or ""), as_written))
+
+
 def other_country_restriction(
     location: str, remote_text: str, criteria: Mapping[str, Any] | None, body_text: str = "",
     *, remote_job: bool = True,
@@ -225,11 +237,12 @@ def other_country_restriction(
         return None
     extra = [normalize_text(term) for term in location_scope({"criteria": criteria or {}})["eligibility_terms"]]
     homes = (*places, *countries, *(term for term in extra if term in _COUNTRY_NAMES))
-    text = _place_text(f"{location}\n{remote_text}")
-    if names_wide_region(text) or find_terms(text, homes):
+    fields = f"{location}\n{remote_text}"
+    text = _place_text(fields)
+    if names_wide_region(text) or _names_home(fields, homes):
         return None
     excerpt = _place_text(body_text) if remote_job else ""
-    if find_terms(excerpt, homes) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS):
+    if (remote_job and _names_home(body_text, homes)) or names_wide_region(_ANYWHERE_IN_PLACE.sub(" ", excerpt), ignore=COMPANY_SCOPE_WORDS):
         return None
     named = find_terms(text, COUNTRY_TERMS)
     return named[0] if named else None

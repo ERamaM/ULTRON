@@ -1,11 +1,12 @@
-"""``ultron export xlsx`` and ``ultron export html``."""
+"""``ultron export xlsx``, ``ultron export html``, and ``ultron export web``."""
 
 from __future__ import annotations
 
 import argparse
+import sys
 
 from ultron.commands.output import emit, fail
-from ultron.exports import html_report, xlsx
+from ultron.exports import html_report, web_server, xlsx
 from ultron.storage import runs
 
 
@@ -33,6 +34,26 @@ def _html(args: argparse.Namespace) -> int:
     return 0
 
 
+def _web(args: argparse.Namespace) -> int:
+    def _on_ready(info: dict) -> None:
+        emit(info)
+        sys.stdout.flush()
+        print(f"Serving ULTRON ledger on {info['url']} (Ctrl+C to stop)", file=sys.stderr, flush=True)
+
+    try:
+        web_server.serve_ledger(
+            host=args.host,
+            port=args.port,
+            open_browser=not args.no_open,
+            run_id=args.run,
+            profile=args.profile,
+            on_ready=_on_ready,
+        )
+    except (OSError, ValueError) as exc:
+        return fail("export_failed", str(exc))
+    return 0
+
+
 def register(subparsers) -> None:
     """Register ``ultron export`` subcommands."""
     export = subparsers.add_parser("export", help="export run results")
@@ -45,3 +66,10 @@ def register(subparsers) -> None:
     page.add_argument("--run", required=True)
     page.add_argument("--out", default=None)
     page.set_defaults(func=_html)
+    web = sub.add_parser("web", help="serve $ULTRON_HOME/ultron.sqlite3 in a local read-only web viewer")
+    web.add_argument("--host", default="127.0.0.1", help="loopback bind address (default 127.0.0.1)")
+    web.add_argument("--port", type=int, default=0, help="TCP port to listen on (0 picks an open port)")
+    web.add_argument("--run", default=None, help="pre-filter the dashboard to one run ID")
+    web.add_argument("--profile", default=None, help="pre-filter the dashboard to one profile slug")
+    web.add_argument("--no-open", action="store_true", help="do not open the browser automatically")
+    web.set_defaults(func=_web)

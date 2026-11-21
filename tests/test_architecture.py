@@ -7,8 +7,6 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1] / "skill" / "ultron" / "scripts" / "ultron"
 MAX_MODULE_LINES = 1000
-# Over the limit, to be split next; never add to this list.
-KNOWN_LARGE = {"ultron.core.extractors.ats_extractors.base", "ultron.cv.ats"}
 
 
 def _modules() -> dict[str, Path]:
@@ -71,5 +69,5 @@ def test_only_commands_import_commands():
 
 def test_modules_stay_small():
     sizes = {name: len(path.read_text(encoding="utf-8").splitlines()) for name, path in _modules().items()}
-    big = {name: n for name, n in sizes.items() if n > MAX_MODULE_LINES and name not in KNOWN_LARGE}
+    big = {name: n for name, n in sizes.items() if n > MAX_MODULE_LINES}
     assert big == {}, f"split these modules (over {MAX_MODULE_LINES} lines): {big}"

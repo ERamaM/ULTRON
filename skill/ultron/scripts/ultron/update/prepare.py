@@ -7,41 +7,18 @@ command(s) for the agent to run as a separate process. Nothing from the archive 
 
 from __future__ import annotations
 
-import json
-import os
-import re
-import shlex
 import shutil
-import stat
-import sys
 import tempfile
-import zipfile
-import zlib
 from pathlib import Path
-from urllib.parse import urljoin, urlsplit
-
-import httpx
 
 from ultron import __version__
-from ultron.diagnostics.doctor import _home_path, _marker_valid, _registered_link
-from ultron.diagnostics.doctor import _in_dev_checkout as _doctor_in_dev_checkout
-from ultron.infra.net import USER_AGENT
-from ultron.infra.platforms import PLATFORM_NAMES, global_skill_dirs
+from ultron.infra import installs as install_layout
+from ultron.update import archive as release_archive
+from ultron.update import copies as install_copies
+from ultron.update import installer
 from ultron.update.notice import format_version, latest_release, parse_version, release_for_version, repository
 
 API_TIMEOUT = 10.0
-DOWNLOAD_TIMEOUT = 60.0
-MAX_REDIRECTS = 3
-MAX_DOWNLOAD_BYTES = 50_000_000
-MAX_EXTRACTED_BYTES = 200_000_000
-MAX_MEMBERS = 10_000
-DOWNLOAD_HOSTS = frozenset({"github.com", "codeload.github.com"})
-REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
-PROJECT_AGENTS_PLATFORMS = ("codex", "opencode", "antigravity")  # share DIR/.agents/skills/ultron
-_VERSION_LINE = re.compile(r'^__version__\s*=\s*"([^"]+)"', re.MULTILINE)
-
-# Test hook: an ``httpx`` transport for the archive download.
-_TRANSPORT: httpx.BaseTransport | None = None
 
 
 class UpdateError(RuntimeError):
@@ -52,17 +29,6 @@ class UpdateError(RuntimeError):
         self.error = error
         self.code = code
 
-
-class DownloadError(RuntimeError):
-    pass
-
-
-class ArchiveError(ValueError):
-    pass
-
-
-def _in_dev_checkout() -> bool:
-    return _doctor_in_dev_checkout()
 
 
 # ----------------------------------------------------------------------------------------------- check
@@ -79,395 +45,6 @@ def check() -> dict:
         "update_available": available,
         "release_url": release["url"] if release else None,
     }
-
-
-# --------------------------------------------------------------------------------------------- scopes
-
-
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or (os.name == "nt" and path.is_junction())
-
-
-def _is_copy_install(path: Path) -> bool:
-    """A real folder with a valid installer marker; links (dev installs) never qualify."""
-    return not _is_link(path) and path.is_dir() and _marker_valid(path)
-
-
-def _ordered(platforms: set[str]) -> list[str]:
-    return [name for name in PLATFORM_NAMES if name in platforms]
-
-
-def _project_dirs(home: Path, cwd: Path, projects: list[Path]) -> list[Path]:
-    """The current folder plus ``--project`` folders, resolved and deduplicated (the home is global scope)."""
-    out: list[Path] = []
-    for folder in [cwd, *projects]:
-        resolved = Path(folder).expanduser().resolve()
-        if resolved != Path(home).resolve() and resolved not in out:
-            out.append(resolved)
-    return out
-
-
-def _project_skill_dirs(project: Path) -> dict[tuple[str, ...], Path]:
-    return {
-        ("claude",): project / ".claude" / "skills" / "ultron",
-        PROJECT_AGENTS_PLATFORMS: project / ".agents" / "skills" / "ultron",
-    }
-
-
-def _real(path: Path) -> str:
-    """The key ``install.py`` uses in ``installs.json`` (parents resolved, last component not followed)."""
-    return str(Path(path).parent.resolve() / Path(path).name)
-
-
-def _registry_records() -> dict:
-    """``installs`` from ``$ULTRON_HOME/installs.json`` (written by install.py); empty for older/missing files."""
-    try:
-        data = json.loads((_home_path() / "installs.json").read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeDecodeError):
-        return {}
-    records = data.get("installs") if isinstance(data, dict) else None
-    return records if isinstance(records, dict) else {}
-
-
-def _marker_version(path: Path) -> str | None:
-    try:
-        version = json.loads((path / ".ultron-install.json").read_text(encoding="utf-8")).get("version")
-    except (OSError, ValueError, UnicodeDecodeError, AttributeError):
-        return None
-    return version if isinstance(version, str) else None
-
-
-def _platforms(names: object) -> list[str]:
-    if not isinstance(names, list):
-        return []
-    return _ordered({"antigravity" if n == "antigravity-legacy" else n for n in names if isinstance(n, str)})
-
-
-def _recorded_copies() -> list[dict]:
-    """Copy installs recorded by install.py that still exist and still carry a valid marker."""
-    copies = []
-    for record in _registry_records().values():
-        if not isinstance(record, dict) or record.get("mode") == "link" or not isinstance(record.get("path"), str):
-            continue
-        scope, project, platforms = record.get("scope"), record.get("project"), _platforms(record.get("platforms"))
-        if scope not in ("global", "project") or not platforms or (scope == "project" and not isinstance(project, str)):
-            continue
-        path = Path(record["path"])
-        if not _is_copy_install(path):  # removed or replaced since it was recorded
-            continue
-        # The marker is rewritten with every copy; the record may lag if its write failed (only a warning).
-        version = _marker_version(path) or (record.get("version") if isinstance(record.get("version"), str) else None)
-        copies.append({"scope": scope, "project": project if scope == "project" else None, "path": str(path),
-                       "platforms": platforms, "version": version, "found_by": "record"})
-    return copies
-
-
-def missing_records() -> list[str]:
-    """Recorded install folders that no longer exist (deleted by hand); install.py drops them on its next write."""
-    missing = []
-    for record in _registry_records().values():
-        path = record.get("path") if isinstance(record, dict) else None
-        if isinstance(path, str) and _definitely_missing(path):
-            missing.append(path)
-    return missing
-
-
-def _definitely_missing(path: str) -> bool:
-    """Only "not found" counts; any other error (permissions, offline drive) keeps the record (see install.py)."""
-    try:
-        os.lstat(path)
-    except (FileNotFoundError, NotADirectoryError):
-        return True
-    except (OSError, ValueError):
-        return False
-    return False
-
-
-def find_copies(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
-    """Every copy install to consider, one entry per skill folder.
-
-    Records in ``installs.json`` come first (they find project installs anywhere). Installs made before
-    install.py recorded them are found by their ``.ultron-install.json`` marker in the platforms' global folders,
-    ``cwd`` and ``projects``.
-    """
-    copies = _recorded_copies()
-    seen = {_real(Path(c["path"])) for c in copies}
-
-    def add(scope: str, project: str | None, path: Path, platforms: list[str]) -> None:
-        if _real(path) not in seen and _is_copy_install(path):
-            seen.add(_real(path))
-            copies.append({"scope": scope, "project": project, "path": str(path), "platforms": platforms,
-                           "version": _marker_version(path), "found_by": "marker"})
-
-    for name, path in global_skill_dirs(home).items():
-        add("global", None, path, ["antigravity" if name == "antigravity-legacy" else name])
-    for project in _project_dirs(home, cwd, projects):
-        for platforms, path in _project_skill_dirs(project).items():
-            add("project", str(project), path, list(platforms))
-    return copies
-
-
-def group_scopes(copies: list[dict]) -> list[dict]:
-    """One entry per installer scope (global, or one project folder) with the union of platforms."""
-    groups: dict[tuple[str, str | None], dict] = {}
-    for copy in copies:
-        key = (copy["scope"], copy["project"])
-        group = groups.setdefault(key, {"scope": copy["scope"], "platforms": set(), "paths": [], "versions": {}})
-        if copy["scope"] == "project":
-            group["project"] = copy["project"]
-        group["platforms"].update(copy["platforms"])
-        group["paths"].append(copy["path"])
-        group["versions"][copy["path"]] = copy["version"]
-    return [{**group, "platforms": _ordered(group["platforms"])} for group in groups.values()]
-
-
-def _split_mixed_antigravity(groups: list[dict], home: Path) -> tuple[list[dict], list[dict]]:
-    """Drop ``antigravity`` from the global command when one of its two folders is a registered dev link.
-
-    ``install.py --global --platforms antigravity`` refreshes both the current and the legacy Antigravity folder, so
-    it would replace that dev link with a copy. The copy is left for the user to update by hand instead.
-    """
-    dirs = global_skill_dirs(home)
-    links = [str(p) for k, p in dirs.items() if k.startswith("antigravity") and _is_link(p) and _registered_link(p)]
-    if not links:
-        return groups, []
-    out, manual = [], []
-    for group in groups:
-        if group["scope"] == "global" and "antigravity" in group["platforms"]:
-            manual.append({
-                "platform": "antigravity",
-                "dev_links": links,
-                "detail": "one Antigravity folder is a --dev link: the installer would replace it, so the "
-                          "Antigravity copy is not updated here; update it by hand or remove one of the two",
-            })
-            group = {**group, "platforms": [p for p in group["platforms"] if p != "antigravity"]}
-            if not group["platforms"]:
-                continue
-        out.append(group)
-    return out, manual
-
-
-def discover_installs(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
-    """Installer scopes to refresh (see ``find_copies``)."""
-    return group_scopes(find_copies(home=home, cwd=cwd, projects=projects))
-
-
-def dev_links(*, home: Path, cwd: Path, projects: list[Path]) -> list[str]:
-    """Linked skill folders registered in ``installs.json`` (``--dev`` installs): updated with git, not here."""
-    candidates = list(global_skill_dirs(home).values())
-    for project in _project_dirs(home, cwd, projects):
-        candidates.extend(_project_skill_dirs(project).values())
-    for record in _registry_records().values():
-        if isinstance(record, dict) and record.get("mode") == "link" and isinstance(record.get("path"), str):
-            candidates.append(Path(record["path"]))
-    out: list[str] = []
-    for path in candidates:
-        if _is_link(path) and _registered_link(path) and str(path) not in out:
-            out.append(str(path))
-    return out
-
-
-# ------------------------------------------------------------------------------------------- commands
-
-
-def find_on_path(name: str) -> str | None:
-    """``name`` on PATH, never from the current directory (unlike ``shutil.which`` on Windows).
-
-    Only absolute PATH entries are searched; empty, relative and current-directory entries are skipped, so an
-    untrusted checkout holding ``uv.exe`` cannot become the installer's executable. On Windows the ``PATHEXT``
-    extensions are tried. The same resolver lives in ``install.py`` and ``ultron.update.prepare`` (tested together).
-    """
-    try:
-        cwd = os.path.normcase(os.path.realpath(os.getcwd()))
-    except OSError:
-        cwd = None
-    exts = [""]
-    if os.name == "nt":
-        exts = [e for e in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep) if e.strip()]
-        if os.path.splitext(name)[1]:
-            exts.insert(0, "")
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
-        entry = entry.strip().strip('"')
-        if not entry or not os.path.isabs(entry):
-            continue
-        try:
-            if os.path.normcase(os.path.realpath(entry)) == cwd:
-                continue
-        except OSError:
-            continue
-        for ext in exts:
-            candidate = os.path.join(entry, name + ext)
-            if os.path.isfile(candidate) and (os.name == "nt" or os.access(candidate, os.X_OK)):
-                return candidate
-    return None
-
-
-def _base_interpreter() -> str:
-    """The interpreter ULTRON's venv was created from (never a path relative to the current directory)."""
-    base = getattr(sys, "_base_executable", None)
-    if base and os.path.isabs(base):
-        return base
-    name = "python.exe" if os.name == "nt" else os.path.join("bin", "python3")
-    candidate = os.path.join(sys.base_prefix, name)
-    return candidate if os.path.isfile(candidate) else sys.executable
-
-
-def _runner(install_py: Path) -> list[str]:
-    """Run ``install.py`` outside ULTRON's venv (the installer rebuilds it), like the bootstrap scripts do."""
-    uv = find_on_path("uv")
-    if uv:
-        # --isolated: never run inside an active venv (VIRTUAL_ENV may be ULTRON's own, which the installer rebuilds)
-        return [uv, "run", "--python", ">=3.12", "--no-project", "--isolated", str(install_py)]
-    return [_base_interpreter(), str(install_py)]
-
-
-def _display(argv: list[str], env: dict[str, str]) -> str:
-    """The command as one line for the current shell: PowerShell on Windows, POSIX sh elsewhere."""
-    if os.name == "nt":
-        quote = "'{}'".format
-        prefix = "".join(f"$env:{k} = {quote(v.replace(chr(39), chr(39) * 2))}; " for k, v in env.items())
-        return prefix + "& " + " ".join(quote(a.replace("'", "''")) for a in argv)
-    prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in env.items())
-    return prefix + shlex.join(argv)
-
-
-def _env() -> dict[str, str]:
-    home = os.environ.get("ULTRON_HOME")
-    return {"ULTRON_HOME": str(Path(home).expanduser())} if home else {}
-
-
-def installer_commands(install_py: Path, installs: list[dict]) -> list[dict]:
-    """One ``install.py --update`` per scope (``--global`` and ``--project`` are mutually exclusive)."""
-    env = _env()
-    commands = []
-    for install in installs:
-        scope_args = ["--global"] if install["scope"] == "global" else ["--project", install["project"]]
-        argv = [*_runner(install_py), "--update", *scope_args, "--platforms", ",".join(install["platforms"])]
-        command = {"scope": install["scope"], "argv": argv, "display": _display(argv, env)}
-        if install["scope"] == "project":
-            command["project"] = install["project"]
-        commands.append(command)
-    return commands
-
-
-# ------------------------------------------------------------------------------------------- download
-
-
-def _check_download_url(url: str) -> None:
-    try:
-        parts = urlsplit(url)
-        port = parts.port
-    except ValueError as exc:
-        raise DownloadError("refusing to download from a malformed URL") from exc
-    if parts.scheme != "https" or parts.hostname not in DOWNLOAD_HOSTS or parts.username or parts.password:
-        raise DownloadError(f"refusing to download from {parts.scheme}://{parts.hostname or ''}")
-    if port not in (None, 443):
-        raise DownloadError("refusing to download from a non-standard port")
-
-
-def download_archive(url: str, dest: Path) -> None:
-    """Stream ``url`` into ``dest``: https only, GitHub hosts only on every hop, hard size cap."""
-    current = url
-    try:
-        with httpx.Client(transport=_TRANSPORT, follow_redirects=False, trust_env=False,
-                          timeout=DOWNLOAD_TIMEOUT, headers={"User-Agent": USER_AGENT}) as client:
-            for _hop in range(MAX_REDIRECTS + 1):
-                _check_download_url(current)
-                with client.stream("GET", current) as response:
-                    location = response.headers.get("Location")
-                    if response.status_code in REDIRECT_STATUSES and location:
-                        current = urljoin(current, location)
-                        continue
-                    if response.status_code != 200:
-                        raise DownloadError(f"HTTP {response.status_code} from {urlsplit(current).hostname}")
-                    declared = response.headers.get("Content-Length", "")
-                    if declared.isdigit() and int(declared) > MAX_DOWNLOAD_BYTES:
-                        raise DownloadError("release archive is larger than the download limit")
-                    total = 0
-                    with open(dest, "wb") as out:
-                        for chunk in response.iter_bytes():
-                            total += len(chunk)
-                            if total > MAX_DOWNLOAD_BYTES:
-                                raise DownloadError("release archive is larger than the download limit")
-                            out.write(chunk)
-                    return
-    except httpx.HTTPError as exc:
-        raise DownloadError(f"download failed ({type(exc).__name__})") from exc
-    raise DownloadError(f"too many redirects (max {MAX_REDIRECTS})")
-
-
-# ------------------------------------------------------------------------------------------- extraction
-
-
-def _member_parts(info: zipfile.ZipInfo) -> list[str]:
-    name = info.filename
-    if not name or "\\" in name or ":" in name or "\x00" in name or name.startswith("/"):
-        raise ArchiveError(f"unsafe path in archive: {name!r}")
-    parts = [part for part in name.split("/") if part not in ("", ".")]
-    if not parts or ".." in parts:
-        raise ArchiveError(f"unsafe path in archive: {name!r}")
-    if stat.S_ISLNK(info.external_attr >> 16):
-        raise ArchiveError(f"archive member is a link: {name!r}")
-    return parts
-
-
-def extract_source(archive: Path, dest: Path, *, expected_version: str) -> Path:
-    """Safely extract a GitHub source archive into ``dest``; return its single top-level folder.
-
-    Rejects absolute, drive-qualified, backslash and ``..`` member names, links, duplicate names, more than
-    ``MAX_MEMBERS`` entries and more than ``MAX_EXTRACTED_BYTES`` (counted while writing). The folder must hold
-    ``install.py`` and ``skill/ultron/SKILL.md`` and declare ``expected_version``.
-    """
-    dest = Path(dest)
-    root = dest.resolve()
-    try:
-        zf = zipfile.ZipFile(archive)
-    except (zipfile.BadZipFile, OSError) as exc:
-        raise ArchiveError("the download is not a valid zip archive") from exc
-    with zf:
-        infos = zf.infolist()
-        if len(infos) > MAX_MEMBERS:
-            raise ArchiveError(f"archive has more than {MAX_MEMBERS} entries")
-        planned = [(info, _member_parts(info)) for info in infos]
-        tops = {parts[0] for _, parts in planned}
-        if len(tops) != 1:
-            raise ArchiveError("archive must contain a single top-level folder")
-        if sum(info.file_size for info in infos) > MAX_EXTRACTED_BYTES:
-            raise ArchiveError("archive is too large once extracted")
-        written = 0
-        for info, parts in planned:
-            target = dest.joinpath(*parts)
-            if root != target.resolve() and root not in target.resolve().parents:
-                raise ArchiveError(f"unsafe path in archive: {info.filename!r}")
-            if info.is_dir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                with zf.open(info) as src, open(target, "xb") as out:
-                    while chunk := src.read(1 << 16):
-                        written += len(chunk)
-                        if written > MAX_EXTRACTED_BYTES:
-                            raise ArchiveError("archive is too large once extracted")
-                        out.write(chunk)
-            except FileExistsError as exc:
-                raise ArchiveError(f"duplicate archive member: {info.filename!r}") from exc
-            except (zipfile.BadZipFile, zipfile.LargeZipFile, EOFError, zlib.error, RuntimeError,
-                    NotImplementedError) as exc:  # corrupt, encrypted or unsupported members
-                raise ArchiveError("the archive is corrupt") from exc
-    source = dest / tops.pop()
-    for required in ("install.py", "skill/ultron/SKILL.md"):
-        if not (source / required).is_file():
-            raise ArchiveError(f"archive does not contain {required}")
-    init = source / "skill" / "ultron" / "scripts" / "ultron" / "__init__.py"
-    try:
-        match = _VERSION_LINE.search(init.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError):
-        match = None
-    if match is None or match.group(1) != expected_version:
-        found = match.group(1) if match else "none"
-        raise ArchiveError(f"archive version {found} does not match the release {expected_version}")
-    return source
 
 
 # --------------------------------------------------------------------------------------------- prepare
@@ -509,8 +86,8 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         result["downgrade"] = True
         reason = "requested_version"
     home, cwd = Path.home(), Path.cwd()
-    copies = find_copies(home=home, cwd=cwd, projects=projects)
-    if pruned := missing_records():
+    copies = install_copies.find_copies(home=home, cwd=cwd, projects=projects)
+    if pruned := install_copies.missing_records():
         result["pruned_records"] = pruned
     if installed == target:
         # The CLI is current; skill copies that an older installer left behind still need the update.
@@ -519,14 +96,14 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
             result.update(status="up_to_date", detail=f"ULTRON {__version__} is already up to date")
             return result
         reason = "stale_skill_copies"
-    if _in_dev_checkout():
+    if install_layout.in_dev_checkout():
         result.update(status="source_checkout",
                       detail="running from a source checkout: update it with git, then run install.py --dev --update")
         return result
-    installs, manual = _split_mixed_antigravity(group_scopes(copies), home)
+    installs, manual = install_copies.split_mixed_antigravity(install_copies.group_scopes(copies), home)
     if manual:
         result["manual"] = manual
-    links = dev_links(home=home, cwd=cwd, projects=projects)
+    links = install_copies.dev_links(home=home, cwd=cwd, projects=projects)
     if links:
         result["dev_links"] = links
         result["dev_note"] = "linked (--dev) skill folders follow their checkout: update it with git instead"
@@ -539,9 +116,9 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
     temp = Path(tempfile.mkdtemp(prefix="ultron-update-"))
     try:
         archive = temp / "source.zip"
-        download_archive(f"{url}/archive/refs/tags/{release['tag']}.zip", archive)
+        release_archive.download_archive(f"{url}/archive/refs/tags/{release['tag']}.zip", archive)
         (temp / "src").mkdir()
-        source = extract_source(archive, temp / "src", expected_version=format_version(target))
+        source = release_archive.extract_source(archive, temp / "src", expected_version=format_version(target))
         archive.unlink()
     except BaseException:
         shutil.rmtree(temp, ignore_errors=True)
@@ -551,9 +128,9 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         source=str(source),
         cleanup=str(temp),
         installs=installs,
-        commands=installer_commands(source / "install.py", installs),
+        commands=installer.installer_commands(source / "install.py", installs),
         next_steps=NEXT_STEPS,
     )
-    if env := _env():
+    if env := installer.installer_env():
         result["env"] = env
     return result

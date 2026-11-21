@@ -11,8 +11,8 @@ keep their own module and are not listed here.
 
 from __future__ import annotations
 
-from ultron.core.extractors.ats_extractors.base import parse_with_overrides
-from ultron.core.extractors.ats_extractors.parser_contract import ParserFn
+from ultron.core.extractors.base import parse_with_overrides
+from ultron.core.extractors.parser_contract import ParserFn
 from ultron.core.models import ExtractedJob, JobRawPage
 
 SelectorSet = dict[str, tuple[str, ...]]

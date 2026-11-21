@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from ultron.commands.output import emit, fail
+from ultron.update import archive as release_archive
 from ultron.update import prepare as update
 from ultron.update.notice import InvalidRepository, ReleaseLookupError, parse_version
 
@@ -29,9 +30,9 @@ def _run(args: argparse.Namespace) -> int:
         return fail("update_check_failed" if args.check else "update_unavailable", str(exc), code=1)
     except update.UpdateError as exc:
         return fail(exc.error, str(exc), code=exc.code)
-    except update.DownloadError as exc:
+    except release_archive.DownloadError as exc:
         return fail("update_unavailable", str(exc), code=1)
-    except update.ArchiveError as exc:
+    except release_archive.ArchiveError as exc:
         return fail("archive_invalid", str(exc), code=1)
     except OSError as exc:
         return fail("io_error", str(exc), code=1)

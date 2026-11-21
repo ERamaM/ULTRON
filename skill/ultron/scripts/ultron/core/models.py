@@ -258,13 +258,3 @@ class RunSummary(BaseModel):
     search_fallback_triggered: bool = False
     search_fallback_hits: int = 0
     soft_filtered_count: int = 0
-
-
-class PipelineResult(BaseModel):
-    run_id: str
-    roles: list[FinalRow]
-    summary: RunSummary
-    discards: list[DiscardRecord]
-    output_markdown_path: str
-    output_json_path: str
-    output_summary_path: str

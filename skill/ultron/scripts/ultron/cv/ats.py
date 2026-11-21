@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import re
-import tempfile
 from dataclasses import asdict
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -16,12 +14,13 @@ from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
 from ultron.cv.ats_format import DECORATIVE_GLYPH_RE, audit_format, finding
 from ultron.cv.ats_target import audit_target_alignment, resolve_target
-from ultron.infra import home
+from ultron.infra import fs, home
 from ultron.profiles import store as profiles
 
-_EMAIL_RE = re.compile(
+EMAIL_RE = re.compile(
     r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b"
 )
+_EMAIL_RE = EMAIL_RE
 _PHONE_PATTERN = (
     r"(?<![\d$€£¥₹])(?:"
     r"\+\d{1,3}(?:[\s.-]?\(?\d{2,4}\)?){2,4}"
@@ -31,7 +30,7 @@ _PHONE_PATTERN = (
 )
 _PHONE_RE = re.compile(_PHONE_PATTERN)
 _LINK_RE = re.compile(r"(?:https?://|linkedin\.com/|github\.com/)\S+", re.IGNORECASE)
-_BULLET_LINE_RE = re.compile(r"^\s*(?:[-*•▪▫◦‣]|\d+[.)])\s+")
+_BULLET_LINE_RE = cv_experience.BULLET_PREFIX_RE
 _METRIC_RE = re.compile(
     r"(?:(?<!\d)\d{1,9}(?:[.,]\d{1,4})?%|[$€£]\s{0,2}\d|(?<!\d)\d{1,6}\s{0,2}[xX]\b|\b\d{1,4}\+)"
 )
@@ -235,18 +234,6 @@ def render_audit_markdown(audit: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
-
-
 def audit_cv(
     path: Path,
     *,
@@ -328,7 +315,7 @@ def audit_cv(
 
     if write_report or out_path is not None:
         report_target = Path(out_path) if out_path is not None else (home.ultron_home() / "cv" / f"{source.name}.ats-audit.md")
-        _atomic_write_text(report_target, render_audit_markdown(payload))
+        fs.atomic_write_text(report_target, render_audit_markdown(payload))
         payload["report_path"] = str(report_target)
 
     return payload

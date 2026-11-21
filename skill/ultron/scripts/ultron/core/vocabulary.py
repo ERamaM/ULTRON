@@ -46,13 +46,6 @@ def vocabulary_dir():
     return data_dir() / "vocabulary"
 
 
-def available_packs() -> tuple[str, ...]:
-    folder = vocabulary_dir()
-    if not folder.is_dir():
-        return ()
-    return tuple(sorted(path.stem for path in folder.glob("*.yaml") if PACK_NAME_RE.match(path.stem)))
-
-
 def is_known_pack(name: object) -> bool:
     return isinstance(name, str) and bool(PACK_NAME_RE.match(name)) and (vocabulary_dir() / f"{name}.yaml").is_file()
 

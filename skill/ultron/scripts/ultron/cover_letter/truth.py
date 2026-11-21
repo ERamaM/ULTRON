@@ -14,21 +14,26 @@ from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
 
 
-def _split_frontmatter(text: str) -> tuple[dict[str, Any] | None, str]:
+def split_frontmatter(text: str, *, strict: bool = False) -> tuple[dict[str, Any] | None, str]:
+    """Extract optional YAML frontmatter mapping and remaining body from Markdown ``text``."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        return None, text
+        return ({} if strict else None), text
     for idx in range(1, min(len(lines), 80)):
         if lines[idx].strip() == "---":
             raw_yaml = "\n".join(lines[1:idx])
             try:
-                loaded = yaml.safe_load(raw_yaml)
-            except yaml.YAMLError:
+                loaded = {} if (strict and not raw_yaml.strip()) else yaml.safe_load(raw_yaml)
+            except yaml.YAMLError as exc:
+                if strict:
+                    raise ValueError(f"invalid YAML frontmatter: {exc}") from exc
                 return None, text
             if isinstance(loaded, dict):
                 return loaded, "\n".join(lines[idx + 1 :])
+            if strict:
+                raise ValueError("Markdown cover letter frontmatter must be a YAML mapping")
             return None, text
-    return None, text
+    return ({} if strict else None), text
 
 
 def _extract_draft_claim_text(draft_path: Path) -> tuple[str, str]:
@@ -64,7 +69,7 @@ def _extract_draft_claim_text(draft_path: Path) -> tuple[str, str]:
             return "\n".join(claim_parts), company
         return json.dumps(data, ensure_ascii=False), company
 
-    frontmatter, body = _split_frontmatter(raw)
+    frontmatter, body = split_frontmatter(raw)
     if frontmatter is None:
         return raw, ""
     parts: list[str] = []

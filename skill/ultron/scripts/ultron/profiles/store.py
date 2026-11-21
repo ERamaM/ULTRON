@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 import re
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,6 +10,7 @@ import yaml
 
 from ultron.core.vocabulary import is_known_pack
 from ultron.infra import home
+from ultron.infra.fs import atomic_write_bytes as _atomic_write_bytes
 
 SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]*", re.ASCII)  # always used with fullmatch
 EXAMPLE_SLUG = "ai-ml-remote-eu"
@@ -409,15 +408,3 @@ def restore(slug: str, version: str | None = None) -> dict:
     if version is None:
         path.unlink(missing_ok=True)
     return {"restored": _version_id(path), "backup": backup, "removed_user_copy": content is None}
-
-
-def _atomic_write_bytes(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(content)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise

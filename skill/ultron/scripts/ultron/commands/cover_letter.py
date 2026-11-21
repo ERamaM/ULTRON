@@ -3,25 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import json
-from datetime import date
 from pathlib import Path
 
+from ultron.commands._common import parse_as_of, run_build_docx, run_verify_truth
 from ultron.commands.output import emit, fail
 from ultron.cover_letter import brief, builder, templates, truth
-from ultron.cv import docx_writer as cv_docx_writer
 from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
+from ultron.infra.ooxml import WRITER_SAFE_FONTS
 from ultron.storage import runs
-
-
-def _parse_as_of(raw: str | None) -> date | None:
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw)
-    except ValueError as exc:
-        raise ValueError(f"--as-of must be YYYY-MM-DD, got {raw!r}") from exc
 
 
 def _templates(args: argparse.Namespace) -> int:
@@ -50,7 +40,7 @@ def _templates(args: argparse.Namespace) -> int:
             "templates": [dict(templates.BUNDLED_TEMPLATES[key])],
             "placeholders": [f"{{{{{name}}}}}" for name in templates.TEMPLATE_PLACEHOLDERS],
             "multiline_placeholders": ["{{body}}", "{{paragraphs}}", "{{highlights}}"],
-            "safe_fonts": sorted(cv_docx_writer.WRITER_SAFE_FONTS),
+            "safe_fonts": sorted(WRITER_SAFE_FONTS),
         })
         return 0
 
@@ -62,7 +52,7 @@ def _prepare(args: argparse.Namespace) -> int:
     if args.job and args.job_file:
         return fail("usage", "pass either --job or --job-file, not both")
     try:
-        as_of = _parse_as_of(args.as_of)
+        as_of = parse_as_of(args.as_of)
     except ValueError as exc:
         return fail("invalid_value", str(exc))
     try:
@@ -91,31 +81,25 @@ def _prepare(args: argparse.Namespace) -> int:
 
 
 def _verify_truth(args: argparse.Namespace) -> int:
-    try:
-        as_of = _parse_as_of(args.as_of)
+    def _run():
+        as_of = parse_as_of(args.as_of)
         confirmed = cv_truth.load_confirmed_facts(Path(args.confirmed) if args.confirmed else None)
-        report = truth.verify_cover_letter_truth(
+        return truth.verify_cover_letter_truth(
             Path(args.source_cv),
             Path(args.draft),
             confirmed_facts=confirmed,
             target_company=args.company,
             as_of=as_of,
         )
-    except cv.CvExtractionError as exc:
-        return fail(exc.code, str(exc))
-    except FileNotFoundError as exc:
-        return fail("not_found", str(exc))
-    except (OSError, UnicodeDecodeError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        return fail("invalid_input", str(exc))
-    emit(report)
-    return 1 if (args.strict and not report["passed"]) else 0
+
+    return run_verify_truth(_run, strict=args.strict)
 
 
 def _build_docx(args: argparse.Namespace) -> int:
-    try:
-        as_of = _parse_as_of(args.as_of)
+    def _run():
+        as_of = parse_as_of(args.as_of)
         confirmed = cv_truth.load_confirmed_facts(Path(args.confirmed) if args.confirmed else None)
-        payload = builder.build_cover_letter_docx(
+        return builder.build_cover_letter_docx(
             Path(args.source),
             out_path=Path(args.out) if args.out else None,
             out_md=Path(args.out_md) if args.out_md else None,
@@ -128,19 +112,8 @@ def _build_docx(args: argparse.Namespace) -> int:
             strict=args.strict,
             as_of=as_of,
         )
-    except cv_docx_writer.TruthfulnessError as exc:
-        emit({"error": "truthfulness_failed", "detail": str(exc), "truth": exc.truth_report})
-        return 1
-    except cv.CvExtractionError as exc:
-        return fail(exc.code, str(exc))
-    except FileExistsError as exc:
-        return fail("output_exists", str(exc))
-    except FileNotFoundError as exc:
-        return fail("not_found", str(exc))
-    except (OSError, UnicodeDecodeError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        return fail("invalid_input", str(exc))
-    emit(payload)
-    return 0
+
+    return run_build_docx(_run)
 
 
 def register(subparsers) -> None:

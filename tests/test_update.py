@@ -17,6 +17,7 @@ import httpx
 import pytest
 
 from ultron import cli
+from ultron.infra import installs
 from ultron.update import notice as update_notice
 from ultron.update import prepare as update
 
@@ -33,7 +34,7 @@ def _env(tmp_path, monkeypatch):
     work = tmp_path / "work"
     work.mkdir()
     monkeypatch.chdir(work)
-    monkeypatch.setattr(update, "_in_dev_checkout", lambda: False)
+    monkeypatch.setattr(installs, "in_dev_checkout", lambda: False)
     monkeypatch.setattr(update, "_TRANSPORT", httpx.MockTransport(_no_network))
     monkeypatch.setattr(update_notice.httpx, "get", _no_api)
     monkeypatch.setattr(update.tempfile, "tempdir", str(tmp_path / "tmp"))
@@ -297,7 +298,7 @@ def test_mixed_antigravity_copy_and_dev_link_is_left_for_manual_handling(monkeyp
     _install(home / ".gemini" / "config" / "skills" / "ultron")
     legacy = home / ".gemini" / "antigravity" / "skills" / "ultron"
     monkeypatch.setattr(update, "_is_link", lambda path: Path(path) == legacy)
-    monkeypatch.setattr(update, "_registered_link", lambda path: Path(path) == legacy)
+    monkeypatch.setattr(installs, "registered_link", lambda path: Path(path) == legacy)
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     _serve(monkeypatch, _zip(_source_zip("0.2.0")))
     code, out = _run(capsys)
@@ -314,7 +315,7 @@ def test_mixed_antigravity_only_gives_no_command(monkeypatch, capsys):
     _install(home / ".gemini" / "config" / "skills" / "ultron")
     legacy = home / ".gemini" / "antigravity" / "skills" / "ultron"
     monkeypatch.setattr(update, "_is_link", lambda path: Path(path) == legacy)
-    monkeypatch.setattr(update, "_registered_link", lambda path: Path(path) == legacy)
+    monkeypatch.setattr(installs, "registered_link", lambda path: Path(path) == legacy)
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     code, out = _run(capsys)
     assert code == 0 and out["status"] == "no_installs" and out["commands"] == []
@@ -561,7 +562,7 @@ def test_registered_dev_links_are_reported_but_not_updated(tmp_path, monkeypatch
 
 
 def test_source_checkout_returns_no_command(monkeypatch, capsys):
-    monkeypatch.setattr(update, "_in_dev_checkout", lambda: True)
+    monkeypatch.setattr(installs, "in_dev_checkout", lambda: True)
     _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     code, out = _run(capsys)
     assert code == 0 and out["status"] == "source_checkout" and out["commands"] == []

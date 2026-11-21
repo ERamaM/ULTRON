@@ -128,7 +128,7 @@ def test_open_postings_with_closed_lookalike_words_stay_open(body):
 
 
 def test_extractor_open_hint_uses_the_shared_closed_phrase_list():
-    from ultron.core.extractors.ats_extractors import base
+    from ultron.core.extractors import base
     from ultron.core.models import JobRawPage
 
     def hint(text: str) -> bool:

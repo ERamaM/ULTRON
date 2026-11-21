@@ -13,6 +13,7 @@ import pytest
 from ultron import cli
 from ultron.core.models import ExtractedJob, FinalRow
 from ultron.cv import ats as cv_ats
+from ultron.cv import ats_target
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import extract as cv
 from ultron.cv import worker as cv_worker
@@ -321,9 +322,9 @@ def test_cli_cv_audit_target_modes_and_redacted_report(tmp_path, capsys, monkeyp
     assert "Snowflake" in out_agg["keyword_alignment"]["missing"]
 
     # 4. Live URL fetch mode (mocked client_for_run + get_posting_page)
-    monkeypatch.setattr(cv_ats, "client_for_run", lambda _run: object())
+    monkeypatch.setattr(ats_target, "client_for_run", lambda _run: object())
     monkeypatch.setattr(
-        cv_ats,
+        ats_target,
         "get_posting_page",
         lambda _c, url: (200, url, "<html><head><title>ML Engineer at Beta</title></head><body><h1>ML Engineer</h1><p>Need PyTorch and Python.</p></body></html>"),
     )

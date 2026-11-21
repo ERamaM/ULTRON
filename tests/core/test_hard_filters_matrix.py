@@ -474,7 +474,7 @@ def test_expired_valid_through_discards_as_expired_or_closed():
 
 
 def test_parsed_past_valid_through_survives_stage_round_trip_and_is_discarded():
-    from ultron.core.extractors.ats_extractors.base import parse_generic
+    from ultron.core.extractors.base import parse_generic
     from ultron.core.models import JobRawPage
 
     url = "https://boards.greenhouse.io/acme/jobs/1"
@@ -578,7 +578,7 @@ def test_onsite_benefit_allows_modifiers_but_not_another_clause(body, remote_onl
 
 
 def test_onsite_benefit_split_across_extracted_lines():
-    from ultron.core.extractors.ats_extractors.base import parse_generic
+    from ultron.core.extractors.base import parse_generic
     from ultron.core.models import JobRawPage
 
     url = "https://boards.greenhouse.io/acme/jobs/1"

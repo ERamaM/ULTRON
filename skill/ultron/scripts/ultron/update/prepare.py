@@ -23,8 +23,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 
 from ultron import __version__
-from ultron.diagnostics.doctor import _home_path, _marker_valid, _registered_link
-from ultron.diagnostics.doctor import _in_dev_checkout as _doctor_in_dev_checkout
+from ultron.infra import installs as install_layout
 from ultron.infra.net import USER_AGENT
 from ultron.infra.platforms import PLATFORM_NAMES, global_skill_dirs
 from ultron.update.notice import format_version, latest_release, parse_version, release_for_version, repository
@@ -61,10 +60,6 @@ class ArchiveError(ValueError):
     pass
 
 
-def _in_dev_checkout() -> bool:
-    return _doctor_in_dev_checkout()
-
-
 # ----------------------------------------------------------------------------------------------- check
 
 
@@ -90,7 +85,7 @@ def _is_link(path: Path) -> bool:
 
 def _is_copy_install(path: Path) -> bool:
     """A real folder with a valid installer marker; links (dev installs) never qualify."""
-    return not _is_link(path) and path.is_dir() and _marker_valid(path)
+    return not _is_link(path) and path.is_dir() and install_layout.marker_valid(path)
 
 
 def _ordered(platforms: set[str]) -> list[str]:
@@ -122,7 +117,7 @@ def _real(path: Path) -> str:
 def _registry_records() -> dict:
     """``installs`` from ``$ULTRON_HOME/installs.json`` (written by install.py); empty for older/missing files."""
     try:
-        data = json.loads((_home_path() / "installs.json").read_text(encoding="utf-8"))
+        data = json.loads((install_layout.home_path() / "installs.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
         return {}
     records = data.get("installs") if isinstance(data, dict) else None
@@ -228,7 +223,7 @@ def _split_mixed_antigravity(groups: list[dict], home: Path) -> tuple[list[dict]
     it would replace that dev link with a copy. The copy is left for the user to update by hand instead.
     """
     dirs = global_skill_dirs(home)
-    links = [str(p) for k, p in dirs.items() if k.startswith("antigravity") and _is_link(p) and _registered_link(p)]
+    links = [str(p) for k, p in dirs.items() if k.startswith("antigravity") and _is_link(p) and install_layout.registered_link(p)]
     if not links:
         return groups, []
     out, manual = [], []
@@ -262,7 +257,7 @@ def dev_links(*, home: Path, cwd: Path, projects: list[Path]) -> list[str]:
             candidates.append(Path(record["path"]))
     out: list[str] = []
     for path in candidates:
-        if _is_link(path) and _registered_link(path) and str(path) not in out:
+        if _is_link(path) and install_layout.registered_link(path) and str(path) not in out:
             out.append(str(path))
     return out
 
@@ -519,7 +514,7 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
             result.update(status="up_to_date", detail=f"ULTRON {__version__} is already up to date")
             return result
         reason = "stale_skill_copies"
-    if _in_dev_checkout():
+    if install_layout.in_dev_checkout():
         result.update(status="source_checkout",
                       detail="running from a source checkout: update it with git, then run install.py --dev --update")
         return result

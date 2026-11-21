@@ -51,9 +51,9 @@ download_to() {
 install_uv() {
     echo "[ultron] Python 3.12+ with venv not found; bootstrapping standalone uv + Python 3.12..." >&2
     if command -v curl >/dev/null 2>&1; then
-        curl -LsSf https://astral.sh/uv/install.sh | sh >&2
+        curl -LsSf --proto '=https' --tlsv1.2 https://astral.sh/uv/install.sh | sh >&2
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO- https://astral.sh/uv/install.sh | sh >&2
+        wget -qO- --https-only --max-redirect=0 https://releases.astral.sh/installers/uv/latest/uv-installer.sh | sh >&2
     else
         echo "[ultron] Error: curl or wget is required to install uv." >&2
         exit 1

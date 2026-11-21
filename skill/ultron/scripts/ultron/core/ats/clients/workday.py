@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections import deque
 from urllib.parse import urlparse
+
+from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import (
     UNCHECKED_ERRORS,
@@ -19,8 +20,6 @@ from ultron.core.rules.term_matching import normalize_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
-
-NEXT_DATA_RE = re.compile(r'<script[^>]+id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.DOTALL | re.IGNORECASE)
 
 
 def _split_locator(locator: str) -> tuple[str, str]:
@@ -52,10 +51,12 @@ def _workday_apply_url(host: str, path: str, external_path: str) -> str:
 
 
 def _extract_from_next_data(html: str, host: str, path: str = "") -> list[AtsPosting]:
-    match = NEXT_DATA_RE.search(html)
-    if not match:
+    soup = BeautifulSoup(html, "html.parser")
+    script = soup.find("script", attrs={"id": "__NEXT_DATA__"})
+    if script is None:
         return []
-    payload = load_json_or_none(match.group(1))
+    raw_json = script.string if script.string is not None else script.get_text()
+    payload = load_json_or_none(raw_json)
     if payload is None:
         return []
 

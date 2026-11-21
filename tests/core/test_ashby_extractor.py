@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ultron.core.extractors.ats_extractors import ashby
+from ultron.core.extractors import ashby
 from ultron.core.models import JobRawPage
 
 

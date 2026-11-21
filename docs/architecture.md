@@ -10,7 +10,7 @@ enforces the rules below on every import.
 |---|---|
 | `cli.py` | Entry point: builds the argument parser from `commands/` and dispatches. |
 | `commands/` | One module per command group (`ultron cv`, `ultron runs`, ...) plus `output` (JSON output and errors). A command parses arguments, calls domain code and prints the result. |
-| `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, the data folders (`home`) and agent platform paths (`platforms`). |
+| `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, the data folders (`home`), agent platform paths (`platforms`) and a read-only view of installs (`installs`). |
 | `core/` | Domain logic that reads no run state: models, run presets, ATS clients and identity, extractors, feeds, rules, decisions, ranking and Markdown rendering. |
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`), experience timeline, truthfulness check and the `.docx` writer. |

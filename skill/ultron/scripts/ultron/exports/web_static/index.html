@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ULTRON — Ledger Explorer</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script defer src="/assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">U</div>
+        <div>
+          <h1>ULTRON Ledger</h1>
+          <p class="subtitle">Zero-write live SQLite explorer</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <span id="db-status" class="status-pill" aria-live="polite">Loading ledger…</span>
+        <button id="refresh-btn" class="btn btn-secondary" type="button" title="Reload snapshot from ultron.sqlite3">Refresh</button>
+        <button id="theme-btn" class="btn btn-secondary" type="button" aria-label="Toggle color theme">Theme</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="container">
+    <section id="kpi-grid" class="kpi-grid" aria-label="Ledger summary"></section>
+
+    <section id="charts-strip" class="charts-grid" aria-label="Visual breakdown">
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Match Bands</h2>
+          <span class="panel-hint">Click a pill to filter</span>
+        </div>
+        <div id="band-bar" class="stacked-bar" aria-label="Match band distribution"></div>
+        <ul id="band-legend" class="pill-list"></ul>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Review Pipeline</h2>
+          <span class="panel-hint">Click a state to filter</span>
+        </div>
+        <ul id="state-pills" class="pill-list"></ul>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head">
+          <h2>Top Companies</h2>
+          <span class="panel-hint">Click to filter search</span>
+        </div>
+        <ul id="top-companies" class="bars-list"></ul>
+      </article>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Ledger views">
+      <button id="tab-jobs" class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="jobs">Jobs <span id="tab-count-jobs" class="tab-count">0</span></button>
+      <button id="tab-runs" class="tab" type="button" role="tab" aria-selected="false" data-tab="runs">Runs <span id="tab-count-runs" class="tab-count">0</span></button>
+      <button id="tab-seeds" class="tab" type="button" role="tab" aria-selected="false" data-tab="seeds">Seed Yield <span id="tab-count-seeds" class="tab-count">0</span></button>
+      <button id="tab-ops" class="tab" type="button" role="tab" aria-selected="false" data-tab="ops">Saved &amp; Diagnostics <span id="tab-count-ops" class="tab-count">0</span></button>
+    </nav>
+
+    <section id="view-jobs" class="tab-panel" aria-labelledby="tab-jobs">
+      <div class="toolbar">
+        <div class="search-wrap">
+          <input id="filter-query" type="search" placeholder="Search title, company, location, notes, or key…" aria-label="Search jobs">
+          <kbd class="kbd" aria-hidden="true">/</kbd>
+        </div>
+
+        <select id="filter-profile" aria-label="Filter by profile">
+          <option value="">All profiles</option>
+        </select>
+        <select id="filter-run" aria-label="Filter by run">
+          <option value="">All runs</option>
+        </select>
+        <select id="filter-band" aria-label="Filter by match band">
+          <option value="">All bands</option>
+          <option value="strong">Strong</option>
+          <option value="good">Good</option>
+          <option value="borderline">Borderline</option>
+          <option value="ineligible">Ineligible</option>
+          <option value="unscored">Unscored</option>
+        </select>
+        <select id="filter-state" aria-label="Filter by review state">
+          <option value="">All states</option>
+          <option value="unreviewed">Unreviewed</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="applied">Applied</option>
+          <option value="rejected">Rejected</option>
+          <option value="archived">Archived</option>
+        </select>
+        <select id="filter-feedback" aria-label="Filter by feedback">
+          <option value="">All feedback</option>
+          <option value="relevant">Relevant</option>
+          <option value="not_relevant">Not relevant</option>
+          <option value="uncertain">Uncertain</option>
+        </select>
+        <select id="filter-sort" aria-label="Sort jobs">
+          <option value="last_seen">Newest seen</option>
+          <option value="score">Highest score</option>
+          <option value="times_seen">Most seen</option>
+          <option value="company">Company (A–Z)</option>
+        </select>
+
+        <label class="toggle-check">
+          <input id="filter-new" type="checkbox">
+          <span>New only</span>
+        </label>
+
+        <button id="view-mode-btn" class="btn btn-secondary" type="button">Table view</button>
+        <button id="clear-filters-btn" class="btn btn-ghost" type="button">Reset</button>
+      </div>
+
+      <p id="jobs-meta" class="result-meta"></p>
+      <div id="jobs-container"></div>
+    </section>
+
+    <section id="view-runs" class="tab-panel" aria-labelledby="tab-runs" hidden>
+      <div id="runs-container"></div>
+    </section>
+
+    <section id="view-seeds" class="tab-panel" aria-labelledby="tab-seeds" hidden>
+      <div id="seeds-container"></div>
+    </section>
+
+    <section id="view-ops" class="tab-panel" aria-labelledby="tab-ops" hidden>
+      <div id="ops-container"></div>
+    </section>
+  </main>
+
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <aside id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+    <div class="drawer-head">
+      <div id="drawer-title-wrap">
+        <p id="drawer-company" class="drawer-kicker"></p>
+        <h2 id="drawer-title">Job Details</h2>
+      </div>
+      <button id="drawer-close" class="btn btn-secondary" type="button" aria-label="Close job details">Close</button>
+    </div>
+    <div id="drawer-body" class="drawer-body"></div>
+  </aside>
+</body>
+</html>

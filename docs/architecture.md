@@ -1,0 +1,38 @@
+# Architecture
+
+The `ultron` package lives in `skill/ultron/scripts/ultron`. It is split into packages by
+responsibility, and the dependencies between them point one way. `tests/test_architecture.py`
+enforces the rules below on every import.
+
+## Packages
+
+| Package | Responsibility |
+|---|---|
+| `cli.py` | Entry point: builds the argument parser from `commands/` and dispatches. |
+| `commands/` | One module per command group (`ultron cv`, `ultron runs`, ...) plus `output` (JSON output and errors). A command parses arguments, calls domain code and prints the result. |
+| `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, the data folders (`home`) and agent platform paths (`platforms`). |
+| `core/` | Domain logic that reads no run state: models, run presets, ATS clients and identity, extractors, feeds, rules, decisions, ranking and Markdown rendering. |
+| `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
+| `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`), experience timeline, truthfulness check and the `.docx` writer. |
+| `salary/` | Expected-salary analysis from run postings. |
+| `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, saved searches, review states and maintenance (purge, export). |
+| `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |
+| `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize), the unattended run and the per-run HTTP client factory. |
+| `exports/` | Files written from a finished run: the HTML report and the Excel workbook. |
+| `diagnostics/` | `doctor` (installation checks) and `diagnose` (run diagnostics). |
+| `update/` | Release lookup and notices (`notice`) and preparing an update (`prepare`). |
+| `migrations/` | One-off imports from older projects (MARK III). |
+
+## Rules
+
+- `infra` imports nothing else from `ultron`.
+- `core` imports only `core` and `infra`.
+- Only `cli.py` and `commands/` import `commands/`. Logic that another module needs belongs in a
+  domain package, not in a command (for example the web-search query plan lives in
+  `core/discovery/query_plan.py`).
+- No module grows past 1,000 lines. Split a module by responsibility before it reaches that size.
+- A package's `__init__.py` is empty unless it is a documented facade. `seeds` is one: it
+  re-exports the public names of its modules. Patch a function where it is defined (for example
+  `seeds.inventory.packs_dir`), not on the facade.
+- Modules locate bundled files from the package root (`ultron.__file__`), never by counting parent
+  folders of their own file, so they can move between packages.

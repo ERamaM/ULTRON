@@ -18,7 +18,7 @@ from functools import lru_cache
 
 import yaml
 
-from ultron.home import data_dir
+from ultron.infra.home import data_dir
 
 PACK_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 

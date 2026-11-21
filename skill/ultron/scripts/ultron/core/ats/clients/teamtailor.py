@@ -3,7 +3,7 @@ from __future__ import annotations
 from defusedxml import ElementTree as ET
 
 from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, locator_url
-from ultron.net import HttpError, RequestBudgetExceeded, URLRejected
+from ultron.infra.net import HttpError, RequestBudgetExceeded, URLRejected
 
 _TT_LOC_NS = "{https://teamtailor.com/locations}"
 

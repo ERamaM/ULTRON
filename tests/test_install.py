@@ -793,7 +793,7 @@ def test_legacy_backup_that_does_not_verify_keeps_the_original(inst, fake_home, 
 
 def test_platform_table_matches_doctor(installer, fake_home):
     """install.py keeps its own copy of the global paths; doctor's table must not drift from it."""
-    from ultron.platforms import global_skill_dirs, project_skill_dirs
+    from ultron.infra.platforms import global_skill_dirs, project_skill_dirs
 
     (Path.home() / ".gemini" / "antigravity").mkdir(parents=True)
     expected = global_skill_dirs(Path.home())

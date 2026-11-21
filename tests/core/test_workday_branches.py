@@ -7,7 +7,7 @@ import pytest
 
 from ultron.core.ats.clients import workday
 from ultron.core.ats.clients.base import AtsClientError
-from ultron.net import HttpClient, RequestBudgetExceeded
+from ultron.infra.net import HttpClient, RequestBudgetExceeded
 
 
 def _job(index: int) -> dict[str, str]:
@@ -111,7 +111,7 @@ def test_workday_initial_cxs_client_error_propagates_instead_of_empty_list(statu
             return httpx.Response(status, json={"error": "not found"})
         return httpx.Response(200, text="<html><body>Workday shell</body></html>")
 
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     client = _http_client(handler, max_requests=10)
     with pytest.raises(HttpError) as info:
@@ -158,7 +158,7 @@ def test_workday_cxs_403_falls_back_to_next_data_postings():
 
 
 def test_workday_cxs_transport_error_falls_back_to_next_data_postings():
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     next_data = {"props": {"pageProps": {"jobs": [{"title": "Recovered SSR", "externalPath": "/job/2"}]}}}
     html = f'<script id="__NEXT_DATA__">{json.dumps(next_data)}</script>'
@@ -168,7 +168,7 @@ def test_workday_cxs_transport_error_falls_back_to_next_data_postings():
 
 
 def test_workday_cxs_error_reraises_original_when_html_also_fails():
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     orig = HttpError("HTTP 404", status_code=404)
     client = FakeClient([orig], text=HttpError("HTML 502", status_code=502))
@@ -225,7 +225,7 @@ def test_workday_interleaves_preferred_country_with_unfiltered_pages():
 
 
 def test_workday_rejected_country_facet_keeps_unfiltered_pagination():
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     client = FakeClient([
         {

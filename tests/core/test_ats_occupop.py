@@ -12,7 +12,6 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from ultron import http_factory, runs
 from ultron.core.ats.board_policy import board_is_valid, vendor_domains
 from ultron.core.ats.clients import FETCHERS, AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.occupop import MAX_POSTINGS, occupop_job_from_detail, occupop_job_ref
@@ -20,11 +19,13 @@ from ultron.core.ats.identity import seed_identity
 from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_host
 from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.models import CandidateUrl
-from ultron.net import HttpClient, HttpError, URLRejected
-from ultron.seed_rounds import validate_proposal
+from ultron.infra.net import HttpClient, HttpError, URLRejected
 from ultron.seeds import PROBE_VENDORS, Proposal, verify_proposal
+from ultron.seeds.rounds import validate_proposal
 from ultron.stages import fetch as fetch_stage
+from ultron.stages import http_factory
 from ultron.stages.discover import _seed_request_host
+from ultron.storage import runs
 
 TOKEN = "Synthetic" + "Tok3nAbCdEf0123456789XyZ"  # built at runtime: a synthetic board id, not a secret
 FRAME_URL = f"https://api.occupop.com/api/jobs-frame/{TOKEN}"
@@ -358,7 +359,8 @@ def test_verify_finds_the_occupop_embed_on_a_company_careers_page():
 
 
 def _diagnose_with(handler):
-    from ultron import diagnose, profiles
+    from ultron.diagnostics import diagnose
+    from ultron.profiles import store as profiles
 
     seen: list[str] = []
 

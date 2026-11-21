@@ -6,8 +6,11 @@ from contextlib import closing
 import pytest
 import yaml
 
-from ultron import home, import_mark3, profiles, seeds
-from ultron.ledger import connect
+from ultron import seeds
+from ultron.infra import home
+from ultron.migrations import mark3 as import_mark3
+from ultron.profiles import store as profiles
+from ultron.storage.ledger import connect
 
 PROFILE_SCHEMA = """CREATE TABLE search_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE, name TEXT, description TEXT DEFAULT '',
@@ -74,7 +77,7 @@ def test_import_profiles_jobs_feedback_seeds(tmp_path):
     assert prof["query_templates"] == {"web": ["{title} remote"]}
     assert prof["worked_examples"] == [{"a": 1}]
     assert res["seeds"]["imported"] == 2
-    inv = {s.board_identifier: s for s in seeds._read_yaml_seeds(seeds.auto_seeds_path())}
+    inv = {s.board_identifier: s for s in seeds.read_yaml_seeds(seeds.auto_seeds_path())}
     assert inv["acme"].profiles == ["ml-eu", "other"]
     assert inv["acme"].source_type == "agent_generated"
     assert inv["acme"].verification == {"postings": 7}
@@ -99,7 +102,7 @@ def test_import_twice_no_duplicates(tmp_path):
     assert res["seeds"] == {"imported": 0, "skipped": 2}
     assert res["jobs"] == {"imported": 0, "skipped": 2}
     assert res["feedback"] == {"imported": 0, "skipped": 1}
-    assert len(seeds._read_yaml_seeds(seeds.auto_seeds_path())) == 2
+    assert len(seeds.read_yaml_seeds(seeds.auto_seeds_path())) == 2
     with closing(connect()) as conn:
         assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 2
 

@@ -9,7 +9,7 @@ from ultron.core.ats.clients.base import (
     locator_url,
     parse_card_listings,
 )
-from ultron.net import HttpError
+from ultron.infra.net import HttpError
 
 logger = logging.getLogger(__name__)
 

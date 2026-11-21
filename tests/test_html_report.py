@@ -9,8 +9,9 @@ import re
 
 import pytest
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 JOB_URLS = {"https://example.com/job/1", "https://example.org/jobs/3?ref=list&x=1", "https://example.com/a"}
 
@@ -168,7 +169,7 @@ def test_empty_results_render(run_id, tmp_path, capsys):
 
 
 def test_redaction_runs_after_removing_format_characters():
-    from ultron.core.reporting import html_report
+    from ultron.exports import html_report
 
     split = "token gh\u200bp_abcdefgh12345678 end"
     cleaned = html_report._clean(split)

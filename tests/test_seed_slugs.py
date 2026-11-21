@@ -6,7 +6,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
 from ultron.seeds import Proposal, slug_candidates, verify_proposal
 
 

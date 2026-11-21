@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ultron import profiles
 from ultron.core.ats.clients.base import AtsPosting
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.prefilter import passes_coarse_prefilter
@@ -16,6 +15,7 @@ from ultron.core.models import ExtractedJob
 from ultron.core.rules.role_matching import is_allowed_family, score_role_family
 from ultron.core.rules.title_synonyms import expand_role_terms
 from ultron.core.vocabulary import VocabularyPack, active_pack, load_packs
+from ultron.profiles import store as profiles
 
 PROFILES = Path(__file__).resolve().parents[1] / "fixtures" / "profiles"
 

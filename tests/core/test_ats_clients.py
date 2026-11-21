@@ -10,7 +10,7 @@ from ultron.core.ats.clients import FETCHERS, AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.ashby import fetch_ashby_jobs
 from ultron.core.ats.clients.greenhouse import fetch_greenhouse_jobs
 from ultron.core.ats.clients.lever import fetch_lever_jobs
-from ultron.net import HttpClient, HttpError
+from ultron.infra.net import HttpClient, HttpError
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "ats"
 
@@ -79,7 +79,7 @@ def test_greenhouse_falls_back_to_eu_host():
 def test_greenhouse_keeps_the_primary_404_when_the_eu_fallback_cannot_resolve():
     # A board removed from Greenhouse answers 404 on the primary API; the EU fallback host may not resolve.
     # The reported error must stay the 404, not the fallback's dns_resolution_failed.
-    from ultron.net import URLRejected
+    from ultron.infra.net import URLRejected
 
     client = FakeClient([HttpError("HTTP 404", status_code=404), URLRejected("dns_resolution_failed")])
     with pytest.raises(HttpError) as excinfo:
@@ -88,7 +88,7 @@ def test_greenhouse_keeps_the_primary_404_when_the_eu_fallback_cannot_resolve():
 
 
 def test_greenhouse_policy_rejection_of_the_primary_host_is_not_hidden():
-    from ultron.net import URLRejected
+    from ultron.infra.net import URLRejected
 
     with pytest.raises(URLRejected):
         fetch_greenhouse_jobs("acme", client=FakeClient([URLRejected("domain_not_allowed")]))

@@ -7,12 +7,15 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.core.models import AtsBoardSeed, CandidateUrl
-from ultron.net import HttpClient, top_hosts
+from ultron.infra.net import HttpClient, top_hosts
+from ultron.profiles import store as profiles
 from ultron.stages import feeds as feeds_stage
+from ultron.stages import http_factory
 from ultron.stages.discover import discover_ats
 from ultron.stages.fetch import fetch
+from ultron.storage import runs
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 PAGE = (FIX / "pages" / "greenhouse_job.html").read_text(encoding="utf-8")
@@ -22,7 +25,7 @@ PAGE = (FIX / "pages" / "greenhouse_job.html").read_text(encoding="utf-8")
 def _no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
 
 
 def _install(handler):

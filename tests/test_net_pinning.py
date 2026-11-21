@@ -9,8 +9,8 @@ import httpx
 import pytest
 from httpcore import MockStream, SyncBackend
 
-from ultron.net import HttpClient, URLRejected
-from ultron.pinned_transport import PINNED_ADDRESSES, PinnedTransport
+from ultron.infra.net import HttpClient, URLRejected
+from ultron.infra.pinned_transport import PINNED_ADDRESSES, PinnedTransport
 
 PUBLIC_A = "93.184.216.34"
 PUBLIC_B = "93.184.216.35"

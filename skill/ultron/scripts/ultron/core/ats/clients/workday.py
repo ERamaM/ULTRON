@@ -16,7 +16,7 @@ from ultron.core.ats.clients.base import (
 )
 from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 from ultron.core.rules.term_matching import normalize_text
-from ultron.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,8 @@ from pathlib import Path
 import yaml
 
 from ultron.core.models import JobEvaluation
-from ultron.profiles import validate_profile
-from ultron.salary import SalaryEstimate
+from ultron.profiles.store import validate_profile
+from ultron.salary.estimator import SalaryEstimate
 from ultron.seeds import Proposal
 
 SKILL = Path(__file__).resolve().parents[1] / "skill" / "ultron"

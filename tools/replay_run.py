@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from eval_harness import assign_ranks, final_status, replay
 from safe_paths import UnsafePathError, inside, read_report, write_report
 
-from ultron import runs
+from ultron.storage import runs
 
 REPORT_SCHEMA_VERSION = 1
 REQUIRED_FILES = ("run.json", "postings.jsonl")

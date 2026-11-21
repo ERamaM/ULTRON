@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 
-from ultron import runs
 from ultron.core.decision.ambiguity import AmbiguityScorer
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import DiscardRecord, ExtractedJob
@@ -14,6 +13,7 @@ from ultron.core.rules.hard_filters import location_excluded
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
 from ultron.stages.feeds import is_aggregator_host
+from ultron.storage import runs
 
 # Evaluator-stage discards whose ambiguity score reaches the preset threshold go to the agent instead of
 # being final, at most this many per run (highest scores first). Hard evidence is never rescued.

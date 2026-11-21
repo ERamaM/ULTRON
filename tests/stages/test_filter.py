@@ -4,8 +4,9 @@ import json
 
 from stage_helpers import GOLDEN, make_run
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 # Reviewed deviations from the MARK III golden (see INTENTIONAL_DEVIATIONS in tests/core/test_parity_heuristics.py).
 DEVIATED_OUTCOMES = {"es-positive-shape-01": {"outcome": "keep", "reason": None, "stage": "completed"}}

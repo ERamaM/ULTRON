@@ -4,8 +4,9 @@ import re
 import pytest
 from pydantic import BaseModel
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 
 @pytest.fixture
@@ -134,7 +135,7 @@ def test_cli_rejects_traversal_run_ids_with_a_specific_error(argv, capsys):
 
 
 def test_build_query_plan_interleaves_site_scopes():
-    from ultron.runs_cmd import build_query_plan
+    from ultron.core.discovery.query_plan import build_query_plan
 
     profile = {
         "query_templates": {
@@ -159,7 +160,7 @@ def test_build_query_plan_interleaves_site_scopes():
 
 
 def test_larger_query_plans_use_supplementary_profile_titles():
-    from ultron.runs_cmd import build_query_plan
+    from ultron.core.discovery.query_plan import build_query_plan
 
     profile = {"query_templates": {
         "core_titles": ["Senior ML Engineer"],

@@ -6,25 +6,23 @@ import argparse
 import sys
 import traceback
 
-from ultron import (
-    __version__,
-    cv_cmd,
-    diagnose_cmd,
-    doctor_cmd,
-    export_cmd,
-    filter_cmd,
-    import_mark3_cmd,
-    jobs_cmd,
-    maintenance_cmd,
-    profile_cmd,
-    runs_cmd,
-    salary_cmd,
-    saved_cmd,
-    seeds_cmd,
-    stages_cmd,
-    update_cmd,
-)
-from ultron.output import emit, fail
+from ultron import __version__
+from ultron.commands import cv as cv_cmd
+from ultron.commands import diagnose as diagnose_cmd
+from ultron.commands import doctor as doctor_cmd
+from ultron.commands import export as export_cmd
+from ultron.commands import filter as filter_cmd
+from ultron.commands import import_mark3 as import_mark3_cmd
+from ultron.commands import jobs as jobs_cmd
+from ultron.commands import maintenance as maintenance_cmd
+from ultron.commands import profile as profile_cmd
+from ultron.commands import runs as runs_cmd
+from ultron.commands import salary as salary_cmd
+from ultron.commands import saved as saved_cmd
+from ultron.commands import seeds as seeds_cmd
+from ultron.commands import stages as stages_cmd
+from ultron.commands import update as update_cmd
+from ultron.commands.output import emit, fail
 
 __all__ = ["COMMAND_MODULES", "build_parser", "emit", "fail", "main"]
 
@@ -44,7 +42,7 @@ class _UsageError(Exception):
 def _cmd_version(args: argparse.Namespace) -> int:
     result = {"ultron": __version__}
     if args.check_update:
-        from ultron.update_notice import release_notice
+        from ultron.update.notice import release_notice
 
         if (notice := release_notice(__version__)) is not None:
             result["update_available"] = notice

@@ -753,7 +753,7 @@ wheels = [
 
 [[package]]
 name = "ultron"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "skill/ultron/scripts" }
 dependencies = [
     { name = "beautifulsoup4" },

@@ -21,6 +21,7 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register the ``ultron doctor`` command."""
     parser = subparsers.add_parser("doctor", help="check Python, state folder, ledger, extras, install and network")
     parser.add_argument("--no-network", action="store_true", help="skip the DNS and HTTPS checks")
     parser.add_argument("--public", action="store_true", help="omit local paths, check details and exception text")

@@ -404,6 +404,7 @@ def is_allowed_family(
     vocabulary: VocabularyPack = EMPTY_PACK,
     negatives: RoleNegatives = DEFAULT_ROLE_NEGATIVES,
 ) -> bool:
+    """Return True if title or body aligns with allowed role-family terms."""
     score, _signals = score_role_family(
         title,
         body_text,

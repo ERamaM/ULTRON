@@ -80,6 +80,7 @@ def _runs_show(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron run`` and ``ultron runs`` subcommands."""
     run = subparsers.add_parser("run", help="start a run (`run new`, or `run --unattended --profile P`)")
     run.add_argument("--unattended", action="store_true", help="chain discover, fetch, filter and finalize")
     run.add_argument("--profile", dest="unattended_profile")

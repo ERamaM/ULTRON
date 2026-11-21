@@ -39,6 +39,7 @@ PUBLIC_CHECK_IDS = frozenset({
 
 @dataclass
 class Check:
+    """Result record of a single ``ultron doctor`` environment check."""
     id: str
     ok: bool
     detail: str
@@ -49,6 +50,7 @@ class Check:
 
 
 def check_python() -> Check:
+    """Verify the running Python interpreter meets the minimum supported version."""
     version = ".".join(str(p) for p in sys.version_info[:3])
     if sys.version_info >= MIN_PYTHON:
         return Check("python_version", True, f"Python {version}")
@@ -61,6 +63,7 @@ def check_python() -> Check:
 
 
 def check_home_writable() -> Check:
+    """Verify ``ULTRON_HOME`` (or its nearest existing ancestor) is writable."""
     home = installs.home_path()
     probe = home
     while not probe.exists() and probe != probe.parent:
@@ -81,6 +84,7 @@ def check_home_writable() -> Check:
 
 
 def check_db_schema() -> Check:
+    """Check whether the SQLite ledger exists and matches ``SCHEMA_VERSION``."""
     path = installs.home_path() / "ultron.sqlite3"
     expected = ledger.SCHEMA_VERSION
     if not path.exists():
@@ -111,6 +115,7 @@ def check_db_schema() -> Check:
 
 
 def check_extras() -> Check:
+    """Verify optional dependencies (``pypdf`` and ``openpyxl``) are importable."""
     missing = [(mod, extra) for mod, extra in EXTRAS if importlib.util.find_spec(mod) is None]
     if not missing:
         return Check("optional_extras", True, "pypdf and openpyxl available")
@@ -170,6 +175,7 @@ def _default_resolver(hostname: str, port: int) -> list[str]:
 
 
 def check_network_dns(env: Mapping[str, str], resolver: Callable | None = None) -> Check:
+    """Check DNS resolution for external connectivity tests."""
     try:
         addresses = list((resolver or _default_resolver)(NETWORK_HOST, 443))
     except OSError as exc:
@@ -180,6 +186,7 @@ def check_network_dns(env: Mapping[str, str], resolver: Callable | None = None) 
 
 
 def check_network_https(env: Mapping[str, str]) -> Check:
+    """Check outbound HTTPS connectivity within tight request budgets."""
     options = {
         "max_requests": 2,
         "max_requests_per_host": 2,
@@ -196,6 +203,7 @@ def check_network_https(env: Mapping[str, str]) -> Check:
 
 
 def run_checks(*, network: bool = True) -> list[Check]:
+    """Run environment, storage, installation, and optional network checks."""
     checks = [check_python(), check_home_writable(), check_db_schema(), check_extras(), check_skill_installed()]
     if network:
         checks.append(check_network_dns(os.environ, http_factory.TEST_OVERRIDES.get("resolver")))
@@ -204,6 +212,7 @@ def run_checks(*, network: bool = True) -> list[Check]:
 
 
 def to_payload(checks: list[Check]) -> dict:
+    """Convert doctor ``Check`` items into the CLI JSON output payload."""
     return {"ok": all(c.ok for c in checks), "checks": [asdict(c) for c in checks]}
 
 

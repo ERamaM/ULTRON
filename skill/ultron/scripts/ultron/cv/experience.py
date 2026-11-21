@@ -403,20 +403,24 @@ _MENTORING_TERMS = (
 
 @dataclass(frozen=True, slots=True)
 class YearMonth:
+    """Parsed year-month boundary supporting year-only precision."""
     year: int
     month: int
     year_only: bool = False
 
     @property
     def index(self) -> int:
+        """Convert year and month into a monotonic integer month index."""
         return self.year * 12 + self.month
 
     def label(self) -> str:
+        """Format as ``YYYY`` for year-only dates or ``YYYY-MM`` otherwise."""
         return str(self.year) if self.year_only else f"{self.year:04d}-{self.month:02d}"
 
 
 @dataclass(frozen=True, slots=True)
 class ExperienceEntry:
+    """Verified employment entry with title hint, date span, and source line range."""
     title_hint: str
     start: YearMonth
     end: YearMonth
@@ -431,14 +435,17 @@ class ExperienceEntry:
 
     @property
     def heading_line_index(self) -> int:
+        """Return the earliest heading or entry line index in the CV text."""
         return self.line_index if self.start_line_index is None else self.start_line_index
 
     @property
     def start_index(self) -> int:
+        """Return the start boundary as a monotonic month index."""
         return self.start.index
 
     @property
     def end_index(self) -> int:
+        """Return the end boundary as a monotonic month index."""
         return self.end.index
 
 

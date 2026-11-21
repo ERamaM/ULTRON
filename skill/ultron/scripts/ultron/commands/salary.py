@@ -92,6 +92,7 @@ def _save(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron salary`` subcommands."""
     parser = subparsers.add_parser("salary", help="expected salary estimation and market benchmarks")
     sub = parser.add_subparsers(dest="salary_command", required=True, parser_class=type(parser))
 

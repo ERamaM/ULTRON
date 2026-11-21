@@ -54,6 +54,7 @@ PROBE_VENDORS = (
 
 @dataclass
 class Proposal:
+    """Company or career-site candidate proposed for ATS verification."""
     company: str
     domain: str = ""
     ats: str = ""
@@ -64,6 +65,7 @@ class Proposal:
 
 @dataclass
 class VerifyResult:
+    """Outcome of verifying a seed ``Proposal`` against ATS probes."""
     proposal: Proposal
     status: Literal["verified", "unresolved"]
     seed: AtsBoardSeed | None
@@ -219,6 +221,7 @@ class PageHops:
     used: dict[str, int] = field(default_factory=dict)
 
     def take(self, host: str) -> bool:
+        """Consume one host and total page-hop budget slot, returning False if exhausted."""
         if sum(self.used.values()) >= self.total or self.used.get(host, 0) >= self.per_host:
             return False
         self.used[host] = self.used.get(host, 0) + 1
@@ -297,6 +300,7 @@ def _linked_boards(links: list[str]) -> list[tuple[str, str]]:
 def verify_proposal(
     p: Proposal, *, client: HttpClient, timeout: int, verify_only: bool = False, page_hops: PageHops | None = None,
 ) -> VerifyResult:
+    """Probe a proposed company/URL to verify a supported ATS board seed."""
     def unresolved(reason: str) -> VerifyResult:
         return VerifyResult(p, "unresolved", None, 0, reason)
 

@@ -19,6 +19,7 @@ def home_path() -> Path:
 
 
 def marker_valid(path: Path) -> bool:
+    """Return True if ``path`` holds a valid ``.ultron-install.json`` marker for itself."""
     try:
         data = json.loads((path / ".ultron-install.json").read_text(encoding="utf-8"))
         return data.get("name") == "ultron" and Path(data["path"]).resolve() == path.resolve()
@@ -27,6 +28,7 @@ def marker_valid(path: Path) -> bool:
 
 
 def registered_link(path: Path) -> bool:
+    """Return True if ``path`` is recorded as an active link in ``installs.json``."""
     try:
         links = json.loads((home_path() / "installs.json").read_text(encoding="utf-8")).get("links", {})
         target = links.get(str(path.parent.resolve() / path.name))

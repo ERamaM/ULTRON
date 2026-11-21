@@ -34,6 +34,7 @@ def _html(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron export`` subcommands."""
     export = subparsers.add_parser("export", help="export run results")
     sub = export.add_subparsers(dest="export_command", required=True, parser_class=type(export))
     parser = sub.add_parser("xlsx", help="write the run as an Excel workbook")

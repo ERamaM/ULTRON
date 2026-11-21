@@ -1,3 +1,5 @@
+"""Declarative catalog of supported ATS vendors, domains, and HTML fingerprints."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -31,6 +33,7 @@ AtsVendorName = Literal[
 
 @dataclass(frozen=True, slots=True)
 class AtsVendorData:
+    """Metadata describing one supported ATS vendor and its host/HTML signals."""
     name: AtsVendorName
     label: str
     canonical_domain: str
@@ -41,6 +44,7 @@ class AtsVendorData:
 
     @property
     def all_domains(self) -> tuple[str, ...]:
+        """Return primary domains combined with extra allowlisted host suffixes."""
         extra = tuple(domain for domain in self.allow_domains if domain not in self.domains)
         return (*self.domains, *extra)
 
@@ -217,10 +221,12 @@ SUPPORTED_ATS_DOMAINS = tuple(dict.fromkeys(domain for item in VENDOR_DATA for d
 
 
 def domain_matches(host: str, known_domain: str) -> bool:
+    """Return True if ``host`` equals ``known_domain`` or is a subdomain of it."""
     return host == known_domain or host.endswith(f".{known_domain}")
 
 
 def match_vendor_by_domain(domain: str) -> AtsVendorData | None:
+    """Return vendor metadata whose domain list matches ``domain``, or None."""
     host = str(domain or "").strip().lower()
     if not host:
         return None
@@ -231,6 +237,7 @@ def match_vendor_by_domain(domain: str) -> AtsVendorData | None:
 
 
 def match_vendor_by_fingerprint(html: str) -> AtsVendorData | None:
+    """Return vendor metadata whose HTML fingerprint matches ``html``, or None."""
     low = str(html or "").lower()
     if not low:
         return None
@@ -241,6 +248,7 @@ def match_vendor_by_fingerprint(html: str) -> AtsVendorData | None:
 
 
 def canonical_domain_for_vendor(vendor: str | None) -> str | None:
+    """Return the canonical domain configured for ``vendor``, or None."""
     if not vendor:
         return None
     item = VENDOR_DATA_BY_NAME.get(str(vendor).strip().lower())

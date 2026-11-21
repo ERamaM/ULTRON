@@ -1,3 +1,5 @@
+"""Breezy HR public JSON feed client."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, location_text, locator_url
@@ -6,6 +8,7 @@ from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, location_tex
 def fetch_breezy_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Breezy HR board."""
     fetch_json = client.request_json
     url = locator_url(f"{board_identifier}.breezy.hr", "json")
     payload = fetch_json(url, timeout=timeout)

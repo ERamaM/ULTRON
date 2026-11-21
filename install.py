@@ -59,23 +59,25 @@ PYTHON_HINT = (
 
 
 class InstallError(RuntimeError):
-    pass
+    """Raised when ULTRON installation or uninstallation fails."""
 
 
 class UsageError(Exception):
-    pass
+    """Raised on invalid installer command-line arguments."""
 
 
 # ----------------------------------------------------------------------------------------------- paths
 
 
 def ultron_home() -> Path:
+    """Resolve the ULTRON home directory from ``ULTRON_HOME`` or ``~/.ultron``."""
     # Intentionally standalone (cannot import ultron.infra.home before installation).
     env = os.environ.get("ULTRON_HOME")
     return Path(env).expanduser() if env else Path.home() / ".ultron"
 
 
 def ultron_executable(venv: Path) -> Path:
+    """Return the platform-specific path to the installed ``ultron`` CLI binary."""
     if os.name == "nt":
         return venv / "Scripts" / "ultron.exe"
     return venv / "bin" / "ultron"
@@ -307,6 +309,7 @@ def runtime_info(*, mode: str = "copy", source: Path | None = None) -> dict:
 
 
 def runtime_text(executable: Path, home: Path, version: str | None = None, installed_at: str | None = None) -> str:
+    """Render Markdown runtime instructions pointing to ``executable`` and ``home``."""
     text = (
         "# ULTRON runtime\n\n"
         "Written by `install.py`. Run every ULTRON command with this executable (absolute path):\n\n"
@@ -808,6 +811,7 @@ def install_dev(*, target: Path, source: Path | None = None, force_copy: bool = 
 def run_install(*, scope: str, project: Path | None, platforms: list[str], dev: bool = False,
                 force_copy: bool = False, update: bool = False, dry_run: bool = False,
                 source: Path | None = None) -> dict:
+    """Install the ULTRON skill, runtime environment, and platform links or copies."""
     source = Path(source) if source is not None else SKILL_SOURCE
     home = ultron_home()
     venv = home / "venv"
@@ -925,6 +929,7 @@ def _purge_home(home: Path, *, dry_run: bool) -> dict:
 
 def run_uninstall(*, scope: str, project: Path | None, platforms: list[str], purge_data: bool = False,
                   dry_run: bool = False) -> dict:
+    """Remove installed ULTRON skill copies or links and optionally purge user data."""
     entries = []
     for path, names in _group_by_path(platform_targets(scope, project, platforms)):
         entry: dict = {"platforms": names, "path": str(path)}
@@ -1012,6 +1017,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the installer CLI and emit a single JSON status payload."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     if sys.version_info < (3, 12):  # noqa: UP036 - install.py may be launched by an older interpreter

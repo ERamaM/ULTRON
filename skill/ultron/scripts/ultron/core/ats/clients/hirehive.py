@@ -59,6 +59,7 @@ def _item_list_listings(soup: BeautifulSoup) -> list[tuple[str, str, str]]:
 
 
 def fetch_hirehive_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
+    """Fetch open postings from a HireHive hosted board."""
     tenant = str(board_identifier or "").strip().lower()
     if not _TENANT_RE.fullmatch(tenant):
         raise AtsClientError("invalid_board")  # the board is one DNS label: <tenant>.hirehive.com

@@ -1,3 +1,5 @@
+"""Redacted Markdown and JSON artifact renderers for finished runs."""
+
 from __future__ import annotations
 
 import json

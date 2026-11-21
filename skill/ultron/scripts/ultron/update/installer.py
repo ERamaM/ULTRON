@@ -72,6 +72,7 @@ def _display(argv: list[str], env: dict[str, str]) -> str:
 
 
 def installer_env() -> dict[str, str]:
+    """Build environment variables preserved when generating update commands."""
     home = os.environ.get("ULTRON_HOME")
     return {"ULTRON_HOME": str(Path(home).expanduser())} if home else {}
 

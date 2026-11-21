@@ -108,11 +108,13 @@ def run_settings(run: dict) -> dict:
 
 
 def load_rounds(run_id: str) -> list[dict]:
+    """Load recorded seed-discovery round entries for ``run_id``."""
     path = runs.run_dir(run_id) / ROUNDS_FILE
     return runs.read_jsonl(path) if path.exists() else []
 
 
 def append_round(run_id: str, record: dict) -> None:
+    """Append a seed-discovery round record to ``run_id``."""
     runs.append_jsonl(runs.run_dir(run_id) / ROUNDS_FILE, [record])
 
 
@@ -207,6 +209,7 @@ def tried(run: dict, rounds: list[dict]) -> tuple[set[str], set[str], list[str]]
 
 
 def round_status(run: dict, rounds: list[dict], fitting: int) -> str:
+    """Determine whether seed generation met target, stalled, or can continue."""
     settings = run_settings(run)
     if fitting >= settings["seed_target"]:
         return "target_met"

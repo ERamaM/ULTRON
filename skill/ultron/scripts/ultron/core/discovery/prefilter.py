@@ -1,3 +1,5 @@
+"""Lightweight pre-fetch title and URL filters for web-search discovery hits."""
+
 from __future__ import annotations
 
 import re

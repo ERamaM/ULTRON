@@ -383,6 +383,7 @@ def _record_run(conn: sqlite3.Connection, run_id: str, summary: RunSummary, prof
 
 
 def record_run(conn: sqlite3.Connection, run_id: str, summary: RunSummary, profile_slug: str, preset: str) -> None:
+    """Insert or update metadata for ``run_id`` in the SQLite ledger."""
     with conn:
         _record_run(conn, run_id, summary, profile_slug, preset)
 

@@ -14,7 +14,6 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import ultron
-from ultron import __version__
 from ultron.infra.net import HttpClient
 from ultron.infra.platforms import (
     PLATFORM_LABELS,
@@ -250,7 +249,7 @@ def to_public_payload(checks: list[Check]) -> dict:
     """Return only build information and statuses for known checks."""
     return {
         "ok": all(c.ok for c in checks),
-        "ultron": __version__,
+        "ultron": ultron.__version__,
         "python": ".".join(str(part) for part in sys.version_info[:3]),
         "os": {"win32": "Windows", "darwin": "macOS", "linux": "Linux"}.get(sys.platform, "Other"),
         "checks": [{"id": c.id, "ok": bool(c.ok)} for c in checks if c.id in PUBLIC_CHECK_IDS],

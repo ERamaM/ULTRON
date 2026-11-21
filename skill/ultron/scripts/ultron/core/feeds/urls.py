@@ -7,8 +7,6 @@ from urllib.parse import parse_qs, unquote, urlparse
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import AtsHTTPClient
-from ultron.core.discovery.title_vocabulary import TitleVocabulary
-from ultron.core.rules.term_matching import find_terms
 from ultron.infra.net import HostBlocked, RequestBudgetExceeded
 
 URL_RE = r"https?://[^\s\"'<>]+"
@@ -58,13 +56,6 @@ def looks_like_company_jobs_url(url: str) -> bool:
     if any(token in path for token in tokens):
         return True
     return any(token in host for token in ("careers.", ".careers", "jobs.", ".jobs"))
-
-
-def is_target_title(title: str, vocabulary: TitleVocabulary) -> bool:
-    low = title.lower()
-    if any(re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", low) for term in vocabulary.excluded_terms):
-        return False
-    return bool(find_terms(title, vocabulary.role_terms))
 
 
 def iter_string_values(obj) -> list[str]:

@@ -41,6 +41,7 @@ from ultron.seeds import (
     add_seeds,
     load_inventory,
 )
+from ultron.stages.candidates import candidate_identity as _identity
 from ultron.stages.http_factory import client_for_run
 from ultron.storage import runs
 
@@ -58,14 +59,6 @@ def load_sources() -> list[dict]:
         s for s in rows
         if isinstance(s, dict) and s.get("enabled", True) and s.get("id") and s.get("parser") in COLLECTORS
     ]
-
-
-def _identity(row: dict) -> str:
-    return canonical_job_identity(
-        row.get("source_url") or row.get("normalized_url") or "",
-        source_type=row.get("source_type") or "",
-        source_key=row.get("source_key") or "",
-    ).identity_key
 
 
 def _posting_like(row: dict) -> SimpleNamespace:

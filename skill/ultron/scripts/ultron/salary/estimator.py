@@ -8,9 +8,7 @@ returning bounded snippets.
 from __future__ import annotations
 
 import math
-import os
 import re
-import tempfile
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -24,6 +22,7 @@ from ultron.core.rules.term_matching import normalize_text
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
 from ultron.infra import home
+from ultron.infra.fs import atomic_write_text as _atomic_write_text
 from ultron.profiles import edit as profile_edit
 from ultron.profiles import store as profiles
 from ultron.storage import runs
@@ -875,18 +874,6 @@ def render_salary_report_markdown(estimate: SalaryEstimate, *, profile_slug: str
             note = f" — {redact(src['note'])}" if src.get("note") else ""
             lines.append(f"- [{title}]({url}){note}" if url else f"- {title}{note}")
     return "\n".join(lines) + "\n"
-
-
-def _atomic_write_text(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
 
 
 def save_salary_estimate(

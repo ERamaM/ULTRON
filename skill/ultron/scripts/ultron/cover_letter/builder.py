@@ -15,7 +15,7 @@ from ultron.cover_letter import brief, templates, truth
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
-from ultron.infra import home
+from ultron.infra import fs, home, ooxml
 
 _BULLET_LINE_RE = re.compile(r"^[ \t]{0,4}(?:[-*\u2022\u25cf])[ \t]{1,4}(.+)$")
 _SALUTATION_PREFIXES = ("dear ", "hello ", "hi ", "estimad", "hola ", "sehr geehrte", "hallo ", "bonjour ", "cher ", "caro ", "prezado ", "gentile ")
@@ -94,19 +94,6 @@ def parse_json_cover_letter(data: dict[str, Any]) -> CoverLetterDocument:
     return doc
 
 
-def _split_frontmatter_and_blocks(text: str) -> tuple[dict[str, Any], str]:
-    lines = text.splitlines()
-    if lines and lines[0].strip() == "---":
-        for idx in range(1, min(len(lines), 80)):
-            if lines[idx].strip() == "---":
-                raw_yaml = "\n".join(lines[1:idx])
-                loaded = yaml.safe_load(raw_yaml) if raw_yaml.strip() else {}
-                if not isinstance(loaded, dict):
-                    raise ValueError("Markdown cover letter frontmatter must be a YAML mapping")
-                return loaded, "\n".join(lines[idx + 1 :])
-    return {}, text
-
-
 def _looks_like_salutation(block: str) -> bool:
     stripped = block.strip()
     if len(stripped) > 72 or "\n" in stripped:
@@ -178,7 +165,8 @@ def _group_markdown_body(body: str) -> tuple[list[str], list[str]]:
 
 def parse_markdown_cover_letter(text: str) -> CoverLetterDocument:
     """Parse Markdown with optional YAML frontmatter into :class:`CoverLetterDocument`."""
-    meta, body = _split_frontmatter_and_blocks(text or "")
+    meta_raw, body = truth.split_frontmatter(text or "", strict=True)
+    meta = meta_raw or {}
     candidate_name = str(meta.get("candidate_name") or "").strip()
     prose_blocks, bullets = _group_markdown_body(body)
 
@@ -353,11 +341,11 @@ def build_cover_letter_docx(
     if template_file is None and (report.table_count > 0 or report.textbox_count > 0 or report.multi_column_sections > 0):
         raise ValueError("generated bundled cover letter violated single-column ATS constraints")
 
-    cv_writer._atomic_write_bytes(target_docx, docx_bytes)
+    fs.atomic_write_bytes(target_docx, docx_bytes)
     written_md: str | None = None
     if target_md is not None:
         md_bytes = render_cover_letter_markdown(doc).encode("utf-8")
-        cv_writer._atomic_write_bytes(target_md, md_bytes)
+        fs.atomic_write_bytes(target_md, md_bytes)
         written_md = str(target_md.resolve())
 
     return {
@@ -365,7 +353,7 @@ def build_cover_letter_docx(
         "out_path": str(target_docx.resolve()),
         "out_md": written_md,
         "template": mode_used,
-        "font": cv_writer.resolve_safe_font(
+        "font": ooxml.resolve_safe_font(
             font or templates.BUNDLED_TEMPLATES.get(mode_used, {}).get("default_font", "Calibri")
         )
         if template_file is None

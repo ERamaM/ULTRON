@@ -7,16 +7,13 @@ import os
 from pathlib import Path
 
 from ultron.infra import installs as install_layout
+from ultron.infra.fs import is_link as _is_link
 from ultron.infra.platforms import PLATFORM_NAMES, global_skill_dirs
 
 PROJECT_AGENTS_PLATFORMS = ("codex", "opencode", "antigravity")  # share DIR/.agents/skills/ultron
 
 
 # --------------------------------------------------------------------------------------------- scopes
-
-
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or (os.name == "nt" and path.is_junction())
 
 
 def _is_copy_install(path: Path) -> bool:

@@ -20,7 +20,6 @@ from ultron.core.discovery.prefilter import (
 )
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.discovery.url_filter import domain_of, normalize_url
-from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, GeoScope
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.rules.geography import geo_scope, location_scope
@@ -31,17 +30,9 @@ from ultron.core.vocabulary import active_pack
 from ultron.infra import home
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.seeds import load_inventory
+from ultron.stages.candidates import candidate_identity as _identity
 from ultron.stages.http_factory import DISCOVER_VENDOR_SHARE, HOST_BLOCK_THRESHOLD, VERIFY_VENDOR_SHARE, client_for_run
 from ultron.storage import ledger, runs
-
-
-def _identity(candidate: dict) -> str:
-    return canonical_job_identity(
-        candidate.get("source_url") or candidate.get("normalized_url") or "",
-        source_type=candidate.get("source_type") or "",
-        source_key=candidate.get("source_key") or "",
-    ).identity_key
-
 
 # Seed groups, in query order. ``other`` = profile-linked auto seeds that are neither agent nor feed seeds
 # (manual, imported). Pack seeds outside the profile's sectors or regions are never queried.

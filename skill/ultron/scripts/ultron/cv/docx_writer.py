@@ -9,38 +9,20 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import re
-import tempfile
 import zipfile
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
-from urllib.parse import urlsplit
-from xml.sax.saxutils import escape
 
 from ultron.cv import ats as cv_ats
 from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
-from ultron.infra import home
+from ultron.infra import fs, home, ooxml
 
-WRITER_SAFE_FONTS: tuple[str, ...] = (
-    "Calibri",
-    "Arial",
-    "Georgia",
-    "Cambria",
-    "Garamond",
-    "Verdana",
-    "Helvetica",
-    "Times New Roman",
-)
-_SAFE_FONT_LOOKUP = {font.casefold(): font for font in WRITER_SAFE_FONTS}
+WRITER_SAFE_FONTS = ooxml.WRITER_SAFE_FONTS
+resolve_safe_font = ooxml.resolve_safe_font
 
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
-_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
-_MD_LINK_RE = re.compile(r"\[([^\[\]]+)\]\(([^()\s]+)\)")
-_BOLD_RE = re.compile(r"\*\*([^*\n]+)\*\*")
 _BULLET_RE = re.compile(r"^[ \t]*[-*•▪▫◦‣][ \t]+(\S.*)$")
 _CONTACT_LINE_RE = re.compile(
     r"(@|https?://|linkedin\.com/|github\.com/|\||"
@@ -81,38 +63,6 @@ class CvDocument:
     headline: str = ""
     contact: list[str] = field(default_factory=list)
     sections: list[CvSection] = field(default_factory=list)
-
-
-def resolve_safe_font(font: str) -> str:
-    """Validate ``font`` against ``WRITER_SAFE_FONTS`` and return canonical casing."""
-    key = " ".join(str(font or "").split()).casefold()
-    if key not in _SAFE_FONT_LOOKUP:
-        allowed = ", ".join(WRITER_SAFE_FONTS)
-        raise ValueError(f"unsupported font {font!r}; choose an ATS-safe font ({allowed})")
-    return _SAFE_FONT_LOOKUP[key]
-
-
-def _sanitize_xml_text(value: str) -> str:
-    cleaned = str(value or "").replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
-    cleaned = _CONTROL_CHARS_RE.sub("", cleaned)
-    return _SURROGATE_RE.sub("", cleaned)
-
-
-def _xml_escape(value: str) -> str:
-    return escape(_sanitize_xml_text(value), {'"': "&quot;", "'": "&apos;"})
-
-
-def _safe_hyperlink(url: str) -> str | None:
-    candidate = _sanitize_xml_text(url).strip()
-    if not candidate:
-        return None
-    parsed = urlsplit(candidate)
-    scheme = parsed.scheme.lower()
-    if scheme in {"http", "https"} and parsed.netloc:
-        return candidate
-    if scheme == "mailto" and "@" in parsed.path:
-        return candidate
-    return None
 
 
 def parse_markdown_cv(text: str) -> CvDocument:
@@ -231,130 +181,8 @@ def parse_json_cv(data: dict[str, Any]) -> CvDocument:
     return CvDocument(name=name or "Candidate CV", headline=headline, contact=contact, sections=sections)
 
 
-def _run_xml(text: str, *, bold: bool = False, italic: bool = False, color: str | None = None, size: int | None = None) -> str:
-    props: list[str] = []
-    if bold:
-        props.append("<w:b/>")
-    if italic:
-        props.append("<w:i/>")
-    if color:
-        props.append(f'<w:color w:val="{color}"/>')
-    if size:
-        props.append(f'<w:sz w:val="{size}"/><w:szCs w:val="{size}"/>')
-    rpr = f"<w:rPr>{''.join(props)}</w:rPr>" if props else ""
-    return f'<w:r>{rpr}<w:t xml:space="preserve">{_xml_escape(text)}</w:t></w:r>'
-
-
-def _inline_runs_xml(
-    text: str,
-    rel_registry: list[tuple[str, str]],
-    *,
-    bold: bool = False,
-    italic: bool = False,
-    color: str | None = None,
-    size: int | None = None,
-) -> str:
-    parts: list[str] = []
-
-    def emit_plain(segment: str) -> None:
-        pos = 0
-        for bmatch in _BOLD_RE.finditer(segment):
-            if bmatch.start() > pos:
-                parts.append(_run_xml(segment[pos : bmatch.start()], bold=bold, italic=italic, color=color, size=size))
-            parts.append(_run_xml(bmatch.group(1), bold=True, italic=italic, color=color, size=size))
-            pos = bmatch.end()
-        if pos < len(segment):
-            parts.append(_run_xml(segment[pos:], bold=bold, italic=italic, color=color, size=size))
-
-    pos = 0
-    for lmatch in _MD_LINK_RE.finditer(text):
-        if lmatch.start() > pos:
-            emit_plain(text[pos : lmatch.start()])
-        label, url = lmatch.group(1), lmatch.group(2)
-        safe_url = _safe_hyperlink(url)
-        if safe_url is not None:
-            rid = f"rId{len(rel_registry) + 3}"
-            rel_registry.append((rid, safe_url))
-            run = _run_xml(label, bold=bold, italic=italic, color="0563C1", size=size)
-            parts.append(f'<w:hyperlink r:id="{rid}">{run}</w:hyperlink>')
-        else:
-            emit_plain(label)
-        pos = lmatch.end()
-    if pos < len(text):
-        emit_plain(text[pos:])
-    return "".join(parts)
-
-
-def _content_types_xml() -> str:
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/word/document.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-        '<Override PartName="/word/styles.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
-        '<Override PartName="/word/numbering.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>'
-        '<Override PartName="/docProps/core.xml" '
-        'ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
-        "</Types>"
-    )
-
-
-def _root_rels_xml() -> str:
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-        'Target="word/document.xml"/>'
-        '<Relationship Id="rId2" '
-        'Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" '
-        'Target="docProps/core.xml"/>'
-        "</Relationships>"
-    )
-
-
-def _document_rels_xml(links: list[tuple[str, str]]) -> str:
-    extra = "".join(
-        f'<Relationship Id="{rid}" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" '
-        f'Target="{_xml_escape(url)}" TargetMode="External"/>'
-        for rid, url in links
-    )
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" '
-        'Target="styles.xml"/>'
-        '<Relationship Id="rId2" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" '
-        'Target="numbering.xml"/>'
-        f"{extra}</Relationships>"
-    )
-
-
-def _core_props_xml(title: str) -> str:
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
-        'xmlns:dc="http://purl.org/dc/elements/1.1/" '
-        'xmlns:dcterms="http://purl.org/dc/terms/" '
-        'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-        f"<dc:title>{_xml_escape(title)}</dc:title>"
-        "<cp:lastModifiedBy>ULTRON ATS Builder</cp:lastModifiedBy>"
-        f'<dcterms:created xsi:type="dcterms:W3CDTF">{now}</dcterms:created>'
-        f'<dcterms:modified xsi:type="dcterms:W3CDTF">{now}</dcterms:modified>'
-        "</cp:coreProperties>"
-    )
-
-
 def _styles_xml(font: str) -> str:
-    efont = _xml_escape(font)
+    efont = ooxml.xml_escape(font)
     rfonts = f'<w:rFonts w:ascii="{efont}" w:hAnsi="{efont}" w:cs="{efont}" w:eastAsia="{efont}"/>'
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -387,63 +215,45 @@ def _styles_xml(font: str) -> str:
     )
 
 
-def _numbering_xml(font: str) -> str:
-    efont = _xml_escape(font)
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-        '<w:abstractNum w:abstractNumId="0">'
-        '<w:multiLevelType w:val="singleLevel"/>'
-        '<w:lvl w:ilvl="0">'
-        '<w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="\u2022"/><w:lvlJc w:val="left"/>'
-        '<w:pPr><w:ind w:left="360" w:hanging="180"/></w:pPr>'
-        f'<w:rPr><w:rFonts w:ascii="{efont}" w:hAnsi="{efont}" w:hint="default"/></w:rPr>'
-        "</w:lvl>"
-        "</w:abstractNum>"
-        '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
-        "</w:numbering>"
-    )
-
-
 def _render_document_xml(doc: CvDocument) -> tuple[str, list[tuple[str, str]]]:
     links: list[tuple[str, str]] = []
     paragraphs: list[str] = [
-        f'<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>{_run_xml(doc.name)}</w:p>'
+        f'<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>{ooxml.run_xml(doc.name)}</w:p>'
     ]
     if doc.headline:
         paragraphs.append(
             f'<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>'
-            f"{_inline_runs_xml(doc.headline, links, bold=True, color='374151', size=22)}</w:p>"
+            f"{ooxml.inline_runs_xml(doc.headline, links, bold=True, color='374151', size=22)}</w:p>"
         )
     for line in doc.contact:
         paragraphs.append(
             f'<w:p><w:pPr><w:spacing w:after="60"/></w:pPr>'
-            f"{_inline_runs_xml(line, links, color='4B5563', size=20)}</w:p>"
+            f"{ooxml.inline_runs_xml(line, links, color='4B5563', size=20)}</w:p>"
         )
 
     for section in doc.sections:
         paragraphs.append(
-            f'<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>{_run_xml(section.heading)}</w:p>'
+            f'<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>{ooxml.run_xml(section.heading)}</w:p>'
         )
         for block in section.blocks:
             if block.kind == "subheading":
                 paragraphs.append(
                     '<w:p><w:pPr><w:keepNext/><w:spacing w:before="100" w:after="20"/></w:pPr>'
-                    f"{_inline_runs_xml(block.text, links, bold=True, color='111827', size=22)}</w:p>"
+                    f"{ooxml.inline_runs_xml(block.text, links, bold=True, color='111827', size=22)}</w:p>"
                 )
             elif block.kind == "meta":
                 paragraphs.append(
                     '<w:p><w:pPr><w:keepNext/><w:spacing w:after="40"/></w:pPr>'
-                    f"{_inline_runs_xml(block.text, links, italic=True, color='4B5563', size=20)}</w:p>"
+                    f"{ooxml.inline_runs_xml(block.text, links, italic=True, color='4B5563', size=20)}</w:p>"
                 )
             elif block.kind == "paragraph":
-                paragraphs.append(f"<w:p>{_inline_runs_xml(block.text, links)}</w:p>")
+                paragraphs.append(f"<w:p>{ooxml.inline_runs_xml(block.text, links)}</w:p>")
             elif block.kind == "bullets":
                 for item in block.items:
                     paragraphs.append(
                         '<w:p><w:pPr><w:pStyle w:val="ListParagraph"/>'
                         '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>'
-                        f"{_inline_runs_xml(item, links)}</w:p>"
+                        f"{ooxml.inline_runs_xml(item, links)}</w:p>"
                     )
 
     body = (
@@ -467,26 +277,14 @@ def render_docx_bytes(doc: CvDocument, *, font: str = "Calibri") -> bytes:
     doc_xml, links = _render_document_xml(doc)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", _content_types_xml().encode("utf-8"))
-        archive.writestr("_rels/.rels", _root_rels_xml().encode("utf-8"))
-        archive.writestr("docProps/core.xml", _core_props_xml(doc.name).encode("utf-8"))
-        archive.writestr("word/_rels/document.xml.rels", _document_rels_xml(links).encode("utf-8"))
+        archive.writestr("[Content_Types].xml", ooxml.content_types_xml().encode("utf-8"))
+        archive.writestr("_rels/.rels", ooxml.root_rels_xml().encode("utf-8"))
+        archive.writestr("docProps/core.xml", ooxml.core_props_xml(doc.name).encode("utf-8"))
+        archive.writestr("word/_rels/document.xml.rels", ooxml.document_rels_xml(links).encode("utf-8"))
         archive.writestr("word/styles.xml", _styles_xml(safe_font).encode("utf-8"))
-        archive.writestr("word/numbering.xml", _numbering_xml(safe_font).encode("utf-8"))
+        archive.writestr("word/numbering.xml", ooxml.numbering_xml(safe_font).encode("utf-8"))
         archive.writestr("word/document.xml", doc_xml.encode("utf-8"))
     return buf.getvalue()
-
-
-def _atomic_write_bytes(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "wb") as handle:
-            handle.write(content)
-        os.replace(tmp, path)
-    except BaseException:
-        Path(tmp).unlink(missing_ok=True)
-        raise
 
 
 def build_ats_docx(
@@ -525,7 +323,7 @@ def build_ats_docx(
             raise TruthfulnessError(truth_report)
 
     docx_bytes = render_docx_bytes(doc, font=safe_font)
-    _atomic_write_bytes(target, docx_bytes)
+    fs.atomic_write_bytes(target, docx_bytes)
 
     audit = cv_ats.audit_cv(target, write_report=False)
     formatting_issues = [f for f in audit["findings"] if f["category"] == "format" and f["severity"] != "info"]

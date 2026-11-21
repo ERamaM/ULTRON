@@ -16,7 +16,8 @@ from ultron.seeds import Proposal, load_inventory
 from ultron.storage import runs
 
 
-def _identity(candidate: dict) -> str:
+def candidate_identity(candidate: dict) -> str:
+    """Return the canonical identity key string for a raw candidate row mapping."""
     return canonical_job_identity(
         candidate.get("source_url") or candidate.get("normalized_url") or "",
         source_type=candidate.get("source_type") or "",
@@ -29,7 +30,7 @@ def add_candidates(run_id: str, path: Path) -> dict:
     rows = runs.read_jsonl(path)
     out_dir = runs.run_dir(run_id)
     existing = runs.read_jsonl(out_dir / "candidates.jsonl")
-    seen = {_identity(row) for row in existing}
+    seen = {candidate_identity(row) for row in existing}
     known_seeds = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     proposed = {(r.get("ats"), r.get("board")) for r in runs.read_jsonl(out_dir / "seed_proposals_from_search.jsonl")}
 
@@ -60,7 +61,7 @@ def add_candidates(run_id: str, path: Path) -> dict:
             hit_title=title,
             company_hint=company,
         )
-        identity = _identity(candidate.model_dump())
+        identity = candidate_identity(candidate.model_dump())
         if identity in seen:
             duplicates += 1
             continue

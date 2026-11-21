@@ -31,9 +31,7 @@ _PHONE_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
-_EMAIL_RE = re.compile(
-    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b"
-)
+_EMAIL_RE = cv_ats.EMAIL_RE
 
 _WORD_NUMBERS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,

@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ultron.infra import home
+from ultron.infra.fs import is_link as _is_link
 from ultron.storage import ledger
 from ultron.storage.runs import RUN_ID_RE
 
@@ -56,10 +57,6 @@ def _contained(path: Path, root: Path) -> bool:
     except ValueError:
         return False
     return True
-
-
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction())
 
 
 def _safe_target(path: Path, root: Path, *, link_ok: bool = False) -> Path:

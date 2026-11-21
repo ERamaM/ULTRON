@@ -11,7 +11,6 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from ultron import http_factory
 from ultron.core.ats.board_policy import board_is_valid, vendor_domains
 from ultron.core.ats.clients import FETCHERS, AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.hirehive import MAX_POSTINGS
@@ -20,9 +19,10 @@ from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_ho
 from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import JobRawPage
-from ultron.net import HttpClient, HttpError, URLRejected
-from ultron.seed_rounds import validate_proposal
+from ultron.infra.net import HttpClient, HttpError, URLRejected
 from ultron.seeds import PROBE_VENDORS, Proposal, verify_proposal
+from ultron.seeds.rounds import validate_proposal
+from ultron.stages import http_factory
 from ultron.stages.discover import _seed_request_host
 
 

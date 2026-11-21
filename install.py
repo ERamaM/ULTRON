@@ -234,7 +234,7 @@ def find_on_path(name: str) -> str | None:
 
     Only absolute PATH entries are searched; empty, relative and current-directory entries are skipped, so an
     untrusted checkout holding ``uv.exe`` cannot become the installer's executable. On Windows the ``PATHEXT``
-    extensions are tried. The same resolver lives in ``install.py`` and ``ultron.update`` (tested together).
+    extensions are tried. The same resolver lives in ``install.py`` and ``ultron.update.prepare`` (tested together).
     """
     try:
         cwd = os.path.normcase(os.path.realpath(os.getcwd()))

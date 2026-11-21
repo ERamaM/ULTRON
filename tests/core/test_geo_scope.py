@@ -8,7 +8,6 @@ from pathlib import Path
 
 import yaml
 
-from ultron import profiles, runs
 from ultron.cli import main
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
@@ -18,6 +17,8 @@ from ultron.core.models import ExtractedJob, JobEvaluation
 from ultron.core.rules.geography import geo_scope, scoped_eligibility_terms
 from ultron.core.rules.hard_filters import classify_remote_policy
 from ultron.core.rules.role_matching import DEFAULT_ROLE_NEGATIVES, role_negatives_for
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 PROFILES = Path(__file__).resolve().parents[1] / "fixtures" / "profiles"
 

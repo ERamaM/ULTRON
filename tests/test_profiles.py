@@ -3,8 +3,9 @@ from pathlib import Path
 
 import yaml
 
-from ultron import home, profiles
 from ultron.cli import main
+from ultron.infra import home
+from ultron.profiles import store as profiles
 
 FIXTURE = Path(__file__).parent / "fixtures" / "profiles" / "ai-ml-remote-eu.yaml"
 
@@ -93,7 +94,8 @@ def test_cli_profile_commands(capsys):
 
 
 def test_profile_cmd_registered_and_bad_subcommand(capsys):
-    from ultron import cli, profile_cmd
+    from ultron import cli
+    from ultron.commands import profile as profile_cmd
 
     assert cli.COMMAND_MODULES[0] is profile_cmd
     assert main(["profile", "bogus"]) == 2

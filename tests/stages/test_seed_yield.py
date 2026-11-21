@@ -12,10 +12,14 @@ import pytest
 import yaml
 from stage_helpers import make_run
 
-from ultron import home, http_factory, ledger, profiles, runs, seeds
+from ultron import seeds
 from ultron.cli import main
 from ultron.core.models import AtsBoardSeed
+from ultron.infra import home
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
 from ultron.stages.discover import SEED_ATTEMPTS_FILE, SeedYield, _select_seeds, discover_ats
+from ultron.storage import ledger, runs
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 SLUG = profiles.EXAMPLE_SLUG
@@ -25,7 +29,7 @@ SLUG = profiles.EXAMPLE_SLUG
 def pack_dir(tmp_path, monkeypatch):
     path = tmp_path / "packs"
     path.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: path)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: path)
     profiles.install_example()
     return path
 
@@ -231,7 +235,7 @@ def test_finalize_without_attempts_file_leaves_yields_alone(capsys):
 
 
 def test_backup_and_restore_keep_seed_yields(capsys):
-    from ultron import maintenance
+    from ultron.storage import maintenance
 
     run_id = _ats_run(capsys, ["lever:ghost"])
     assert main(["finalize", "--run", run_id]) == 0

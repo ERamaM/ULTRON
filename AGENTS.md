@@ -35,6 +35,11 @@ Do not stop after editing files or committing locally, and do not ask whether to
 request: opening it is part of the task. Ask only if `gh` is not authenticated
 (`gh auth status`) or the push is rejected.
 
+## Architecture
+
+Follow [docs/architecture.md](docs/architecture.md): packages by responsibility, one-way dependencies,
+no module over 1,000 lines. `tests/test_architecture.py` enforces the rules.
+
 ## Review guidelines
 
 Reviewers (Codex and human) should apply these repository rules:

@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from eval_harness import final_status, losing_stage, replay
 from safe_paths import UnsafePathError, check_report_names, read_report, write_report
 
-from ultron import presets
+from ultron.core import presets
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_DIR = ROOT / "tests" / "fixtures" / "benchmark"

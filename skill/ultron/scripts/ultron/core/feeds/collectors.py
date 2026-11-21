@@ -22,7 +22,7 @@ from ultron.core.feeds.parsers import (
     rows_from_themuse_payload,
 )
 from ultron.core.feeds.urls import extract_urls_from_text
-from ultron.net import RequestBudgetExceeded
+from ultron.infra.net import RequestBudgetExceeded
 
 
 def collect_workingnomads_urls(timeout: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:

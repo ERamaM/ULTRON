@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from ultron.core.ats.clients.base import AtsHTTPClient
 from ultron.core.discovery.title_vocabulary import TitleVocabulary
 from ultron.core.rules.term_matching import find_terms
-from ultron.net import HostBlocked, RequestBudgetExceeded
+from ultron.infra.net import HostBlocked, RequestBudgetExceeded
 
 URL_RE = r"https?://[^\s\"'<>]+"
 AGGREGATOR_DOMAINS = {

@@ -9,14 +9,17 @@ import httpx
 import pytest
 import yaml
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.core.ats.board_policy import board_is_valid, vendor_domains
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.vendors import SUPPORTED_ATS_NAMES
 from ultron.core.models import AtsBoardSeed
-from ultron.core.urlpolicy import URLRejected, domain_is_allowed
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
+from ultron.infra.urlpolicy import URLRejected, domain_is_allowed
+from ultron.profiles import store as profiles
 from ultron.seeds import Proposal, verify_proposal
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 PACKS = Path(__file__).resolve().parents[2] / "skill" / "ultron" / "data" / "seed_packs"
 
@@ -141,7 +144,7 @@ def test_discover_records_invalid_board_and_never_requests_it(tmp_path, monkeypa
 
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
     seen: list[str] = []
 
     def handler(request):

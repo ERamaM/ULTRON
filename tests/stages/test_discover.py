@@ -6,9 +6,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.cli import main
 from ultron.core.models import AtsBoardSeed
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures" / "ats"
 
@@ -17,7 +20,7 @@ FIX = Path(__file__).resolve().parents[1] / "fixtures" / "ats"
 def _no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
 
 
 def _seed(ats, board, priority=100):

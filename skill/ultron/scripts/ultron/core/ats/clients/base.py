@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
-from ultron.net import HostBlocked, RequestBudgetExceeded
+from ultron.infra.net import HostBlocked, RequestBudgetExceeded
 
 # Errors raised before any request (a spent budget, a blocked host or vendor): clients re-raise them untouched, never
 # as a board failure and never followed by a fallback request, so callers can report the board as unchecked.
@@ -30,9 +30,9 @@ class AtsClientError(RuntimeError):
 
 
 class AtsHTTPClient(Protocol):
-    """Transport used by the ATS clients (satisfied by ``ultron.net.HttpClient``).
+    """Transport used by the ATS clients (satisfied by ``ultron.infra.net.HttpClient``).
 
-    Failure contract: transport errors surface as ``ultron.net.HttpError`` (with
+    Failure contract: transport errors surface as ``ultron.infra.net.HttpError`` (with
     ``status_code``) and are NOT wrapped in ``AtsClientError``; callers catch both.
     """
 

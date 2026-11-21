@@ -9,7 +9,9 @@ import sys
 
 import yaml
 
-from ultron import home, profiles, runs
+from ultron.infra import home
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 TITLE = "Señor Ingeniero \U0001f680"
 

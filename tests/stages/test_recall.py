@@ -9,15 +9,18 @@ import pytest
 import yaml
 from stage_helpers import CASES, CORPUS, PROFILE
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.models import AtsBoardSeed, CandidateUrl, ExtractedJob
+from ultron.profiles import store as profiles
 from ultron.stages import discover as discover_stage
+from ultron.stages import http_factory
 from ultron.stages.discover import discover_ats
 from ultron.stages.feeds import _candidate as feed_candidate
 from ultron.stages.feeds import _posting_like
 from ultron.stages.fetch import fetch
 from ultron.stages.filter import filter_run
+from ultron.storage import runs
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 GH_BOARD = (FIX / "ats" / "greenhouse_board.json").read_bytes()
@@ -29,7 +32,7 @@ PAGE = (FIX / "pages" / "greenhouse_job.html").read_text(encoding="utf-8")
 def pack_dir(tmp_path, monkeypatch):
     path = tmp_path / "packs"
     path.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: path)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: path)
     return path
 
 
@@ -251,7 +254,7 @@ def test_fingerprint_never_overrides_the_allowlist_on_aggregator_hosts():
 
 
 def test_aggregator_page_linking_to_an_ats_is_not_fingerprint_allowed_in_replay():
-    from ultron import diagnose
+    from ultron.diagnostics import diagnose
 
     page = '<html><h1>Senior ML Engineer</h1><a href="https://boards.greenhouse.io/acme/jobs/1">Apply</a></html>'
     profiles.install_example()

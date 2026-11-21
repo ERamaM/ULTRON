@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from ultron import update
+from ultron.update import prepare as update
 
 REPO = Path(__file__).resolve().parents[1]
 EXE = "uv.exe" if os.name == "nt" else "uv"
@@ -31,7 +31,7 @@ def _windows_default_search(monkeypatch):
     monkeypatch.delenv("NoDefaultCurrentDirectoryInExePath", raising=False)
 
 
-@pytest.fixture(params=["install.py", "ultron.update"])
+@pytest.fixture(params=["install.py", "ultron.update.prepare"])
 def find(request):
     return _installer().find_on_path if request.param == "install.py" else update.find_on_path
 

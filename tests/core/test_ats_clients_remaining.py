@@ -9,7 +9,7 @@ import pytest
 from ultron.core.ats.clients import FETCHERS, AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.base import extract_between, locator_has_host, locator_url, parse_card_listings
 from ultron.core.models import AtsBoardSeed
-from ultron.net import RequestBudgetExceeded
+from ultron.infra.net import RequestBudgetExceeded
 
 
 class FakeClient:
@@ -404,7 +404,7 @@ def test_budget_stop_propagates_from_broad_catch_clients(vendor):
 
 
 def test_teamtailor_falls_back_to_jobs_rss_on_404():
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     rss = """<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0" xmlns:tt="https://teamtailor.com/locations"><channel>
@@ -431,7 +431,7 @@ def test_teamtailor_falls_back_to_jobs_rss_on_404():
 
 
 def test_teamtailor_rss_rejects_xml_entity_bombs():
-    from ultron.net import HttpError
+    from ultron.infra.net import HttpError
 
     bomb = (
         '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa"><!ENTITY b "&a;&a;">]>'

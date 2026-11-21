@@ -9,7 +9,7 @@ from ultron.core.ats import extract_seed_from_url, infer_vendor_from_host
 from ultron.core.ats.vendors import greenhouse_job_url
 from ultron.core.job_identity import _is_tracking_key
 from ultron.core.models import CandidateUrl, SearchHit
-from ultron.core.urlpolicy import URLRejected, admit_url, safe_url_label
+from ultron.infra.urlpolicy import URLRejected, admit_url, safe_url_label
 
 
 def normalize_url(raw_url: str) -> str:

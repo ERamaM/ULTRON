@@ -3,7 +3,8 @@ from contextlib import closing
 
 import pytest
 
-from ultron import home, ledger
+from ultron.infra import home
+from ultron.storage import ledger
 
 V1 = """
 CREATE TABLE jobs (identity_key TEXT PRIMARY KEY, canonical_url TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date
 from pathlib import Path
 
 import yaml
 from pydantic import ValidationError
 
+from ultron.commands._common import parse_as_of
 from ultron.commands.output import emit, fail
 from ultron.cv import extract as cv
 from ultron.infra import home
@@ -17,20 +17,11 @@ from ultron.salary import estimator as salary
 from ultron.storage import runs
 
 
-def _parse_as_of(raw: str | None) -> date | None:
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw.strip())
-    except ValueError as exc:
-        raise ValueError(f"invalid --as-of date {raw!r}: expected YYYY-MM-DD") from exc
-
-
 def _analyze(args: argparse.Namespace) -> int:
     if not args.cv and not args.profile:
         return fail("usage", "pass --cv <path>, --profile <slug>, or both")
     try:
-        as_of = _parse_as_of(args.as_of)
+        as_of = parse_as_of(args.as_of)
     except ValueError as exc:
         return fail("invalid_value", str(exc))
     try:

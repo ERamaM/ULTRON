@@ -7,7 +7,6 @@ from typing import Any
 
 from ultron.core.models import GeoScope, JobEvaluation
 from ultron.core.rules.geo_eu import has_region_red_flags
-from ultron.core.rules.hard_filters import classify_eligibility
 
 logger = logging.getLogger(__name__)
 
@@ -170,18 +169,6 @@ def has_clear_non_eu_scope(evaluation: JobEvaluation, geo: GeoScope = "eu") -> b
             if part
         )
     )
-
-
-def has_clear_eu_scope(evaluation: JobEvaluation, geo: GeoScope = "eu") -> bool:
-    """European-scope only: the evidence shows clear EU eligibility and no red flags."""
-    if geo != "eu":
-        return False
-    text = "\n".join(
-        part
-        for part in (evaluation.eligibility_evidence, evaluation.remote_evidence, evaluation.open_status_evidence)
-        if part
-    )
-    return not has_region_red_flags(text) and classify_eligibility(text) in {"confirmed", "high"}
 
 
 def heuristic_agrees_with_llm_discard(category: str | None, baseline: JobEvaluation | None) -> bool:

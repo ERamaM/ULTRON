@@ -315,7 +315,8 @@ _INTERNSHIP_ADMIN_RE = re.compile(
     r"\b(?:internship|apprenticeship|traineeship|praktikum)\s+"
     r"(?:coordinator|manager|lead|director|specialist|recruiter)\b"
 )
-_BULLET_PREFIX_RE = re.compile(r"^\s*(?:[-*•▪▫◦‣]|\d+[.)])\s+")
+BULLET_PREFIX_RE = re.compile(r"^\s*(?:[-*•▪▫◦‣]|\d+[.)])\s+")
+_BULLET_PREFIX_RE = BULLET_PREFIX_RE
 _MAX_HEADING_CHARS = 60
 _MIN_YEAR = 1960
 

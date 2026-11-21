@@ -172,8 +172,3 @@ def redact(value: Any, *, secret_values: tuple[str, ...] = ()) -> Any:
     if isinstance(value, str):
         return _redact_string(value, secrets)
     return value
-
-
-def redact_exception(exc: BaseException, *, secret_values: tuple[str, ...] = ()) -> str:
-    """Return a stable, secret-free exception message for engine diagnostics."""
-    return str(redact(str(exc), secret_values=secret_values))

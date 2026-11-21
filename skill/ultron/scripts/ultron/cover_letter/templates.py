@@ -12,8 +12,8 @@ from typing import Any, Protocol
 from defusedxml import minidom
 
 from ultron.cv import docx_reader as cv_docx
-from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
+from ultron.infra import fs, ooxml
 
 
 class CoverLetterFields(Protocol):
@@ -108,12 +108,12 @@ def list_templates() -> dict[str, Any]:
         "templates": [dict(spec) for spec in BUNDLED_TEMPLATES.values()],
         "placeholders": [f"{{{{{name}}}}}" for name in TEMPLATE_PLACEHOLDERS],
         "multiline_placeholders": ["{{body}}", "{{paragraphs}}", "{{highlights}}"],
-        "safe_fonts": sorted(cv_writer.WRITER_SAFE_FONTS),
+        "safe_fonts": sorted(ooxml.WRITER_SAFE_FONTS),
     }
 
 
 def _cover_letter_styles_xml(font: str, accent: str) -> str:
-    efont = cv_writer._xml_escape(font)
+    efont = ooxml.xml_escape(font)
     rfonts = f'<w:rFonts w:ascii="{efont}" w:hAnsi="{efont}" w:cs="{efont}" w:eastAsia="{efont}"/>'
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -159,12 +159,12 @@ def _header_paragraphs(doc: CoverLetterFields, style: dict[str, Any], template_n
         if doc.candidate_name:
             paragraphs.append(
                 f'<w:p><w:pPr>{shd}<w:spacing w:before="140" w:after="40"/><w:ind w:left="140" w:right="140"/></w:pPr>'
-                f"{cv_writer._run_xml(doc.candidate_name, bold=True, color='FFFFFF', size=34)}</w:p>"
+                f"{ooxml.run_xml(doc.candidate_name, bold=True, color='FFFFFF', size=34)}</w:p>"
             )
         if contact_line:
             paragraphs.append(
                 f'<w:p><w:pPr>{shd}<w:spacing w:before="0" w:after="140"/><w:ind w:left="140" w:right="140"/></w:pPr>'
-                f"{cv_writer._run_xml(contact_line, color='E2E8F0', size=19)}</w:p>"
+                f"{ooxml.run_xml(contact_line, color='E2E8F0', size=19)}</w:p>"
             )
         paragraphs.append(
             '<w:p><w:pPr><w:spacing w:before="0" w:after="160"/>'
@@ -177,7 +177,7 @@ def _header_paragraphs(doc: CoverLetterFields, style: dict[str, Any], template_n
     if doc.candidate_name:
         paragraphs.append(
             f'<w:p><w:pPr>{align}<w:spacing w:before="0" w:after="40"/></w:pPr>'
-            f"{cv_writer._run_xml(doc.candidate_name, bold=True, color=accent, size=32)}</w:p>"
+            f"{ooxml.run_xml(doc.candidate_name, bold=True, color=accent, size=32)}</w:p>"
         )
     if contact_line:
         bdr = (
@@ -185,7 +185,7 @@ def _header_paragraphs(doc: CoverLetterFields, style: dict[str, Any], template_n
         )
         paragraphs.append(
             f'<w:p><w:pPr>{align}{bdr}<w:spacing w:before="0" w:after="180"/></w:pPr>'
-            f"{cv_writer._run_xml(contact_line, color='4B5563', size=19)}</w:p>"
+            f"{ooxml.run_xml(contact_line, color='4B5563', size=19)}</w:p>"
         )
     return paragraphs
 
@@ -197,7 +197,7 @@ def _recipient_and_subject_paragraphs(
     if doc.date:
         paragraphs.append(
             '<w:p><w:pPr><w:spacing w:after="140"/></w:pPr>'
-            f"{cv_writer._run_xml(doc.date, color='4B5563', size=20)}</w:p>"
+            f"{ooxml.run_xml(doc.date, color='4B5563', size=20)}</w:p>"
         )
     recipient_lines = [ln for ln in (doc.recipient_name, doc.recipient_title, doc.company) if ln and ln.strip()]
     for idx, line in enumerate(recipient_lines):
@@ -205,7 +205,7 @@ def _recipient_and_subject_paragraphs(
         bold = idx == 0 or (not doc.recipient_name and line == doc.company)
         paragraphs.append(
             f'<w:p><w:pPr><w:spacing w:after="{after}"/></w:pPr>'
-            f"{cv_writer._run_xml(line, bold=bold, color='111827', size=21)}</w:p>"
+            f"{ooxml.run_xml(line, bold=bold, color='111827', size=21)}</w:p>"
         )
 
     subject_line = doc.subject or (f"Application: {doc.role}" if doc.role else "")
@@ -220,7 +220,7 @@ def _recipient_and_subject_paragraphs(
         else:
             ppr = '<w:pPr><w:spacing w:before="40" w:after="180"/></w:pPr>'
         paragraphs.append(
-            f"<w:p>{ppr}{cv_writer._inline_runs_xml(subject_line, links, bold=True, color=accent, size=22)}</w:p>"
+            f"<w:p>{ppr}{ooxml.inline_runs_xml(subject_line, links, bold=True, color=accent, size=22)}</w:p>"
         )
     return paragraphs
 
@@ -230,32 +230,32 @@ def _body_paragraphs(doc: CoverLetterFields, links: list[tuple[str, str]]) -> li
     if doc.salutation:
         paragraphs.append(
             '<w:p><w:pPr><w:spacing w:after="140"/></w:pPr>'
-            f"{cv_writer._run_xml(doc.salutation, bold=True, color='111827')}</w:p>"
+            f"{ooxml.run_xml(doc.salutation, bold=True, color='111827')}</w:p>"
         )
 
     prose = [p for p in [doc.opening, *doc.paragraphs] if p and p.strip()]
     for para in prose:
-        paragraphs.append(f"<w:p>{cv_writer._inline_runs_xml(para, links)}</w:p>")
+        paragraphs.append(f"<w:p>{ooxml.inline_runs_xml(para, links)}</w:p>")
 
     for bullet in doc.highlights:
         if bullet.strip():
             paragraphs.append(
                 '<w:p><w:pPr><w:pStyle w:val="ListParagraph"/>'
                 '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>'
-                f"{cv_writer._inline_runs_xml(bullet.strip(), links)}</w:p>"
+                f"{ooxml.inline_runs_xml(bullet.strip(), links)}</w:p>"
             )
 
     if doc.closing:
-        paragraphs.append(f"<w:p>{cv_writer._inline_runs_xml(doc.closing, links)}</w:p>")
+        paragraphs.append(f"<w:p>{ooxml.inline_runs_xml(doc.closing, links)}</w:p>")
     if doc.signoff:
         paragraphs.append(
             '<w:p><w:pPr><w:keepNext/><w:spacing w:before="100" w:after="60"/></w:pPr>'
-            f"{cv_writer._run_xml(doc.signoff)}</w:p>"
+            f"{ooxml.run_xml(doc.signoff)}</w:p>"
         )
     if doc.candidate_name:
         paragraphs.append(
             '<w:p><w:pPr><w:spacing w:after="0"/></w:pPr>'
-            f"{cv_writer._run_xml(doc.candidate_name, bold=True, color='111827')}</w:p>"
+            f"{ooxml.run_xml(doc.candidate_name, bold=True, color='111827')}</w:p>"
         )
     return paragraphs
 
@@ -269,12 +269,12 @@ def _package_cover_letter_docx(
 ) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", cv_writer._content_types_xml().encode("utf-8"))
-        archive.writestr("_rels/.rels", cv_writer._root_rels_xml().encode("utf-8"))
-        archive.writestr("docProps/core.xml", cv_writer._core_props_xml(title).encode("utf-8"))
-        archive.writestr("word/_rels/document.xml.rels", cv_writer._document_rels_xml(links).encode("utf-8"))
+        archive.writestr("[Content_Types].xml", ooxml.content_types_xml().encode("utf-8"))
+        archive.writestr("_rels/.rels", ooxml.root_rels_xml().encode("utf-8"))
+        archive.writestr("docProps/core.xml", ooxml.core_props_xml(title).encode("utf-8"))
+        archive.writestr("word/_rels/document.xml.rels", ooxml.document_rels_xml(links).encode("utf-8"))
         archive.writestr("word/styles.xml", styles_xml.encode("utf-8"))
-        archive.writestr("word/numbering.xml", cv_writer._numbering_xml(safe_font).encode("utf-8"))
+        archive.writestr("word/numbering.xml", ooxml.numbering_xml(safe_font).encode("utf-8"))
         archive.writestr("word/document.xml", document_xml.encode("utf-8"))
     return buf.getvalue()
 
@@ -287,7 +287,7 @@ def render_bundled_docx_bytes(
     if key not in BUNDLED_TEMPLATES:
         raise ValueError(f"unknown template {template_name!r}; choose from {', '.join(BUNDLED_TEMPLATES)}")
     style = BUNDLED_TEMPLATES[key]
-    safe_font = cv_writer.resolve_safe_font(font or style["default_font"])
+    safe_font = ooxml.resolve_safe_font(font or style["default_font"])
     links: list[tuple[str, str]] = []
     paragraphs = [
         *_header_paragraphs(doc, style, key),
@@ -350,7 +350,7 @@ def export_starter_templates(
     exported: list[dict[str, Any]] = []
     for name, dest in zip(selected, paths, strict=True):
         raw = render_bundled_docx_bytes(starter, template_name=name)
-        cv_writer._atomic_write_bytes(dest, raw)
+        fs.atomic_write_bytes(dest, raw)
         exported.append({"template": name, "path": str(dest.resolve()), "bytes": len(raw)})
 
     return {
@@ -485,7 +485,7 @@ def _replace_spans_in_runs(
 
     for match in reversed(matches):
         m_start, m_end = match.span()
-        replacement = cv_writer._sanitize_xml_text(values[match.group(1)])
+        replacement = ooxml.sanitize_xml_text(values[match.group(1)])
         first_idx = next(idx for idx, (_s, end) in enumerate(offsets) if end > m_start)
         last_idx = next(idx for idx in range(len(offsets) - 1, -1, -1) if offsets[idx][0] < m_end)
         f_start, _f_end = offsets[first_idx]
@@ -534,7 +534,7 @@ def _expand_multi_paragraph(
 
     for idx, (text, is_bullet) in enumerate(items):
         target_p = p_node if idx == 0 else original_clone.cloneNode(deep=True)
-        formatted = cv_writer._sanitize_xml_text(text)
+        formatted = ooxml.sanitize_xml_text(text)
         if is_bullet and not has_list_num and not formatted.startswith(("\u2022 ", "- ")):
             formatted = f"\u2022 {formatted}"
         runs = _direct_runs(target_p)

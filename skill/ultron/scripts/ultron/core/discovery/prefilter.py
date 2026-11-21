@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
 from typing import Protocol
 
 from ultron.core.discovery.title_vocabulary import (
@@ -19,7 +18,11 @@ from ultron.core.rules.geo_eu import (
     has_region_red_flags,
 )
 from ultron.core.rules.term_matching import find_terms
-from ultron.core.rules.text_patterns import contains_any_term_boundary
+from ultron.core.rules.text_patterns import (
+    contains_any_term_boundary,
+    contains_any_word_boundary,
+    word_boundary_pattern,
+)
 from ultron.core.rules.title_synonyms import normalize_role_title
 from ultron.core.vocabulary import VocabularyPack
 
@@ -49,15 +52,6 @@ class PostingLike(Protocol):
     title: str
     location: str
     remote_hint: str
-
-
-@lru_cache(maxsize=64)
-def word_boundary_pattern(term: str) -> re.Pattern:
-    return re.compile(r"\b" + re.escape(term) + r"\b", re.IGNORECASE)
-
-
-def contains_any_wb(text: str, terms: tuple[str, ...]) -> bool:
-    return any(word_boundary_pattern(term).search(text) for term in terms)
 
 
 def _preferred_match_terms(regions: tuple[str, ...], eligibility_terms: tuple[str, ...]) -> tuple[str, ...]:
@@ -161,7 +155,7 @@ def contains_coarse_signal(text: str, vocabulary: VocabularyPack) -> bool:
     if not text:
         return False
     low = text.lower()
-    if contains_any_wb(low, vocabulary.coarse_signal_wb):
+    if contains_any_word_boundary(low, vocabulary.coarse_signal_wb):
         return True
     return any(term in low for term in vocabulary.coarse_signal_substr)
 
@@ -180,4 +174,4 @@ def passes_coarse_prefilter(
         return bool(find_terms(context, title_vocabulary.signal_terms))
     if not contains_coarse_signal(context, vocabulary):
         return False
-    return contains_any_wb(title, COARSE_TECH_ROLE_TERMS) or any(term in title for term in SENIOR_TITLE_TERMS)
+    return contains_any_word_boundary(title, COARSE_TECH_ROLE_TERMS) or any(term in title for term in SENIOR_TITLE_TERMS)

@@ -6,7 +6,8 @@ import io
 import re
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any
+from types import SimpleNamespace
+from typing import Any, Protocol
 
 from defusedxml import minidom
 
@@ -14,8 +15,25 @@ from ultron.cv import docx_reader as cv_docx
 from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
 
-if TYPE_CHECKING:
-    from ultron.cover_letter.builder import CoverLetterDocument
+
+class CoverLetterFields(Protocol):
+    candidate_name: str
+    candidate_email: str
+    candidate_phone: str
+    candidate_location: str
+    candidate_links: list[str]
+    date: str
+    recipient_name: str
+    recipient_title: str
+    company: str
+    role: str
+    subject: str
+    salutation: str
+    opening: str
+    paragraphs: list[str]
+    highlights: list[str]
+    closing: str
+    signoff: str
 
 TEMPLATE_PLACEHOLDERS: tuple[str, ...] = (
     "candidate_name",
@@ -122,7 +140,7 @@ def _cover_letter_styles_xml(font: str, accent: str) -> str:
     )
 
 
-def _header_paragraphs(doc: CoverLetterDocument, style: dict[str, Any], template_name: str) -> list[str]:
+def _header_paragraphs(doc: CoverLetterFields, style: dict[str, Any], template_name: str) -> list[str]:
     contact_parts = [
         part
         for part in (
@@ -173,7 +191,7 @@ def _header_paragraphs(doc: CoverLetterDocument, style: dict[str, Any], template
 
 
 def _recipient_and_subject_paragraphs(
-    doc: CoverLetterDocument, style: dict[str, Any], template_name: str, links: list[tuple[str, str]]
+    doc: CoverLetterFields, style: dict[str, Any], template_name: str, links: list[tuple[str, str]]
 ) -> list[str]:
     paragraphs: list[str] = []
     if doc.date:
@@ -207,7 +225,7 @@ def _recipient_and_subject_paragraphs(
     return paragraphs
 
 
-def _body_paragraphs(doc: CoverLetterDocument, links: list[tuple[str, str]]) -> list[str]:
+def _body_paragraphs(doc: CoverLetterFields, links: list[tuple[str, str]]) -> list[str]:
     paragraphs: list[str] = []
     if doc.salutation:
         paragraphs.append(
@@ -262,7 +280,7 @@ def _package_cover_letter_docx(
 
 
 def render_bundled_docx_bytes(
-    doc: CoverLetterDocument, *, template_name: str = "modern", font: str | None = None
+    doc: CoverLetterFields, *, template_name: str = "modern", font: str | None = None
 ) -> bytes:
     """Serialize ``doc`` into an ATS-safe single-column ``.docx`` using one of the bundled templates."""
     key = template_name.strip().lower()
@@ -297,8 +315,6 @@ def export_starter_templates(
     out_dir: Path, *, template: str | None = None, force: bool = False
 ) -> dict[str, Any]:
     """Write starter `.docx` template files containing `{{placeholder}}` tags to ``out_dir``."""
-    from ultron.cover_letter.builder import CoverLetterDocument
-
     selected = [template.strip().lower()] if template else list(BUNDLED_TEMPLATES)
     for name in selected:
         if name not in BUNDLED_TEMPLATES:
@@ -311,7 +327,7 @@ def export_starter_templates(
             if path.exists():
                 raise FileExistsError(f"template file already exists: {path} (pass --force to overwrite)")
 
-    starter = CoverLetterDocument(
+    starter: Any = SimpleNamespace(
         candidate_name="{{candidate_name}}",
         candidate_email="{{candidate_email}}",
         candidate_phone="{{candidate_phone}}",
@@ -562,7 +578,7 @@ def _substitute_xml_part(
     return dom.toxml(encoding="utf-8")
 
 
-def render_custom_template_docx_bytes(template_path: Path, doc: CoverLetterDocument) -> bytes:
+def render_custom_template_docx_bytes(template_path: Path, doc: CoverLetterFields) -> bytes:
     """Substitute ``doc`` fields into a user-supplied custom ``.docx`` template safely."""
     values: dict[str, str] = {
         "candidate_name": doc.candidate_name,

@@ -1,3 +1,5 @@
+"""Post-evaluation verdict normalization and heuristic conflict safeguards."""
+
 from __future__ import annotations
 
 import logging
@@ -37,6 +39,7 @@ REASON_TO_CATEGORY = {
 
 
 def normalize_verdict(value: str | None) -> str:
+    """Normalize a verdict string to ``keep``, ``discard``, or ``unsure``."""
     low = str(value or "").strip().lower()
     if low in VALID_VERDICTS:
         return low
@@ -48,6 +51,7 @@ def normalize_verdict(value: str | None) -> str:
 
 
 def normalize_discard_category(category: str | None, reason: str | None) -> str | None:
+    """Normalize a discard category name using reason hints as fallback."""
     if category:
         low = str(category).strip().lower().replace("-", "_").replace(" ", "_")
         low = {
@@ -68,6 +72,7 @@ def normalize_discard_category(category: str | None, reason: str | None) -> str 
 
 
 def normalize_confidence(value: str | None) -> str:
+    """Normalize a confidence label to a valid value, defaulting to ``medium``."""
     low = str(value or "").strip().lower()
     return low if low in VALID_CONFIDENCE else "medium"
 
@@ -82,6 +87,7 @@ class DecisionFinalizer:
     def finalize(
         self, evaluation: JobEvaluation, *, from_llm: bool, heuristic_baseline: JobEvaluation | None = None
     ) -> JobEvaluation:
+        """Normalize an evaluation verdict and reconcile model discards against heuristics."""
         verdict = normalize_verdict(evaluation.verdict)
         category = normalize_discard_category(evaluation.discard_category, evaluation.discard_reason)
         evaluation.verdict = verdict
@@ -172,12 +178,14 @@ def has_clear_non_eu_scope(evaluation: JobEvaluation, geo: GeoScope = "eu") -> b
 
 
 def heuristic_agrees_with_llm_discard(category: str | None, baseline: JobEvaluation | None) -> bool:
+    """Return True if the heuristic baseline produced the same discard category."""
     if category is None or baseline is None:
         return False
     return normalize_discard_category(baseline.discard_category, baseline.discard_reason) == category
 
 
 def canonical_reason(category: str | None, reason: str | None, *, geo: GeoScope = "eu") -> str:
+    """Map a discard category and sub-reason to its canonical export code."""
     # A profile-excluded location keeps its own reason instead of the EU eligibility one,
     # and outside a European scope an eligibility discard gets a neutral label.
     if category == "eligibility_scope" and str(reason or "").strip() == "location_excluded":

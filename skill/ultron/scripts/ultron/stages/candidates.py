@@ -26,6 +26,7 @@ def candidate_identity(candidate: dict) -> str:
 
 
 def add_candidates(run_id: str, path: Path) -> dict:
+    """Append deduplicated web-search candidate URLs from ``path`` into a run."""
     run = runs.load_run(run_id)
     rows = runs.read_jsonl(path)
     out_dir = runs.run_dir(run_id)

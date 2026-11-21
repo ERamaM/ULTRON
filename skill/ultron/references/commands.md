@@ -108,6 +108,7 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
   repeat it).
 - `runs excel [run]`: `ultron export xlsx --run <run_id>` (latest finished run by default); give the file path.
 - `runs html [run]`: `ultron export html --run <run_id>` (latest finished run by default); give the file path.
+- `ledger web`: `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open]`; starts a loopback-only read-only local web viewer over `ultron.sqlite3` without writing any output file, prints the URL in JSON, and runs until interrupted.
 
 ### system
 

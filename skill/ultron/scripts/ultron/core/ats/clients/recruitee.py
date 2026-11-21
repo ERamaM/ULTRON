@@ -1,3 +1,5 @@
+"""Recruitee public offers API client."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, locator_url
@@ -6,6 +8,7 @@ from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, locator_url
 def fetch_recruitee_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Recruitee careers board."""
     fetch_json = client.request_json
     url = locator_url(f"{board_identifier}.recruitee.com", "api", "offers")
     payload = fetch_json(url, timeout=timeout)

@@ -30,6 +30,7 @@ def _field_text(soup: BeautifulSoup, name: str) -> str:
 
 
 def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> ExtractedJob:
+    """Extract job posting fields from a CandidateManager HTML page."""
     soup = BeautifulSoup(page.html or "", "html.parser")
     details = soup.find(id=f"{_PREFIX}jobDetailsGroup")
     if details is None:

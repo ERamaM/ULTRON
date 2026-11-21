@@ -1,3 +1,5 @@
+"""Job posting extractor for Ashby pages with embedded ``window.__appData``."""
+
 from __future__ import annotations
 
 import json

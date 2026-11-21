@@ -1,3 +1,5 @@
+"""URL normalization, domain allowlisting, and per-query candidate rebalancing."""
+
 from __future__ import annotations
 
 import re
@@ -13,6 +15,7 @@ from ultron.infra.urlpolicy import URLRejected, admit_url, safe_url_label
 
 
 def normalize_url(raw_url: str) -> str:
+    """Strip whitespace and prepend ``https://`` when no scheme is present."""
     raw = raw_url.strip()
     explicit_scheme = re.match(r"^[a-z][a-z0-9+.-]*:", raw, flags=re.IGNORECASE)
     if raw and not explicit_scheme and not raw.startswith("//"):
@@ -31,10 +34,12 @@ def normalize_url(raw_url: str) -> str:
 
 
 def domain_of(url: str) -> str:
+    """Extract the lowercase network location from ``url``."""
     return urlparse(url).netloc.lower()
 
 
 def is_domain_allowed(domain: str, allowed_domains: list[str]) -> bool:
+    """Return True if ``domain`` matches or subdomains any entry in ``allowed_domains``."""
     return any(domain == d or domain.endswith(f".{d}") for d in allowed_domains)
 
 
@@ -81,6 +86,7 @@ def _canonicalize_greenhouse_from_custom(url: str, query: str) -> str | None:
 
 
 def canonicalize_url_for_allowlist(url: str, query: str, allowed_domains: list[str]) -> str:
+    """Normalize ``url`` and reject it if its domain is outside ``allowed_domains``."""
     normalized = normalize_url(url)
     domain = domain_of(normalized)
     if is_domain_allowed(domain, allowed_domains):
@@ -94,6 +100,7 @@ def canonicalize_url_for_allowlist(url: str, query: str, allowed_domains: list[s
 def rebalance_candidates(
     candidates: list[CandidateUrl], max_per_query: int, *, capped: Callable[[CandidateUrl], bool] = lambda _: True
 ) -> tuple[list[CandidateUrl], list[CandidateUrl]]:
+    """Partition candidates enforcing ``max_per_query`` on capped entries."""
     if max_per_query <= 0:
         return [candidate for candidate in candidates if not capped(candidate)], [
             candidate for candidate in candidates if capped(candidate)
@@ -140,6 +147,7 @@ def filter_candidates(
     *,
     is_allowed_domain_fn: Callable[[str, list[str]], bool] = is_domain_allowed,
 ) -> tuple[list[CandidateUrl], list[dict]]:
+    """Convert search hits into allowlisted, deduplicated ``CandidateUrl`` items."""
     allowed = rules.get("allowed_ats_domains", [])
     blocked = set(rules.get("blocked_final_domains", []))
     discards: list[dict] = []

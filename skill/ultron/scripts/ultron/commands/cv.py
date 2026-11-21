@@ -97,6 +97,7 @@ def _build_docx(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron cv`` subcommands."""
     parser = subparsers.add_parser("cv", help="CV helpers")
     sub = parser.add_subparsers(dest="cv_command", required=True, parser_class=type(parser))
 

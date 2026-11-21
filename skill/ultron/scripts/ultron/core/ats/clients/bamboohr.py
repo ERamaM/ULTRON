@@ -1,3 +1,5 @@
+"""BambooHR public careers JSON API client."""
+
 from __future__ import annotations
 
 import logging
@@ -32,6 +34,7 @@ def bamboohr_workplace(job: object) -> str:
 def fetch_bamboohr_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a BambooHR careers board."""
     fetch_json = client.request_json
     fetch_text = client.request_text
     host = f"{board_identifier}.bamboohr.com"

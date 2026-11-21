@@ -54,11 +54,13 @@ class VendorScopedClient:
         return {"allowed_domains": self.allowed_domains} if isinstance(self._client, HttpClient) else {}
 
     def request_json(self, url: str, method: str = "GET", json_body=None, timeout: float | None = None):
+        """Admit ``url`` against vendor domains and delegate a JSON request."""
         extra = self._admit(url)
         if extra and self._json_max_bytes is not None:
             extra["max_bytes"] = self._json_max_bytes
         return self._client.request_json(url, method=method, json_body=json_body, timeout=timeout, **extra)
 
     def request_text(self, url: str, timeout: float | None = None) -> str:
+        """Admit ``url`` against vendor domains and delegate a text request."""
         extra = self._admit(url)
         return self._client.request_text(url, timeout=timeout, **extra)

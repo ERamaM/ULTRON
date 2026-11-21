@@ -1,3 +1,5 @@
+"""Oracle Taleo career-section HTML client."""
+
 from __future__ import annotations
 
 import re
@@ -32,6 +34,7 @@ def _is_empty_board(html: str) -> bool:
 def fetch_taleo_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Taleo career section."""
     fetch_text = client.request_text
     if not locator_has_host(board_identifier):
         raise AtsClientError(f"taleo_locator_invalid={board_identifier}")

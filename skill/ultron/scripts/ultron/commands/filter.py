@@ -45,6 +45,7 @@ def _finalize(run_id: str, with_xlsx: bool = False, with_html: bool = False) -> 
 
 
 def register(subparsers) -> None:
+    """Register ``ultron filter`` and ``ultron evaluate`` commands."""
     flt = subparsers.add_parser("filter", help="deterministic filter and ambiguity queue")
     flt.add_argument("--run", required=True)
     flt.set_defaults(func=lambda a: _guard(filter_run, a.run))

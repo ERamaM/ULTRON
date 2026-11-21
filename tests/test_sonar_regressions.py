@@ -19,11 +19,20 @@ def test_normalize_title_separators_behavior_and_linear_time():
     assert normalize_title_separators("a- b") == "a b"
     assert normalize_title_separators("full-stack") == "full-stack"
     assert normalize_title_separators("a - - b") == "a  b"
+    assert normalize_title_separators("a  --  b") == "a  b"
+    assert normalize_title_separators("a\t\u2013\tb") == "a b"
+    assert normalize_title_separators("a\u2014 b") == "a b"
+    assert normalize_title_separators("- a") == " a"
+    assert normalize_title_separators("a -") == "a "
+    assert normalize_title_separators("-") == "-"
+    assert normalize_title_separators("") == ""
+    assert normalize_title_separators("a\n - b") == "a\n b"
 
     t0 = time.perf_counter()
     long_ws = (" " * 10_000) + "a"
     assert normalize_title_separators(long_ws) == long_ws
-    assert (time.perf_counter() - t0) < 0.2
+    assert normalize_title_separators((" " * 10_000) + "-") == " "
+    assert (time.perf_counter() - t0) < 0.5
 
 
 def test_has_non_eu_title_location_behavior_and_linear_time():

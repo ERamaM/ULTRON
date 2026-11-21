@@ -13,15 +13,12 @@ import base64
 import hashlib
 import html
 import json
-import math
-import unicodedata
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
-from ultron.core.privacy import redact
+from ultron.exports import sanitize
 from ultron.storage import runs
 
 _BANDS = ("strong", "good", "borderline", "ineligible")
@@ -32,15 +29,7 @@ _ELIGIBILITY_CLASS = {"confirmed": "strong", "high": "good", "medium": "borderli
 
 
 def _clean(value: Any) -> str:
-    """Redacted, single-line text without control or format characters (not yet escaped)."""
-    if value is None:
-        return ""
-    if isinstance(value, (list, tuple)):
-        value = ", ".join(str(item) for item in value if item not in (None, ""))
-    text = str(value).replace("\r", " ").replace("\n", " ").replace("\t", " ")
-    text = "".join(ch for ch in text if unicodedata.category(ch) not in {"Cc", "Cf"})
-    # Redact the final text: removing a zero-width character can join a split token ("gh\u200bp_...").
-    return str(redact(text)).strip()
+    return sanitize.clean_text(value)
 
 
 def _t(value: Any) -> str:
@@ -50,31 +39,16 @@ def _t(value: Any) -> str:
 
 def _safe_url(value: Any) -> str | None:
     """Return an escaped http(s) URL suitable for ``href``, or ``None``."""
-    if not isinstance(value, str):
-        return None
-    url = _clean(value)
-    if not url or url != value.strip() or any(ch.isspace() for ch in url):
-        return None
-    try:
-        parts = urlsplit(url)
-    except ValueError:
-        return None
-    if parts.scheme.lower() not in ("http", "https") or not parts.hostname:
-        return None
-    return html.escape(url, quote=True)
+    url = sanitize.safe_http_url(value)
+    return html.escape(url, quote=True) if url is not None else None
 
 
 def _score(value: Any) -> int | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    if not math.isfinite(value):
-        return None
-    return max(0, min(100, round(value)))
+    return sanitize.clamp_score(value)
 
 
 def _token(value: Any, allowed: tuple[str, ...]) -> str:
-    text = str(value or "").strip().lower()
-    return text if text in allowed else "none"
+    return sanitize.normalize_token(value, allowed)
 
 
 _CSS = """

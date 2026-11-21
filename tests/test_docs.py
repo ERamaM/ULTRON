@@ -109,7 +109,7 @@ def test_readme_describes_presets_unattended_and_links_user_guide():
             assert (ROOT / rel_path).exists(), f"Broken link in README.md: {target!r}"
 
 
-def test_user_guide_completeness_and_sync_wiki(tmp_path: Path, capsys):
+def test_user_guide_completeness_and_sync_wiki(tmp_path: Path, monkeypatch, capsys):
     checked = sync_wiki.validate_guide_directory()
     assert len(checked) == 8
 
@@ -117,10 +117,22 @@ def test_user_guide_completeness_and_sync_wiki(tmp_path: Path, capsys):
     (out_dir / ".git").mkdir(parents=True)
     stale = out_dir / "Old-Obsolete-Page.md"
     stale.write_text("stale", encoding="utf-8")
-    assert sync_wiki.main(["--output", str(out_dir), "--clean"]) == 0
-    assert "Synced 9 wiki files" in capsys.readouterr().out
+    written = sync_wiki.sync_wiki(out_dir, clean=True)
+    assert len(written) == 9
     assert not stale.exists()
     assert (out_dir / ".git").is_dir()
+
+    staged = tmp_path / "staged"
+    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", staged)
+    assert sync_wiki.main(["--export", "--clean"]) == 0
+    assert str(staged) in capsys.readouterr().out
+    assert (staged / "Home.md").is_file()
+
+    bad_stage = tmp_path / "not-a-dir"
+    bad_stage.write_text("file", encoding="utf-8")
+    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", bad_stage)
+    with pytest.raises(sync_wiki.UnsafeExportDirError, match="not a plain folder"):
+        sync_wiki.main(["--export"])
 
     home_text = (out_dir / "Home.md").read_text(encoding="utf-8")
     assert "[Getting Started](Getting-Started)" in home_text

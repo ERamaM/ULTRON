@@ -3,13 +3,31 @@
 from __future__ import annotations
 
 import argparse
+import getpass
+import os
 import posixpath
 import re
+import stat
 import sys
+import tempfile
 from pathlib import Path
+
+
+class UnsafeExportDirError(ValueError):
+    """Raised when the Wiki staging folder is a symlink, non-directory, or untrusted path."""
+
+
+def _safe_user_label() -> str:
+    try:
+        raw = getpass.getuser()
+    except (KeyError, OSError):
+        raw = str(os.getuid()) if hasattr(os, "getuid") else "user"
+    return "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in raw)[:32] or "user"
+
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE_DIR = ROOT / "docs" / "guide"
+EXPORT_DIR = Path(os.path.realpath(tempfile.gettempdir())) / f"ultron-wiki-export-{_safe_user_label()}"
 DEFAULT_BLOB_BASE = "https://github.com/ERamaM/ULTRON/blob/main"
 REPO_HOME_URL = "https://github.com/ERamaM/ULTRON#readme"
 
@@ -205,21 +223,44 @@ def sync_wiki(
     return written
 
 
+def _ensure_private_export_dir(export_dir: Path | None = None) -> Path:
+    """Create the fixed staging directory 0700 and refuse symlinks or non-directory targets."""
+    target = EXPORT_DIR if export_dir is None else export_dir
+    if os.path.lexists(target):
+        info = os.lstat(target)
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            raise UnsafeExportDirError(f"{target} is not a plain folder")
+    target.mkdir(mode=0o700, parents=True, exist_ok=True)
+    info = os.lstat(target)
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        raise UnsafeExportDirError(f"{target} is not a plain folder")
+    if hasattr(os, "getuid"):
+        if info.st_uid != os.getuid():
+            raise UnsafeExportDirError(f"{target} belongs to another user")
+        if stat.S_IMODE(info.st_mode) & 0o077:
+            os.chmod(target, 0o700)
+    return target
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate or export docs/guide/ to GitHub Wiki format.")
     parser.add_argument("--check", action="store_true", help="validate guide files and relative links without writing")
-    parser.add_argument("--output", help="target directory (e.g. cloned .wiki.git checkout) for exported Wiki pages")
-    parser.add_argument("--clean", action="store_true", help="remove stale top-level .md files in --output")
-    parser.add_argument("--blob-base", default=DEFAULT_BLOB_BASE, help="GitHub blob URL prefix for non-guide links")
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="render Wiki Markdown pages and _Sidebar.md into the fixed staging directory and print its path",
+    )
+    parser.add_argument("--clean", action="store_true", help="remove stale top-level .md files in staging output")
     args = parser.parse_args(argv)
 
-    if not args.check and not args.output:
-        parser.error("pass --check or --output DIR")
+    if not args.check and not args.export:
+        parser.error("pass --check or --export")
 
-    validate_guide_directory(blob_base=args.blob_base)
-    if args.output:
-        written = sync_wiki(Path(args.output), clean=args.clean, blob_base=args.blob_base)
-        print(f"Synced {len(written)} wiki files to {args.output}")
+    validate_guide_directory()
+    if args.export:
+        dest = _ensure_private_export_dir()
+        sync_wiki(dest, clean=args.clean)
+        print(str(dest))
     else:
         print(f"Validated {len(PAGE_MAP)} guide pages and links")
     return 0

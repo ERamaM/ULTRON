@@ -7,6 +7,7 @@ import sys
 import traceback
 
 from ultron import __version__
+from ultron.commands import cover_letter as cover_letter_cmd
 from ultron.commands import cv as cv_cmd
 from ultron.commands import diagnose as diagnose_cmd
 from ultron.commands import doctor as doctor_cmd
@@ -27,7 +28,7 @@ from ultron.commands.output import emit, fail
 __all__ = ["COMMAND_MODULES", "build_parser", "emit", "fail", "main"]
 
 # Stage modules that expose ``register(subparsers)``; later tasks append here.
-COMMAND_MODULES: list = [profile_cmd, runs_cmd, seeds_cmd, stages_cmd, filter_cmd, jobs_cmd, saved_cmd, diagnose_cmd, cv_cmd, salary_cmd, export_cmd, maintenance_cmd, doctor_cmd, import_mark3_cmd, update_cmd]
+COMMAND_MODULES: list = [profile_cmd, runs_cmd, seeds_cmd, stages_cmd, filter_cmd, jobs_cmd, saved_cmd, diagnose_cmd, cv_cmd, cover_letter_cmd, salary_cmd, export_cmd, maintenance_cmd, doctor_cmd, import_mark3_cmd, update_cmd]
 
 
 class _Parser(argparse.ArgumentParser):

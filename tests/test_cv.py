@@ -40,11 +40,10 @@ def build_pdf(page_texts: list[str]) -> bytes:
     return b"".join(chunks) + ("\n".join(lines) + "\n").encode() + trailer.encode()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _fixture_pdfs():
-    FIXTURES.mkdir(parents=True, exist_ok=True)
-    (FIXTURES / "sample.pdf").write_bytes(build_pdf(["Hello CV"]))
-    (FIXTURES / "blank.pdf").write_bytes(build_pdf([""]))
+def test_checked_in_pdfs_match_the_generator():
+    # The PDFs are committed and read-only during the run: parallel workers must never rewrite shared files.
+    assert (FIXTURES / "sample.pdf").read_bytes() == build_pdf(["Hello CV"])
+    assert (FIXTURES / "blank.pdf").read_bytes() == build_pdf([""])
 
 
 def _write(tmp_path, name, content: bytes) -> Path:

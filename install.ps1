@@ -81,8 +81,17 @@ function Ensure-Tls12 {
 function Install-StandaloneUv {
     [Console]::Error.WriteLine('[ultron] Python 3.12+ with venv not found; bootstrapping standalone uv + Python 3.12...')
     Ensure-Tls12
-    $uvScript = Invoke-RestMethod -UseBasicParsing -Uri 'https://astral.sh/uv/install.ps1'
-    $null = & { Invoke-Expression $uvScript } 1>$null 6>$null
+    $uvInstaller = Join-Path ([IO.Path]::GetTempPath()) ("ultron-uv-install-" + [Guid]::NewGuid().ToString("N") + ".ps1")
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri 'https://astral.sh/uv/install.ps1' -OutFile $uvInstaller
+        $psExe = (Get-Process -Id $PID).Path
+        & $psExe -NoProfile -ExecutionPolicy Bypass -File $uvInstaller 1>$null 6>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Standalone uv installer exited with code $LASTEXITCODE."
+        }
+    } finally {
+        Remove-Item -LiteralPath $uvInstaller -Force -ErrorAction SilentlyContinue
+    }
     Add-ToolBinsToPath
     $uv = Find-UvExecutable
     if (-not $uv) {

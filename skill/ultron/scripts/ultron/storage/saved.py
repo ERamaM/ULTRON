@@ -14,6 +14,7 @@ from ultron.storage import ledger, runs
 
 def create(name: str, profile_slug: str, preset: str = presets.DEFAULT_PRESET, prompt: str = "",
            overrides: dict | None = None) -> None:
+    """Create or update a named saved search in the SQLite ledger."""
     name = name.strip()
     if not name:
         raise ValueError("saved search name must not be empty")
@@ -43,11 +44,13 @@ def _row(r: tuple) -> dict:
 
 
 def list_all() -> list[dict]:
+    """Return all saved searches sorted alphabetically by name."""
     with closing(ledger.connect()) as conn:
         return [_row(r) for r in conn.execute(f"SELECT {_COLS} FROM saved_searches ORDER BY name")]
 
 
 def get(name: str) -> dict:
+    """Fetch a single saved search definition by ``name``."""
     with closing(ledger.connect()) as conn:
         row = conn.execute(f"SELECT {_COLS} FROM saved_searches WHERE name = ?", (name,)).fetchone()
     if row is None:
@@ -56,6 +59,7 @@ def get(name: str) -> dict:
 
 
 def delete(name: str) -> bool:
+    """Delete a saved search by ``name``, returning True if a row was removed."""
     with closing(ledger.connect()) as conn, conn:
         return conn.execute("DELETE FROM saved_searches WHERE name = ?", (name,)).rowcount > 0
 
@@ -75,6 +79,7 @@ def write_digest(run_id: str, name: str) -> tuple[str, int]:
 
 
 def run(name: str, *, unattended: bool) -> dict:
+    """Start a new run (or unattended run) preconfigured from saved search ``name``."""
     from ultron.core.discovery.query_plan import build_query_plan
 
     s = get(name)

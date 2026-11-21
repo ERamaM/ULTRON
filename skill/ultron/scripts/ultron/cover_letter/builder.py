@@ -28,6 +28,7 @@ _SIGNOFF_PREFIXES = (
 
 @dataclass
 class CoverLetterDocument:
+    """Structured cover-letter content ready for validation and Word rendering."""
     candidate_name: str = ""
     candidate_email: str = ""
     candidate_phone: str = ""

@@ -47,10 +47,12 @@ def occupop_job_ref(url: str) -> str:
 
 
 def occupop_posting_url(ref: str) -> str:
+    """Return the public Occupop job URL for posting ``ref``."""
     return f"https://{API_HOST}/shared/job/{ref}"
 
 
 def occupop_detail_url(ref: str) -> str:
+    """Return the Occupop JSON detail endpoint for posting ``ref``."""
     return f"https://{API_HOST}/api/integration/job/{ref}"
 
 
@@ -90,6 +92,7 @@ def occupop_job_from_detail(payload: object, apply_url: str, *, company_hint: st
 
 
 def fetch_occupop_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
+    """Fetch open postings from an Occupop board token."""
     token = str(board_identifier or "").strip()
     if not _TOKEN_RE.fullmatch(token):
         raise AtsClientError("invalid_board")  # the board is the employer's share token

@@ -33,6 +33,7 @@ def _require_filter(run_id: str) -> None:
 
 
 def record_evaluations(run_id: str, path: Path) -> dict:
+    """Store agent evaluation verdicts for ambiguous postings in a run."""
     _require_filter(run_id)
     out_dir = runs.run_dir(run_id)
     ambiguous = {r["identity_key"] for r in runs.read_jsonl(out_dir / "ambiguous.jsonl")}
@@ -77,6 +78,7 @@ def record_evaluations(run_id: str, path: Path) -> dict:
 
 
 def pending_batch(run_id: str, limit: int = 10) -> dict:
+    """Return up to ``limit`` unevaluated ambiguous postings for ``run_id``."""
     _require_filter(run_id)
     out_dir = runs.run_dir(run_id)
     done = {r["identity_key"] for r in runs.read_jsonl(out_dir / "evaluations.jsonl")}

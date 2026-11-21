@@ -81,6 +81,7 @@ def finding(
     recommendation: str,
     evidence: str = "",
 ) -> dict[str, str]:
+    """Build an ATS formatting audit finding dictionary with optional redacted evidence."""
     item = {
         "id": fid,
         "severity": severity,
@@ -377,6 +378,7 @@ def _audit_docx_format(meta: dict[str, Any]) -> tuple[str, int, list[dict[str, s
 
 
 def audit_format(file_type: str, pages: int, meta: dict[str, Any]) -> tuple[str, int, list[dict[str, str]]]:
+    """Evaluate CV file-format hygiene for TeX, PDF, DOCX, or text sources."""
     if file_type == "tex":
         return _audit_tex_format()
     if file_type == "pdf":

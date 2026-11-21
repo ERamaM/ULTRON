@@ -11,6 +11,7 @@ from ultron.core.rules.term_matching import find_terms
 
 @dataclass(frozen=True, slots=True)
 class ProfileTermHits:
+    """Matched negative profile terms found across a posting."""
     exclusion_terms: tuple[str, ...] = ()
     seniority_excluded: tuple[str, ...] = ()
     remote_negative: tuple[str, ...] = ()
@@ -20,6 +21,7 @@ class ProfileTermHits:
 
     @property
     def penalties(self) -> tuple[str, ...]:
+        """Return deduplicated matched penalty terms across all categories."""
         return tuple(
             dict.fromkeys(
                 self.exclusion_terms + self.seniority_excluded + self.remote_negative + self.location_excluded
@@ -38,6 +40,7 @@ def _terms(criteria: Mapping[str, Any], section: str, field: str) -> tuple[str, 
 
 
 def exclusion_lists_configured(criteria: Mapping[str, Any]) -> bool:
+    """Return True if any profile exclusion term list is populated."""
     return any(
         _terms(criteria, section, field)
         for section, field in (
@@ -50,6 +53,7 @@ def exclusion_lists_configured(criteria: Mapping[str, Any]) -> bool:
 
 
 def collect_profile_term_hits(job: ExtractedJob, criteria: Mapping[str, Any]) -> ProfileTermHits:
+    """Match a job posting against profile exclusion, seniority, and geo terms."""
     remote = "\n".join((job.remote_text or "", job.location or ""))
     location = "\n".join((job.location or "", job.remote_text or "", build_geo_body_excerpt(job.body_text)))
     return ProfileTermHits(

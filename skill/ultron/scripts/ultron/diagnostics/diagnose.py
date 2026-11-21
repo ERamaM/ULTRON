@@ -36,6 +36,7 @@ FINALIZE_STAGES = {
 
 @dataclass
 class Diagnosis:
+    """Diagnostic trace identifying where and why a submitted URL failed."""
     submitted_url: str
     identity_key: str
     first_failed_stage: str
@@ -212,6 +213,7 @@ def _replay(url: str, profile: dict, run: dict | None, profile_slug: str, trace:
 
 
 def diagnose(url: str, *, profile_slug: str, run_id: str | None = None, fetch: bool = True) -> Diagnosis:
+    """Replay a single job URL through pipeline stages to explain its outcome."""
     identity = _identity_of(url)
     chosen = _pick_run(profile_slug, run_id)
     trace: list[dict] = []
@@ -236,4 +238,5 @@ def diagnose(url: str, *, profile_slug: str, run_id: str | None = None, fetch: b
 
 
 def to_dict(diagnosis: Diagnosis) -> dict:
+    """Serialize a ``Diagnosis`` dataclass to a plain dictionary."""
     return asdict(diagnosis)

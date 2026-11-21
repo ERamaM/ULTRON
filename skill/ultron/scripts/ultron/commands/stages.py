@@ -43,6 +43,7 @@ def _fetch(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron discover``, ``fetch``, and ``finalize`` subcommands."""
     discover = subparsers.add_parser("discover", help="candidate discovery")
     dsub = discover.add_subparsers(dest="discover_command", required=True, parser_class=type(discover))
     ats = dsub.add_parser("ats", help="query ATS board APIs for the seed inventory")

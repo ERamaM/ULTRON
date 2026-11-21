@@ -52,6 +52,7 @@ def _cmd_version(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level ``ultron`` CLI parser with all subcommands."""
     parser = _Parser(prog="ultron", description="ULTRON - Universal Locator & Triage of Roles, Openings and Niches")
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
     version = subparsers.add_parser("version", help="print the ULTRON version")
@@ -63,6 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the ``ultron`` CLI and emit a single JSON object or error payload."""
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     try:

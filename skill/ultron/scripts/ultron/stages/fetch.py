@@ -51,6 +51,7 @@ NAV_FAILURE_STOP_RATIO = 0.5
 
 
 def should_stop_on_nav_failures(nav_failures: int, attempted: int) -> bool:
+    """Return True when fetch failure rate exceeds the circuit-breaker threshold."""
     return nav_failures >= NAV_FAILURE_STOP_THRESHOLD and nav_failures >= NAV_FAILURE_STOP_RATIO * max(attempted, 1)
 
 
@@ -519,6 +520,7 @@ def unusable_page_reason(html: str, job: ExtractedJob) -> str | None:
 
 
 def fetch(run_id: str) -> dict:
+    """Fetch candidate job pages for ``run_id``, parse postings, and record outcomes."""
     runs.require_stage(run_id, "fetch")
     run = runs.load_run(run_id)
     out_dir = runs.run_dir(run_id)

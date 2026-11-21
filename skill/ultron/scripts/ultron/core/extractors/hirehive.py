@@ -19,6 +19,7 @@ _parse_selectors = make_selector_parser("hirehive")
 
 
 def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> ExtractedJob:
+    """Extract job posting fields from a HireHive HTML page."""
     soup = BeautifulSoup(page.html or "", "html.parser")
     for node in soup.select("form, select"):
         node.decompose()

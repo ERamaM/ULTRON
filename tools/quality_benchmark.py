@@ -102,6 +102,7 @@ class CorpusError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ComparisonResult:
+    """Outcome of comparing a candidate benchmark report against the baseline."""
     passed: bool
     regressions: tuple[str, ...]
     insufficient_samples: tuple[str, ...]
@@ -221,10 +222,12 @@ def _group_errors(records: list[tuple[dict[str, Any], dict[str, Any]]]) -> list[
 
 
 def profile_path(slug: str) -> Path:
+    """Return the YAML path for benchmark profile ``slug``."""
     return PROFILE_PATH if slug == DEFAULT_PROFILE else CORPUS_DIR / "profiles" / f"{slug}.yaml"
 
 
 def load_profile(slug: str = DEFAULT_PROFILE) -> dict[str, Any]:
+    """Load a benchmark profile mapping by ``slug``."""
     return yaml.safe_load(profile_path(slug).read_text(encoding="utf-8"))
 
 
@@ -343,6 +346,7 @@ def ranking_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def slice_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group benchmark results by configured slice dimensions and compute metrics."""
     output: dict[str, Any] = {}
     for name, field in SLICES.items():
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -357,6 +361,7 @@ def slice_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def build_report(results: list[dict[str, Any]], *, corpus_version: str, agent_queue: int) -> dict[str, Any]:
+    """Assemble the benchmark report dictionary from per-case results."""
     losses = Counter(r["first_loss_stage"] for r in results if r["first_loss_stage"] is not None)
     by_profile: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for result in results:
@@ -503,6 +508,7 @@ def compare_reports(
 
 
 def report_markdown(report: dict[str, Any]) -> str:
+    """Format a benchmark report as a Markdown summary table."""
     classification = report["metrics"]["classification"]
     lines = [
         "# ULTRON quality benchmark",
@@ -527,6 +533,7 @@ def report_markdown(report: dict[str, Any]) -> str:
 
 
 def dump_report(report: dict[str, Any]) -> str:
+    """Serialize a benchmark report dictionary to formatted JSON."""
     return json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
@@ -610,6 +617,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the quality benchmark CLI (``validate``, ``run``, or ``compare``)."""
     args = _parser().parse_args(argv)
     command = {"validate": _cmd_validate, "run": _cmd_run, "compare": _cmd_compare}[args.command]
     try:

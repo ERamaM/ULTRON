@@ -67,6 +67,7 @@ def _posting_url(board_url: str, href: str, mid: str, sid: str) -> str:
 def fetch_candidatemanager_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a CandidateManager XML/HTML board."""
     board = candidatemanager_board(board_identifier)
     if board is None:
         raise AtsClientError("invalid_board")  # the board is <mid>-<sid>

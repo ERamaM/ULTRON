@@ -1,3 +1,5 @@
+"""iCIMS hosted career-portal client."""
+
 from __future__ import annotations
 
 from bs4 import BeautifulSoup
@@ -44,6 +46,7 @@ def _card_listings(html: str) -> list[dict[str, str]]:
 def fetch_icims_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from an iCIMS career portal."""
     fetch_text = client.request_text
     if not locator_has_host(board_identifier):
         raise AtsClientError(f"icims_locator_invalid={board_identifier}")

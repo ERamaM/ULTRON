@@ -27,11 +27,11 @@ _TRANSPORT: httpx.BaseTransport | None = None
 
 
 class DownloadError(RuntimeError):
-    pass
+    """Raised when downloading a release archive or checksum fails."""
 
 
 class ArchiveError(ValueError):
-    pass
+    """Raised when a downloaded release archive fails validation or extraction."""
 
 
 

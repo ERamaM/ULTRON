@@ -1,3 +1,5 @@
+"""Shared selector, metadata, and fallback extraction logic for job pages."""
+
 from __future__ import annotations
 
 import re
@@ -236,6 +238,7 @@ def _meta_content(soup: BeautifulSoup, *, property_name: str | None = None, name
 
 
 def extract_text_lines(text: str) -> list[str]:
+    """Split ``text`` into stripped non-empty lines."""
     lines = [line.strip() for line in text.splitlines()]
     return [line for line in lines if line]
 
@@ -625,9 +628,11 @@ def parse_with_overrides(
 
 
 def detect_ats_fingerprint(html: str) -> str | None:
+    """Return the matching ATS vendor name for ``html``, or None."""
     match = match_vendor_by_fingerprint(html)
     return match.name if match else None
 
 
 def ats_canonical_domain(ats_vendor: str | None) -> str | None:
+    """Return the canonical domain for ``ats_vendor``, or None."""
     return canonical_domain_for_vendor(ats_vendor)

@@ -1,3 +1,5 @@
+"""Workable public widget API client."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, location_text
@@ -21,6 +23,7 @@ def workable_locations(job: dict) -> list[str]:
 def fetch_workable_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Workable hosted board."""
     # Public widget API used by Workable hosted boards.
     fetch_json = client.request_json
     url = f"https://apply.workable.com/api/v1/widget/accounts/{board_identifier}?details=true"

@@ -32,10 +32,15 @@ relative_files = true
 line-length = 120
 target-version = "py312"
 
+[tool.ruff.lint]
+extend-select = ["D100", "D101", "D102", "D103"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["ultron"]
 
 [tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["D100"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103"]
 "skill/ultron/scripts/ultron/core/ats/clients/*.py" = ["BLE001"]  # literal ports: any transport error triggers the vendor fallback
 # Literal ports from MARK III: keep the original logic untouched.
 "skill/ultron/scripts/ultron/core/feeds/*.py" = ["BLE001", "S110", "S112", "PIE810"]  # literal ports: any error fails one source/slug, not the run

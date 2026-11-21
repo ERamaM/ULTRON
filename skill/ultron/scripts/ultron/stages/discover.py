@@ -77,10 +77,12 @@ class SeedYield:
 
     @property
     def measured(self) -> bool:
+        """Return True when a seed has been tried in at least three runs."""
         return self.attempts >= 3
 
     @property
     def deprioritized(self) -> bool:
+        """Return True when a seed yielded zero keeps across five or more runs."""
         return self.attempts >= 5 and self.keeps == 0
 
     def rank(self) -> tuple[int, float]:
@@ -93,6 +95,7 @@ class SeedYield:
 
 
 def seed_key(seed) -> str:
+    """Return the canonical ``<vendor>:<identifier>`` key for a board seed."""
     return ":".join(seed_identity(seed.ats, seed.board_identifier))
 
 
@@ -426,6 +429,7 @@ def _merge_counts(*counts: dict[str, int]) -> dict[str, int]:
 
 
 def discover_ats(run_id: str) -> dict:
+    """Query ATS board APIs for active profile seeds and record candidate URLs."""
     run = runs.load_run(run_id)
     settings = run["settings"]
     out_dir = runs.run_dir(run_id)

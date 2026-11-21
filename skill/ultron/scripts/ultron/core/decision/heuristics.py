@@ -1,3 +1,5 @@
+"""Deterministic first-pass job evaluator applying role, seniority, and geo rules."""
+
 from __future__ import annotations
 
 import logging
@@ -125,6 +127,7 @@ class HeuristicEvaluator:
         extraction_meta: ExtractionMeta | None = None,
         classification_signals: ClassificationSignals | None = None,
     ) -> JobEvaluation:
+        """Evaluate an ``ExtractedJob`` against the configured profile criteria."""
         text = f"{job.remote_text}\n{job.body_text}"
         is_senior, allowed_family = self._role_signals(job, classification_signals)
         full_remote = is_full_remote_only(job.remote_text, job.body_text)

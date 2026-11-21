@@ -25,6 +25,7 @@ PACK_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 @dataclass(frozen=True, slots=True)
 class VocabularyPack:
+    """Role, title, and remote term bundle loaded for a domain vocabulary pack."""
     role_terms: tuple[str, ...] = ()
     title_terms: tuple[str, ...] = ()
     extra_title_terms: tuple[str, ...] = ()
@@ -43,10 +44,12 @@ _GROUP_FIELDS = {"title_synonym_groups"}
 
 
 def vocabulary_dir():
+    """Return the bundled directory containing domain vocabulary YAML files."""
     return data_dir() / "vocabulary"
 
 
 def is_known_pack(name: object) -> bool:
+    """Return True if ``name`` is a valid identifier with a bundled vocabulary file."""
     return isinstance(name, str) and bool(PACK_NAME_RE.match(name)) and (vocabulary_dir() / f"{name}.yaml").is_file()
 
 

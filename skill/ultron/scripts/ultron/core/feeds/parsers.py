@@ -1,3 +1,5 @@
+"""Pure payload parsers converting RSS and public job feed responses into rows."""
+
 from __future__ import annotations
 
 import re
@@ -8,6 +10,7 @@ from defusedxml import ElementTree as ET
 
 
 def split_title_company(title: str, source: str) -> tuple[str, str]:
+    """Split a feed item title into role title and company name."""
     clean = " ".join(str(title or "").split()).strip()
     if not clean:
         return "", ""
@@ -31,6 +34,7 @@ def split_title_company(title: str, source: str) -> tuple[str, str]:
 
 
 def rows_from_rss_payload(payload: str, source: str) -> list[dict]:
+    """Parse an RSS or Atom XML document into normalized feed rows."""
     text = str(payload or "").strip()
     if not text:
         return []
@@ -91,6 +95,7 @@ def rows_from_rss_payload(payload: str, source: str) -> list[dict]:
 
 
 def rows_from_jobicy_api_payload(payload: dict | list) -> list[dict]:
+    """Parse a Jobicy JSON payload into normalized feed rows."""
     jobs: list[dict] = []
     if isinstance(payload, dict):
         raw_jobs = payload.get("jobs")
@@ -121,6 +126,7 @@ def rows_from_jobicy_api_payload(payload: dict | list) -> list[dict]:
 
 
 def rows_from_remoteok_payload(payload: dict | list) -> list[dict]:
+    """Parse a RemoteOK JSON array payload into normalized feed rows."""
     if not isinstance(payload, list):
         return []
 
@@ -147,6 +153,7 @@ def rows_from_remoteok_payload(payload: dict | list) -> list[dict]:
 
 
 def rows_from_themuse_payload(payload: dict | list) -> tuple[list[dict], int | None]:
+    """Parse a The Muse JSON page into normalized feed rows and total page count."""
     if not isinstance(payload, dict):
         return [], None
 
@@ -190,6 +197,7 @@ def rows_from_themuse_payload(payload: dict | list) -> tuple[list[dict], int | N
 
 
 def extract_company_names_from_weworkremotely_top_html(html: str) -> list[str]:
+    """Extract featured company names from WeWorkRemotely top-companies HTML."""
     text = str(html or "").strip()
     if not text:
         return []
@@ -345,6 +353,7 @@ def extract_company_names_from_remotifyeurope_html(html: str, location_names: It
 
 
 def rows_from_himalayas_payload(payload: dict | list) -> list[dict]:
+    """Parse a Himalayas JSON payload into normalized feed rows."""
     jobs: list[dict] = []
     if isinstance(payload, dict):
         raw_jobs = payload.get("jobs")

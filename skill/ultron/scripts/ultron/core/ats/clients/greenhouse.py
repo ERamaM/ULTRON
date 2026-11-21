@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 from ultron.core.ats.vendors import greenhouse_job_url
-from ultron.net import URLRejected
+from ultron.infra.net import URLRejected
 
 
 def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = False) -> str:

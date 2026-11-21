@@ -6,9 +6,12 @@ import httpx
 import pytest
 from test_unattended_e2e import _handler, _no_packs  # noqa: F401  (reuse e2e helpers/fixture)
 
-from ultron import http_factory, profiles, runs, saved, seeds
+from ultron import seeds
 from ultron.cli import main
 from ultron.core.models import AtsBoardSeed
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
+from ultron.storage import runs, saved
 
 
 def _setup_network():

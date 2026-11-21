@@ -1,8 +1,8 @@
 from contextlib import closing
 from datetime import UTC, datetime
 
-from ultron import ledger
 from ultron.core.models import FinalRow, RunSummary
+from ultron.storage import ledger
 
 
 def _row(url="https://boards.greenhouse.io/acme/jobs/123"):
@@ -43,7 +43,7 @@ def test_record_run_upsert():
 
 
 def test_removal_restores_previous_details_and_preserves_review():
-    from ultron import review
+    from ultron.storage import review
 
     with closing(ledger.connect()) as conn:
         row = _row()

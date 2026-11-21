@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import httpx
 
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
 from ultron.seeds import PageHops, Proposal, verify_proposal
 
 
@@ -171,7 +171,7 @@ def test_page_hops_are_capped_per_host_and_in_total():
 def test_careers_page_redirecting_into_a_blocked_vendor_is_unchecked_not_boardless():
     # Session 4 review: a page hop that the vendor breaker refused read as an empty page, so `seeds verify` said
     # no_board_found (a checked company) instead of host_blocked.
-    from ultron.net import VendorBudget
+    from ultron.infra.net import VendorBudget
 
     seen: list[str] = []
 
@@ -193,7 +193,7 @@ def test_careers_page_redirecting_into_a_blocked_vendor_is_unchecked_not_boardle
 
 def test_careers_page_redirecting_into_a_vendor_out_of_budget_is_unchecked_not_boardless():
     # Codex review round 2: the vendor-budget refusal on a page hop read as an empty page (no_board_found).
-    from ultron.net import VendorBudget
+    from ultron.infra.net import VendorBudget
 
     seen: list[str] = []
 

@@ -6,7 +6,10 @@ import datetime
 import json
 import zipfile
 
-from ultron import cli, cv, cv_docx, cv_truth
+from ultron import cli
+from ultron.cv import docx_reader as cv_docx
+from ultron.cv import extract as cv
+from ultron.cv import truth as cv_truth
 
 SOURCE_CV_MD = """# Jane Example
 Senior Data Engineer

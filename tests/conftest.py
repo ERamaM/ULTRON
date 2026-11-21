@@ -10,7 +10,7 @@ def _isolated_ultron_home(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _reset_http_overrides():
-    from ultron import http_factory
+    from ultron.stages import http_factory
 
     http_factory.reset_test_overrides()
     yield

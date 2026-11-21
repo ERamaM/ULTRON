@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from ultron import cli, cv, cv_docx
+from ultron import cli
+from ultron.cv import docx_reader as cv_docx
+from ultron.cv import extract as cv
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"

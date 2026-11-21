@@ -7,8 +7,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from ultron import home, ledger, maintenance, profiles, runs
 from ultron.cli import main
+from ultron.infra import home
+from ultron.profiles import store as profiles
+from ultron.storage import ledger, maintenance, runs
 
 
 def _mk_run(finished: bool = True, age_days: float = 0) -> str:

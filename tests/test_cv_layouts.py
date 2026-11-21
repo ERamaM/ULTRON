@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ultron import cv
-from ultron.cv_worker import extract_pdf_pages_text
+from ultron.cv import extract as cv
+from ultron.cv.worker import extract_pdf_pages_text
 
 SYNTHETIC = Path(__file__).parent / "fixtures" / "cv" / "synthetic"
 
@@ -147,7 +147,7 @@ def test_column_reordering_failure_falls_back_to_plain_text(monkeypatch):
     import sys
     from types import SimpleNamespace
 
-    from ultron import cv_worker
+    from ultron.cv import worker as cv_worker
 
     class Page:
         def extract_text(self, **kwargs):
@@ -183,7 +183,7 @@ def test_text_normalization_handles_invisible_and_compatibility_characters(tmp_p
 
 
 def test_worker_normalization_matches_parent():
-    from ultron import cv_worker
+    from ultron.cv import worker as cv_worker
 
     sample = "\ufb01nance\u00a0\u00a0team \uf0b7 Go\u200b"
     assert cv_worker._normalize_text(sample) == cv._normalize_text(sample) == "finance team • Go"
@@ -207,7 +207,7 @@ def test_a_truncated_docx_is_a_typed_extraction_error(tmp_path):
 
 
 def test_rotated_text_is_not_lost_when_columns_are_reordered():
-    from ultron import cv_worker
+    from ultron.cv import worker as cv_worker
 
     spec = json.loads((SYNTHETIC / "es_two_column.json").read_text(encoding="utf-8"))
     lines: list[tuple] = []

@@ -16,7 +16,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ultron import cli, update, update_notice
+from ultron import cli
+from ultron.update import notice as update_notice
+from ultron.update import prepare as update
 
 REPO = "https://github.com/ERamaM/ULTRON"
 

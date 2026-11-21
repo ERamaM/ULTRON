@@ -7,9 +7,10 @@ import json
 import pytest
 from stage_helpers import PROFILE
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
 from ultron.stages import filter as filter_stage
+from ultron.storage import runs
 
 
 def _job(n: int, **overrides) -> dict:
@@ -150,7 +151,7 @@ def test_a_posting_in_an_excluded_location_is_never_rescued():
 
 
 def test_profile_explain_replay_reports_rescues_like_the_filter(capsys):
-    from ultron import profile_explain
+    from ultron.profiles import explain as profile_explain
 
     run_id = _run([_job(0), _job(1, remote_text="Hybrid, 3 days in office")])
     out = _filter(capsys, run_id)

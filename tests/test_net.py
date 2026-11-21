@@ -3,9 +3,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from ultron import net
-from ultron.core import urlpolicy
-from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
+from ultron.infra import net, urlpolicy
+from ultron.infra.net import HttpClient, HttpError, RequestBudgetExceeded, URLRejected
 
 
 def public_resolver(hostname: str, port: int) -> list[str]:

@@ -11,7 +11,6 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from ultron import http_factory
 from ultron.core.ats.board_policy import board_is_valid, vendor_domains
 from ultron.core.ats.clients import FETCHERS, AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.candidatemanager import MAX_POSTINGS
@@ -20,9 +19,10 @@ from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.url_filter import normalize_url
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import JobRawPage
-from ultron.net import HttpClient, HttpError, URLRejected
-from ultron.seed_rounds import validate_proposal
+from ultron.infra.net import HttpClient, HttpError, URLRejected
 from ultron.seeds import PROBE_VENDORS, Proposal, verify_proposal
+from ultron.seeds.rounds import validate_proposal
+from ultron.stages import http_factory
 from ultron.stages.discover import _seed_request_host
 
 BOARD = "QwErT-ZxCv"
@@ -267,9 +267,10 @@ def test_candidatemanager_ids_that_differ_only_in_case_are_different_postings():
 def test_case_distinct_opaque_boards_stay_separate_in_the_seed_inventory():
     # PR #66 review: seed_identity lowercased every non-Workday board, so case-distinct CandidateManager or
     # Occupop boards collapsed into one inventory entry and one employer's vacancies were never queried.
-    from ultron import profiles, seeds
+    from ultron import seeds
     from ultron.core.ats.identity import seed_identity
     from ultron.core.models import AtsBoardSeed
+    from ultron.profiles import store as profiles
 
     assert seed_identity("candidatemanager", "QwErT-ZxCv") != seed_identity("candidatemanager", "qwert-ZxCv")
     assert seed_identity("occupop", "AbCdEf123") != seed_identity("occupop", "abcdef123")

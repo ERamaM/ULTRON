@@ -7,10 +7,13 @@ import json
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.cli import main
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
+from ultron.profiles import store as profiles
 from ultron.seeds import Proposal, load_inventory, verify_proposal
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 
 def make_client(handler):

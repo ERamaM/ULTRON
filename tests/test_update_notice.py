@@ -7,7 +7,8 @@ import time
 import httpx
 import pytest
 
-from ultron import cli, update_notice
+from ultron import cli
+from ultron.update import notice as update_notice
 
 
 def test_version_check_reports_newer_release_once(monkeypatch, tmp_path, capsys):

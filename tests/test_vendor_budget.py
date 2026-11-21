@@ -11,8 +11,10 @@ import json
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs
-from ultron.net import HttpClient, HttpError, RequestBudgetExceeded, VendorBlocked, VendorBudget
+from ultron.infra.net import HttpClient, HttpError, RequestBudgetExceeded, VendorBlocked, VendorBudget
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 
 def _vendor_of(host: str) -> str | None:

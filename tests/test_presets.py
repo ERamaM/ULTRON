@@ -1,6 +1,6 @@
 import pytest
 
-from ultron import presets
+from ultron.core import presets
 
 
 def test_default_preset_is_balanced():
@@ -60,7 +60,8 @@ def test_override_errors_are_value_errors_with_the_key():
 
 
 def test_saved_search_overrides_are_checked_against_its_preset():
-    from ultron import profiles, saved
+    from ultron.profiles import store as profiles
+    from ultron.storage import saved
 
     profiles.install_example()
     with pytest.raises(presets.PresetOverrideError, match="min_roles"):
@@ -68,7 +69,8 @@ def test_saved_search_overrides_are_checked_against_its_preset():
 
 
 def test_new_run_caps_min_roles_when_only_max_roles_is_lowered():
-    from ultron import profiles, runs
+    from ultron.profiles import store as profiles
+    from ultron.storage import runs
 
     profiles.install_example()
     settings = runs.load_run(runs.new_run(profiles.EXAMPLE_SLUG, "balanced", overrides={"max_roles": 2}))["settings"]
@@ -79,8 +81,9 @@ def test_saved_search_run_reports_a_stored_out_of_bounds_override(capsys):
     import json
     from contextlib import closing
 
-    from ultron import ledger, profiles
     from ultron.cli import main
+    from ultron.profiles import store as profiles
+    from ultron.storage import ledger
 
     profiles.install_example()
     with closing(ledger.connect()) as conn, conn:  # a row stored before the bounds existed

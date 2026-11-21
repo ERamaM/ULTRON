@@ -4,9 +4,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from ultron import ledger, review
 from ultron.cli import main
 from ultron.core.models import FinalRow, RunSummary
+from ultron.storage import ledger, review
 
 URL = "https://boards.greenhouse.io/acme/jobs/123"
 

@@ -115,7 +115,7 @@ def test_profile_sector_values_map_free_text_to_the_sector_vocabulary(raw, expec
 def pack_dir(tmp_path, monkeypatch):
     path = tmp_path / "packs"
     path.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: path)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: path)
     return path
 
 
@@ -218,6 +218,6 @@ def test_seeds_linked_to_the_profile_are_kept_whatever_their_sector(pack_dir, tm
         {"company": "Manual Tech", "ats": "lever", "board_identifier": "manualtech", "profiles": ["synthetic"],
          "source_type": "manual", "sectors": ["technology"]},
     ]}), encoding="utf-8")
-    monkeypatch.setattr(seeds, "auto_seeds_path", lambda: auto)
+    monkeypatch.setattr(seeds.inventory, "auto_seeds_path", lambda: auto)
     selected, _groups, _stats = _select_seeds("synthetic", ["healthcare"], 50, 50, geo="eu", profile=NURSE_IE)
     assert sorted(seed.board_identifier for seed, _group in selected) == ["agenttech", "manualtech"]

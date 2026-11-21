@@ -5,9 +5,12 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.core.models import CandidateUrl
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
 from ultron.stages.fetch import fetch
+from ultron.storage import runs
 
 CAPTCHA_PAGE = """<html><head><title>Attention required</title></head><body>
 <h1>Please verify you are human</h1><p>Complete the CAPTCHA below to continue.</p>
@@ -60,7 +63,7 @@ def _short_posting(sentence: str) -> str:
 def _no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
 
 
 def _fetch_single(html: str) -> tuple[list[dict], list[dict]]:

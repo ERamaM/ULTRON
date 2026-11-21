@@ -18,9 +18,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from ultron import runs
 from ultron.stages import finalize as finalize_stage
 from ultron.stages.filter import filter_run
+from ultron.storage import runs
 
 REPLAY_RUN_ID = "20000101-000000-000000"
 REPLAY_CREATED_AT = "2000-01-01T00:00:00+00:00"

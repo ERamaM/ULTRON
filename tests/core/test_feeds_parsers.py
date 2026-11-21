@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ultron.core.feeds import collectors, parsers, urls
-from ultron.net import RequestBudgetExceeded
+from ultron.infra.net import RequestBudgetExceeded
 
 FEEDS = Path(__file__).resolve().parents[1] / "fixtures" / "feeds"
 

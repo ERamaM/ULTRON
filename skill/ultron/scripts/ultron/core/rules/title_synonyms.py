@@ -44,8 +44,40 @@ def normalize_role_title(title: str) -> str:
     return normalize_title_separators(normalized).strip()
 
 
+_HORIZONTAL_WS = frozenset((" ", "\t"))
+_TITLE_DASHES = frozenset("-\u2013\u2014")
+
+
+def _skip_hws(text: str, start: int) -> int:
+    end = start
+    length = len(text)
+    while end < length and text[end] in _HORIZONTAL_WS:
+        end += 1
+    return end
+
+
 def normalize_title_separators(title: str) -> str:
-    return re.sub(r"(?<![ \t])[ \t]+[-\u2013\u2014][ \t]*|[-\u2013\u2014][ \t]+", " ", title)
+    """Replace space-delimited dash separators with a single space in linear time."""
+    out: list[str] = []
+    i = 0
+    length = len(title)
+    while i < length:
+        ch = title[i]
+        if ch in _HORIZONTAL_WS:
+            ws_end = _skip_hws(title, i + 1)
+            if ws_end < length and title[ws_end] in _TITLE_DASHES:
+                out.append(" ")
+                i = _skip_hws(title, ws_end + 1)
+            else:
+                out.append(title[i:ws_end])
+                i = ws_end
+        elif ch in _TITLE_DASHES and i + 1 < length and title[i + 1] in _HORIZONTAL_WS:
+            out.append(" ")
+            i = _skip_hws(title, i + 2)
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
 
 
 def _normalize_term(term: str) -> str:

@@ -1,3 +1,5 @@
+"""Personio XML job-feed client."""
+
 from __future__ import annotations
 
 from defusedxml import ElementTree as ET
@@ -22,6 +24,7 @@ def _looks_like_personio_xml(payload: str) -> bool:
 def fetch_personio_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Personio XML board feed."""
     fetch_text = client.request_text
     candidates = [
         locator_url(f"{board_identifier}.jobs.personio.de", "xml"),

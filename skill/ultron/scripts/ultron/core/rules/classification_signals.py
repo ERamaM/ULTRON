@@ -1,3 +1,5 @@
+"""Builder assembling ``ClassificationSignals`` from extracted job text and rules."""
+
 from __future__ import annotations
 
 import re

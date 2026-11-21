@@ -22,12 +22,14 @@ SCORE_VERSION = "score-v4"
 
 
 class MatchDimension(BaseModel):
+    """Single scored dimension contributing to an overall ``MatchScore``."""
     state: DimensionState
     evidence: str = ""
     weight: int = 0
 
 
 class MatchScore(BaseModel):
+    """Profile match score (0–100) with band, dimension breakdown, and explanations."""
     value: int = Field(ge=0, le=100)
     band: MatchBand
     version: str = SCORE_VERSION

@@ -68,6 +68,7 @@ _TAG_TOKENS = re.compile(rb"[<>\"']")
 
 @dataclass(frozen=True, slots=True)
 class DocxStructureReport:
+    """Extracted text, page count, and structural layout metrics for a ``.docx`` file."""
     text: str
     pages: int
     table_count: int = 0

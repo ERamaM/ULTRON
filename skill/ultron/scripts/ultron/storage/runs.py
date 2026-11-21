@@ -28,6 +28,7 @@ STAGE_REQUIRES: dict[str, str | tuple[str, ...]] = {
 
 
 class StageOrderError(Exception):
+    """Raised when a run stage executes before required prerequisite artifacts exist."""
     def __init__(self, stage: str, missing: str = ""):
         self.stage = stage
         self.missing = missing
@@ -36,7 +37,7 @@ class StageOrderError(Exception):
 
 
 class RunNotFoundError(FileNotFoundError):
-    pass
+    """Raised when a referenced run directory or ``run.json`` does not exist."""
 
 
 def _runs_root() -> Path:
@@ -67,6 +68,7 @@ def _write_run(run_id: str, data: dict) -> None:
 
 
 def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> str:
+    """Create a new run folder with resolved preset settings and return its run ID."""
     settings = presets.resolve(preset)
     if overrides:
         settings.update(presets.validate_overrides(overrides, settings))
@@ -89,6 +91,7 @@ def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> st
 
 
 def load_run(run_id: str) -> dict:
+    """Load and return ``run.json`` for ``run_id``."""
     path = run_dir(run_id) / "run.json"
     if not path.is_file():
         raise RunNotFoundError(f"run not found: {run_id}")
@@ -96,6 +99,7 @@ def load_run(run_id: str) -> dict:
 
 
 def list_runs() -> list[dict]:
+    """List recorded runs ordered newest first."""
     out = []
     for path in sorted(_runs_root().glob("*/run.json"), reverse=True):
         try:
@@ -107,6 +111,7 @@ def list_runs() -> list[dict]:
 
 
 def mark_stage(run_id: str, stage: str) -> None:
+    """Record ``stage`` as completed on ``run_id``."""
     data = load_run(run_id)
     if stage not in data["stages_done"]:
         data["stages_done"].append(stage)
@@ -135,12 +140,14 @@ def _dump(row: BaseModel | dict) -> str:
 
 
 def write_jsonl(path: Path | str, rows: Iterable[BaseModel | dict]) -> int:
+    """Atomically write an iterable of rows or models to a JSONL file."""
     lines = [_dump(row) for row in rows]
     _atomic_write(Path(path), "".join(line + "\n" for line in lines))
     return len(lines)
 
 
 def append_jsonl(path: Path | str, rows: Iterable[BaseModel | dict]) -> int:
+    """Append serialized JSONL lines to ``path``, creating parents if needed."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [_dump(row) for row in rows]
@@ -159,6 +166,7 @@ def jsonl_lines(text: str) -> list[str]:
 
 
 def read_jsonl(path: Path | str) -> list[dict]:
+    """Read a JSONL file into a list of dictionaries, or return empty if missing."""
     path = Path(path)
     if not path.is_file():
         return []

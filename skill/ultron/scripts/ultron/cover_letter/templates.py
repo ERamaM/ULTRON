@@ -17,6 +17,7 @@ from ultron.infra import fs, ooxml
 
 
 class CoverLetterFields(Protocol):
+    """Field contract required by cover-letter DOCX and Markdown template renderers."""
     candidate_name: str
     candidate_email: str
     candidate_phone: str

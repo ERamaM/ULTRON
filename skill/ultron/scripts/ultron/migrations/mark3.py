@@ -213,6 +213,7 @@ def _import_history(src: sqlite3.Connection, dry_run: bool, missing: list[str]) 
 
 
 def import_mark3(source: Path, *, dry_run: bool = False) -> dict:
+    """Import profiles, company seeds, and job history from a MARK III directory."""
     data_dir, db_path = _locate(Path(source))
     missing: list[str] = []
     result: dict = {"source": str(db_path), "dry_run": dry_run}

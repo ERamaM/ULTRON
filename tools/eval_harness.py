@@ -91,6 +91,7 @@ def assign_ranks(
 
 
 def read_final_outcomes(out_dir: Path, rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Load kept, ambiguous, and discarded outputs for one run with assigned ranks."""
     entries = [*runs.read_jsonl(out_dir / "kept.jsonl"), *runs.read_jsonl(out_dir / "ambiguous.jsonl")]
     discarded = {row["identity_key"]: row for row in runs.read_jsonl(out_dir / "finalize_discards.jsonl")}
     return assign_ranks(entries, discarded, rows)

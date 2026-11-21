@@ -1,9 +1,12 @@
+"""Lever postings API client with US/EU endpoint fallback."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 
 
 def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
+    """Fetch open postings from a Lever board."""
     # EU-resident boards live on api.eu.lever.co; retry there when the
     # primary host errors or returns an empty list.
     fetch_json = client.request_json

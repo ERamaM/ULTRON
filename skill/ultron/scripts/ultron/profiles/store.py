@@ -37,6 +37,7 @@ def _find(slug: str) -> Path | None:
 
 
 def load_profile(slug: str) -> dict:
+    """Load and return the YAML profile mapping for ``slug``."""
     path = _find(slug)
     if path is None:
         raise FileNotFoundError(f"profile not found: {slug}")
@@ -44,6 +45,7 @@ def load_profile(slug: str) -> dict:
 
 
 def list_profiles() -> list[dict]:
+    """List bundled and user search profiles with user copies taking precedence."""
     found: dict[str, dict] = {}
     for folder in (_bundled_dir(), _user_dir()):  # user entries override bundled ones
         if not folder.is_dir():
@@ -180,6 +182,7 @@ def _term_list_errors(value, where: str) -> list[str]:
 
 
 def validate_profile(data: dict) -> list[str]:
+    """Validate a profile mapping and return a list of error strings."""
     if not isinstance(data, dict):
         return ["profile must be a mapping"]
     errors: list[str] = []
@@ -252,6 +255,7 @@ class ProfileExistsError(FileExistsError):
 
 
 class ProfileInvalidError(ValueError):
+    """Raised when a profile fails schema or value validation."""
     def __init__(self, errors: list[str]) -> None:
         super().__init__("; ".join(errors))
         self.errors = errors

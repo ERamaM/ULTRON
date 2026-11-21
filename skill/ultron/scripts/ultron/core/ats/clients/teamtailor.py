@@ -1,3 +1,5 @@
+"""Teamtailor JSON API and RSS feed client."""
+
 from __future__ import annotations
 
 from defusedxml import ElementTree as ET
@@ -55,6 +57,7 @@ def _parse_teamtailor_rss(xml_text: str) -> list[AtsPosting]:
 def fetch_teamtailor_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Teamtailor board."""
     fetch_json = client.request_json
     url = locator_url(f"{board_identifier}.teamtailor.com", "api", "jobs")
     try:

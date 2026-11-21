@@ -1,3 +1,5 @@
+"""Pinpoint public postings API client."""
+
 from __future__ import annotations
 
 import logging
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 def fetch_pinpoint_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Pinpoint career board."""
     fetch_json = client.request_json
     fetch_text = client.request_text
     api_url = locator_url(f"{board_identifier}.pinpointhq.com", "api", "jobs")

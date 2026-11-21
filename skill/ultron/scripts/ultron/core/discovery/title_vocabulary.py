@@ -24,6 +24,7 @@ SENIOR_TITLE_TERMS = ("senior", "sr.", "sr ", " iii", " iv")
 
 @dataclass(frozen=True, slots=True)
 class TitleVocabulary:
+    """Role, positive-signal, and exclusion terms derived for title prefiltering."""
     role_terms: tuple[str, ...]
     signal_terms: tuple[str, ...]
     excluded_terms: tuple[str, ...]
@@ -43,6 +44,7 @@ def build_title_vocabulary(
     vocabulary: VocabularyPack,
     role_focus_terms: Sequence[str] = (),
 ) -> TitleVocabulary:
+    """Build a ``TitleVocabulary`` combining profile criteria and vocabulary pack."""
     criteria = criteria or {}
     focus_terms = _terms(criteria.get("role_focus_terms"))
     target_titles = _terms(criteria.get("target_titles"))

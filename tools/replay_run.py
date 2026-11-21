@@ -122,6 +122,7 @@ def _changed(recorded: str, replayed: str) -> bool:
 
 
 def replay_run(run_id: str, *, use_evaluations: bool = True) -> dict[str, Any]:
+    """Replay a stored run directory and report any stage or rank drift."""
     texts = read_run_files(run_id)
     try:
         run = json.loads(texts["run.json"] or "")
@@ -212,6 +213,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the offline run replay and report-diff CLI."""
     args = _parser().parse_args(argv)
     try:
         if args.command == "replay":

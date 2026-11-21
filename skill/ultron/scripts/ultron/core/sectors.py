@@ -5,6 +5,7 @@ from enum import StrEnum
 
 
 class Sector(StrEnum):
+    """Canonical industry sector identifiers accepted in search profiles."""
     TECHNOLOGY = "technology"
     MARKETING_ADVERTISING = "marketing_advertising"
     MANUFACTURING_INDUSTRIAL = "manufacturing_industrial"

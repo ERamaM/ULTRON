@@ -40,6 +40,7 @@ __all__ = [
 
 
 def build_geo_body_excerpt(body_text: str, *, max_chars: int = 1200) -> str:
+    """Extract the most geo-relevant section of body text up to ``max_chars``."""
     text = (body_text or "").strip()
     if not text:
         return ""
@@ -74,6 +75,7 @@ _EUROPEAN_COUNTRY_TERMS = tuple(sorted(EU_COUNTRY_TERMS | EEA_NON_EU_COUNTRY_TER
 
 
 def is_european_scope(target_regions: Iterable[str]) -> bool:
+    """Return True if any target region token maps to a European scope."""
     regions = [str(region or "") for region in target_regions]
     return any(
         token in EUROPEAN_SCOPE_TOKENS
@@ -444,6 +446,7 @@ def geo_scope(profile: Mapping[str, Any] | None) -> GeoScope:
 
 @dataclass(frozen=True, slots=True)
 class GeoAssessment:
+    """Result of evaluating target-region scope, red flags, and remote policy."""
     european_scope: bool
     red_flags: bool
     remote_policy: RemotePolicy | None

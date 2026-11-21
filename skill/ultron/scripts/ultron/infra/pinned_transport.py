@@ -33,10 +33,12 @@ def _shared_ssl_context() -> ssl.SSLContext:
 
 
 def default_wire() -> httpx.BaseTransport:
+    """Create an ``httpx.HTTPTransport`` using system trust without proxy env vars."""
     return httpx.HTTPTransport(verify=_shared_ssl_context(), trust_env=False, retries=0)
 
 
 class PinnedTransport(httpx.BaseTransport):
+    """HTTP transport connecting strictly to pre-resolved, SSRF-validated IP addresses."""
     def __init__(self, wire_factory: WireFactory = default_wire, max_pools: int = MAX_POOLS) -> None:
         self._wire_factory = wire_factory
         self._max_pools = max(1, max_pools)
@@ -56,6 +58,7 @@ class PinnedTransport(httpx.BaseTransport):
         return wire
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
+        """Send ``request`` using its pinned address extension, rejecting unpinned requests."""
         addresses = tuple(request.extensions.get(PINNED_ADDRESSES) or ())
         if not addresses:
             raise URLRejected("unpinned_request")  # fail closed: never let the OS resolve the name here
@@ -80,6 +83,7 @@ class PinnedTransport(httpx.BaseTransport):
         raise AssertionError("unreachable")  # pragma: no cover
 
     def close(self) -> None:
+        """Close all cached origin transport pools."""
         wires, self._wires = self._wires, OrderedDict()
         for wire in wires.values():
             wire.close()

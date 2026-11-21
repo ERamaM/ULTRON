@@ -46,6 +46,7 @@ class TruthfulnessError(ValueError):
 
 @dataclass(slots=True)
 class CvBlock:
+    """One typed content block (paragraph, subheading, metadata, or bullets) inside a CV section."""
     kind: BlockKind
     text: str = ""
     items: list[str] = field(default_factory=list)
@@ -53,12 +54,14 @@ class CvBlock:
 
 @dataclass(slots=True)
 class CvSection:
+    """Titled section containing ordered CV content blocks."""
     heading: str
     blocks: list[CvBlock] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class CvDocument:
+    """Normalized CV document ready for truthfulness checking and DOCX rendering."""
     name: str
     headline: str = ""
     contact: list[str] = field(default_factory=list)

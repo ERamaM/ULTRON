@@ -61,6 +61,7 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron saved-search`` subcommands."""
     root = subparsers.add_parser("saved-search", help="named, re-runnable searches")
     sub = root.add_subparsers(dest="saved_command", required=True, parser_class=type(root))
     p = sub.add_parser("create", help="create or replace a saved search")

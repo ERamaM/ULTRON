@@ -1,3 +1,5 @@
+"""Final shortlist ranking, cross-source deduplication, and title normalization."""
+
 from __future__ import annotations
 
 import re
@@ -63,6 +65,7 @@ class RoleIdentityIndex:
         return url_key, (company_key, title_key) if dedup_eligible else None, location_key
 
     def group_key(self, row: FinalRow) -> str | None:
+        """Return an existing deduplication group key matching ``row``, or None."""
         url, role, location = self._keys(row)
         if url and url in self._urls:
             return self._urls[url]
@@ -74,6 +77,7 @@ class RoleIdentityIndex:
         return None
 
     def add(self, row: FinalRow) -> bool:
+        """Register ``row`` and return True, or return False if already seen."""
         if self.group_key(row) is not None:
             return False
         group = str(self._count)
@@ -87,6 +91,7 @@ class RoleIdentityIndex:
 
     @property
     def unique_count(self) -> int:
+        """Return the number of distinct job groups indexed so far."""
         return self._count
 
 

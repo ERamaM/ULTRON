@@ -1,3 +1,5 @@
+"""Comeet public careers board client."""
+
 from __future__ import annotations
 
 from urllib.parse import urljoin, urlparse
@@ -54,6 +56,7 @@ def _parse_positions(html: str, slug: str) -> list[AtsPosting]:
 def fetch_comeet_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Comeet hosted board."""
     fetch_text = client.request_text
     slug = str(board_identifier or "").strip().strip("/")
     if not slug:

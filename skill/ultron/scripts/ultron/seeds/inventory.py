@@ -25,15 +25,18 @@ _FALSE = {"0", "false", "no", "n", "off"}
 
 
 def make_seed_id(ats: str, board: str) -> str:
+    """Format canonical ``<vendor>:<identifier>`` seed key."""
     vendor, ident = seed_identity(ats, board)
     return f"{vendor}:{ident}"
 
 
 def auto_seeds_path() -> Path:
+    """Return path to ``$ULTRON_HOME/seeds/auto_seeds.yaml``."""
     return home.ultron_home() / "seeds" / "auto_seeds.yaml"
 
 
 def packs_dir() -> Path:
+    """Return the bundled directory containing seed-pack YAML files."""
     return home.data_dir() / "seed_packs"
 
 
@@ -65,6 +68,7 @@ def _tags(value: object) -> list[str]:
 
 
 def parse_rows(rows: list) -> list[AtsBoardSeed]:
+    """Parse raw YAML row dictionaries into ``AtsBoardSeed`` objects."""
     seeds: list[AtsBoardSeed] = []
     for row in rows:
         if not isinstance(row, dict):
@@ -98,6 +102,7 @@ def parse_rows(rows: list) -> list[AtsBoardSeed]:
 
 
 def read_yaml_seeds(path: Path) -> list[AtsBoardSeed]:
+    """Read ``AtsBoardSeed`` entries from a YAML file, or return an empty list."""
     if not path.is_file():
         return []
     try:
@@ -146,4 +151,5 @@ OTHER_COMPANY_SOURCE_TYPE = "guessed_other_company"
 
 
 def is_unconfirmed(seed: AtsBoardSeed) -> bool:
+    """Return True if ``seed`` originates from an unconfirmed company source."""
     return seed.source_type in {UNCONFIRMED_SOURCE_TYPE, OTHER_COMPANY_SOURCE_TYPE}

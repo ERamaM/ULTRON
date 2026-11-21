@@ -26,6 +26,7 @@ from ultron.infra.net import RequestBudgetExceeded
 
 
 def collect_workingnomads_urls(timeout: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:
+    """Collect candidate job rows from the WorkingNomads JSON API."""
     try:
         payload = request_json(api_url, timeout=timeout)
     except RequestBudgetExceeded:
@@ -52,6 +53,7 @@ def collect_workingnomads_urls(timeout: int, *, api_url: str, request_json) -> t
 
 
 def collect_remotive_urls(timeout: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:
+    """Collect candidate job rows from the Remotive JSON API."""
     try:
         payload = request_json(api_url, timeout=timeout)
     except RequestBudgetExceeded:
@@ -87,6 +89,7 @@ def collect_remotive_urls(timeout: int, *, api_url: str, request_json) -> tuple[
 def collect_rss_urls(
     url: str, source: str, timeout: int, *, max_items: int, request_text
 ) -> tuple[list[dict], list[dict]]:
+    """Collect up to ``max_items`` candidate job rows from an RSS/Atom feed URL."""
     try:
         payload = request_text(url, timeout=timeout)
     except RequestBudgetExceeded:
@@ -98,6 +101,7 @@ def collect_rss_urls(
 
 
 def collect_jobicy_api_urls(timeout: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:
+    """Collect candidate job rows from the Jobicy public JSON API."""
     try:
         payload = request_json(f"{api_url}?count=50", timeout=timeout)
     except RequestBudgetExceeded:
@@ -114,6 +118,7 @@ def collect_jobicy_api_urls(timeout: int, *, api_url: str, request_json) -> tupl
 
 
 def collect_remoteok_urls(timeout: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:
+    """Collect candidate job rows from the RemoteOK JSON API."""
     try:
         payload = request_json(api_url, timeout=timeout)
     except RequestBudgetExceeded:
@@ -124,6 +129,7 @@ def collect_remoteok_urls(timeout: int, *, api_url: str, request_json) -> tuple[
 
 
 def collect_themuse_urls(timeout: int, max_pages: int, *, api_url: str, request_json) -> tuple[list[dict], list[dict]]:
+    """Collect paginated candidate job rows from The Muse API."""
     rows: list[dict] = []
     discards: list[dict] = []
     pages_cap = max(1, min(max_pages, 6))
@@ -150,6 +156,7 @@ def collect_themuse_urls(timeout: int, max_pages: int, *, api_url: str, request_
 
 
 def collect_github_awesome_companies(timeout: int, *, url: str, request_text) -> tuple[list[dict], list[dict]]:
+    """Collect company career-link hints from an Awesome Companies README."""
     rows: list[dict] = []
     discards: list[dict] = []
     try:
@@ -173,6 +180,7 @@ def collect_github_awesome_companies(timeout: int, *, url: str, request_text) ->
 def collect_hn_who_is_hiring(
     timeout: int, *, max_comments: int, request_json, search_url: str, items_url: str
 ) -> tuple[list[dict], list[dict]]:
+    """Collect company and job hints from HN Who Is Hiring threads."""
     try:
         search_data = request_json(search_url, timeout=timeout)
     except RequestBudgetExceeded:
@@ -225,6 +233,7 @@ def collect_weworkremotely_top_company_hints(
     max_companies: int,
     request_text,
 ) -> tuple[list[dict], list[dict]]:
+    """Collect top company hints from WeWorkRemotely pages."""
     discards: list[dict] = []
     names: list[str] = []
     for url in urls:
@@ -248,6 +257,7 @@ def collect_weworkremotely_top_company_hints(
 
 
 def collect_remote_es_company_hints(timeout: int, *, url: str, request_text) -> tuple[list[dict], list[dict]]:
+    """Collect company hints from the remote.es directory."""
     try:
         text = request_text(url, timeout=min(timeout, 14))
     except RequestBudgetExceeded:
@@ -264,6 +274,7 @@ def collect_remote_es_company_hints(timeout: int, *, url: str, request_text) -> 
 def collect_remotifyeurope_company_hints(
     timeout: int, *, url: str, request_text, location_names=()
 ) -> tuple[list[dict], list[dict]]:
+    """Collect company hints from RemotifyEurope."""
     try:
         html = request_text(url, timeout=min(timeout, 14))
     except RequestBudgetExceeded:
@@ -280,6 +291,7 @@ def collect_remotifyeurope_company_hints(
 def collect_arbeitnow_urls(
     timeout: int, max_pages: int, *, api_url: str, request_json
 ) -> tuple[list[dict], list[dict]]:
+    """Collect paginated candidate job rows from the Arbeitnow API."""
     rows: list[dict] = []
     discards: list[dict] = []
     next_url = api_url
@@ -306,6 +318,7 @@ def collect_arbeitnow_urls(
 def collect_himalayas_urls(
     timeout: int, max_pages: int, *, api_url: str, request_json
 ) -> tuple[list[dict], list[dict]]:
+    """Collect paginated candidate job rows from the Himalayas API."""
     rows: list[dict] = []
     discards: list[dict] = []
     limit = 50

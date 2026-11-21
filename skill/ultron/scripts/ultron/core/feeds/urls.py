@@ -1,3 +1,5 @@
+"""URL extraction and redirect-unwrapping helpers for public job feeds."""
+
 from __future__ import annotations
 
 import re
@@ -47,6 +49,7 @@ SHORTENER_DOMAINS = {
 
 
 def looks_like_company_jobs_url(url: str) -> bool:
+    """Return True if ``url`` appears to point to a company careers or job page."""
     parsed = urlparse(url)
     path = parsed.path.lower()
     host = parsed.netloc.lower()
@@ -59,6 +62,7 @@ def looks_like_company_jobs_url(url: str) -> bool:
 
 
 def iter_string_values(obj) -> list[str]:
+    """Collect all string values recursively from nested mappings and lists."""
     values: list[str] = []
     stack = [obj]
     while stack:
@@ -75,11 +79,13 @@ def iter_string_values(obj) -> list[str]:
 
 
 def extract_urls_from_text(text: str) -> list[str]:
+    """Find HTTP(S) URLs inside raw or HTML-escaped text."""
     normalized = unescape(text).replace("\\/", "/")
     return re.findall(URL_RE, normalized)
 
 
 def redirect_targets(url: str) -> list[str]:
+    """Extract destination URLs from known redirect query parameters."""
     parsed = urlparse(url)
     params = parse_qs(parsed.query)
     keys = (
@@ -104,6 +110,7 @@ def redirect_targets(url: str) -> list[str]:
 
 
 def candidate_urls_from_row(row: dict) -> list[str]:
+    """Extract candidate destination URLs from one structured feed row."""
     urls: list[str] = []
     explicit_keys = (
         "url",

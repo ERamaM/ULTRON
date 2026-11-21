@@ -1,3 +1,5 @@
+"""Static term tables shared by role-matching and hard-filtering rules."""
+
 from __future__ import annotations
 
 # Vocabulary and compiled signals shared by role matching and filtering policies.

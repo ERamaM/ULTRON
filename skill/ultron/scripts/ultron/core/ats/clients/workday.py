@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import logging
+import string
 from collections import deque
 from urllib.parse import urlparse
-
-from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import (
     UNCHECKED_ERRORS,
@@ -20,6 +19,32 @@ from ultron.core.rules.term_matching import normalize_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
 
 logger = logging.getLogger(__name__)
+
+_ASCII_LOWER = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+
+def _extract_next_data_script(html: str) -> str | None:
+    low = html.translate(_ASCII_LOWER)
+    pos = 0
+    while True:
+        open_start = low.find("<script", pos)
+        if open_start == -1:
+            return None
+        after_name = open_start + 7
+        if after_name >= len(low) or not low[after_name].isspace():
+            pos = after_name
+            continue
+        tag_end = low.find(">", after_name)
+        if tag_end == -1:
+            return None
+        open_tag = low[after_name:tag_end]
+        pos = tag_end + 1
+        if 'id="__next_data__"' not in open_tag and "id='__next_data__'" not in open_tag:
+            continue
+        close_start = low.find("</script", pos)
+        if close_start == -1:
+            return None
+        return html[pos:close_start]
 
 
 def _split_locator(locator: str) -> tuple[str, str]:
@@ -51,11 +76,9 @@ def _workday_apply_url(host: str, path: str, external_path: str) -> str:
 
 
 def _extract_from_next_data(html: str, host: str, path: str = "") -> list[AtsPosting]:
-    soup = BeautifulSoup(html, "html.parser")
-    script = soup.find("script", attrs={"id": "__NEXT_DATA__"})
-    if script is None:
+    raw_json = _extract_next_data_script(html)
+    if raw_json is None:
         return []
-    raw_json = script.string if script.string is not None else script.get_text()
     payload = load_json_or_none(raw_json)
     if payload is None:
         return []

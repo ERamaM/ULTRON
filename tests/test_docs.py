@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "tools") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tools"))
+
+import sync_wiki
+
 README = ROOT / "README.md"
+GUIDE_DIR = ROOT / "docs" / "guide"
 SKILL = ROOT / "skill" / "ultron"
 BACKRONYM = "Universal Locator & Triage of Roles, Openings and Niches"
 
@@ -68,3 +78,114 @@ def test_skill_and_references_contain_no_spanish_prompt_leftovers():
         text = path.read_text(encoding="utf-8").lower()
         for needle in banned:
             assert needle not in text, f"{path.name} contains non-English phrase {needle!r}"
+
+
+def test_readme_describes_presets_unattended_and_links_user_guide():
+    text = README.read_text(encoding="utf-8")
+    for needle in (
+        "docs/guide/README.md",
+        "https://github.com/ERamaM/ULTRON/wiki",
+        "Ambiguity Threshold",
+        "New Companies Target",
+        "zero AI tokens",
+        "docs/guide/search-and-presets.md",
+        "docs/guide/unattended-and-scheduling.md",
+    ):
+        assert needle in text, f"README.md missing {needle!r}"
+
+    # Verify every relative Markdown link in README.md resolves inside the repo.
+    in_fence = False
+    for line in text.splitlines():
+        if line.lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for match in sync_wiki._MD_LINK_RE.finditer(line):
+            target = match.group(2)
+            if not target or target.startswith("#") or target.lower().startswith(("http://", "https://")):
+                continue
+            rel_path = target.split("#", 1)[0]
+            assert (ROOT / rel_path).exists(), f"Broken link in README.md: {target!r}"
+
+
+def test_user_guide_completeness_and_sync_wiki(tmp_path: Path, monkeypatch, capsys):
+    checked = sync_wiki.validate_guide_directory()
+    assert len(checked) == 8
+
+    out_dir = tmp_path / "wiki"
+    (out_dir / ".git").mkdir(parents=True)
+    stale = out_dir / "Old-Obsolete-Page.md"
+    stale.write_text("stale", encoding="utf-8")
+    written = sync_wiki.sync_wiki(out_dir, clean=True)
+    assert len(written) == 9
+    assert not stale.exists()
+    assert (out_dir / ".git").is_dir()
+
+    staged = tmp_path / "staged"
+    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", staged)
+    assert sync_wiki.main(["--export", "--clean"]) == 0
+    assert str(staged) in capsys.readouterr().out
+    assert (staged / "Home.md").is_file()
+
+    bad_stage = tmp_path / "not-a-dir"
+    bad_stage.write_text("file", encoding="utf-8")
+    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", bad_stage)
+    with pytest.raises(sync_wiki.UnsafeExportDirError, match="not a plain folder"):
+        sync_wiki.main(["--export"])
+
+    home_text = (out_dir / "Home.md").read_text(encoding="utf-8")
+    assert "[Getting Started](Getting-Started)" in home_text
+    assert "(getting-started.md)" not in home_text
+    assert f"({sync_wiki.DEFAULT_BLOB_BASE}/README.md)" in home_text
+
+    presets_text = (out_dir / "Search-and-Presets.md").read_text(encoding="utf-8")
+    assert "[Unattended & Scheduling](Unattended-and-Scheduling)" in presets_text
+    assert "`balanced`" in presets_text
+
+    sidebar = (out_dir / "_Sidebar.md").read_text(encoding="utf-8")
+    for wiki_file, title in sync_wiki.PAGE_MAP.values():
+        assert f"[{title}]({wiki_file[:-3]})" in sidebar
+        assert (out_dir / wiki_file).is_file()
+
+    assert sync_wiki.main(["--check"]) == 0
+    assert "Validated 8 guide pages" in capsys.readouterr().out
+
+
+def test_sync_wiki_transform_and_error_paths(tmp_path: Path):
+    sample = (
+        "Intro [Guide](getting-started.md#install) and `[Skip](ignored.md)` and [External](https://example.com) "
+        "and [Anchor](#local).\n"
+        "```markdown\n[Fenced](also-ignored.md)\n```\n"
+        "~~~sh\n[Tilde](ignored-too.md)\n~~~\n"
+        "Tail [Root](../../README.md).\n"
+    )
+    rendered = sync_wiki.transform_markdown(sample)
+    assert "[Guide](Getting-Started#install)" in rendered
+    assert "`[Skip](ignored.md)`" in rendered
+    assert "[Fenced](also-ignored.md)" in rendered
+    assert "[Tilde](ignored-too.md)" in rendered
+    assert f"[Root]({sync_wiki.DEFAULT_BLOB_BASE}/README.md)" in rendered
+
+    # Test validation failures via synthetic repo/guide tree
+    fake_repo = tmp_path / "repo"
+    fake_guide = fake_repo / "docs" / "guide"
+    fake_guide.mkdir(parents=True)
+    with pytest.raises(ValueError, match="escapes repository"):
+        sync_wiki.transform_markdown("[Escape](../../../etc/passwd)", repo_root=fake_repo)
+    with pytest.raises(FileNotFoundError, match="broken relative link"):
+        sync_wiki.transform_markdown("[Missing](nonexistent.md)", repo_root=fake_repo)
+    with pytest.raises(KeyError, match="unmapped page"):
+        (fake_guide / "extra.md").write_text("# Extra", encoding="utf-8")
+        sync_wiki.transform_markdown("[Extra](extra.md)", repo_root=fake_repo)
+    with pytest.raises(ValueError, match="unmapped guide files"):
+        sync_wiki.validate_guide_directory(guide_dir=fake_guide, repo_root=fake_repo)
+    (fake_guide / "extra.md").unlink()
+    with pytest.raises(FileNotFoundError, match="missing expected guide files"):
+        sync_wiki.validate_guide_directory(guide_dir=fake_guide, repo_root=fake_repo)
+    with pytest.raises(FileNotFoundError, match="guide directory not found"):
+        sync_wiki.validate_guide_directory(guide_dir=tmp_path / "missing-dir", repo_root=fake_repo)
+    with pytest.raises(SystemExit):
+        sync_wiki.main([])
+    # Cover importlib check import cleanly
+    assert importlib.util.find_spec("sync_wiki") is not None

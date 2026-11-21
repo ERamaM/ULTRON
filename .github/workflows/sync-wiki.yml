@@ -1,0 +1,58 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/guide/**"
+      - "tools/sync_wiki.py"
+      - ".github/workflows/sync-wiki.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-wiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync User Guide to GitHub Wiki
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Render guide pages and push to Wiki
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ASKPASS="$RUNNER_TEMP/wiki-askpass.sh"
+          WIKI_DIR="$RUNNER_TEMP/wiki-repo"
+          EXPORT_DIR="$(python3 tools/sync_wiki.py --export --clean)"
+          cat > "$ASKPASS" <<'EOF'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *) printf '%s\n' "$GITHUB_TOKEN" ;;
+          esac
+          EOF
+          chmod 700 "$ASKPASS"
+          trap 'rm -f "$ASKPASS" && rm -rf "$WIKI_DIR" "$EXPORT_DIR"' EXIT
+          GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0 git clone "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "$WIKI_DIR"
+          find "$WIKI_DIR" -maxdepth 1 -type f -name '*.md' -delete
+          cp "$EXPORT_DIR"/*.md "$WIKI_DIR"/
+          cd "$WIKI_DIR"
+          git add --all
+          if git diff --cached --quiet; then
+            echo "Wiki already up to date."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'Sync user guide to GitHub Wiki' -m "Source commit: $GITHUB_SHA"
+          GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0 git push origin HEAD

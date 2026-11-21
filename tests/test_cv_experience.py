@@ -215,3 +215,117 @@ Jan 2020 - Dec 2021
     assert res["roles"][0]["matches_profile"] is False
     assert res["roles"][1]["matches_profile"] is True
     assert res["relevant_months"] == 24
+
+
+def test_role_title_with_and_is_not_read_as_a_section_heading():
+    # LinkedIn PDF export: a company groups several roles under its total tenure, and one title
+    # contains "Research and Development", which must not switch to a "research" section.
+    cv_text = """
+Experiencia
+Example Fibers Ltd
+Product Development Engineer
+septiembre de 2020 - Present (5 años 8 meses)
+- Led industrial trials.
+Example Boards S.A.
+5 años 10 meses
+Research and Development (R&D) Process Engineer
+diciembre de 2014 - junio de 2019 (4 años 7 meses)
+- Improved resin impregnation processes.
+Internship (Operations and R&D)
+septiembre de 2013 - diciembre de 2014 (1 año 4 meses)
+- Supported production.
+Educación
+PhD in Materials Science · (2012 - 2019)
+"""
+    res = cv_experience.analyze_experience(cv_text, as_of=date(2026, 11, 1))
+    assert [h["section"] for h in res["detected_headings"]] == ["experience", "education"]
+    titles = [r["title_hint"] for r in res["roles"]]
+    assert titles == [
+        "Product Development Engineer",
+        "Research and Development (R&D) Process Engineer",
+        "Internship (Operations and R&D)",
+    ]
+    assert [r["is_internship"] for r in res["roles"]] == [False, False, True]
+    # 2020-09..2026-11 = 75 months; 2014-12..2019-06 = 55 months
+    assert res["total_months"] == 130
+    assert res["internship_months"] == 16
+
+
+def test_linkedin_web_copy_uses_title_line_and_employment_type():
+    cv_text = """
+Experience
+Example Cloud logo
+
+Data Engineer
+
+Example Cloud · Full-time
+
+Jul 2023 - Present · 3 yrs 5 mos
+
+Present
+
+Remote
+Software developer
+
+Example Services · Full-time
+
+Sep 2018 - Mar 2019 · 7 mos
+Prácticas de desarrollo de software
+
+Example Services · Internship
+
+Apr 2018 - May 2018 · 2 mos
+"""
+    res = cv_experience.analyze_experience(cv_text, as_of=date(2026, 11, 1))
+    roles = res["roles"]
+    assert [r["title_hint"] for r in roles] == [
+        "Data Engineer · Example Cloud",
+        "Software developer · Example Services",
+        "Prácticas de desarrollo de software · Example Services",
+    ]
+    assert [r["is_internship"] for r in roles] == [False, False, True]
+    # 2023-07..2026-11 = 41 months; 2018-09..2019-03 = 7 months
+    assert res["total_months"] == 48
+    assert res["internship_months"] == 2
+
+
+def test_internship_detected_from_employment_type_line_only():
+    cv_text = """
+Experience
+Software Engineer
+Example Labs · Internship
+Jun 2021 - Aug 2021 · 3 mos
+"""
+    res = cv_experience.analyze_experience(cv_text, as_of=date(2026, 1, 1))
+    assert res["roles"][0]["is_internship"] is True
+    assert res["roles"][0]["title_hint"] == "Software Engineer · Example Labs"
+    assert res["total_months"] == 0
+    assert res["internship_months"] == 3
+
+
+def test_duration_only_fragments_never_become_title_hints():
+    for duration in ("3 yrs 5 mos", "(4 años 7 meses)", "1 an 2 mois", "2 Jahre 1 Monat", "7 mos"):
+        assert cv_experience._clean_title_hint(duration) == ""
+    assert cv_experience._clean_title_hint("Data Engineer · 3 yrs 5 mos") == "Data Engineer"
+
+
+def test_dual_headings_still_match_but_role_titles_do_not():
+    assert cv_experience.match_section_heading("Experience & Projects") == "experience"
+    assert cv_experience.match_section_heading("Skills / Tools") == "skills"
+    assert cv_experience.match_section_heading("Research and Development (R&D) Process Engineer") is None
+    assert cv_experience.match_section_heading("Research & Development") is None
+    assert cv_experience.match_section_heading("Research and Development Engineer") is None
+    assert cv_experience.match_section_heading("Projects / Data Engineer") is None
+
+
+def test_wrapped_bullet_tail_is_not_prefixed_to_next_role_title():
+    cv_text = """
+Work Experience
+Lecturer March 2024 - May 2024
+- Co-designed a new course, creating syllabus, labs, and evaluation
+rubrics.
+PhD researcher in AI & Applied ML October 2019 - December 2023
+- Built graph neural networks.
+"""
+    res = cv_experience.analyze_experience(cv_text, as_of=date(2026, 1, 1))
+    assert [r["title_hint"] for r in res["roles"]] == ["Lecturer", "PhD researcher in AI & Applied ML"]

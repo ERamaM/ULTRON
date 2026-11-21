@@ -473,6 +473,58 @@ def _normalize_heading_words(text: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", normalize_text(text)))
 
 
+# Job-title nouns that never appear in a section heading. They stop dual-heading matching on role
+# titles such as "Research and Development (R&D) Process Engineer", which would otherwise be read as
+# a "research" heading and move every later role out of the experience section.
+_ROLE_TITLE_TERMS = (
+    "engineer",
+    "developer",
+    "manager",
+    "scientist",
+    "analyst",
+    "specialist",
+    "technician",
+    "consultant",
+    "researcher",
+    "assistant",
+    "director",
+    "intern",
+    "ingeniero",
+    "ingeniera",
+    "desarrollador",
+    "desarrolladora",
+    "investigador",
+    "investigadora",
+    "tecnico",
+    "tecnica",
+    "ingenieur",
+    "ingenieurin",
+    "entwickler",
+    "ingegnere",
+    "engenheiro",
+    "engenheira",
+)
+_NON_HEADING_PHRASES = frozenset({"research and development", "research development", "r d", "i d"})
+_MAX_DUAL_HEADING_TAIL_WORDS = 3
+
+
+def _dual_heading_section(folded_raw: str, candidate: str) -> str | None:
+    """Match "Experience & Projects"-style headings without misreading role titles."""
+    if candidate in _NON_HEADING_PHRASES or "(" in folded_raw:
+        return None
+    if any(contains_term(candidate, term) for term in _ROLE_TITLE_TERMS):
+        return None
+    for sep in ("&", "/", "|", " and ", " y ", " et ", " und "):
+        if sep not in folded_raw:
+            continue
+        head, tail = folded_raw.split(sep, 1)
+        first = _normalize_heading_words(head)
+        tail_words = _normalize_heading_words(tail).split()
+        if first in _HEADING_MAP and 0 < len(tail_words) <= _MAX_DUAL_HEADING_TAIL_WORDS:
+            return _HEADING_MAP[first]
+    return None
+
+
 def match_section_heading(line: str) -> str | None:
     """Return canonical section name if ``line`` looks like a standalone section heading."""
     raw = _strip_heading_markup(line)
@@ -487,12 +539,7 @@ def match_section_heading(line: str) -> str | None:
     if candidate in _HEADING_MAP:
         return _HEADING_MAP[candidate]
     # Support Markdown/table-like dual headings such as "Experience & Projects" or "Experience / Projects".
-    for sep in ("&", "/", "|", " and ", " y ", " et ", " und "):
-        if sep in folded_raw:
-            first = _normalize_heading_words(folded_raw.split(sep, 1)[0])
-            if first in _HEADING_MAP:
-                return _HEADING_MAP[first]
-    return None
+    return _dual_heading_section(folded_raw, candidate)
 
 
 def split_sections(text: str) -> tuple[dict[str, list[str]], list[dict[str, object]]]:
@@ -559,9 +606,38 @@ def _resolve_interval(start: YearMonth, end: YearMonth, *, is_present: bool, as_
 
 _TITLE_EDGE_CHARS = " -–—|·•,;:[]#*"
 
+# LinkedIn-style tenure fragments ("3 yrs 5 mos", "(4 años 7 meses)", "1 an 2 mois") that sit next to
+# role dates or under a company that groups several roles. They are durations, never role titles.
+_DURATION_UNITS = (
+    r"(?:yrs?|years?|mos?|months?|años?|anos?|meses|mes|ans?|mois|jahre?|monate?|monat|anni|anno|mesi|mese)"
+)
+_DURATION_RE = re.compile(
+    rf"\(?\b\d{{1,2}} ?{_DURATION_UNITS}\b"
+    rf"(?:,? (?:(?:and|y|e|et|und) )?\d{{1,2}} ?{_DURATION_UNITS}\b)?\)?",
+    re.IGNORECASE,
+)
+# A LinkedIn "Company · Employment type" line sits between the role title and its dates.
+_EMPLOYMENT_TYPE_LINE_RE = re.compile(
+    r"[·•|]\s*(?:full[- ]?time|part[- ]?time|internship|freelance|self[- ]employed"
+    r"|contract|contractor|apprenticeship|seasonal|temporary|jornada completa|jornada parcial"
+    r"|media jornada|tiempo completo|tiempo parcial|practicas|contrato en practicas|autonomo|autonoma"
+    r"|temporal|vollzeit|teilzeit|praktikum|temps plein|temps partiel|stage|tempo pieno|tempo integral"
+    r"|meio periodo|estagio|tirocinio)\s*$"
+)
+
+
+def _drop_employment_type(line: str) -> str:
+    """Return the company part of a "Company · Employment type" line."""
+    cut = max(line.rfind(sep) for sep in "·•|")
+    return line[:cut] if cut > 0 else line
+
+
+def _strip_durations(fragment: str) -> str:
+    return _DURATION_RE.sub(" ", fragment)
+
 
 def _clean_title_hint(fragment: str) -> str:
-    cleaned = " ".join(fragment.split()).strip(_TITLE_EDGE_CHARS)
+    cleaned = " ".join(_strip_durations(" ".join(fragment.split())).split()).strip(_TITLE_EDGE_CHARS)
     while cleaned.startswith("(") and cleaned.endswith(")") and len(cleaned) >= 2:
         cleaned = cleaned[1:-1].strip(_TITLE_EDGE_CHARS)
     cleaned = cleaned.lstrip(")").rstrip("(").strip(_TITLE_EDGE_CHARS)
@@ -585,6 +661,8 @@ def _prev_heading_hint(lines: list[str], line_idx: int, *, max_offset: int) -> t
             break
         if len(prev) > 100 or (prev.endswith(".") and len(prev.split()) > 6):
             break
+        if prev.endswith(".") and prev[0].islower():
+            break  # tail of a wrapped bullet sentence ("rubrics."), not a role title
         hint = _clean_title_hint(prev)
         if hint:
             return hint, prev_idx
@@ -598,6 +676,14 @@ def _title_hint_for_line(lines: list[str], line_idx: int, span: tuple[int, int])
     same_line = " · ".join(part for part in (before, after) if part)
     if not same_line:
         prev_hint, prev_idx = _prev_heading_hint(lines, line_idx, max_offset=2)
+        if prev_idx is not None:
+            employment = _EMPLOYMENT_TYPE_LINE_RE.search(normalize_text(lines[prev_idx].strip()))
+            if employment:
+                title, title_idx = _prev_heading_hint(lines, prev_idx, max_offset=2)
+                company = _clean_title_hint(_drop_employment_type(lines[prev_idx].strip()))
+                if title and title_idx is not None:
+                    return " · ".join(part for part in (title, company) if part), title_idx
+                return company or prev_hint, prev_idx
         return prev_hint, prev_idx if prev_idx is not None else line_idx
     prev_hint, prev_idx = _prev_heading_hint(lines, line_idx, max_offset=2 if not before else 1)
     if prev_hint and prev_hint.casefold() not in same_line.casefold():
@@ -645,7 +731,11 @@ def parse_date_ranges_from_lines(
                     end=end,
                     is_present=is_present,
                     months=months,
-                    is_internship=_is_internship_line(f"{title_hint} {line}"),
+                    # The heading lines up to the date line carry the title and, on LinkedIn exports,
+                    # the "Company · Internship" employment-type line.
+                    is_internship=_is_internship_line(
+                        " ".join([title_hint, *lines[min(start_line_index, idx) : idx + 1]])
+                    ),
                     line_index=idx,
                     date_text=date_text,
                     start_line_index=start_line_index,

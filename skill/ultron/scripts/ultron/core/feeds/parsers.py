@@ -248,6 +248,31 @@ def extract_company_names_from_weworkremotely_top_html(html: str) -> list[str]:
     return out[:120]
 
 
+_REMOTE_ES_LINK_RE = re.compile(
+    r"\[[ \t]{0,4}Open[ \t]{1,4}pos\w{1,20}[ \t]{0,4}\]\(([^)]{1,500})\)",
+    re.IGNORECASE,
+)
+
+
+def _strip_trailing_parens(text: str) -> str:
+    cur = text.strip()
+    while cur.endswith(")"):
+        depth = 0
+        open_idx = -1
+        for i in range(len(cur) - 1, -1, -1):
+            if cur[i] == ")":
+                depth += 1
+            elif cur[i] == "(":
+                depth -= 1
+                if depth == 0:
+                    open_idx = i
+                    break
+        if open_idx == -1:
+            break
+        cur = cur[:open_idx].strip()
+    return cur
+
+
 def extract_company_entries_from_remote_es_markdown(markdown_text: str) -> list[tuple[str, str]]:
     """Extract (company_name, job_board_url) tuples from remote-es README markdown."""
     text = str(markdown_text or "").strip()
@@ -260,18 +285,14 @@ def extract_company_entries_from_remote_es_markdown(markdown_text: str) -> list[
         line = raw_line.strip()
         if not line.startswith("* "):
             continue
-        match = re.match(r"^\*\s+(.*?)\s+\[\s*Open\s+pos\w+\s*\]\(([^)]+)\)", line, flags=re.IGNORECASE)
-        if not match:
+        match = _REMOTE_ES_LINK_RE.search(line)
+        if not match or match.start() <= 2 or not line[match.start() - 1].isspace():
             continue
-        company = " ".join(match.group(1).split()).strip()
-        url = match.group(2).strip()
+        company = " ".join(line[2 : match.start()].split()).strip()
+        url = match.group(1).strip()
         if not company:
             continue
-        while True:
-            stripped = re.sub(r"\s*\((?:[^()]|\([^()]*\))*\)\s*$", "", company).strip()
-            if stripped == company:
-                break
-            company = stripped
+        company = _strip_trailing_parens(company)
         if len(company) < 2 or len(company) > 70 or not re.search(r"[A-Za-z]", company):
             continue
         low = company.lower()

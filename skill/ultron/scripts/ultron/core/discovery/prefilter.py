@@ -28,7 +28,7 @@ _STRONG_REMOTE_HINTS = ("fully remote", "100% remote", "remote-first", "remote f
 _EU_POSITIVE_HINTS = tuple(dict.fromkeys((*EUROPEAN_RANK_HINTS, *EU_COUNTRY_TERMS, *SPAIN_LOCALITY_TERMS, "emea", "eea")))
 _GLOBAL_SCOPE_HINTS = ("worldwide", "global", "anywhere")
 _NON_EU_TITLE_LOC_RE = re.compile(
-    r"(?:,\s*|\s[-–|/]\s*|\()\s*(?:usa|u\.s\.a?\.?|united states|india|canada|brazil|australia|mexico|japan|singapore|uk|united kingdom)\b",
+    r"(?:,|\s[-–|/]|\()[ \t]{0,4}(?:usa|u\.s\.a?\.?|united states|india|canada|brazil|australia|mexico|japan|singapore|uk|united kingdom)\b",
     re.IGNORECASE,
 )
 

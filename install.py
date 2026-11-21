@@ -283,12 +283,12 @@ def create_venv(venv: Path, scripts: Path, *, editable: bool = True) -> str:
 def _skill_version(source: Path | None = None) -> str:
     init = Path(source if source is not None else SKILL_SOURCE) / "scripts" / "ultron" / "__init__.py"
     try:
-        match = re.search(r'__version__\s*=\s*"([^"]+)"', init.read_text(encoding="utf-8"))
+        match = re.search(r'__version__\s*=\s*"([0-9A-Za-z._+-]{1,64})"', init.read_text(encoding="utf-8"))
     except OSError:
         match = None
     if match is None:
         init = SKILL_SOURCE / "scripts" / "ultron" / "__init__.py"
-        match = re.search(r'__version__\s*=\s*"([^"]+)"', init.read_text(encoding="utf-8"))
+        match = re.search(r'__version__\s*=\s*"([0-9A-Za-z._+-]{1,64})"', init.read_text(encoding="utf-8"))
     return match.group(1) if match else "unknown"
 
 
@@ -481,10 +481,19 @@ def _has_marker(path: Path) -> bool:
     marker = _read_marker(path)
     if not marker or marker.get("name") != "ultron" or not isinstance(marker.get("path"), str):
         return False
+    marker_path = marker["path"]
+    if "\x00" in marker_path or not os.path.isabs(marker_path):
+        return False
+    norm_marker = os.path.normcase(os.path.normpath(marker_path))
     try:
-        return Path(marker["path"]).resolve() == path.resolve()
+        candidates = {
+            os.path.normcase(os.path.normpath(str(path))),
+            os.path.normcase(os.path.abspath(str(path))),
+            os.path.normcase(str(path.resolve())),
+        }
     except OSError:
         return False
+    return norm_marker in candidates
 
 
 def _is_legacy_install(path: Path) -> bool:
@@ -536,6 +545,15 @@ def _state_error(dst: Path, state: str) -> InstallError | None:
     return None
 
 
+def _write_utf8_in_dir(base_dir: Path, filename: str, content: str) -> None:
+    base_real = base_dir.resolve()
+    target = (base_real / filename).resolve()
+    if target.parent != base_real:
+        raise InstallError(f"refusing to write outside {base_real}: {target}")
+    with target.open("w", encoding="utf-8") as handle:
+        handle.write(content)
+
+
 def _write_runtime(dst: Path, runtime: dict, src: Path) -> None:
     executable, home = Path(runtime["executable"]), Path(runtime["home"])
     text = runtime_text(executable, home, runtime.get("version"), runtime.get("installed_at"))
@@ -554,7 +572,7 @@ def _write_runtime(dst: Path, runtime: dict, src: Path) -> None:
         "ultron": str(executable),
         "ultron_home": str(home),
     }
-    (dst / MARKER).write_text(json.dumps(marker, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_utf8_in_dir(dst, MARKER, json.dumps(marker, ensure_ascii=False, indent=2) + "\n")
 
 
 def _legacy_backup_dir(label: str) -> Path:
@@ -704,7 +722,7 @@ def _add_claude_argument_hint(dst: Path) -> None:
     if not text.startswith("---") or "argument-hint:" in text.split("---", 2)[1]:
         return
     head, sep, rest = text.partition("\n")
-    skill_md.write_text(f"{head}{sep}{CLAUDE_ARGUMENT_HINT}\n{rest}", encoding="utf-8")
+    _write_utf8_in_dir(dst, "SKILL.md", f"{head}{sep}{CLAUDE_ARGUMENT_HINT}\n{rest}")
 
 
 def _discard(dst: Path, state: str) -> None:

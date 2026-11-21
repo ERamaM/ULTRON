@@ -23,6 +23,8 @@ def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> Extracte
         if workplace:
             updates["remote_text"] = workplace
     date = soup.select_one("meta[itemprop='datePosted'][content]")
-    if date is not None and (published := clean_text(date.get("content"))):
-        updates["posting_date"] = published
+    if date is not None:
+        published = clean_text(date.get("content"))
+        if published:
+            updates["posting_date"] = published
     return parsed.model_copy(update=updates) if updates else parsed

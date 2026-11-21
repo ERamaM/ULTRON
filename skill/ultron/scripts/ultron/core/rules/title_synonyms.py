@@ -45,7 +45,7 @@ def normalize_role_title(title: str) -> str:
 
 
 def normalize_title_separators(title: str) -> str:
-    return re.sub(r"[ \t]+[-\u2013\u2014][ \t]*|[ \t]*[-\u2013\u2014][ \t]+", " ", title)
+    return re.sub(r"(?<![ \t])[ \t]+[-\u2013\u2014][ \t]*|[-\u2013\u2014][ \t]+", " ", title)
 
 
 def _normalize_term(term: str) -> str:

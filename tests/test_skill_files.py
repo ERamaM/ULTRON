@@ -24,6 +24,7 @@ EXPECTED_REFERENCES = {
     "commands.md",
     "salary.md",
     "cv-ats.md",
+    "cover-letter.md",
 }
 
 
@@ -192,7 +193,8 @@ def test_commands_reference_covers_every_group_and_action():
             assert f"{group} {action}" in text, f"commands.md lacks `{group} {action}`"
     for cli in ("ultron run --unattended", "ultron seeds list", "ultron jobs new-since", "ultron diagnose",
                 "ultron export xlsx", "ultron doctor", "ultron profile list",
-                "ultron salary analyze", "ultron salary save", "ultron cv audit", "ultron cv build-docx"):
+                "ultron salary analyze", "ultron salary save", "ultron cv audit", "ultron cv build-docx",
+                "ultron cover-letter prepare", "ultron cover-letter build-docx"):
         assert cli in text, f"commands.md does not map to {cli}"
 
 

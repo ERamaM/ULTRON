@@ -81,6 +81,13 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
   formatting/structure/keyword analysis, truthful rewrite, `ultron cv verify-truth`, and
   `ultron cv build-docx` to output a clean single-column `.docx`).
 
+### cover-letter
+
+- `cover-letter [job|profile]`: follow `references/cover-letter.md` (`ultron cover-letter templates`
+  to inspect or export Word templates, `ultron cover-letter prepare` to assemble verified CV evidence and
+  job requirements, `ultron cover-letter verify-truth` to check claims, and `ultron cover-letter build-docx`
+  to export a tailored Word `.docx` cover letter).
+
 ### jobs
 
 - `jobs [filter]`: `ultron jobs list` with the options that match the filter words: a state (`unreviewed`,

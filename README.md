@@ -24,6 +24,7 @@ ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code
 - **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, Excel (`.xlsx`), and a self-contained offline HTML report.
 - **Expected salary benchmarking:** Calculates sourced compensation ranges from verified non-internship CV tenure, run disclosures, and live market research (`ultron salary analyze`, `ultron salary save`).
 - **ATS CV audit & `.docx` optimizer:** Audits `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility, verifies rewrite truthfulness against the source CV (`ultron cv verify-truth`), and generates a clean single-column Word `.docx` (`ultron cv build-docx`).
+- **Tailored cover letter generator:** Pairs verified CV experience with job postings or profiles across bundled Word templates (`classic`, `modern`, `executive`) or custom `.docx` templates (`ultron cover-letter prepare`, `ultron cover-letter build-docx`).
 - **Scheduled / zero-token mode:** Run unattended heuristic searches with `ultron run --unattended`.
 
 ## Supported Agents

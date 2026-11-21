@@ -8,8 +8,11 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ultron import home, profile_edit, profiles, runs
 from ultron.cli import main
+from ultron.infra import home
+from ultron.profiles import edit as profile_edit
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 FIXTURES = Path(__file__).parent / "fixtures" / "profiles"
 SLUG = "backend-chat"

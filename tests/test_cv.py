@@ -8,8 +8,10 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
-from ultron import cli, cv, profiles
-from ultron.cv_worker import extract_pdf_pages_text
+from ultron import cli
+from ultron.cv import extract as cv
+from ultron.cv.worker import extract_pdf_pages_text
+from ultron.profiles import store as profiles
 
 FIXTURES = Path(__file__).parent / "fixtures" / "cv"
 
@@ -188,13 +190,13 @@ def test_subprocess_runner_translates_worker_errors(monkeypatch):
     )
 
     def fake_run(args, **kwargs):
-        assert args == [sys.executable, *cv._pdf_worker_flags(), "-m", "ultron.cv_worker", "2", "10"]
+        assert args == [sys.executable, *cv._pdf_worker_flags(), "-m", "ultron.cv.worker", "2", "10"]
         assert kwargs["shell"] is False
         assert kwargs["input"] == b"%PDF-x"
         assert kwargs["timeout"] == 7.5
         return SimpleNamespace(returncode=0, stdout=json.dumps(next(payloads)).encode(), stderr=b"")
 
-    monkeypatch.setattr("ultron.cv.subprocess.run", fake_run)
+    monkeypatch.setattr("ultron.cv.extract.subprocess.run", fake_run)
 
     def run():
         return cv.subprocess_pdf_runner(b"%PDF-x", max_pages=2, max_chars=10, timeout_seconds=7.5)
@@ -218,7 +220,7 @@ def test_subprocess_runner_nonzero_exit_raises_worker_failed_with_stderr_tail(mo
         assert "-P" in args
         return SimpleNamespace(returncode=1, stdout=b"", stderr=long_err)
 
-    monkeypatch.setattr("ultron.cv.subprocess.run", fake_run)
+    monkeypatch.setattr("ultron.cv.extract.subprocess.run", fake_run)
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.subprocess_pdf_runner(b"%PDF-x", max_pages=2, max_chars=10, timeout_seconds=5)
     assert raised.value.code == "worker_failed"
@@ -344,7 +346,7 @@ def test_cli_profile_save_source_cv_missing(tmp_path, capsys):
 
 
 def test_run_snapshot_keeps_source_cv():
-    from ultron import runs
+    from ultron.storage import runs
 
     profiles.save_profile(_profile() | {"source_cv": "/x/cv.pdf"})
     run_id = runs.new_run("mi-perfil", "balanced")

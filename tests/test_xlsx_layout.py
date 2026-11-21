@@ -7,7 +7,9 @@ import json
 import pytest
 from openpyxl import load_workbook
 
-from ultron import profiles, runs, xlsx
+from ultron.exports import xlsx
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 OLD_ROLE_HEADERS = [
     "Company", "Title", "Location", "Remote", "Eligibility", "Eligibility Evidence", "Freshness", "Fit Signals",

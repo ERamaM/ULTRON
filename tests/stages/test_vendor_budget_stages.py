@@ -13,10 +13,14 @@ import httpx
 import pytest
 import yaml
 
-from ultron import http_factory, profiles, runs, seed_rounds, seeds
+from ultron import seeds
 from ultron.core.models import CandidateUrl
+from ultron.profiles import store as profiles
+from ultron.seeds import rounds as seed_rounds
 from ultron.stages import fetch as fetch_stage
+from ultron.stages import http_factory
 from ultron.stages.discover import discover_ats
+from ultron.storage import runs
 
 PAGE = (Path(__file__).resolve().parents[1] / "fixtures" / "pages" / "greenhouse_job.html").read_text(encoding="utf-8")
 
@@ -25,7 +29,7 @@ PAGE = (Path(__file__).resolve().parents[1] / "fixtures" / "pages" / "greenhouse
 def pack_dir(tmp_path, monkeypatch):
     path = tmp_path / "packs"
     path.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: path)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: path)
     profiles.install_example()
     return path
 
@@ -103,7 +107,7 @@ def test_discover_shares_the_vendor_allowance_between_workday_tenants(pack_dir):
 
 def test_workday_keeps_collected_postings_when_the_vendor_budget_runs_out_mid_board():
     from ultron.core.ats.clients.workday import fetch_workday_jobs
-    from ultron.net import RequestBudgetExceeded
+    from ultron.infra.net import RequestBudgetExceeded
 
     class TwoPages:
         calls = 0
@@ -152,7 +156,7 @@ def test_seeds_verify_reports_a_spent_vendor_budget_as_unchecked():
     class Spent:
         def request_json(self, *args, **kwargs):
             calls["n"] += 1
-            from ultron.net import RequestBudgetExceeded
+            from ultron.infra.net import RequestBudgetExceeded
             raise RequestBudgetExceeded("vendor budget", scope="vendor", host="acme.wd1.myworkdayjobs.com",
                                         vendor="workday")
 
@@ -253,7 +257,7 @@ def test_a_blocked_vendor_is_not_reported_as_a_checked_board(pack_dir, vendor, b
     # Codex review: iCIMS and Taleo turned VendorBlocked into AtsClientError("browser_fallback_unavailable"), so
     # `seeds verify` said no_board_found (a checked company) instead of host_blocked.
     from ultron.core.ats.clients import fetch_vendor_jobs
-    from ultron.net import VendorBlocked
+    from ultron.infra.net import VendorBlocked
 
     _overrides(lambda request: httpx.Response(500))
     run_id = _blocked_run(vendor)
@@ -269,7 +273,7 @@ def test_a_blocked_vendor_is_not_reported_as_a_checked_board(pack_dir, vendor, b
                                     "pinpoint", "workday"])
 def test_every_client_with_a_fallback_propagates_a_blocked_vendor(vendor):
     from ultron.core.ats.clients import fetch_vendor_jobs
-    from ultron.net import VendorBlocked
+    from ultron.infra.net import VendorBlocked
 
     calls = {"n": 0}
 

@@ -8,9 +8,14 @@ from typing import get_args
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seed_rounds, seeds
+from ultron import seeds
 from ultron.cli import main
 from ultron.core.ats.vendors import AtsVendorName
+from ultron.core.models import AtsBoardSeed
+from ultron.profiles import store as profiles
+from ultron.seeds import rounds as seed_rounds
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 JOBS = {"jobs": [
     {"id": i, "title": f"Role {i}", "absolute_url": f"https://boards.greenhouse.io/x/jobs/{i}",
@@ -22,7 +27,7 @@ JOBS = {"jobs": [
 def no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
 
 
 @pytest.fixture
@@ -250,7 +255,7 @@ def test_fitting_pack_seeds_count_as_already_tried(tmp_path, monkeypatch, capsys
                  "sectors": ["pharma_health"]})
     (packs / "p.yaml").write_text(yaml.safe_dump({"pack": {"id": "p", "usage": "active"}, "seeds": rows}),
                                   encoding="utf-8")
-    monkeypatch.setattr(seeds, "packs_dir", lambda: packs)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: packs)
     profiles.install_example()
     run = runs.load_run(_new_run(capsys)["run_id"])
     _companies, boards, names = seed_rounds.tried(run, [])
@@ -304,7 +309,7 @@ def test_unconfirmed_and_uncounted_seeds_do_not_exclude_their_company(requests_l
 
 def test_an_ownership_unknown_board_from_a_round_can_be_proposed_again_explicitly():
     p = seeds.Proposal(company="Acme Labs")
-    stored = seeds.AtsBoardSeed(seed_id="greenhouse:acmelabs", company="Acme Labs", ats="greenhouse",
+    stored = AtsBoardSeed(seed_id="greenhouse:acmelabs", company="Acme Labs", ats="greenhouse",
                                 board_identifier="acmelabs", source_type="guessed_unconfirmed")
     results = [seeds.VerifyResult(p, "unresolved", stored, 3, "ownership_unknown")]
     record = seed_rounds.round_record(number=1, received=1, repeats=[], rows=[{"company": "Acme Labs",

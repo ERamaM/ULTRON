@@ -11,8 +11,9 @@ import pytest
 import replay_run
 import yaml
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 CORPUS = json.loads((FIXTURES / "heuristic_characterization_corpus.json").read_text(encoding="utf-8"))

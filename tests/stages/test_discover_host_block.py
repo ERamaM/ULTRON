@@ -9,8 +9,11 @@ import httpx
 import pytest
 import yaml
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
 from ultron.stages.discover import discover_ats
+from ultron.storage import runs
 
 FIX = Path(__file__).resolve().parents[1] / "fixtures"
 LEVER_BOARD = (FIX / "ats" / "lever_board.json").read_bytes()
@@ -20,7 +23,7 @@ LEVER_BOARD = (FIX / "ats" / "lever_board.json").read_bytes()
 def pack_dir(tmp_path, monkeypatch):
     path = tmp_path / "packs"
     path.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: path)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: path)
     profiles.install_example()
     return path
 

@@ -7,10 +7,14 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ultron import diagnose, home, http_factory, profiles, runs
 from ultron.cli import main
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl
+from ultron.diagnostics import diagnose
+from ultron.infra import home
+from ultron.profiles import store as profiles
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 PAGE = (Path(__file__).resolve().parent / "fixtures" / "pages" / "greenhouse_job.html").read_text(encoding="utf-8")
 URL = "https://boards.greenhouse.io/acme/jobs/1"

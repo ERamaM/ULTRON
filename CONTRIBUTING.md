@@ -33,6 +33,7 @@ uv build --wheel --out-dir dist skill/ultron/scripts
 
 - **Secret scanning:** Run `gitleaks git --redact --config .gitleaks.toml` (or install `pre-commit install`) to ensure no secrets, API keys, or local personal paths are introduced.
 - **Tests run in parallel:** `uv run pytest` spreads the suite over every core with pytest-xdist, so each test must stand alone: write only under `tmp_path`, change settings with `monkeypatch`, and never depend on another test's order or leftovers. Run `uv run pytest -n0 <test>` to debug one test serially.
+- **Architecture:** Put new code in the package that owns its responsibility and respect the dependency rules in [docs/architecture.md](docs/architecture.md).
 - **Parity tests:** Heuristic changes must preserve the characterization suite (`tests/core/test_parity_heuristics.py`).
 - **Quality changes:** Changes meant to improve relevance or ranking must pass the labelled benchmark gates (`uv run python tools/quality_benchmark.py compare`) and state the measured delta. See [docs/self-improvement.md](docs/self-improvement.md).
 - **English codebase & docs:** All skill instructions (`skill/ultron/SKILL.md`, `skill/ultron/references/*.md`), code, comments, and documentation must be written in English. Multilingual keyword matching belongs strictly inside the dedicated rule/vocabulary data modules with regression tests.

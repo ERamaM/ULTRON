@@ -7,9 +7,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from ultron import doctor, http_factory
 from ultron.cli import main
-from ultron.platforms import detect_platforms, global_skill_dirs
+from ultron.diagnostics import doctor
+from ultron.infra.platforms import detect_platforms, global_skill_dirs
+from ultron.stages import http_factory
 
 PLATFORM_ENV = ("CLAUDECODE", "CODEX_SANDBOX", "CODEX_HOME", "OPENCODE")
 
@@ -240,6 +241,6 @@ def test_real_dev_checkout_detection(monkeypatch, tmp_path):
     copy = tmp_path / "home" / ".claude" / "skills" / "ultron"
     shutil.copytree(repo / "skill" / "ultron", copy, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (copy / ".ultron-install.json").write_text(json.dumps({"name": "ultron", "path": str(copy)}), encoding="utf-8")
-    assert doctor._in_dev_checkout(copy / "scripts" / "ultron" / "doctor.py") is False
+    assert doctor._in_dev_checkout(copy / "scripts" / "ultron") is False
     (copy / ".ultron-install.json").unlink()
-    assert doctor._in_dev_checkout(copy / "scripts" / "ultron" / "doctor.py") is False  # no install.py above
+    assert doctor._in_dev_checkout(copy / "scripts" / "ultron") is False  # no install.py above

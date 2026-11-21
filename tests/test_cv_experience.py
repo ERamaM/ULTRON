@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from ultron import cv_experience
+from ultron.cv import experience as cv_experience
 
 
 def test_multilingual_headings_and_date_formats_with_deterministic_as_of():

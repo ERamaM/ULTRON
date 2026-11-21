@@ -4,8 +4,8 @@ import json
 
 from stage_helpers import make_run
 
-from ultron import ledger, runs
 from ultron.cli import main
+from ultron.storage import ledger, runs
 
 KEEP = ["en-positive-shape-01", "en-positive-shape-02", "en-positive-shape-03"]
 AMBIG = ["en-ambiguous-shape-01"]

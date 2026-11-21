@@ -4,8 +4,8 @@ import json
 
 from stage_helpers import make_run
 
-from ultron import runs
 from ultron.cli import main
+from ultron.storage import runs
 
 AMBIG = ["en-ambiguous-shape-01", "en-ambiguous-shape-06", "q-seniority-ambiguous"]
 

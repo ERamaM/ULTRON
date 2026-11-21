@@ -11,9 +11,9 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from ultron import runs
 from ultron.core.models import JobEvaluation
 from ultron.core.rules.geography import build_geo_body_excerpt
+from ultron.storage import runs
 
 EXCERPT_CHARS = 1500
 GEO_EXCERPT_CHARS = 800

@@ -8,11 +8,14 @@ import httpx
 import pytest
 import yaml
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
 from ultron.cli import main
 from ultron.core.models import AtsBoardSeed
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
+from ultron.profiles import store as profiles
 from ultron.seeds import Proposal, add_seeds, load_inventory, slug_candidates, verify_proposal
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 
 def make_client(handler, **kw) -> HttpClient:
@@ -363,7 +366,7 @@ def test_run_new_reports_profile_seeds(capsys):
 
 
 def test_client_for_run_budgets():
-    from ultron.http_factory import client_for_run
+    from ultron.stages.http_factory import client_for_run
 
     run = {"settings": {"max_pages": 70, "max_seeds_per_run": 120, "max_requests_per_host": 8, "ats_api_timeout": 10}}
     c = client_for_run(run)
@@ -390,7 +393,7 @@ def test_verify_malformed_json_is_a_miss(monkeypatch):
     def boom(*a, **k):
         raise KeyError("title")
 
-    monkeypatch.setattr(seeds, "fetch_vendor_jobs", boom)
+    monkeypatch.setattr(seeds.verify, "fetch_vendor_jobs", boom)
     client = make_client(gh_handler)
     res = verify_proposal(Proposal("Acme"), client=client, timeout=5)
     assert res.status == "unresolved"
@@ -538,7 +541,7 @@ def test_seeds_verify_reports_new_count_and_respects_limit(capsys, tmp_path):
 def test_run_new_flags_cold_start_below_fifteen_eligible_seeds(capsys, tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
     profiles.install_example()
     add_seeds([seed(f"board{i}") for i in range(14)], profile_slug=profiles.EXAMPLE_SLUG)
     add_seeds([seed(f"other{i}") for i in range(5)], profile_slug="another-profile")
@@ -557,7 +560,7 @@ def _seed_lock():
 
 
 def test_concurrent_add_seeds_do_not_lose_each_others_rows(monkeypatch):
-    real_read = seeds._read_raw_rows
+    real_read = seeds.store._read_raw_rows
     a_read, b_started = threading.Event(), threading.Event()
 
     def slow_read(path):
@@ -568,7 +571,7 @@ def test_concurrent_add_seeds_do_not_lose_each_others_rows(monkeypatch):
             time.sleep(0.3)  # writer B reaches add_seeds (and, without a lock, finishes its write) meanwhile
         return rows
 
-    monkeypatch.setattr(seeds, "_read_raw_rows", slow_read)
+    monkeypatch.setattr(seeds.store, "_read_raw_rows", slow_read)
     a = threading.Thread(target=add_seeds, args=([seed("alpha")],), kwargs={"profile_slug": "p1"}, name="writer-a")
     a.start()
     assert a_read.wait(5)
@@ -592,8 +595,8 @@ def test_a_leftover_lock_file_from_a_crashed_writer_does_not_block():
 
 
 def test_a_live_seed_lock_times_out_as_a_seed_file_error(monkeypatch):
-    monkeypatch.setattr(seeds, "SEED_LOCK_TIMEOUT", 0.2)
-    with seeds._seed_file_lock(seeds.auto_seeds_path()):  # another writer holds the lock
+    monkeypatch.setattr(seeds.store, "SEED_LOCK_TIMEOUT", 0.2)
+    with seeds.store._seed_file_lock(seeds.auto_seeds_path()):  # another writer holds the lock
         with pytest.raises(seeds.SeedFileError):
             add_seeds([seed("delta")], profile_slug="p1")
         assert _seed_lock().exists()  # another writer's lock is left alone

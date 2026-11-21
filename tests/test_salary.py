@@ -8,8 +8,11 @@ from pathlib import Path
 
 import yaml
 
-from ultron import cli, profiles, runs, salary
+from ultron import cli
 from ultron.core.models import ExtractedJob, FinalRow
+from ultron.profiles import store as profiles
+from ultron.salary import estimator as salary
+from ultron.storage import runs
 
 
 def test_extract_salaries_from_text_handles_formats_and_ignores_false_positives():

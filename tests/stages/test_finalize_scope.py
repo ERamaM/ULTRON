@@ -6,8 +6,9 @@ import json
 
 from stage_helpers import PROFILE
 
-from ultron import profiles, runs
 from ultron.cli import main
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 ML_BODY = "Build machine learning services, LLM evaluation and model serving. Applications are open."
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 
 from ultron.core.ats.vendors import VENDOR_DATA_BY_NAME, domain_matches
-from ultron.core.urlpolicy import admit_url
-from ultron.net import HttpClient
+from ultron.infra.net import HttpClient
+from ultron.infra.urlpolicy import admit_url
 
 # These APIs include both HTML and plaintext descriptions for every job in the board.
 _DESCRIPTION_HEAVY_BOARD_MAX_BYTES = 20_000_000

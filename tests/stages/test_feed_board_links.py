@@ -5,8 +5,11 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from ultron import http_factory, profiles, runs, seeds
+from ultron import seeds
+from ultron.profiles import store as profiles
 from ultron.stages import feeds as feeds_stage
+from ultron.stages import http_factory
+from ultron.storage import runs
 
 
 @pytest.mark.parametrize(
@@ -56,7 +59,7 @@ def test_direct_ats_url_prefers_a_posting_over_a_board_root():
 def _no_packs(tmp_path, monkeypatch):
     empty = tmp_path / "no_packs"
     empty.mkdir()
-    monkeypatch.setattr(seeds, "packs_dir", lambda: empty)
+    monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
 
 
 def _row(title, company, url, description=""):

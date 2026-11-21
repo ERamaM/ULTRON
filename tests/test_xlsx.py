@@ -6,8 +6,10 @@ from zipfile import ZipFile
 import pytest
 from openpyxl import load_workbook
 
-from ultron import profiles, runs, xlsx
 from ultron.cli import main
+from ultron.exports import xlsx
+from ultron.profiles import store as profiles
+from ultron.storage import runs
 
 
 def _row(title="Engineer", url="https://example.com/job/1"):

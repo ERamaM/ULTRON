@@ -70,6 +70,7 @@ class UsageError(Exception):
 
 
 def ultron_home() -> Path:
+    # Intentionally standalone (cannot import ultron.infra.home before installation).
     env = os.environ.get("ULTRON_HOME")
     return Path(env).expanduser() if env else Path.home() / ".ultron"
 
@@ -86,6 +87,7 @@ def _venv_python(venv: Path) -> Path:
 
 def detect_platforms() -> list[str]:
     """Platforms whose base folder exists in the user's home; all four when none does."""
+    # Standalone copy of ultron.infra.platforms.detect_platforms (runs pre-install).
     home = Path.home()
     present = {
         "claude": (home / ".claude").is_dir(),
@@ -338,6 +340,7 @@ HOME_MARKER = ".ultron-home"
 
 
 def _is_link(path: Path) -> bool:
+    # Standalone copy of ultron.infra.fs.is_link (runs pre-install).
     return path.is_symlink() or (os.name == "nt" and path.is_junction())
 
 

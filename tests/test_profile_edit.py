@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -389,7 +390,7 @@ def test_failed_write_leaves_the_profile_and_no_temp_file(tmp_path, capsys, monk
     def broken_replace(src, dst):
         raise OSError("disk full")
 
-    monkeypatch.setattr(profiles.os, "replace", broken_replace)
+    monkeypatch.setattr(os, "replace", broken_replace)
     with pytest.raises(OSError):
         profiles.write_profile(_draft(name="Changed"), reason="edit")
     assert profiles.user_path(SLUG).read_bytes() == before

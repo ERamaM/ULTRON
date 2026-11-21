@@ -11,7 +11,9 @@ from ultron.core.extractors.jsonld import extract_structured_fields, valid_throu
 from ultron.core.extractors.page_title import PAGE_TITLE_SOURCES, strip_page_title_suffix
 from ultron.core.extractors.posting_date import posting_date_from_text
 from ultron.core.extractors.text import (
-    clean_text,
+    collapse_whitespace as clean_text,
+)
+from ultron.core.extractors.text import (
     dedupe_join,
     looks_remote_workplace,
     same_text,

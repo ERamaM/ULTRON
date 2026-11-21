@@ -8,7 +8,8 @@ from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from ultron.core.extractors.text import clean_text, dedupe_join, looks_remote_workplace
+from ultron.core.extractors.text import collapse_whitespace as clean_text
+from ultron.core.extractors.text import dedupe_join, looks_remote_workplace
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.json_walk import iter_json_dicts, load_json_or_none
 

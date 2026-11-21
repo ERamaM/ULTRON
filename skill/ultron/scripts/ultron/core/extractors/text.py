@@ -26,17 +26,18 @@ REMOTE_TECH_CONTEXT = (
 STRONG_REMOTE_PHRASES = (*STRONG_REMOTE_POSITIVE_TERMS, "remote position", "work from home")
 
 
-def clean_text(value: str) -> str:
+def collapse_whitespace(value: str) -> str:
+    """Collapse consecutive whitespace runs in ``value`` to single spaces and strip ends."""
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
 def same_text(left: str, right: str) -> bool:
-    return clean_text(left).casefold() == clean_text(right).casefold()
+    return collapse_whitespace(left).casefold() == collapse_whitespace(right).casefold()
 
 
 def looks_remote(text: str) -> bool:
     """True only for genuine remote-work hints (no hybrid/onsite conflict terms)."""
-    low = clean_text(text).lower()
+    low = collapse_whitespace(text).lower()
     if not low:
         return False
     if any(token in low for token in REMOTE_TECH_CONTEXT):
@@ -50,7 +51,7 @@ def looks_remote_workplace(text: str) -> bool:
     Used where workplace-policy lines must be captured so downstream filters can
     reject hybrids; a bare "office" mention is intentionally not a signal.
     """
-    low = clean_text(text).lower()
+    low = collapse_whitespace(text).lower()
     if not low:
         return False
     if any(phrase in low for phrase in STRONG_REMOTE_PHRASES):
@@ -64,7 +65,7 @@ def dedupe_join(values: Iterable[str], *, limit: int = 4) -> str:
     seen: set[str] = set()
     output: list[str] = []
     for value in values:
-        clean = clean_text(value)
+        clean = collapse_whitespace(value)
         if not clean:
             continue
         key = clean.lower()

@@ -159,12 +159,6 @@ def _validate_pages(payload: dict) -> list[str]:
     raise CvExtractionError(_FAILED)
 
 
-def _pages_from_worker_stdout(
-    stdout: bytes, returncode: int, *, max_chars: int, stderr: bytes = b""
-) -> list[str]:
-    return _validate_pages(_worker_payload(stdout, returncode, max_chars=max_chars, stderr=stderr))
-
-
 def _run_pdf_worker(
     content: bytes,
     *,

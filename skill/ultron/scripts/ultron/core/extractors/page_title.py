@@ -6,7 +6,8 @@ import re
 from collections.abc import Iterable
 from itertools import islice
 
-from ultron.core.extractors.text import clean_text, same_text
+from ultron.core.extractors.text import collapse_whitespace as clean_text
+from ultron.core.extractors.text import same_text
 
 # Page titles (<title>, og:title, twitter:title) often append the site or careers name after a separator:
 # "Data Engineer | Lead Your Journey - with Acme." or "Data Engineer - Acme Careers".

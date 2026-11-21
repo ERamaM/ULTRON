@@ -68,9 +68,7 @@ _LANG_STOPWORDS: dict[str, frozenset[str]] = {
     }),
 }
 
-_EMAIL_RE = re.compile(
-    r"(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\.){1,6}[A-Za-z]{2,24}\b"
-)
+_EMAIL_RE = cv_ats.EMAIL_RE
 _URL_RE = re.compile(r"https?://[^\s<>()\"\]]{3,200}", re.IGNORECASE)
 _LANG_WORD_RE = re.compile(r"[a-z\u00e0-\u00ff]{2,24}")
 _BULLET_PREFIX_RE = re.compile(r"^[ \t]{0,4}(?:[-*\u2022\u25cf\u25aa]|\d{1,2}[.)])[ \t]{1,4}")

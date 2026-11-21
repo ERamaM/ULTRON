@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
-from ultron.update import prepare as update
+from ultron.update import installer as update_installer
 
 REPO = Path(__file__).resolve().parents[1]
 EXE = "uv.exe" if os.name == "nt" else "uv"
@@ -33,7 +34,7 @@ def _windows_default_search(monkeypatch):
 
 @pytest.fixture(params=["install.py", "ultron.update.prepare"])
 def find(request):
-    return _installer().find_on_path if request.param == "install.py" else update.find_on_path
+    return _installer().find_on_path if request.param == "install.py" else update_installer.find_on_path
 
 
 def _fake_uv(folder: Path) -> Path:
@@ -77,12 +78,12 @@ def test_the_cwd_without_uv_falls_back_to_the_base_interpreter(tmp_path, monkeyp
     _fake_uv(work)
     monkeypatch.chdir(work)
     monkeypatch.setenv("PATH", str(tmp_path / "nothing"))
-    monkeypatch.setattr(update.sys, "_base_executable", str(tmp_path / "base" / "python"), raising=False)
-    argv = update._runner(Path("src") / "install.py")
+    monkeypatch.setattr(sys, "_base_executable", str(tmp_path / "base" / "python"), raising=False)
+    argv = update_installer._runner(Path("src") / "install.py")
     assert argv[0] == str(tmp_path / "base" / "python")
 
 
 def test_both_copies_are_identical():
     import inspect
 
-    assert inspect.getsource(_installer().find_on_path) == inspect.getsource(update.find_on_path)
+    assert inspect.getsource(_installer().find_on_path) == inspect.getsource(update_installer.find_on_path)

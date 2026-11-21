@@ -20,7 +20,7 @@ enforces the rules below on every import.
 | `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize), the unattended run and the per-run HTTP client factory. |
 | `exports/` | Files written from a finished run: the HTML report and the Excel workbook. |
 | `diagnostics/` | `doctor` (installation checks) and `diagnose` (run diagnostics). |
-| `update/` | Release lookup and notices (`notice`) and preparing an update (`prepare`). |
+| `update/` | Release lookup and notices (`notice`), installed copies (`copies`), the installer command lines (`installer`), the release archive download (`archive`) and the orchestration (`prepare`). |
 | `migrations/` | One-off imports from older projects (MARK III). |
 
 ## Rules

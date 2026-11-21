@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           ASKPASS="$RUNNER_TEMP/wiki-askpass.sh"
           WIKI_DIR="$RUNNER_TEMP/wiki-repo"
+          EXPORT_DIR="$(python3 tools/sync_wiki.py --export --clean)"
           cat > "$ASKPASS" <<'EOF'
           #!/bin/sh
           case "$1" in
@@ -42,9 +43,10 @@ jobs:
           esac
           EOF
           chmod 700 "$ASKPASS"
-          trap 'rm -f "$ASKPASS" && rm -rf "$WIKI_DIR"' EXIT
+          trap 'rm -f "$ASKPASS" && rm -rf "$WIKI_DIR" "$EXPORT_DIR"' EXIT
           GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0 git clone "https://github.com/${GITHUB_REPOSITORY}.wiki.git" "$WIKI_DIR"
-          python3 tools/sync_wiki.py --output "$WIKI_DIR" --clean
+          find "$WIKI_DIR" -maxdepth 1 -type f -name '*.md' -delete
+          cp "$EXPORT_DIR"/*.md "$WIKI_DIR"/
           cd "$WIKI_DIR"
           git add --all
           if git diff --cached --quiet; then

@@ -24,6 +24,7 @@ def _guard(fn: Callable[[argparse.Namespace], dict]) -> Callable[[argparse.Names
 
 
 def register(subparsers) -> None:
+    """Register ``ultron data`` maintenance subcommands."""
     root = subparsers.add_parser("data", help="status, backup and cleanup of local ULTRON data")
     sub = root.add_subparsers(dest="data_command", required=True, parser_class=type(root))
     sub.add_parser("status", help="paths, sizes, counts").set_defaults(func=_guard(lambda a: maintenance.status()))

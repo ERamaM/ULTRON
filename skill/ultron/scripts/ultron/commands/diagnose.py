@@ -21,6 +21,7 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register the ``ultron diagnose`` command."""
     parser = subparsers.add_parser("diagnose", help="explain why a job URL did not show up")
     parser.add_argument("url")
     parser.add_argument("--profile", required=True)

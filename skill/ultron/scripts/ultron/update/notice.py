@@ -45,6 +45,7 @@ def parse_version(text: object) -> tuple[int, int, int] | None:
 
 
 def format_version(version: tuple[int, int, int]) -> str:
+    """Format a ``(major, minor, patch)`` version tuple as ``X.Y.Z``."""
     return ".".join(map(str, version))
 
 

@@ -1,3 +1,5 @@
+"""Core Pydantic data models passed across ULTRON discovery, evaluation, and reporting."""
+
 from __future__ import annotations
 
 import re
@@ -38,6 +40,7 @@ SignalConfidence = Literal["high", "medium", "low"]
 
 
 class SearchHit(BaseModel):
+    """Raw web-search hit captured for candidate URL filtering."""
     query_id: str
     query: str
     rank: int
@@ -61,6 +64,7 @@ class SearchHit(BaseModel):
 
 
 class CandidateUrl(BaseModel):
+    """Filtered candidate job URL queued for fetching."""
     query_id: str
     query: str
     source_url: str
@@ -86,6 +90,7 @@ class CandidateUrl(BaseModel):
 
 
 class AtsBoardSeed(BaseModel):
+    """Configured or discovered company ATS board seed entry."""
     seed_id: str
     company: str
     ats: Literal[
@@ -127,6 +132,7 @@ class AtsBoardSeed(BaseModel):
     @field_validator("profiles")
     @classmethod
     def normalize_profiles(cls, values: list[str]) -> list[str]:
+        """Deduplicate and normalize associated profile slugs for a seed."""
         if not isinstance(values, list) or any(not isinstance(value, str) for value in values):
             raise ValueError("profiles must be a list of profile slugs")
         return list(
@@ -137,6 +143,7 @@ class AtsBoardSeed(BaseModel):
 
 
 class JobRawPage(BaseModel):
+    """Fetched raw HTTP response and HTML body for a candidate job page."""
     url: str
     final_url: str
     status_code: int
@@ -146,6 +153,7 @@ class JobRawPage(BaseModel):
 
 
 class ExtractedJob(BaseModel):
+    """Structured job posting fields parsed from HTML or ATS payloads."""
     _field_provenance: dict[str, str] = PrivateAttr(default_factory=dict)
     apply_url: str
     domain: str
@@ -162,6 +170,7 @@ class ExtractedJob(BaseModel):
 
 
 class ExtractionMeta(BaseModel):
+    """Provenance and confidence metadata for extracted title and company fields."""
     title_source: SignalSource = "unknown"
     title_confidence: SignalConfidence = "low"
     company_source: SignalSource = "unknown"
@@ -174,6 +183,7 @@ class ExtractionMeta(BaseModel):
 
 
 class ClassificationSignals(BaseModel):
+    """Intermediate role, seniority, and geo signals passed to the ranker."""
     role_score: int = 0
     role_signals: list[str] = Field(default_factory=list)
     role_ambiguous: bool = False
@@ -185,6 +195,7 @@ class ClassificationSignals(BaseModel):
 
 
 class JobEvaluation(BaseModel):
+    """Keep/discard/unsure verdict with category and reason codes."""
     keep: bool
     discard_reason: str | None = None
     verdict: EvaluationVerdict = "unsure"
@@ -206,6 +217,7 @@ class JobEvaluation(BaseModel):
 
 
 class FinalRow(BaseModel):
+    """Final ranked job entry prepared for run artifacts and exports."""
     title: str
     company: str
     apply_url: str
@@ -229,6 +241,7 @@ class FinalRow(BaseModel):
 
 
 class DiscardRecord(BaseModel):
+    """Audit record describing why a candidate URL was dropped."""
     apply_url: str
     reason: str
     detail: str = ""
@@ -239,6 +252,7 @@ class DiscardRecord(BaseModel):
 
 
 class RunSummary(BaseModel):
+    """Execution timing, kept counts, and discard tallies for a completed run."""
     run_id: str
     started_at: datetime
     ended_at: datetime

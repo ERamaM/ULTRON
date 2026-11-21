@@ -40,6 +40,7 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register the ``ultron update`` command."""
     parser = subparsers.add_parser(
         "update",
         help="check for a stable release, or download it and print the installer command to run (never runs it)",

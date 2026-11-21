@@ -32,6 +32,7 @@ def collapse_whitespace(value: str) -> str:
 
 
 def same_text(left: str, right: str) -> bool:
+    """Return True if two strings match ignoring whitespace runs and case."""
     return collapse_whitespace(left).casefold() == collapse_whitespace(right).casefold()
 
 
@@ -62,6 +63,7 @@ def looks_remote_workplace(text: str) -> bool:
 
 
 def dedupe_join(values: Iterable[str], *, limit: int = 4) -> str:
+    """Join unique non-empty values in order up to ``limit`` items."""
     seen: set[str] = set()
     output: list[str] = []
     for value in values:

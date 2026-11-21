@@ -58,6 +58,7 @@ def _rescuable(result: dict, job: ExtractedJob, excluded_locations: tuple[str, .
 
 
 def filter_run(run_id: str) -> dict:
+    """Apply deterministic filters and ambiguity scoring to fetched postings."""
     runs.require_stage(run_id, "filter")
     run = runs.load_run(run_id)
     profile = run.get("profile_snapshot") or {}

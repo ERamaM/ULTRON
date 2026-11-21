@@ -8,11 +8,13 @@ from collections.abc import Iterable
 
 
 def normalize_text(text: str) -> str:
+    """Unicode-fold accents and lowercase ``text`` for rule matching."""
     normalized = unicodedata.normalize("NFKD", str(text or ""))
     return "".join(ch for ch in normalized if not unicodedata.combining(ch)).lower()
 
 
 def contains_term(text: str, term: str) -> bool:
+    """Return True if normalized ``term`` matches within normalized ``text``."""
     normalized_term = normalize_text(term.strip())
     if not normalized_term:
         return False
@@ -20,6 +22,7 @@ def contains_term(text: str, term: str) -> bool:
 
 
 def find_terms(text: str, terms: Iterable[str]) -> list[str]:
+    """Return ordered unique terms from ``terms`` that match in ``text``."""
     found: list[str] = []
     seen: set[str] = set()
     normalized = normalize_text(text)

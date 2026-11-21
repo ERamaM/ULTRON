@@ -23,6 +23,7 @@ def _run(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register the ``ultron import-mark3`` command."""
     parser = subparsers.add_parser("import-mark3", help="one-time import of profiles, seeds and history from MARK III")
     parser.add_argument("path", help="MARK III data folder (or its checkout, which uses <path>/data)")
     parser.add_argument("--dry-run", action="store_true", help="count what would be imported; write nothing")

@@ -35,6 +35,7 @@ HOME_MARKER = ".ultron-home"  # written by install.py into a home it created
 
 
 class MaintenanceError(Exception):
+    """Raised on invalid maintenance arguments or storage consistency failures."""
     def __init__(self, code: str, detail: str = ""):
         super().__init__(detail or code)
         self.code = code
@@ -129,6 +130,7 @@ def _delete_run_row(run_id: str) -> None:
 # ---------------------------------------------------------------- status / check
 
 def status() -> dict:
+    """Report ULTRON home paths, SQLite integrity, sizes, and item counts."""
     root = home.ultron_home()
     db = _db_path()
     out: dict = {
@@ -154,6 +156,7 @@ def status() -> dict:
 
 
 def check() -> dict:
+    """Run SQLite integrity and run-folder consistency diagnostics."""
     db = _db_path()
     integrity = "missing"
     in_db: set[str] = set()
@@ -219,6 +222,7 @@ def _verify_candidate(path: Path) -> int:
 
 
 def restore(path: Path, *, yes: bool) -> dict:
+    """Restore the SQLite ledger from a verified backup after backing up current state."""
     path = Path(path)
     version = _verify_candidate(path)
     root = _root()
@@ -265,6 +269,7 @@ def _delete_folders(run_ids: list[str], execute: bool) -> dict:
 
 
 def cleanup(days: int, *, execute: bool) -> dict:
+    """Identify or delete old run directories older than ``days`` while keeping ledger data."""
     if days < 0:
         raise MaintenanceError("invalid_value", "days must be >= 0")
     cutoff = datetime.now(UTC) - timedelta(days=days)
@@ -284,6 +289,7 @@ def cleanup(days: int, *, execute: bool) -> dict:
 
 
 def delete_run(run_id: str, *, yes: bool) -> dict:
+    """Remove a single run directory identified by ``run_id`` when confirmed."""
     if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
         raise MaintenanceError("invalid_run_id", f"run id must look like YYYYMMDD-HHMMSS-xxxxxx: {run_id!r}")
     runs_root = _runs_root_checked()
@@ -312,6 +318,7 @@ def _open_runs() -> list[str]:
 
 
 def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> dict:
+    """Purge local ULTRON run, profile, seed, CV, and ledger data when confirmed."""
     root = _root()
     open_runs = _open_runs()
     if open_runs and not force:

@@ -1,3 +1,5 @@
+"""SmartRecruiters postings API client and location helpers."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting, location_text
@@ -7,12 +9,14 @@ _MAX_PAGES = 10  # Safety cap: max 1000 jobs per board
 
 
 def smartrecruiters_location(value: object) -> str:
+    """Format a SmartRecruiters location field into a single string."""
     if isinstance(value, dict):
         return str(value.get("fullLocation") or "").strip() or location_text(value)
     return location_text(value)
 
 
 def smartrecruiters_workplace(location: object) -> str:
+    """Normalize a SmartRecruiters workplace object to ``Hybrid``, ``Remote``, or ``On-site``."""
     if isinstance(location, dict):
         if location.get("hybrid") is True:
             return "Hybrid"
@@ -24,6 +28,7 @@ def smartrecruiters_workplace(location: object) -> str:
 def fetch_smartrecruiters_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a SmartRecruiters company board."""
     fetch_json = client.request_json
     out: list[AtsPosting] = []
     offset = 0

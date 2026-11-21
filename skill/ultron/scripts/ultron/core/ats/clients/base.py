@@ -1,3 +1,5 @@
+"""Shared ATS client types, URL helpers, and HTML card-listing parsers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,6 +17,7 @@ UNCHECKED_ERRORS = (RequestBudgetExceeded, HostBlocked)
 
 @dataclass(slots=True)
 class AtsPosting:
+    """Normalized job posting returned by an ATS board client."""
     title: str
     apply_url: str
     location: str = ""
@@ -24,6 +27,7 @@ class AtsPosting:
 
 
 class AtsClientError(RuntimeError):
+    """Raised when an ATS board response or identifier fails vendor validation."""
     def __init__(self, message: str, *, status_code: int | None = None):
         super().__init__(message)
         self.status_code = status_code
@@ -55,6 +59,7 @@ def refuse_browser_fallback() -> NoReturn:
 
 
 def locator_url(locator: str, *parts: str) -> str:
+    """Build an ``https://`` URL from a board locator and optional path segments."""
     base = str(locator or "").strip()
     if not base:
         return ""
@@ -68,6 +73,7 @@ def locator_url(locator: str, *parts: str) -> str:
 
 
 def locator_has_host(locator: str) -> bool:
+    """Return True if ``locator`` contains a dotted hostname."""
     clean = str(locator or "").strip()
     if not clean:
         return False
@@ -77,6 +83,7 @@ def locator_has_host(locator: str) -> bool:
 
 
 def location_text(value: object) -> str:
+    """Extract a comma-separated location string from a string or mapping."""
     if isinstance(value, dict):
         name = str(value.get("name") or "").strip()
         if name:
@@ -137,6 +144,7 @@ def parse_card_listings(
 
 
 def extract_between(chunk: str, start_marker: str, end_marker: str) -> str | None:
+    """Return the substring between the first ``start_marker`` and ``end_marker``."""
     start = chunk.find(start_marker)
     if start == -1:
         return None

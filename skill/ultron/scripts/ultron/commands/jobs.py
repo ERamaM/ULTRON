@@ -59,6 +59,7 @@ def _new_since(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron jobs`` subcommands."""
     jobs = subparsers.add_parser("jobs", help="review jobs recorded in the ledger")
     sub = jobs.add_subparsers(dest="jobs_command", required=True, parser_class=type(jobs))
     p = sub.add_parser("list", help="list jobs")

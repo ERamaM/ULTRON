@@ -41,10 +41,12 @@ TEST_OVERRIDES: dict = {}
 
 
 def set_test_overrides(**overrides) -> None:
+    """Register test overrides injected into stage ``HttpClient`` construction."""
     TEST_OVERRIDES.update(overrides)
 
 
 def reset_test_overrides() -> None:
+    """Clear registered stage HTTP client test overrides."""
     TEST_OVERRIDES.clear()
 
 

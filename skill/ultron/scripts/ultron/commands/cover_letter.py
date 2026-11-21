@@ -117,6 +117,7 @@ def _build_docx(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron cover-letter`` subcommands."""
     parser = subparsers.add_parser("cover-letter", help="Cover letter preparation and Word export")
     sub = parser.add_subparsers(dest="cover_letter_command", required=True, parser_class=type(parser))
 

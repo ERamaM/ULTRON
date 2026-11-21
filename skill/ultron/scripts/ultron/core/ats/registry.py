@@ -1,3 +1,5 @@
+"""ATS vendor specifications binding seed URL extractors and posting page parsers."""
+
 from __future__ import annotations
 
 import re
@@ -115,6 +117,7 @@ _SMARTRECRUITERS_WWW_POSTING_RE = re.compile(r"/[^/]+/\d+(?:[-/]|$)")
 
 @dataclass(frozen=True, slots=True)
 class AtsVendorSpec:
+    """Runtime vendor specification combining metadata, seed extractor, and parser."""
     data: AtsVendorData
     seed_extractor: SeedExtractorFn | None
     parser: ParserFn = field(init=False, compare=False, repr=False)
@@ -124,18 +127,22 @@ class AtsVendorSpec:
 
     @property
     def name(self) -> AtsVendorName:
+        """Return the canonical vendor identifier."""
         return self.data.name
 
     @property
     def canonical_domain(self) -> str:
+        """Return the vendor's primary domain."""
         return self.data.canonical_domain
 
     @property
     def supports_dynamic_fallback(self) -> bool:
+        """Return True if this vendor can fall back to generic page parsing."""
         return self.data.supports_dynamic_fallback
 
     @property
     def domains(self) -> tuple[str, ...]:
+        """Return known host suffixes associated with this vendor."""
         return self.data.domains
 
 
@@ -520,31 +527,37 @@ SPEC_BY_NAME = {spec.name: spec for spec in VENDOR_SPECS}
 
 
 def iter_vendor_specs() -> Iterable[AtsVendorSpec]:
+    """Iterate over all registered ATS vendor specifications."""
     return VENDOR_SPECS
 
 
 def get_vendor_spec(vendor: str | None) -> AtsVendorSpec | None:
+    """Look up an ATS vendor specification by name."""
     if not vendor:
         return None
     return SPEC_BY_NAME.get(str(vendor).strip().lower())
 
 
 def match_vendor_spec_by_domain(domain: str) -> AtsVendorSpec | None:
+    """Resolve an ATS vendor specification matching ``domain``."""
     item = match_vendor_by_domain(domain)
     return SPEC_BY_NAME.get(item.name) if item else None
 
 
 def match_vendor_spec_by_fingerprint(html: str) -> AtsVendorSpec | None:
+    """Resolve an ATS vendor specification from HTML fingerprints."""
     item = match_vendor_by_fingerprint(html)
     return SPEC_BY_NAME.get(item.name) if item else None
 
 
 def infer_vendor_from_host(host: str) -> str | None:
+    """Infer the ATS vendor name from a hostname, or return None."""
     item = match_vendor_by_domain(host)
     return item.name if item else None
 
 
 def parse_ats_page(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> ExtractedJob:
+    """Parse a fetched ATS job page into an ``ExtractedJob`` using vendor extractors."""
     parsed_url = urlparse(str(page.final_url or "").strip())
     # Scheme-less URLs ("example.com/jobs") parse with an empty netloc; treat
     # the leading path segment as the host in that case.
@@ -559,6 +572,7 @@ def parse_ats_page(page: JobRawPage, ats_hints: dict[str, str] | None = None) ->
 
 
 def extract_seed_from_url(url: str, company_hint: str) -> AtsBoardSeed | None:
+    """Extract an ``AtsBoardSeed`` from a candidate board or job URL, or return None."""
     raw_url = str(url or "").strip()
     normalized_url = raw_url if "://" in raw_url else f"https://{raw_url}"
     parsed = urlparse(normalized_url)
@@ -601,10 +615,12 @@ def extract_seed_from_url(url: str, company_hint: str) -> AtsBoardSeed | None:
 
 
 def is_direct_supported_ats_host(host: str) -> bool:
+    """Return True if ``host`` matches a registered ATS vendor domain."""
     return match_vendor_by_domain(host) is not None
 
 
 def supported_ats_probe_vendors() -> tuple[AtsVendorSpec, ...]:
+    """Return the ordered subset of ATS vendor specs probed automatically."""
     probeable = (
         "greenhouse",
         "lever",

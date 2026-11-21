@@ -169,6 +169,7 @@ def _verify(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
+    """Register ``ultron seeds`` subcommands."""
     parser = subparsers.add_parser("seeds", help="seed inventory and company verification")
     sub = parser.add_subparsers(dest="seeds_command", required=True, parser_class=type(parser))
     lst = sub.add_parser("list", help="list inventory seeds, profile-linked first")

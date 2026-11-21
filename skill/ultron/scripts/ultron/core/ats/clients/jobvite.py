@@ -1,3 +1,5 @@
+"""Jobvite public job-board client with US/EU host fallback."""
+
 from __future__ import annotations
 
 import logging
@@ -59,6 +61,7 @@ def _parse_jobvite_table(html: str, host: str) -> list[AtsPosting]:
 def fetch_jobvite_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Jobvite career site."""
     # EU-resident boards live on jobs.eu.jobvite.com; retry there when the
     # primary host errors or yields no postings.
     fetch_text = client.request_text

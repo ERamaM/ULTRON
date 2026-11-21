@@ -1,3 +1,5 @@
+"""Deterministic seniority, remote-policy, eligibility, and hard-filter rules."""
+
 from __future__ import annotations
 
 import logging
@@ -169,6 +171,7 @@ def _is_allowed_domain(domain: str, allowed_domains: Iterable[str]) -> bool:
 
 
 def is_full_remote_only(remote_text: str, body_text: str = "") -> bool:
+    """Return True if posting signals strict full-remote eligibility without onsite conflict."""
     remote_low = normalize_text(remote_text)
     body_low = normalize_text(body_text)
     full_text = f"{remote_low}\n{body_low}"

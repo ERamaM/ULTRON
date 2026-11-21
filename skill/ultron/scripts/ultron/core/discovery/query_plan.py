@@ -4,6 +4,7 @@ from __future__ import annotations
 
 
 def build_query_plan(profile: dict, max_queries: int) -> list[str]:
+    """Generate a bounded list of search query strings from a search profile."""
     if max_queries <= 0:
         return []
     templates = profile.get("query_templates") or {}

@@ -35,5 +35,9 @@ The history survives run cleanup (see `references/data-maintenance.md`).
   version preserves the workbook content and formatting. File timestamps can differ.
 - `ultron export html --run <run_id> [--out <file.html>]` writes the run's results as one self-contained HTML
   report (default `results.html` in the run folder) that opens offline in any browser and loads nothing from the
-  network. Use it when the user wants to view or share the shortlist in a browser. The CLI owns the layout,
-  escaping, and links (http(s) job links only); do not edit the file or build your own HTML.
+  network. Use it when the user wants to save or share a single-run snapshot. The CLI owns the layout, escaping,
+  and links (`http(s)` job links only); do not edit the file or build your own HTML.
+- `ultron export web [--host 127.0.0.1] [--port 0] [--run <run_id>] [--profile <slug>] [--no-open]` starts a
+  lightweight, read-only local web server straight over `ultron.sqlite3` without writing any file to disk. It binds
+  strictly to loopback interfaces, opens the ledger read-only (`?mode=ro`), redacts sensitive tokens, and stays up
+  until `Ctrl+C`. Use it whenever the user wants an interactive web dashboard without generating extra report files.

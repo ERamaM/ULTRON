@@ -37,13 +37,63 @@ request: opening it is part of the task. Ask only if `gh` is not authenticated
 
 ## Architecture
 
-Follow [docs/architecture.md](docs/architecture.md): packages by responsibility, one-way dependencies,
-no module over 1,000 lines. `tests/test_architecture.py` enforces the rules.
+Follow [docs/architecture.md](docs/architecture.md) strictly so package-layout and module-split
+refactors never have to be repeated:
+
+- Place every new module or helper in the package that owns its responsibility, and update
+  [docs/architecture.md](docs/architecture.md) in the same PR whenever a package's role or module
+  set changes. Never leave unrelated utilities in `ultron/` root or bolt a new domain onto an
+  existing module.
+- Preserve the one-way dependency graph (`infra/` imports nothing else in `ultron`; `core/` imports
+  only `core` and `infra` with no filesystem or run-state coupling; only `cli.py` and `commands/`
+  import `commands/`).
+- Split modules proactively by responsibility around ~400–500 lines — well before the hard
+  1,000-line ceiling.
+- Keep package `__init__.py` files empty unless documented as a facade in
+  [docs/architecture.md](docs/architecture.md). In tests, patch functions where they are defined, not
+  on re-export facades.
+- Locate bundled data or static assets from the package root (`ultron.__file__`), never by counting
+  `Path(__file__).parents[N]`.
+- Run `pytest tests/test_architecture.py` whenever adding, moving, or changing imports.
+
+## Python code quality
+
+Apply these rules to all Python code in `skill/ultron/scripts/ultron/`, `install.py`, and `tools/`:
+
+- **Public docstrings:** Write a concise, accurate English docstring for every public module, class,
+  method, and function (`tests/**/*.py` and `**/__init__.py` module headers are excluded). Ruff
+  enforces `D100`–`D103` in CI; place module docstrings before `from __future__ import annotations`.
+- **Reuse before writing helpers & clean boundaries:** Check existing shared utilities
+  (`ultron.infra.fs`, `ultron.infra.ooxml`, `ultron.commands._common`, `ultron.core.text_clean`,
+  `ultron.core.extractors.text`, `ultron.exports`) before adding new ones. Never introduce new
+  cross-package private (`_name`) imports — promote shared helpers to a public function in their
+  domain package or `ultron.infra`. Keep standalone scripts (`install.py`, `tools/sync_wiki.py`)
+  stdlib-only and mark intentionally mirrored helpers with a short comment.
+- **No dead code & unambiguous names:** Remove unused helpers, models, constants, and imports in the
+  same PR (no commented-out code or orphaned compatibility shims). Name functions precisely after
+  their behavior (for example `collapse_whitespace` vs `clean_text`).
+- **Low complexity & no duplication:** Keep functions small and single-purpose with shallow nesting
+  so cognitive complexity stays below SonarCloud limits (`S3776`), and extract shared helpers instead
+  of copy-pasting blocks (`<= 3%` duplication).
+- **Security & cross-platform hygiene:** Write strictly linear, bounded regexes (`S8786` /
+  ReDoS-safe), validate external URLs and hosts (`VendorScopedClient` for ATS requests; `http(s)` or
+  `mailto:` for links), sanitize XML/HTML output, avoid arbitrary filesystem path CLI arguments in
+  `tools/` scripts (`S8707`), never log credentials or personal data in clear text, and ensure
+  code works on Windows, macOS, and Linux.
+- **Tests & coverage:** Add standalone, xdist-safe unit tests covering both normal paths and error
+  branches, maintaining `>= 80%` coverage on new or changed lines.
 
 ## Review guidelines
 
 Reviewers (Codex and human) should apply these repository rules:
 
+- Architecture & layout: flag modules placed in the wrong responsibility package, reverse or
+  cross-command imports, modules approaching 1,000 lines without splitting, `Path(__file__).parents[N]`
+  asset lookups, or missing [docs/architecture.md](docs/architecture.md) updates.
+- Python code quality: flag missing public docstrings (`D100`–`D103`), duplicated helpers or new
+  cross-package `_name` imports, dead code or unused symbols, excessive cognitive complexity
+  (`S3776`), ReDoS-prone regexes (`S8786`), clear-text logging of sensitive data, unsafe URL/XML/HTML
+  handling, or new/changed code under 80% test coverage.
 - `skill/ultron/**/*.md` files are prompts read by AI coding agents. Keep them in clear,
   concise English, never name platform-specific tools, and keep every CLI command referenced
   consistent with `ultron --help`.

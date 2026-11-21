@@ -1,3 +1,5 @@
+"""Homerun public job-board client."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, locator_url
@@ -6,6 +8,7 @@ from ultron.core.ats.clients.base import AtsHTTPClient, AtsPosting, locator_url
 def fetch_homerun_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Homerun board."""
     fetch_json = client.request_json
     url = locator_url(f"{board_identifier}.homerun.co", "api", "jobs")
     payload = fetch_json(url, timeout=timeout)

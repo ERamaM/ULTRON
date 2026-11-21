@@ -106,7 +106,8 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | to change a saved profile ("no management roles", "add Rust") | `ultron profile edit --dry-run`, confirm, apply; `references/profile.md` |
 | a saved search, or a scheduled or repeated run | `references/scheduling.md` |
 | an Excel file of a run | `ultron export xlsx --run <id>`; `references/jobs-ledger.md` |
-| a report to open in a browser | `ultron export html --run <id>`; `references/jobs-ledger.md` |
+| a static HTML file to save or share | `ultron export html --run <id>`; `references/jobs-ledger.md` |
+| a live local web dashboard of the full SQLite ledger | `ultron export web`; `references/jobs-ledger.md` |
 | help preparing or submitting a bug report or GitHub issue | `references/issue-reporting.md` |
 | backup, cleanup, delete runs, purge or restore data | `references/data-maintenance.md` (always preview first) |
 

@@ -1,3 +1,5 @@
+"""Ashby public job-board API client."""
+
 from __future__ import annotations
 
 from ultron.core.ats.clients.base import AtsClientError, AtsHTTPClient, AtsPosting
@@ -6,6 +8,7 @@ ASHBY_API_HOST = "api.ashbyhq.com"
 
 
 def fetch_ashby_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
+    """Fetch open postings from an Ashby hosted job board."""
     url = f"https://{ASHBY_API_HOST}/posting-api/job-board/{board_identifier}"
     payload = client.request_json(url, timeout=timeout)
     jobs = payload.get("jobs") if isinstance(payload, dict) else None

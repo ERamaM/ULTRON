@@ -266,6 +266,7 @@ def _clean_text(text: str, max_chars: int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class CvText:
+    """Extracted CV plain text paired with its detected page count."""
     text: str
     pages: int
 

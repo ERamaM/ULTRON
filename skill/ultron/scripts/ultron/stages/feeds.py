@@ -307,6 +307,7 @@ def _collect(client, source: dict, timeout: int, errors: list[dict]) -> tuple[li
 
 
 def discover_feeds(run_id: str) -> dict:
+    """Collect candidate URLs and company hints from configured job feeds."""
     run = runs.load_run(run_id)
     settings = run["settings"]
     out_dir = runs.run_dir(run_id)

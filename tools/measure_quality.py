@@ -48,6 +48,7 @@ def _read(path: Path) -> Any:
 
 
 def measure() -> dict[str, Any]:
+    """Evaluate the 60-case synthetic corpus and return decision and ranking metrics."""
     corpus = _read(CORPUS_PATH)
     labels = _read(LABELS_PATH)["labels"]
     profile = yaml.safe_load(PROFILE_PATH.read_text(encoding="utf-8"))
@@ -96,6 +97,7 @@ def measure() -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run corpus measurement and print JSON or write a named report."""
     parser = argparse.ArgumentParser(description="Measure the 60-case corpus against its synthetic labels.")
     parser.add_argument("--output", help="report file name, written into the reports folder (see safe_paths.py)")
     args = parser.parse_args(argv)

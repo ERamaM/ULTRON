@@ -234,6 +234,7 @@ def resolve_target(
     run_id: str | None,
     fetch: bool,
 ) -> tuple[str, list[str], dict[str, Any]]:
+    """Resolve target keywords from a search profile, job text, and profile file."""
     if job_file is not None:
         if not job_file.is_file():
             raise FileNotFoundError(f"job file not found: {job_file}")
@@ -282,6 +283,7 @@ def resolve_target(
 
 
 def audit_target_alignment(text: str, target_terms: list[str]) -> tuple[int | None, dict[str, Any]]:
+    """Score how well CV text covers ``target_terms`` and report missing terms."""
     if not target_terms:
         return None, {"terms_checked": 0, "matched": [], "missing": [], "coverage_pct": None}
     matched = [term for term in target_terms if contains_term(text, term)]

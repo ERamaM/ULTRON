@@ -620,6 +620,7 @@ def _has_us_location_signal(text: str, *, raw_text: str = "") -> bool:
 
 
 def has_region_red_flags(text: str) -> bool:
+    """Return True if text indicates non-EU/US-only location eligibility barriers."""
     raw = text or ""
     low = normalize_text(raw)
     has_strong_us = _has_disallowed_region_terms(low)

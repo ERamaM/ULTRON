@@ -19,7 +19,7 @@ enforces the rules below on every import.
 | `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, saved searches, review states and maintenance (purge, export). |
 | `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |
 | `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize), the unattended run and the per-run HTTP client factory. |
-| `exports/` | Files written from a finished run: the HTML report and the Excel workbook. |
+| `exports/` | Read/view exports: shared export sanitization (`sanitize`), the Excel workbook (`xlsx`), the offline HTML report (`html_report`), and the local read-only SQLite web viewer (`web_data`, `web_server`, `web_static`). |
 | `diagnostics/` | `doctor` (installation checks) and `diagnose` (run diagnostics). |
 | `update/` | Release lookup and notices (`notice`), installed copies (`copies`), the installer command lines (`installer`), the release archive download (`archive`) and the orchestration (`prepare`). |
 | `migrations/` | One-off imports from older projects (MARK III). |

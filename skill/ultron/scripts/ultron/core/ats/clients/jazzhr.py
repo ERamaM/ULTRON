@@ -1,3 +1,5 @@
+"""JazzHR public job-board HTML client."""
+
 from __future__ import annotations
 
 from urllib.parse import urljoin
@@ -13,6 +15,7 @@ from ultron.core.ats.clients.base import (
 def fetch_jazzhr_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a JazzHR hosted board."""
     fetch_text = client.request_text
     board_url = locator_url(f"{board_identifier}.applytojob.com")
     html = fetch_text(board_url, timeout=timeout)

@@ -1,3 +1,5 @@
+"""Ambiguity scoring determining whether a posting needs secondary review."""
+
 from __future__ import annotations
 
 from ultron.core.models import ClassificationSignals, ExtractedJob, ExtractionMeta, JobEvaluation
@@ -31,6 +33,7 @@ class AmbiguityScorer:
         extraction_meta: ExtractionMeta | None = None,
         classification_signals: ClassificationSignals | None = None,
     ) -> int:
+        """Return an ambiguity score and human-readable reasons for ``job``."""
         if fallback.keep:
             score = KEEP_BASE_SCORE
             if classification_signals and classification_signals.role_ambiguous:

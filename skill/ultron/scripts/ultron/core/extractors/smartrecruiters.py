@@ -1,3 +1,5 @@
+"""Job posting extractor for SmartRecruiters pages."""
+
 from __future__ import annotations
 
 from bs4 import BeautifulSoup
@@ -11,6 +13,7 @@ _WORKPLACE_TYPES = {"hybrid": "Hybrid", "remote": "Remote", "on_site": "On-site"
 
 
 def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> ExtractedJob:
+    """Extract job posting fields and workplace metadata from SmartRecruiters HTML."""
     parsed = _parse_with_selectors(page, ats_hints)
     soup = BeautifulSoup(page.html, "html.parser")
     place = soup.select_one("spl-job-location")

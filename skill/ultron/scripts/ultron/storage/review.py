@@ -121,6 +121,7 @@ def add_note(identity_key: str, text: str) -> str:
 
 
 def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note: str = "") -> str:
+    """Record relevance feedback and optional reason code/note on a job."""
     if relevance not in RELEVANCE:
         raise ValueError(f"invalid relevance {relevance!r}; expected one of {', '.join(RELEVANCE)}")
     if reason_code not in REASON_CODES:

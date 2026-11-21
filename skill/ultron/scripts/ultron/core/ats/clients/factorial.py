@@ -1,3 +1,5 @@
+"""Factorial public job-board API client."""
+
 from __future__ import annotations
 
 import logging
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 def fetch_factorial_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Factorial careers page."""
     fetch_json = client.request_json
     fetch_text = client.request_text
     api_url = locator_url("jobs.factorialhr.com", board_identifier, "api", "jobs")

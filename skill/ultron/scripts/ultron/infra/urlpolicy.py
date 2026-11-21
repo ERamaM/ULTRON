@@ -28,6 +28,7 @@ class URLRejected(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class AdmittedURL:
+    """Validated public HTTP(S) URL with extracted hostname and port."""
     url: str
     hostname: str
     port: int
@@ -45,6 +46,7 @@ def _normalized_domains(domains: Iterable[str]) -> tuple[str, ...]:
 
 
 def domain_is_allowed(hostname: str, allowed_domains: Iterable[str]) -> bool:
+    """Return True if ``hostname`` matches ``allowed_domains`` or the list is empty."""
     allowed = _normalized_domains(allowed_domains)
     if not allowed:
         return True

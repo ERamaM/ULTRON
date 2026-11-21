@@ -215,6 +215,7 @@ def _op(name: str):
 
 
 def register(subparsers) -> None:
+    """Register ``ultron profile`` subcommands."""
     parser = subparsers.add_parser("profile", help="manage search profiles")
     sub = parser.add_subparsers(dest="profile_command", required=True, parser_class=type(parser))
     sub.add_parser("list", help="list profiles").set_defaults(func=_list)

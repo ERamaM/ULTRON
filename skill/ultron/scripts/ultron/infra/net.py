@@ -44,6 +44,7 @@ class RequestBudgetExceeded(RuntimeError):
 
 
 class HttpError(RuntimeError):
+    """Raised when an HTTP request fails transport, TLS, status, or size checks."""
     def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -93,6 +94,7 @@ class VendorBudget:
         self.blocked: set[str] = {v for v in blocked if isinstance(v, str)} if isinstance(blocked, list) else set()
 
     def to_dict(self) -> dict[str, Any]:
+        """Export request, rate-limit, and block counters as a sorted dictionary."""
         return {
             "requests": dict(sorted(self.requests.items())),
             "rate_limited": dict(sorted(self.rate_limited.items())),
@@ -101,17 +103,21 @@ class VendorBudget:
         }
 
     def strikes(self, vendor: str) -> int:
+        """Return total rate-limit and consecutive forbidden strikes for ``vendor``."""
         return self.rate_limited.get(vendor, 0) + self.forbidden_streak.get(vendor, 0)
 
     def is_blocked(self, vendor: str) -> bool:
+        """Return True if ``vendor`` has been blocked for this client."""
         return vendor in self.blocked
 
     def remaining(self, vendor: str) -> int | None:
+        """Return remaining request budget for ``vendor``, or None if unlimited."""
         if self.max_requests is None:
             return None
         return max(0, self.max_requests - self.requests.get(vendor, 0))
 
     def charge(self, vendor: str) -> None:
+        """Increment request count for ``vendor`` and notify any observer."""
         self.requests[vendor] = self.requests.get(vendor, 0) + 1
         self._changed()
 
@@ -205,6 +211,7 @@ def top_hosts(*counts: Mapping[str, int], limit: int = TOP_HOSTS_REPORTED) -> li
 
 
 class HttpClient:
+    """SSRF-guarded, budget-limited HTTP client wrapping a pinned transport."""
     def __init__(
         self,
         *,
@@ -273,6 +280,7 @@ class HttpClient:
         self.close()
 
     def close(self) -> None:
+        """Close the underlying HTTP transport pools."""
         self._client.close()
 
     # -- internals -------------------------------------------------------
@@ -476,6 +484,7 @@ class HttpClient:
         allowed_domains: tuple[str, ...] = (),
         max_bytes: int | None = None,
     ) -> dict | list:
+        """Execute an HTTP request and parse the response body as JSON."""
         status, final_url, text = self._fetch(
             method.upper(), url, timeout, json_body, allowed_domains, max_bytes=max_bytes,
         )

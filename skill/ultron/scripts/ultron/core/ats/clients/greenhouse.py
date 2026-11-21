@@ -1,3 +1,5 @@
+"""Greenhouse job-board API client with US/EU endpoint fallback."""
+
 from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
@@ -27,6 +29,7 @@ def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = Fa
 
 
 def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
+    """Fetch open postings from a Greenhouse job board."""
     fetch_json = client.request_json
     payload = None
     used_eu = False

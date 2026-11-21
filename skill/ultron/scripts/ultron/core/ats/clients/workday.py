@@ -1,3 +1,5 @@
+"""Workday CXS JSON and embedded HTML job-board client."""
+
 from __future__ import annotations
 
 import logging
@@ -128,6 +130,7 @@ def fetch_workday_jobs(
     max_pages: int | None = None,
     preferred_locations: tuple[str, ...] = (),
 ) -> list[AtsPosting]:
+    """Fetch open postings from a Workday hosted career site."""
     fetch_json = client.request_json
     fetch_text = client.request_text
     if not locator_has_host(board_identifier):

@@ -89,6 +89,7 @@ class EvaluationProfile:
 
     @classmethod
     def from_search_profile(cls, snapshot: dict[str, Any]) -> EvaluationProfile:
+        """Compile a search profile snapshot dictionary into an ``EvaluationProfile``."""
         if not isinstance(snapshot, dict):
             raise TypeError("search profile snapshot must be an object")
         criteria = _profile_criteria(snapshot)

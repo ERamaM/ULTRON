@@ -243,6 +243,7 @@ def _ensure_private_export_dir(export_dir: Path | None = None) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Validate or export ``docs/guide/`` pages to GitHub Wiki format."""
     parser = argparse.ArgumentParser(description="Validate or export docs/guide/ to GitHub Wiki format.")
     parser.add_argument("--check", action="store_true", help="validate guide files and relative links without writing")
     parser.add_argument(

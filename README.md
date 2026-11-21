@@ -21,7 +21,7 @@ ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code
 - **Zero-Python bootstrap:** `install.sh` and `install.ps1` automatically provision standalone `uv` and Python 3.12 if your machine does not have Python installed.
 - **22 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
 - **Hybrid precision & triage:** Deterministic rules discard off-location/off-seniority noise before your agent spends tokens reviewing only genuinely uncertain ("unsure") or high-signal postings.
-- **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), and exports Markdown, JSON, Excel (`.xlsx`), and a self-contained offline HTML report.
+- **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), writes Markdown, JSON, Excel (`.xlsx`), and offline HTML reports, or opens a live read-only local web dashboard directly over `ultron.sqlite3` (`ultron export web`) without creating files.
 - **Expected salary benchmarking:** Calculates sourced compensation ranges from verified non-internship CV tenure, run disclosures, and live market research (`ultron salary analyze`, `ultron salary save`).
 - **ATS CV audit & `.docx` optimizer:** Audits `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility, verifies rewrite truthfulness against the source CV (`ultron cv verify-truth`), and generates a clean single-column Word `.docx` (`ultron cv build-docx`).
 - **Tailored cover letter generator:** Pairs verified CV experience with job postings or profiles across bundled Word templates (`classic`, `modern`, `executive`) or custom `.docx` templates (`ultron cover-letter prepare`, `ultron cover-letter build-docx`).
@@ -37,7 +37,7 @@ Read the complete step-by-step documentation either in the **[Repository User Gu
 | [Search Profiles](docs/guide/search-profiles.md) | Creating profiles from a CV or interview, schema & seed packs, `explain`, diff edits & `undo` |
 | [Searches & Presets](docs/guide/search-and-presets.md) | The 7-stage loop, choosing between `fast` / `balanced` / `deep` / `seed_boost`, custom overrides |
 | [Unattended & Scheduling](docs/guide/unattended-and-scheduling.md) | Zero-token CLI runs, saved searches, `cron` / `launchd` / Task Scheduler / agent schedules |
-| [Tracking & Exports](docs/guide/tracking-and-exports.md) | SQLite ledger, `jobs mark`/`note`/`feedback`, `new-since`, `.xlsx` & offline HTML reports |
+| [Tracking & Exports](docs/guide/tracking-and-exports.md) | SQLite ledger, `jobs mark`/`note`/`feedback`, `new-since`, `.xlsx`, offline HTML, & live web viewer |
 | [Career Tools](docs/guide/career-tools.md) | Salary estimation (`salary`), ATS CV optimization (`cv`), and cover letters (`cover-letter`) |
 | [Troubleshooting & Data](docs/guide/troubleshooting-and-data.md) | `doctor`, `diagnose`, backups/cleanup/purge, privacy guarantees, common fixes |
 

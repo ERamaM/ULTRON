@@ -64,6 +64,7 @@ def _seed_kept(out_dir: Path, rows: list[FinalRow]) -> dict[str, int] | None:
 
 
 def finalize(run_id: str) -> dict:
+    """Rank, deduplicate, export reports, and update ledger history for ``run_id``."""
     runs.require_stage(run_id, "finalize")
     run = runs.load_run(run_id)
     out_dir = runs.run_dir(run_id)

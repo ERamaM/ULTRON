@@ -68,6 +68,7 @@ _JOB_ID_QUERY_KEYS = frozenset(_JOB_ID_QUERY_KEY_PRIORITY)
 
 @dataclass(frozen=True, slots=True)
 class CanonicalJobIdentity:
+    """Stable deduplication identity derived from an ATS vendor ID or URL."""
     identity_key: str
     canonical_url: str
     fallback_reason: str | None = None

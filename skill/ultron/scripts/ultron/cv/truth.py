@@ -17,6 +17,7 @@ from typing import Any
 from ultron.core.privacy import redact
 from ultron.core.rules.term_matching import contains_term, normalize_text
 from ultron.cv import ats as cv_ats
+from ultron.cv import ats_target
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
 
@@ -324,7 +325,7 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
         key = normalize_text(clean)
         found.setdefault(key, clean)
 
-    for term in cv_ats._KNOWN_SKILL_TERMS:
+    for term in ats_target.KNOWN_SKILL_TERMS:
         if term == "Go":
             if re.search(r"\bGo\b", body) or contains_term(body, "golang"):
                 record(term)
@@ -339,8 +340,8 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
     for tok in _ACRONYM_RE.findall(body):
         record(tok)
 
-    for tok in cv_ats._TECH_CANDIDATE_RE.findall(body):
-        if cv_ats.is_mixed_tech_token(tok, allow_digit_lower=True):
+    for tok in ats_target.TECH_CANDIDATE_RE.findall(body):
+        if ats_target.is_mixed_tech_token(tok, allow_digit_lower=True):
             record(tok)
 
     return found

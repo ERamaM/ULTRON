@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from ultron.core.extractors.ats_extractors import base
+from ultron.core.extractors import base, jsonld, page_title
+from ultron.core.extractors import text as extractor_text
 from ultron.core.models import JobRawPage
 
 
@@ -84,18 +85,18 @@ def test_valid_through_expired_rules():
 
     now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
     # Past date-time (any offset) is expired.
-    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
-    assert base._valid_through_expired("2026-06-15T13:30:00+02:00", now=now) is True
-    assert base._valid_through_expired("2026-06-14", now=now) is True
+    assert jsonld.valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert jsonld.valid_through_expired("2026-06-15T13:30:00+02:00", now=now) is True
+    assert jsonld.valid_through_expired("2026-06-14", now=now) is True
     # A date-only value counts through the end of that UTC day.
-    assert base._valid_through_expired("2026-06-15", now=now) is False
+    assert jsonld.valid_through_expired("2026-06-15", now=now) is False
     # Future values are fine; naive date-times are read as UTC.
-    assert base._valid_through_expired("2026-06-15T13:00:00", now=now) is False
-    assert base._valid_through_expired("2027-01-01T00:00:00Z", now=now) is False
-    assert base._valid_through_expired("9999-12-31", now=now) is False
+    assert jsonld.valid_through_expired("2026-06-15T13:00:00", now=now) is False
+    assert jsonld.valid_through_expired("2027-01-01T00:00:00Z", now=now) is False
+    assert jsonld.valid_through_expired("9999-12-31", now=now) is False
     # Missing, unparseable and placeholder values are ignored.
     for value in ("", "not a date", "0000-00-00", "1970-01-01", "1900-01-01T00:00:00Z", "31/12/2020"):
-        assert base._valid_through_expired(value, now=now) is False, value
+        assert jsonld.valid_through_expired(value, now=now) is False, value
 
 
 def test_parse_generic_flags_jobposting_with_past_valid_through():
@@ -180,22 +181,22 @@ def test_is_location_like_line_requires_word_boundaries_for_markers():
 
 
 def test_looks_remote_and_workplace_conflict_detection():
-    assert base._looks_remote("This is a remote position") is True
-    assert base._looks_remote("Remote monitoring of servers required") is False
-    assert base._looks_remote_workplace("Hybrid role, 2 days onsite") is True
-    assert base._looks_remote_workplace("Fully in-office") is True
-    assert base._looks_remote_workplace("Optional office in Berlin") is False
+    assert extractor_text.looks_remote("This is a remote position") is True
+    assert extractor_text.looks_remote("Remote monitoring of servers required") is False
+    assert extractor_text.looks_remote_workplace("Hybrid role, 2 days onsite") is True
+    assert extractor_text.looks_remote_workplace("Fully in-office") is True
+    assert extractor_text.looks_remote_workplace("Optional office in Berlin") is False
 
 
 def test_looks_remote_workplace_strong_phrase_overrides_tech_context():
-    assert base._looks_remote_workplace("Fully remote, distributed systems team") is True
-    assert base._looks_remote_workplace("Fully remote") is True
-    assert base._looks_remote_workplace("100% remote, distributed systems") is True
-    assert base._looks_remote_workplace("remote-first distributed systems team") is True
-    assert base._looks_remote_workplace("Remote position, distributed computing") is True
-    assert base._looks_remote_workplace("Work from home, distributed systems") is True
-    assert base._looks_remote_workplace("Teletrabajo completo, distributed systems") is True
-    assert base._looks_remote_workplace("We work on distributed systems") is False
+    assert extractor_text.looks_remote_workplace("Fully remote, distributed systems team") is True
+    assert extractor_text.looks_remote_workplace("Fully remote") is True
+    assert extractor_text.looks_remote_workplace("100% remote, distributed systems") is True
+    assert extractor_text.looks_remote_workplace("remote-first distributed systems team") is True
+    assert extractor_text.looks_remote_workplace("Remote position, distributed computing") is True
+    assert extractor_text.looks_remote_workplace("Work from home, distributed systems") is True
+    assert extractor_text.looks_remote_workplace("Teletrabajo completo, distributed systems") is True
+    assert extractor_text.looks_remote_workplace("We work on distributed systems") is False
 
 
 def test_extract_remote_lines_joins_multiple_short_hits():
@@ -207,7 +208,7 @@ def test_extract_remote_lines_joins_multiple_short_hits():
 
 def test_dedupe_join_limits_and_dedupes_case_insensitively():
     values = ["Remote", "remote", "EU", "eu", "Spain", "Extra"]
-    joined = base._dedupe_join(values, limit=2)
+    joined = extractor_text.dedupe_join(values, limit=2)
     assert joined.count("|") <= 1
 
 
@@ -265,9 +266,9 @@ def test_meta_content_missing_returns_empty_and_requires_attrs():
 
 
 def test_json_load_loose_handles_invalid_json():
-    assert base._json_load_loose("") is None
-    assert base._json_load_loose("not json{{{") is None
-    assert base._json_load_loose('{"a": 1}') == {"a": 1}
+    assert jsonld._json_load_loose("") is None
+    assert jsonld._json_load_loose("not json{{{") is None
+    assert jsonld._json_load_loose('{"a": 1}') == {"a": 1}
 
 
 def test_parse_ats_page_survives_hostile_deeply_nested_jsonld():
@@ -284,7 +285,7 @@ def test_jsonld_walk_handles_nesting_deeper_than_the_recursion_limit(monkeypatch
     for _ in range(5000):
         deep = [deep]
     payload = {"@type": "JobPosting", "title": "Deep Role", "extra": deep}
-    monkeypatch.setattr(base, "load_json_or_none", lambda text: payload)
+    monkeypatch.setattr(jsonld, "load_json_or_none", lambda text: payload)
     html = '<html><head><script type="application/ld+json">{}</script></head><body></body></html>'
     job = base.parse_generic(_page(html))
     assert job.title == "Deep Role"
@@ -299,7 +300,7 @@ def test_iter_jobposting_nodes_skips_non_jobposting_and_invalid_json():
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(html, "html.parser")
-    nodes = list(base._iter_jobposting_nodes(soup))
+    nodes = list(jsonld._iter_jobposting_nodes(soup))
     assert len(nodes) == 1
     assert nodes[0]["title"] == "Engineer"
 
@@ -312,7 +313,7 @@ def test_iter_jobposting_nodes_accepts_schema_org_type_iri():
     <script type="application/ld+json">{"@type": ["http://schema.org/JobPosting"], "title": "Listed"}</script>
     <script type="application/ld+json">{"@type": "JobPosting", "title": "Plain"}</script>
     """
-    nodes = list(base._iter_jobposting_nodes(BeautifulSoup(html, "html.parser")))
+    nodes = list(jsonld._iter_jobposting_nodes(BeautifulSoup(html, "html.parser")))
     assert [node["title"] for node in nodes] == ["Engineer", "Listed", "Plain"]
 
 
@@ -323,7 +324,7 @@ def test_extract_structured_fields_returns_first_when_none_have_title():
     <script type="application/ld+json">{"@type": "JobPosting", "hiringOrganization": {"name": "Acme"}}</script>
     """
     soup = BeautifulSoup(html, "html.parser")
-    fields = base._extract_structured_fields(soup)
+    fields = jsonld.extract_structured_fields(soup)
     assert fields.get("company") == "Acme"
     assert fields.get("title", "") == ""
 
@@ -332,7 +333,7 @@ def test_extract_structured_fields_empty_when_no_jobposting():
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup("<html></html>", "html.parser")
-    assert base._extract_structured_fields(soup) == {}
+    assert jsonld.extract_structured_fields(soup) == {}
 
 
 def test_parse_generic_selects_jsonld_whose_url_matches_final_url():
@@ -365,16 +366,16 @@ def test_parse_generic_uses_single_jobposting_without_url():
 
 
 def test_extract_location_parts_handles_dict_list_and_scalar():
-    assert base._extract_location_parts("Remote") == ["Remote"]
-    assert base._extract_location_parts(None) == []
-    assert base._extract_location_parts([{"name": "Madrid"}, "Spain"]) == ["Madrid", "Spain"]
-    assert base._extract_location_parts({"address": {"addressLocality": "Berlin"}}) == ["Berlin"]
+    assert jsonld._extract_location_parts("Remote") == ["Remote"]
+    assert jsonld._extract_location_parts(None) == []
+    assert jsonld._extract_location_parts([{"name": "Madrid"}, "Spain"]) == ["Madrid", "Spain"]
+    assert jsonld._extract_location_parts({"address": {"addressLocality": "Berlin"}}) == ["Berlin"]
 
 
 def test_extract_company_from_jobposting_handles_dict_and_string():
-    assert base._extract_company_from_jobposting({"hiringOrganization": {"name": "Acme"}}) == "Acme"
-    assert base._extract_company_from_jobposting({"hiringOrganization": "Acme Inc"}) == "Acme Inc"
-    assert base._extract_company_from_jobposting({}) == ""
+    assert jsonld._extract_company_from_jobposting({"hiringOrganization": {"name": "Acme"}}) == "Acme"
+    assert jsonld._extract_company_from_jobposting({"hiringOrganization": "Acme Inc"}) == "Acme Inc"
+    assert jsonld._extract_company_from_jobposting({}) == ""
 
 
 def test_looks_domain_placeholder_and_generic_detection():
@@ -525,10 +526,10 @@ def test_structured_fields_ignore_json_null_and_use_name_of_nested_address_value
 
 
 def test_structured_fields_null_title_is_empty():
-    fields = base._structured_fields_from_node({"@type": "JobPosting", "title": None, "jobLocationType": None})
+    fields = jsonld._structured_fields_from_node({"@type": "JobPosting", "title": None, "jobLocationType": None})
     assert fields["title"] == ""
     assert fields["remote_text"] == ""
-    assert base._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""
+    assert jsonld._extract_company_from_jobposting({"hiringOrganization": {"name": None}}) == ""
 
 
 def test_relative_jsonld_url_for_this_posting_keeps_its_deadline():
@@ -575,34 +576,34 @@ def test_urlless_posting_wins_over_a_node_for_another_job_id():
 
 
 def test_overlong_posting_url_is_not_parsed_for_identity():
-    assert base._posting_identity("https://acme.com/careers?q=" + "x" * 5000) == ""
-    assert base._posting_identity("https://boards.greenhouse.io/acme/jobs/123") == "greenhouse:acme:123"
+    assert jsonld._posting_identity("https://acme.com/careers?q=" + "x" * 5000) == ""
+    assert jsonld._posting_identity("https://boards.greenhouse.io/acme/jobs/123") == "greenhouse:acme:123"
 
 
 def test_valid_through_is_bounded_and_only_a_terminal_z_is_utc():
-    now = base.datetime(2026, 6, 15, 12, 0, tzinfo=base.UTC)
-    assert base._valid_through_expired("z" * 5_000_000, now=now) is False  # rejected before any replacement
-    assert base._valid_through_expired("2026-06-15T11:00:00z", now=now) is True
-    assert base._valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
-    assert base._valid_through_expired("2026-06-15TZ1:00:00", now=now) is False  # a Z elsewhere is not UTC
-    assert base._valid_through_expired("2020-01-01" + " " * 100, now=now) is False  # over the length cap
+    now = jsonld.datetime(2026, 6, 15, 12, 0, tzinfo=jsonld.UTC)
+    assert jsonld.valid_through_expired("z" * 5_000_000, now=now) is False  # rejected before any replacement
+    assert jsonld.valid_through_expired("2026-06-15T11:00:00z", now=now) is True
+    assert jsonld.valid_through_expired("2026-06-15T11:00:00Z", now=now) is True
+    assert jsonld.valid_through_expired("2026-06-15TZ1:00:00", now=now) is False  # a Z elsewhere is not UTC
+    assert jsonld.valid_through_expired("2020-01-01" + " " * 100, now=now) is False  # over the length cap
 
 
 def test_identity_matching_is_bounded_on_pages_with_many_postings(monkeypatch):
     calls = []
-    real = base._posting_identity
+    real = jsonld._posting_identity
 
     def counting(url):
         calls.append(url)
         return real(url)
 
-    monkeypatch.setattr(base, "_posting_identity", counting)
+    monkeypatch.setattr(jsonld, "_posting_identity", counting)
     page_url = "https://boards.greenhouse.io/acme/jobs/123"
     many = ", ".join(f'{{"@type": "JobPosting", "url": "/acme/jobs/{1000 + i}"}}' for i in range(500))
     expired = '{"@type": "JobPosting", "title": "ML Engineer", "validThrough": "2020-02-01"}'
     html = f'<html><head><script type="application/ld+json">[{expired}, {many}]</script></head><body></body></html>'
     job = base.parse_generic(_page(html, final_url=page_url))
-    assert len(calls) <= base._MAX_IDENTITY_CHECKS + 1  # the page URL plus the capped node URLs
+    assert len(calls) <= jsonld._MAX_IDENTITY_CHECKS + 1  # the page URL plus the capped node URLs
     assert job.title == "ML Engineer"
     assert job.valid_through_expired is False  # too many candidates: the deadline is ignored, never trusted
 
@@ -614,21 +615,21 @@ def test_identity_matching_is_bounded_on_pages_with_many_postings(monkeypatch):
 
 def test_page_title_suffix_stripping_is_bounded(monkeypatch):
     calls = []
-    real = base._site_like_suffix
+    real = page_title._site_like_suffix
 
     def counting(*args, **kwargs):
         calls.append(1)
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(base, "_site_like_suffix", counting)
+    monkeypatch.setattr(page_title, "_site_like_suffix", counting)
     hostile = " | ".join(["x"] * 4000)  # ~24 KB with 4000 separators
-    assert base._strip_page_title_suffix(hostile, anchors=(), site_names=("Acme",)) == hostile
+    assert page_title.strip_page_title_suffix(hostile, anchors=(), site_names=("Acme",)) == hostile
     assert calls == []  # over the length cap: returned as is, never split
     many = " - ".join(["ab"] * 70)[:290]  # under the length cap, but more separators than the cap
-    base._strip_page_title_suffix(many, anchors=(), site_names=("Acme",))
-    assert len(calls) <= base._MAX_TITLE_SEPARATORS
+    page_title.strip_page_title_suffix(many, anchors=(), site_names=("Acme",))
+    assert len(calls) <= page_title._MAX_TITLE_SEPARATORS
     # Normal titles are still stripped.
-    assert base._strip_page_title_suffix("Data Engineer | Acme Careers", anchors=(), site_names=("Acme",)) == (
+    assert page_title.strip_page_title_suffix("Data Engineer | Acme Careers", anchors=(), site_names=("Acme",)) == (
         "Data Engineer"
     )
 
@@ -643,10 +644,10 @@ def test_jsonld_placeholder_values_are_treated_as_missing():
             "addressCountry": "IE", "addressLocality": "Dublin", "addressRegion": "UNAVAILABLE",
             "postOfficeBoxNumber": "UNAVAILABLE"}}],
     }
-    fields = base._structured_fields_from_node(node)
+    fields = jsonld._structured_fields_from_node(node)
     assert fields["company"] == ""
     assert "UNAVAILABLE" not in fields["location"] and "Dublin" in fields["location"]
-    assert base._extract_company_from_jobposting({"hiringOrganization": "n/a"}) == ""
+    assert jsonld._extract_company_from_jobposting({"hiringOrganization": "n/a"}) == ""
 
 
 _PORTAL_PAGE = """

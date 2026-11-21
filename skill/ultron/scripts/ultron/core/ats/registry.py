@@ -16,8 +16,8 @@ from ultron.core.ats.vendors import (
     match_vendor_by_domain,
     match_vendor_by_fingerprint,
 )
-from ultron.core.extractors.ats_extractors.base import parse_generic
-from ultron.core.extractors.ats_extractors.parser_factory import ParserFn, parser_for_vendor
+from ultron.core.extractors.base import parse_generic
+from ultron.core.extractors.parser_factory import ParserFn, parser_for_vendor
 from ultron.core.models import AtsBoardSeed, ExtractedJob, JobRawPage
 
 SeedExtractorFn = Callable[[str, str], str | None]

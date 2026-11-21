@@ -4,7 +4,7 @@ import json
 import re
 from urllib.parse import urlsplit
 
-from ultron.core.extractors.ats_extractors.base import parse_with_overrides
+from ultron.core.extractors.base import parse_with_overrides
 from ultron.core.models import ExtractedJob, JobRawPage
 
 LOCATION_NAME_RE = re.compile(r'"locationName"\s*:\s*"([^"]+)"')

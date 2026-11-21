@@ -9,6 +9,7 @@ import pytest
 
 from ultron.cli import main
 from ultron.diagnostics import doctor
+from ultron.infra import installs
 from ultron.infra.platforms import detect_platforms, global_skill_dirs
 from ultron.stages import http_factory
 
@@ -28,7 +29,7 @@ def _clean_env(tmp_path, monkeypatch):
     for key in [k for k in os.environ if k.startswith("ANTIGRAVITY")]:
         monkeypatch.delenv(key)
     monkeypatch.chdir(tmp_path)  # project-scope folders are looked up in the cwd
-    monkeypatch.setattr(doctor, "_in_dev_checkout", lambda: False)
+    monkeypatch.setattr(installs, "in_dev_checkout", lambda: False)
     return home
 
 
@@ -226,21 +227,21 @@ def test_project_install_recognised(tmp_path):
 
 
 def test_dev_checkout_without_install_is_informational(monkeypatch):
-    monkeypatch.setattr(doctor, "_in_dev_checkout", lambda: True)
+    monkeypatch.setattr(installs, "in_dev_checkout", lambda: True)
     check = _by_id(doctor.run_checks(network=False))["skill_installed"]
     assert check.ok and "source checkout" in check.detail and "install.py" in check.fix
 
 
 def test_real_dev_checkout_detection(monkeypatch, tmp_path):
-    monkeypatch.undo()  # drop the autouse stub of _in_dev_checkout
+    monkeypatch.undo()  # drop the autouse stub of in_dev_checkout
     repo = Path(__file__).resolve().parents[1]
-    assert doctor._in_dev_checkout() is True
+    assert installs.in_dev_checkout() is True
 
     import shutil
 
     copy = tmp_path / "home" / ".claude" / "skills" / "ultron"
     shutil.copytree(repo / "skill" / "ultron", copy, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (copy / ".ultron-install.json").write_text(json.dumps({"name": "ultron", "path": str(copy)}), encoding="utf-8")
-    assert doctor._in_dev_checkout(copy / "scripts" / "ultron") is False
+    assert installs.in_dev_checkout(copy / "scripts" / "ultron") is False
     (copy / ".ultron-install.json").unlink()
-    assert doctor._in_dev_checkout(copy / "scripts" / "ultron") is False  # no install.py above
+    assert installs.in_dev_checkout(copy / "scripts" / "ultron") is False  # no install.py above

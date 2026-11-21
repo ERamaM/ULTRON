@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from bs4 import BeautifulSoup
 
-from ultron.core.extractors.ats_extractors.selectors import make_selector_parser
+from ultron.core.extractors.selectors import make_selector_parser
 from ultron.core.models import ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 

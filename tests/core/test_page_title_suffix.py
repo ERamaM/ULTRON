@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from ultron.core.ats.registry import parse_ats_page
-from ultron.core.extractors.ats_extractors import base
+from ultron.core.extractors import base
 from ultron.core.models import JobRawPage
 from ultron.core.rules.role_matching import is_senior_title
 

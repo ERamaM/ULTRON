@@ -67,7 +67,7 @@ and a security review. A PR is not finished until every Codex finding has been a
 `main` ruleset blocks merging while any review thread is unresolved, but resolving a thread is a
 statement that the concern was handled, so never resolve a thread you have not addressed.
 
-Prefer fewer, larger PRs grouped by theme, and push all fixes for one review round together.
+Prefer fewer, larger PRs grouped by theme, push all fixes for one review round together, and cap Codex reviews at **3 rounds per PR** (initial review plus up to 2 re-review rounds) so PRs do not loop indefinitely.
 
 1. **Request the reviews.** When a PR becomes ready for review, and again after every push
    (fixes, merges or rebases), comment `@codex review` and `@codex security review` unless a
@@ -91,7 +91,10 @@ Prefer fewer, larger PRs grouped by theme, and push all fixes for one review rou
    - Findings without a thread: reply in one PR conversation comment that lists each finding
      and its outcome.
 6. **Repeat** from step 1 until both reviews report no unresolved findings for the latest commit
-   and CI is green.
+   and CI is green, up to a maximum of **3 Codex review rounds per PR**. After addressing and
+   resolving all findings from round 3, push the fixes, wait for CI, CodeQL and SonarCloud to
+   pass, and do not request a 4th Codex review unless a round-3 finding was a P0/P1 bug or
+   security issue (or the user asks for another round).
 7. **Report.** Summarize each finding and its outcome (fixed, rejected with reason, or deferred
    to an issue) in the PR or to the person who asked for the change.
 

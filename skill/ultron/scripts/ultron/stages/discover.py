@@ -454,6 +454,7 @@ def discover_ats(run_id: str) -> dict:
 
     candidates: list[CandidateUrl] = []
     seen_urls: set[str] = set()
+    ats_identities: set[str] = set()
     errors: list[dict] = []
     queried = 0
     budget_spent = False
@@ -535,22 +536,39 @@ def discover_ats(run_id: str) -> dict:
             ),
             reverse=True,
         )
-        for posting in kept[:per_seed]:
+        board_start = len(candidates)
+        for posting in kept:
+            if len(candidates) - board_start >= per_seed:
+                break
             candidate = _candidate(seed, posting)
             if candidate is None or candidate.normalized_url in seen_urls:
                 continue
+            identity = _identity(candidate.model_dump())
+            if identity in ats_identities:
+                continue
+            ats_identities.add(identity)
             seen_urls.add(candidate.normalized_url)
             candidates.append(candidate)
 
     # Keep candidates added by other stages (web search, feeds); ATS rows are rebuilt on every run.
     # A feed row for a posting this run also found through its ATS board yields to the ATS row.
-    ats_identities = {_identity(c.model_dump()) for c in candidates}
+    previous = runs.read_jsonl(out_dir / "candidates.jsonl")
+    observed = {_identity(row): row for row in previous if row.get("observations")}
+    refreshed = []
+    for candidate in candidates:
+        row = candidate.model_dump()
+        prior = observed.get(_identity(row), {})
+        if observations := prior.get("observations"):
+            row["observations"] = observations
+            for field in ("ats_title", "ats_company", "hit_title", "company_hint"):
+                row[field] = row[field] or prior.get(field, "")
+        refreshed.append(row)
     kept_rows = [
-        r for r in runs.read_jsonl(out_dir / "candidates.jsonl")
+        r for r in previous
         if r.get("source_type") != "ats_api"
         and not (str(r.get("source_type") or "").startswith("feed:") and _identity(r) in ats_identities)
     ]
-    runs.write_jsonl(out_dir / "candidates.jsonl", [*candidates, *kept_rows])
+    runs.write_jsonl(out_dir / "candidates.jsonl", [*refreshed, *kept_rows])
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
     skipped_ids = {e["seed_id"] for e in errors if e.get("skipped")}
     runs.write_jsonl(

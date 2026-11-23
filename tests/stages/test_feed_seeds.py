@@ -97,3 +97,42 @@ def test_unattended_stores_unconfirmed_guessed_boards_tagged(monkeypatch):
     (stored,) = [s for s in seeds.load_inventory(profiles.EXAMPLE_SLUG) if profiles.EXAMPLE_SLUG in s.profiles]
     assert (stored.board_identifier, stored.tags, stored.priority) == (
         "novaco", ["ownership:unknown"], seeds.UNCONFIRMED_SEED_PRIORITY)
+
+
+@pytest.mark.parametrize("budget_stops", [False, True])
+def test_feed_verification_quota_counts_distinct_boards(monkeypatch, budget_stops):
+    from ultron.seeds.verify import VerifyResult
+
+    run_id = _run_with(monkeypatch, [], {})
+    runs.write_jsonl(runs.run_dir(run_id) / seeds.FEED_PROPOSALS_FILE, [
+        {"company": "Atlas", "ats": "greenhouse", "board": "Atlas"},
+        {"company": "Atlas Group", "careers_url": "https://boards.greenhouse.io/atlas"},
+        {"company": "Atlas Labs"},
+        {"company": "Atlas Logistics"},
+    ])
+    load_run = runs.load_run
+
+    def with_quota(rid):
+        run = load_run(rid)
+        run["settings"]["new_companies_per_run"] = 2
+        return run
+
+    attempted = []
+
+    def verify(proposal, **kwargs):
+        if budget_stops and attempted:
+            return VerifyResult(proposal, "unresolved", None, 0, "budget_exhausted")
+        attempted.append(proposal.company)
+        return VerifyResult(proposal, "unresolved", None, 0, "no_board")
+
+    monkeypatch.setattr(runs, "load_run", with_quota)
+    monkeypatch.setattr(seeds, "verify_proposal", verify)
+    result = verify_feed_companies(run_id)
+
+    assert result["tried"] == 2
+    if budget_stops:
+        assert attempted == ["Atlas"]
+        assert result["deferred"] == ["Atlas Labs", "Atlas Logistics"]
+    else:
+        assert attempted == ["Atlas", "Atlas Labs"]
+        assert result["deferred"] == []

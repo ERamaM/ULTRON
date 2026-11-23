@@ -400,3 +400,73 @@ def test_discover_queries_past_workday_verification_sample(tmp_path):
     assert offsets == [0, 20, 0, 20, 40]
     rows = runs.read_jsonl(runs.run_dir(run_id) / "candidates.jsonl")
     assert any(row["source_url"] == f"{board}/job/ML-Engineer_R-41" for row in rows)
+
+
+def test_discover_fills_quota_with_unique_usable_vacancies(monkeypatch):
+    from ultron.stages import discover
+
+    requests = []
+
+    def handler(request):
+        requests.append(request.url.path)
+        jobs = [
+            {"id": job_id, "title": "Senior Machine Learning Engineer",
+             "absolute_url": f"https://boards.greenhouse.io/acme/jobs/{job_id}",
+             "location": {"name": "Remote - Spain"}}
+            for job_id in (1, 1, 2, 3, 4)
+        ]
+        return httpx.Response(200, json={"jobs": jobs})
+
+    run_id = _setup(handler, [_seed("greenhouse", "acme")])
+    load_run = runs.load_run
+
+    def with_quota(rid):
+        run = load_run(rid)
+        run["settings"]["ats_api_max_jobs_per_seed"] = 3
+        return run
+
+    make_candidate = discover._candidate
+
+    def discard_unusable(seed, posting):
+        if posting.apply_url.endswith("/2"):
+            return None
+        return make_candidate(seed, posting)
+
+    monkeypatch.setattr(runs, "load_run", with_quota)
+    monkeypatch.setattr(discover, "_candidate", discard_unusable)
+    result = discover.discover_ats(run_id)
+
+    rows = runs.read_jsonl(runs.run_dir(run_id) / "candidates.jsonl")
+    assert [row["source_url"].rsplit("/", 1)[-1] for row in rows] == ["1", "3", "4"]
+    assert result["requests"] == len(requests) == 1
+
+
+def test_repeated_web_hits_fill_missing_metadata_without_replacing_ats_title(tmp_path):
+    from ultron.stages.candidates import add_candidates
+    from ultron.stages.discover import discover_ats
+
+    run_id = _setup(_handler, [_seed("greenhouse", "acme")])
+    discover_ats(run_id)
+    path = runs.run_dir(run_id) / "candidates.jsonl"
+    rows = runs.read_jsonl(path)
+    row = rows[0]
+    row["ats_company"] = ""
+    runs.write_jsonl(path, rows)
+    src = tmp_path / "repeat.jsonl"
+    delimiter = "&" if "?" in row["source_url"] else "?"
+    src.write_text(json.dumps({
+        "url": f"{row['source_url']}{delimiter}utm_source=search",
+        "title": "Conflicting title", "company": "Acme", "query": "bearer eyJ1234567890.sample.token",
+    }), encoding="utf-8")
+
+    for _ in range(2):
+        assert add_candidates(run_id, src)["duplicates"] == 1
+    updated = runs.read_jsonl(path)
+    assert len(updated) == len(rows)
+    assert updated[0]["ats_company"] == "Acme"
+    assert updated[0]["ats_title"] == row["ats_title"]
+    assert [hit["source_type"] for hit in updated[0]["observations"]] == ["ats_api", "web_search"]
+    assert "eyJ1234567890" not in json.dumps(updated[0]["observations"])
+    discover_ats(run_id)
+    refreshed = runs.read_jsonl(path)
+    assert refreshed[0]["observations"] == updated[0]["observations"]

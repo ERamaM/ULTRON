@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from itertools import pairwise
 from typing import Any, Literal
 
 from ultron.core.privacy import redact
@@ -335,8 +336,8 @@ _MARKET_PATTERN = re.compile(
 )
 _BASE_PAY = re.compile(r"\b(?:base (?:salary|pay)|salario base|sueldo base)\b")
 _TOTAL_PAY = re.compile(r"\b(?:total compensation|total pay|compensacion total|retribucion total|ote)\b")
-_GROSS = re.compile(r"\b(?:gross|brut[oa])\b")
-_NET = re.compile(r"(?<![.\w])(?:net|net[oa])\b")
+_GROSS = re.compile(r"\b(?:gross|brut[oa]|brutto)\b")
+_NET = re.compile(r"(?<![.\w])(?:net|net[oa]|netto)\b")
 
 
 def salary_markets(text: str) -> set[str]:
@@ -344,8 +345,28 @@ def salary_markets(text: str) -> set[str]:
     return {_MARKET_ALIASES[match[0]] for match in _MARKET_PATTERN.finditer(normalize_text(text))}
 
 
-def _disclosure_context(clause: str) -> dict[str, Any]:
-    countries = salary_markets(clause)
+_COUNTRY_LIST_JOIN = re.compile(r"[ \t,]{0,10}(?:(?:and|or|y|o|und|oder|et|ou)[ \t,]{1,8})?")
+
+
+def _markets_in_disclosure(clause: str, window: str) -> set[str]:
+    named = salary_markets(clause)
+    folded = normalize_text(window)
+    adjacent = [
+        {_MARKET_ALIASES[first[0]], _MARKET_ALIASES[second[0]]}
+        for first, second in pairwise(_MARKET_PATTERN.finditer(folded))
+        if _COUNTRY_LIST_JOIN.fullmatch(folded[first.end():second.start()])
+    ]
+    for countries in adjacent:
+        if countries & named:
+            named.update(countries)
+    for countries in reversed(adjacent):
+        if countries & named:
+            named.update(countries)
+    return named
+
+
+def _disclosure_context(clause: str, window: str) -> dict[str, Any]:
+    countries = _markets_in_disclosure(clause, window)
     base, total = bool(_BASE_PAY.search(clause)), bool(_TOTAL_PAY.search(clause))
     gross, net = bool(_GROSS.search(clause)), bool(_NET.search(clause))
     return {
@@ -408,7 +429,7 @@ def _build_salary_hit(
         "annual_mid": round((annual_low + annual_high) / 2),
         "geo_hint": detect_geo_hint(window),
         "clause_geo_hint": detect_geo_hint(clause),
-        **_disclosure_context(folded_clause),
+        **_disclosure_context(folded_clause, window),
         "snippet": str(redact(snippet)),
         "span": (match.start(), match.end()),
     }

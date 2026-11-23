@@ -10,6 +10,7 @@ from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_ho
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl
+from ultron.core.privacy import redact
 from ultron.core.text_clean import clean_text
 from ultron.infra.urlpolicy import URLRejected, admit_url
 from ultron.seeds import Proposal, load_inventory
@@ -25,17 +26,37 @@ def candidate_identity(candidate: dict) -> str:
     ).identity_key
 
 
+_MAX_OBSERVATIONS = 8
+
+
+def _observation(candidate: dict) -> dict:
+    fields = ("source_type", "source_url", "query", "ats_title", "ats_company")
+    return redact({field: str(candidate.get(field) or "")[:2048] for field in fields})
+
+
+def _merge_web_hit(primary: dict, hit: dict) -> None:
+    observations = primary.setdefault("observations", [_observation(primary)])
+    observation = _observation(hit)
+    if len(observations) < _MAX_OBSERVATIONS and observation not in observations:
+        observations.append(observation)
+    for field in ("ats_title", "ats_company", "hit_title", "company_hint"):
+        if not primary.get(field) and hit.get(field):
+            primary[field] = redact(hit[field])
+
+
 def add_candidates(run_id: str, path: Path) -> dict:
     """Append deduplicated web-search candidate URLs from ``path`` into a run."""
     run = runs.load_run(run_id)
     rows = runs.read_jsonl(path)
     out_dir = runs.run_dir(run_id)
     existing = runs.read_jsonl(out_dir / "candidates.jsonl")
-    seen = {candidate_identity(row) for row in existing}
+    seen: dict[str, dict] = {}
+    for row in existing:
+        seen.setdefault(candidate_identity(row), row)
     known_seeds = {seed_identity(s.ats, s.board_identifier) for s in load_inventory(run["profile_slug"])}
     proposed = {(r.get("ats"), r.get("board")) for r in runs.read_jsonl(out_dir / "seed_proposals_from_search.jsonl")}
 
-    added: list[CandidateUrl] = []
+    added: list[dict] = []
     duplicates = rejected = 0
     new_proposals: list[dict] = []
     for row in rows:
@@ -62,12 +83,14 @@ def add_candidates(run_id: str, path: Path) -> dict:
             hit_title=title,
             company_hint=company,
         )
-        identity = candidate_identity(candidate.model_dump())
+        hit = candidate.model_dump()
+        identity = candidate_identity(hit)
         if identity in seen:
             duplicates += 1
+            _merge_web_hit(seen[identity], hit)
             continue
-        seen.add(identity)
-        added.append(candidate)
+        seen[identity] = hit
+        added.append(hit)
         if infer_vendor_from_host(candidate.domain):
             seed = extract_seed_from_url(url, company)
             if seed is None:
@@ -78,7 +101,7 @@ def add_candidates(run_id: str, path: Path) -> dict:
                 new_proposals.append(asdict(Proposal(
                     company=company or seed.company, ats=seed.ats, board=seed.board_identifier, careers_url=url,
                 )))
-    runs.append_jsonl(out_dir / "candidates.jsonl", added)
+    runs.write_jsonl(out_dir / "candidates.jsonl", [*existing, *added])
     if new_proposals:
         runs.append_jsonl(out_dir / "seed_proposals_from_search.jsonl", new_proposals)
     runs.mark_stage(run_id, "candidates")

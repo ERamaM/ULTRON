@@ -105,17 +105,35 @@ _LANGUAGE_CODES = {
 }
 
 
+_INSTRUCTION_BOUNDARY = re.compile(r"[.!?;\r\n]")
+_NEGATED_INSTRUCTION = re.compile(
+    r"\b(?:no|do not|don't|must not|should not|ne pas|nicht|nao)\b[^.!?;\r\n]{0,100}$"
+)
+_NEGATED_ACCEPTANCE = re.compile(r"^\s+(?:(?:is|are|will be)\s+)?not (?:accepted|allowed)\b")
+
+
 def _application_language(body: str) -> dict[str, Any]:
     evidence = []
     languages = set()
+    excluded = set()
     for match in _APPLICATION_INSTRUCTION.finditer(body):
-        languages.update(_LANGUAGE_CODES[normalize_text(name)] for name in _LANGUAGE_TOKEN.findall(match["languages"]))
+        prefix = _INSTRUCTION_BOUNDARY.split(body[max(0, match.start() - 100):match.start()])[-1]
+        suffix = body[match.end():match.end() + 40]
+        negated = _NEGATED_INSTRUCTION.search(normalize_text(prefix)) or _NEGATED_ACCEPTANCE.match(suffix.casefold())
+        codes = {_LANGUAGE_CODES[normalize_text(name)] for name in _LANGUAGE_TOKEN.findall(match["languages"])}
+        if negated:
+            excluded.update(codes)
+        else:
+            languages.update(codes)
         if len(evidence) < 4:
-            evidence.append(str(redact(match[0])))
+            evidence.append(str(redact((prefix + match[0] + (suffix if negated else "")).strip())))
+    conflicting = bool(languages & excluded)
+    languages -= excluded
     return {
         "requested_application_language": next(iter(languages)) if len(languages) == 1 else None,
         "application_language_evidence": evidence,
-        "application_language_ambiguous": len(languages) > 1,
+        "application_language_ambiguous": conflicting or len(languages) > 1,
+        "excluded_application_languages": sorted(excluded),
     }
 
 
@@ -395,7 +413,10 @@ def prepare_cover_letter_brief(
         "profile": profile_slug,
         "language": resolved_lang,
         "language_source": "override" if lang else language_source,
-        "application_language_conflict": bool(lang and requested_lang and resolved_lang != requested_lang),
+        "application_language_conflict": (
+            resolved_lang in target.get("excluded_application_languages", [])
+            or bool(lang and requested_lang and resolved_lang != requested_lang)
+        ),
         "tone": tone,
         "tone_guide": TONE_GUIDES[tone],
         "candidate": header,

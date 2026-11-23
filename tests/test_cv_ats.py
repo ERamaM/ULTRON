@@ -395,7 +395,7 @@ def test_offline_audit_finds_older_recorded_vacancy_after_latest_capture_is_remo
     runs.write_jsonl(runs.run_dir(old) / "postings.jsonl", [
         {"identity_key": key, "job": posting.model_dump(mode="json")},
     ])
-    runs.mark_stage(old, "fetch")
+    (runs.run_dir(old) / "run.json").unlink()
     (runs.run_dir(recent) / "run.json").unlink()
     for _ in range(7):
         unrelated = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
@@ -424,6 +424,7 @@ def test_offline_audit_finds_older_recorded_vacancy_after_latest_capture_is_remo
 @pytest.mark.parametrize("posting", [
     "SQL or Python is required. Tableau is desirable. Our company uses Redis. Docker is not required.",
     "SQL o Python es obligatorio. Tableau es deseable. Nuestra empresa usa Redis. Docker no es obligatorio.",
+    "Requirements:\n\nSQL or Python\n\nPreferred:\nTableau\nCompany:\nRedis and Docker",
 ])
 def test_audit_prioritizes_requirements_and_preserves_alternatives(tmp_path, capsys, posting):
     job = tmp_path / "posting.txt"

@@ -736,6 +736,8 @@ def test_cover_letter_edge_cases_and_cli_error_paths(tmp_path: Path, monkeypatch
     ("Envía tu candidatura en inglés. Submit your application in Spanish.",
      None, "es", "auto_detected", False, True),
     ("Submit your application in English or Spanish.", None, "es", "auto_detected", False, True),
+    ("Submit your application in English, Spanish or German.", None, "es", "auto_detected", False, True),
+    ("Submit your application in English/Spanish.", "es", "es", "override", False, True),
 ])
 def test_brief_respects_requested_application_language(tmp_path, instruction, override, language, source,
                                                        conflict, ambiguous):

@@ -56,6 +56,8 @@ def verify_feed_companies(run_id: str) -> dict:
 def summarize_coverage(stages: dict, roles: int, board_observations: list[dict]) -> dict:
     """Explain shortlist size using counters recorded by the unattended stages."""
     discover = stages.get("discover", {})
+    feed_results = stages.get("discover_feeds", {})
+    feeds = {status: feed_results.get(f"sources_{status}") for status in ("ok", "failed", "skipped")}
     fetch_summary = stages.get("fetch", {})
     filter_summary = stages.get("filter", {})
     boards = {status: discover.get(f"seeds_{status}") for status in ("completed", "partial", "failed", "skipped")}
@@ -73,9 +75,10 @@ def summarize_coverage(stages: dict, roles: int, board_observations: list[dict])
         limits.add("feed_verification_budget")
     if fetch_summary.get("stopped"):
         limits.add(fetch_summary["stopped"])
-    if None in (*boards.values(), fetched, pending):
+    if None in (*boards.values(), *feeds.values(), fetched, pending):
         status = "unknown"
-    elif any(boards[key] for key in ("partial", "failed", "skipped")) or limits or fetch_summary.get("failed"):
+    elif (any(boards[key] for key in ("partial", "failed", "skipped")) or limits
+          or feeds["failed"] or feeds["skipped"] or fetch_summary.get("failed")):
         status = "limited"
     elif not fetched and (discover.get("candidates") or not boards["completed"]):
         status = "nothing_fetched"
@@ -83,7 +86,7 @@ def summarize_coverage(stages: dict, roles: int, board_observations: list[dict])
         status = "completed"
     return {
         "status": status, "roles": roles, "boards": boards, "postings_fetched": fetched,
-        "pending_ambiguous": pending, "limits": sorted(limits),
+        "pending_ambiguous": pending, "feeds": feeds, "limits": sorted(limits),
         "fitting_board_deficit": stages.get("seed_coverage", {}).get("seed_deficit"),
     }
 

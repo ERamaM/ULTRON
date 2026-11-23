@@ -96,7 +96,8 @@ def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[Extracted
     location = str(loc_obj.get("name") or "") if isinstance(loc_obj, dict) else ""
     body_text = _html_to_text(str(payload.get("content") or ""))
     apply_url = normalize_url(str(payload.get("absolute_url") or candidate.normalized_url))
-    posted_str = str(payload.get("first_published") or payload.get("updated_at") or "").strip() or None
+    posted_str = str(payload.get("first_published") or "").strip() or None
+    updated_at = str(payload.get("updated_at") or "").strip() or None
     job = ExtractedJob(
         title=clean_text(payload.get("title") or candidate.ats_title),
         company=clean_text(payload.get("company_name") or candidate.ats_company or board),
@@ -106,6 +107,8 @@ def _greenhouse_api_fallback(candidate: CandidateUrl, client) -> tuple[Extracted
         apply_url=apply_url,
         domain=domain_of(apply_url),
         posting_date=posted_str,
+        posting_date_verified=bool(posted_str),
+        updated_at=updated_at,
     )
     return job, apply_url
 
@@ -135,6 +138,8 @@ def _greenhouse_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -
         "remote_text": api_job.remote_text or job.remote_text,
         "body_text": api_job.body_text,
         "posting_date": api_job.posting_date or job.posting_date,
+        "posting_date_verified": api_job.posting_date_verified or job.posting_date_verified,
+        "updated_at": api_job.updated_at or job.updated_at,
     }), True
 
 
@@ -184,6 +189,7 @@ def _workable_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
         "remote_text": clean_text(remote_text),
         "body_text": body_text,
         "posting_date": str(payload.get("published") or job.posting_date or "").strip() or None,
+        "posting_date_verified": bool(payload.get("published")) or job.posting_date_verified,
     })
 
 
@@ -284,6 +290,7 @@ def _smartrecruiters_api_lookup(
         "remote_text": clean_text(remote_text),
         "body_text": body_text or job.body_text,
         "posting_date": str(payload.get("releasedDate") or job.posting_date or "").strip() or None,
+        "posting_date_verified": bool(payload.get("releasedDate")) or job.posting_date_verified,
     }), True, bool(body_text)
 
 
@@ -338,7 +345,8 @@ def _workday_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> t
         "location": clean_text(location),
         "remote_text": clean_text(f"{remote_type} {location}".strip() if remote_type else job.remote_text),
         "body_text": desc,
-        "posting_date": str(info.get("startDate") or info.get("postedOn") or job.posting_date or "").strip() or None,
+        "posting_date": str(info.get("postedOn") or job.posting_date or info.get("startDate") or "").strip() or None,
+        "posting_date_verified": bool(info.get("postedOn")) or job.posting_date_verified,
     }), True
 
 
@@ -382,6 +390,7 @@ def _bamboohr_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> 
             "remote_text": remote_text,
             "body_text": desc,
             "posting_date": str(opening.get("datePosted") or job.posting_date or "").strip() or None,
+            "posting_date_verified": bool(opening.get("datePosted")) or job.posting_date_verified,
         }), True
     return job, False
 

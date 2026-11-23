@@ -306,6 +306,8 @@ def test_fetch_greenhouse_custom_domain_spa_enriches_from_api(capsys):
     row = runs.read_jsonl(d / "postings.jsonl")[0]
     assert row["ats_fingerprint"] is True
     assert "agentic RAG at Elastic" in row["job"]["body_text"]
+    assert row["job"]["posting_date"] is None
+    assert row["job"]["updated_at"] == "2026-11-18T12:00:00Z"
 
 
 def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys):

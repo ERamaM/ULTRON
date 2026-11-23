@@ -116,8 +116,18 @@ _ROLE_COLUMNS = [
     ("missing_requirements", "Missing", 32, False),
     ("uncertain_requirements", "Uncertain", 32, False),
     ("apply_url", "Apply URL", 52, True),
+
     ("is_new", "New", 10, False),
     ("apply_url", "Apply", 10, "open"),
+]
+
+_DATE_COLUMNS = [
+    ("title", "Title", 44, False),
+    ("company", "Company", 26, False),
+    ("published_at", "Published", 24, False),
+    ("updated_at", "Updated", 24, False),
+    ("first_seen", "First Seen", 24, False),
+    ("unverified_date", "Unverified Source Date", 24, False),
 ]
 
 _DISCARD_COLUMNS = [
@@ -409,6 +419,8 @@ def export_run_to_excel(run_id: str, out_path: Path | str | None = None) -> Path
         _add_role_cues(roles_ws, _ROLE_COLUMNS, len(rows))
         _write_table(wb.create_sheet(f"Discards ({len(discards)})"), _DISCARD_COLUMNS, discards, styles,
                      verdict_key="reason")
+        if any(row.get("first_seen") or row.get("updated_at") or row.get("published_at") for row in rows):
+            _write_table(wb.create_sheet("Vacancy Dates"), _DATE_COLUMNS, rows, styles)
         wb.properties.creator = "ULTRON"
         wb.properties.title = f"ULTRON run {run_id}"
 

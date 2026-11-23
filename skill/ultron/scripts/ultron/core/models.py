@@ -164,6 +164,8 @@ class ExtractedJob(BaseModel):
     body_text: str = ""
     apply_available: bool = False
     posting_date: str | None = None
+    posting_date_verified: bool = False
+    updated_at: str | None = None
     is_open_hint: bool = True
     # True only when JSON-LD ``validThrough`` parses to a past deadline.
     valid_through_expired: bool = False
@@ -227,6 +229,10 @@ class FinalRow(BaseModel):
     eligibility_evidence: str
     fit_signals: list[str]
     freshness: str
+    published_at: str | None = None
+    updated_at: str | None = None
+    unverified_date: str | None = None
+    first_seen: str | None = None
     evaluation_verdict: EvaluationVerdict = "keep"
     source_type: str = "unknown"
     source_key: str = ""

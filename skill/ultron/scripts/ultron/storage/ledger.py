@@ -407,6 +407,19 @@ def seed_yields(conn: sqlite3.Connection, profile_slug: str) -> dict[str, tuple[
     }
 
 
+def vacancy_snapshot_runs(conn: sqlite3.Connection, identity_key: str, canonical_url: str) -> tuple[str, list[str]]:
+    """Find the stable identity and all recorded run IDs that can contain its local posting snapshot."""
+    row = conn.execute(
+        "SELECT identity_key FROM jobs WHERE identity_key = ? OR canonical_url = ?"
+        " ORDER BY (identity_key = ?) DESC, last_seen DESC, identity_key LIMIT 1",
+        (identity_key, canonical_url, identity_key),
+    ).fetchone()
+    key = row[0] if row else identity_key
+    return key, [item[0] for item in conn.execute(
+        "SELECT run_id FROM job_occurrences WHERE identity_key = ? ORDER BY run_id DESC", (key,),
+    )]
+
+
 def record_finalized_run(
     conn: sqlite3.Connection, summary: RunSummary, rows: list[FinalRow], *, profile_slug: str, preset: str,
     seed_kept: dict[str, int] | None = None,

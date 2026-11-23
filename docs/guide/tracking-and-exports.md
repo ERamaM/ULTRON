@@ -31,6 +31,19 @@ Record quality feedback on individual postings to help diagnose filter gaps or f
 ultron jobs feedback <identity_key_or_url> relevant|not_relevant|uncertain [--reason <code_or_topic>] [--note "<text>"]
 ```
 
+
+Use `--profile` when a relevance judgment belongs to a particular search profile. The vacancy's
+application state is shared. A judgment saved without a profile is labelled unscoped.
+
+```sh
+ultron jobs feedback <identity_key_or_url> relevant --profile <slug>
+ultron jobs list --profile <slug> --new --since-run <run_id>
+ultron jobs new-since <run_id> --saved-search <name>
+```
+
+The scoped commands report which history they compared. An older baseline with profile
+provenance alone uses profile history when it belongs to the selected saved search's profile.
+
 ## Inspecting Past Runs
 
 ```sh

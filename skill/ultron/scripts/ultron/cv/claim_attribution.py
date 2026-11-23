@@ -15,6 +15,14 @@ from ultron.cv.ats_target import KNOWN_SKILL_TERMS
 _ROLE_SEPARATOR = re.compile(r"\s(?:at|en)\s|[|·]", re.IGNORECASE)
 _SENTENCE = re.compile(r"(?<=[.!?])[ \t]+(?=[A-Z])|\r?\n")
 _CAUSAL = re.compile(r"\b(?:using|with|through|via|mediante|usando|con)\b")
+_METHOD_PREFIX = re.compile(
+    r"\b(?:used|utilized|leveraged|emplee|use|utilice)[ \t]+(?P<method>[^.,;\r\n]{1,80}?)"
+    r"[ \t]+(?:to|para)\b"
+)
+_EMPLOYER_INTRO = re.compile(
+    r"^(?:[-*][ \t]+)?(?:at|en|while working at|during my time at)[ \t]+"
+    r"|\b(?:while employed at|while working at|durante mi etapa en)[ \t]+"
+)
 _OUTCOMES = {
     "cost": re.compile(r"\b(?:costs?|expenses?|spend|costes?|costos?|gastos?)\b"),
     "latency": re.compile(r"\b(?:latency|response times?|latencia|tiempos? de respuesta)\b"),
@@ -62,7 +70,7 @@ _CANONICAL_METHODS = {
     **{term: short for short, full in SAFE_EXPANSION_PAIRS for term in (short, full)},
 }
 _METRIC_CLAUSE_BREAK = re.compile(
-    r"[,;][ \t]+|[ \t]+(?:and|y|e)[ \t]+"
+    r"[,;][ \t]+|(?<![ \t])[ \t]+(?:and|y|e)[ \t]+"
     r"(?=(?:reduc\w{0,8}|cut|increas\w{0,5}|rais\w{0,5}|aument\w{0,5}|disminu\w{0,5})\b)",
     re.IGNORECASE,
 )
@@ -106,7 +114,12 @@ def _blocks(text: str, ref: date) -> list[tuple[ClaimScope, str]]:
 
 
 def _named_scope(fragment: str, default: ClaimScope, employers: set[str]) -> ClaimScope:
-    matches = {employer for employer in employers if contains_term(fragment, employer)}
+    attribution = _EMPLOYER_INTRO.search(fragment.strip())
+    if not attribution:
+        return default
+    tail = fragment.strip()[attribution.end():]
+    matches = {employer for employer in employers
+               if tail.startswith(employer) and contains_term(tail[:len(employer) + 1], employer)}
     if len(matches) == 1:
         employer = next(iter(matches))
         return default if employer == default.employer else ClaimScope(employer)
@@ -125,19 +138,27 @@ def _metric_clauses(body: str, metrics: Metrics) -> Iterable[tuple[str, str, set
                 yield sentence, sentence, keys
 
 
+def _technologies_used(text: str) -> set[str]:
+    methods = [match["method"] for match in _METHOD_PREFIX.finditer(text)]
+    if causal := _CAUSAL.search(text):
+        methods.append(text[causal.end():])
+    return {
+        canonical for term, canonical in _CANONICAL_METHODS.items()
+        if any(contains_term(method, term) for method in methods)
+    }
+
+
 def _claims(blocks: list[tuple[ClaimScope, str]], employers: set[str], metrics: Metrics) -> dict[str, list[Claim]]:
     found: dict[str, list[Claim]] = {}
     for default, body in blocks:
         for sentence, clause, metric_keys in _metric_clauses(body, metrics):
             text = normalize_text(clause)
             scope = _named_scope(text, _named_scope(normalize_text(sentence), default, employers), employers)
-            causal = _CAUSAL.search(text)
             claim = Claim(
                 sentence.strip(), scope,
                 {name for name, pattern in _OUTCOMES.items() if pattern.search(text)},
                 {name for name, pattern in _DIRECTIONS.items() if pattern.search(text)},
-                {canonical for term, canonical in _CANONICAL_METHODS.items()
-                 if causal and contains_term(text[causal.end():], term)},
+                _technologies_used(text),
             )
             for key in metric_keys:
                 found.setdefault(key, []).append(claim)
@@ -154,9 +175,9 @@ def _supports(source: Claim, draft: Claim) -> bool:
 
 
 def _supports_content(source: Claim, draft: Claim) -> bool:
-    if source.outcomes and draft.outcomes and not (source.outcomes & draft.outcomes):
+    if not draft.outcomes <= source.outcomes:
         return False
-    if source.directions and draft.directions and not (source.directions & draft.directions):
+    if source.directions and not draft.directions <= source.directions:
         return False
     return draft.methods <= source.methods
 

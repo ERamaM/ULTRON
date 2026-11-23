@@ -854,3 +854,26 @@ def test_strict_rewrites_keep_separate_metrics_and_authorized_approximate_roles(
         assert cli.main(args) == 1
         assert any(item["type"] == "unsupported_claim_attribution"
                    for item in json.loads(capsys.readouterr().out)["violations"])
+
+
+@pytest.mark.parametrize(("original", "revision", "passed"), [
+    ("Reduced costs by 20% using Python.", "Reduced costs and latency by 20% using Python.", False),
+    ("Used Python to reduce costs by 20%.", "Reduced costs by 20% using Python.", True),
+    ("Reduced costs by 20% by integrating an API from Boreal Labs.", "Reduced costs by 20%.", True),
+])
+def test_strict_attribution_checks_each_outcome_and_preserves_employment_scope(tmp_path, capsys,
+                                                                              original, revision, passed):
+    atlas = "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2020 - Jan 2021\n- "
+    boreal = "\nEngineer | Boreal Labs | Feb 2021 - Feb 2022\n- Maintained systems.\n"
+    source = tmp_path / "source.txt"
+    source.write_text(atlas + original + boreal, encoding="utf-8")
+    draft = tmp_path / "draft.txt"
+    draft.write_text(atlas + revision + boreal, encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == (0 if passed else 1)
+        result = json.loads(capsys.readouterr().out)
+        assert result["passed"] is passed
+        if not passed:
+            assert any(row["type"] == "unsupported_claim_attribution" for row in result["violations"])

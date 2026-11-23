@@ -13,7 +13,7 @@ enforces the rules below on every import.
 | `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, atomic filesystem & link helpers (`fs`), OOXML builders (`ooxml`), data folders (`home`), agent platform paths (`platforms`) and a read-only view of installs (`installs`). |
 | `core/` | Domain logic that reads no run state: models, run presets, ATS clients and identity, extractors, feeds, rules, decisions, ranking and Markdown rendering. |
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
-| `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`), experience timeline, truthfulness check and the `.docx` writer. |
+| `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`, `ats_target`, `ats_requirements`), experience timeline, truthfulness check and the `.docx` writer. |
 | `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
 | `salary/` | Expected-salary analysis from run postings. |
 | `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, saved searches, review states and maintenance (purge, export). |

@@ -317,3 +317,74 @@ def test_extract_salaries_resolves_period_within_amount_clause():
         ("GBP", "annual", 60000, 60000),
         ("GBP", "monthly", 60000, 60000),
     ]
+
+
+def _salary_capture(body, date, *, run_id=None, location="Spain, Germany"):
+    profiles.install_example()
+    rid = run_id or runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+    folder = runs.run_dir(rid)
+    run = runs.load_run(rid)
+    run["created_at"] = date
+    (folder / "run.json").write_text(json.dumps(run), encoding="utf-8")
+    job = ExtractedJob(
+        title="Senior Engineer", company="Acme", location=location,
+        apply_url="https://boards.greenhouse.io/acme/jobs/123", domain="boards.greenhouse.io", body_text=body,
+    )
+    runs.write_jsonl(folder / "postings.jsonl", [
+        {"identity_key": "greenhouse:acme:123", "job": job.model_dump(mode="json")},
+    ])
+    runs.mark_stage(rid, "fetch")
+    return rid
+
+
+def test_market_comparables_keep_country_basis_and_period_when_band_order_changes():
+    annual_es = "Spain gross base salary: EUR 60,000 - 80,000 per year."
+    annual_de = "Germany gross base salary: EUR 90,000 - 110,000 per year."
+    hourly = "Spain salary: EUR 45 - 65 per hour."
+    unnamed = "Total compensation: EUR 130,000 - 160,000 per year."
+    date = "2026-11-01T12:00:00+00:00"
+    rid = _salary_capture(f"{annual_es}\n{annual_de}\n{hourly}\n{unnamed}", date)
+    first = salary.mine_run_salaries(rid, target_markets=("Spain",))
+    _salary_capture(f"{unnamed}\n{hourly}\n{annual_de}\n{annual_es}", date, run_id=rid)
+    second = salary.mine_run_salaries(rid, target_markets=("España",))
+
+    assert first["comparable_groups"] == second["comparable_groups"]
+    assert first["target_comparable_groups"] == second["target_comparable_groups"]
+    wanted = {row["period"]: row for row in first["target_comparable_groups"]}
+    assert set(wanted) == {"annual", "hourly"}
+    assert wanted["annual"]["count"] == 1
+    assert wanted["annual"]["median"] == 70_000
+    assert wanted["annual"]["gross_or_net"] == "gross"
+    assert wanted["annual"]["compensation_type"] == "base"
+    assert wanted["hourly"]["median"] == 55
+    assert any(row["market"] is None and row["compensation_type"] == "total" for row in first["comparable_groups"])
+
+
+def test_salary_uses_latest_usable_observation_and_excludes_withdrawn_band(monkeypatch):
+    from ultron.salary import observations
+
+    earlier = _salary_capture(
+        "Spain base salary: EUR 60,000 - 80,000 per year.",
+        "2026-11-01T12:00:00+00:00", location="Spain",
+    )
+    later = _salary_capture("Company introduction only.", "2026-11-05T12:00:00+00:00", location="Spain")
+    for order in ([earlier, later], [later, earlier]):
+        monkeypatch.setattr(observations, "_select_runs_for_mining", lambda *args, order=order: order)
+        evidence = salary.mine_run_salaries(target_markets=("Spain",))
+        assert evidence["disclosed_count"] == 1
+        assert evidence["samples"][0]["observed_at"] == "2026-11-01T12:00:00+00:00"
+        assert evidence["samples"][0]["historical"] is True
+
+    _salary_capture(
+        "Spain base salary: EUR 80,000 - 100,000 per year.",
+        "2026-11-05T12:00:00+00:00", run_id=later, location="Spain",
+    )
+    evidence = salary.mine_run_salaries(target_markets=("Spain",))
+    assert evidence["target_comparable_groups"][0]["median"] == 90_000
+    assert evidence["samples"][0]["historical"] is False
+
+    _salary_capture("Salary range has been withdrawn.", "2026-11-05T12:00:00+00:00", run_id=later, location="Spain")
+    evidence = salary.mine_run_salaries(target_markets=("Spain",))
+    assert evidence["disclosed_count"] == 0
+    assert evidence["target_comparable_groups"] == []
+    assert evidence["withdrawals"][0]["market"] == "spain"

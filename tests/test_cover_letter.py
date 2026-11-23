@@ -727,3 +727,72 @@ def test_cover_letter_edge_cases_and_cli_error_paths(tmp_path: Path, monkeypatch
         out_xml = zf.read("word/document.xml").decode("utf-8")
     assert "Para one." in out_xml and "Para two." in out_xml and "{{highlights}}" not in out_xml
 
+
+
+def test_strict_verifiers_preserve_employer_and_outcome_attribution(tmp_path, capsys):
+    source = tmp_path / "source.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2021 - Jan 2022\n"
+        "- Reduced costs by 20%.\nPlatform Engineer | Boreal Labs | Feb 2022 - Feb 2023\n"
+        "- Ran Kubernetes clusters.\n",
+        encoding="utf-8",
+    )
+    for command in ("cv", "cover-letter"):
+        draft = tmp_path / "draft.md"
+        prefix = (
+            "Experience\nPlatform Engineer | Boreal Labs | Feb 2022 - Feb 2023\n"
+            if command == "cv" else ""
+        )
+        bad_claim = "At Boreal Labs, I reduced costs by 20% with Kubernetes."
+        draft.write_text(prefix + bad_claim, encoding="utf-8")
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == 1
+        failed = json.loads(capsys.readouterr().out)
+        issue = next(row for row in failed["violations"] if row["type"] == "unsupported_claim_attribution")
+        assert issue["token"] == bad_claim
+
+        facts = tmp_path / "confirmed.txt"
+        facts.write_text(bad_claim, encoding="utf-8")
+        assert cli.main([*args, "--confirmed", str(facts)]) == 0
+        capsys.readouterr()
+
+        good = "At Atlas Systems, I cut operating expenses by 20%."
+        draft.write_text(good, encoding="utf-8")
+        assert cli.main(args) == 0
+        capsys.readouterr()
+
+
+def test_approximate_years_are_not_certified_as_exact_tenure(tmp_path, capsys):
+    source = tmp_path / "approximate.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | 2022 - 2024\n"
+        "- Built production systems.\nConsultant | Boreal Labs | 2022 - 2024\n",
+        encoding="utf-8",
+    )
+    precise = tmp_path / "precise.txt"
+    precise.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2022 - Dec 2023\n",
+        encoding="utf-8",
+    )
+    ref = "2026-11-24"
+    assert cli.main(["salary", "analyze", "--cv", str(source), "--no-runs", "--as-of", ref]) == 0
+    experience = json.loads(capsys.readouterr().out)["experience"]
+    assert experience["experience_precision"] == "approximate"
+    assert experience["total_months"] == 24
+    assert (experience["minimum_total_months"], experience["maximum_total_months"]) == (14, 36)
+    assert experience["roles"][0]["start_precision"] == "year"
+    assert cli.main(["salary", "analyze", "--cv", str(precise), "--no-runs", "--as-of", ref]) == 0
+    exact = json.loads(capsys.readouterr().out)["experience"]
+    assert exact["experience_precision"] == "month"
+    assert exact["minimum_total_months"] == exact["maximum_total_months"] == 24
+
+    draft = tmp_path / "draft.md"
+    draft.write_text("I have 2 years of engineering experience.", encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict", "--as-of", ref]
+        assert cli.main(args) == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["authorized_experience_month_bounds"] == [14, 36]
+        assert any(row["type"] == "uncertain_experience_duration" for row in result["violations"])

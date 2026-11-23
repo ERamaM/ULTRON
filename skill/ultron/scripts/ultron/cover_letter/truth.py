@@ -82,20 +82,6 @@ def _extract_draft_claim_text(draft_path: Path) -> tuple[str, str]:
     return "\n".join(parts), company
 
 
-def _allowed_months(source_text: str, confirmed: list[str], ref: date) -> tuple[int, dict[str, Any]]:
-    src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
-    allowed = int(src_exp["total_months"])
-    if confirmed:
-        combined_entries = cv_experience.parse_date_ranges_from_lines(
-            cv_truth._work_lines_for_duration(source_text) + confirmed, as_of=ref
-        )
-        merged = cv_experience.merge_intervals(
-            [(e.start_index, e.end_index) for e in combined_entries if not e.is_internship]
-        )
-        allowed = max(allowed, sum((end - start) + 1 for start, end in merged))
-    return allowed, src_exp
-
-
 def _spanned_verified_years(source_text: str, confirmed: list[str], ref: date, roles: list[dict[str, Any]]) -> set[str]:
     spanned: set[str] = {str(ref.year)}
     for role in roles:
@@ -136,8 +122,9 @@ def verify_cover_letter_truth(
     warnings: list[dict[str, Any]] = []
     info: list[dict[str, Any]] = []
 
-    allowed_months, src_exp = _allowed_months(source_text, confirmed, ref)
-    verified_years = round(allowed_months / 12.0, 1)
+    src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
+    bounds = cv_truth.authorized_month_bounds(source_text, confirmed, ref, src_exp)
+    verified_years = round(bounds[0] / 12.0, 1)
 
     auth_years = set(cv_truth._YEAR_RE.findall(authorized_text)) | _spanned_verified_years(
         source_text, confirmed, ref, src_exp.get("roles") or []
@@ -152,16 +139,14 @@ def verify_cover_letter_truth(
         })
 
     draft_exp = cv_experience.analyze_experience(claim_text, as_of=ref)
-    draft_months = int(draft_exp["total_months"])
-    if draft_months > allowed_months + 1:
-        violations.append({
-            "type": "inflated_experience_duration",
-            "severity": "high",
-            "token": f"{draft_months}m vs {allowed_months}m",
-            "message": f"Cover letter implies {draft_months} months of non-internship work vs {allowed_months} verified months.",
-        })
+    cv_truth.check_duration_claim(
+        int(draft_exp["total_months"]), bounds=bounds,
+        approximate=draft_exp["experience_precision"] == "approximate",
+        estimate=int(src_exp["total_months"]), violations=violations,
+    )
 
-    cv_truth._check_metrics(authorized_text, claim_text, verified_years, violations, info)
+    cv_truth._check_metrics(authorized_text, claim_text, bounds, violations, info)
+    cv_truth.check_claim_attribution(source_text, claim_text, confirmed, ref, violations, warnings)
     cv_truth._check_credentials(authorized_text, claim_text, violations)
     cv_truth._check_tech_tokens(tech_authorized_text, claim_text, violations, info)
 
@@ -176,6 +161,8 @@ def verify_cover_letter_truth(
         "target_company": company_note,
         "verified_experience_years": verified_years,
         "source_experience_months": src_exp["total_months"],
+        "experience_precision": src_exp["experience_precision"],
+        "authorized_experience_month_bounds": list(bounds),
         "user_confirmed_used": confirmed,
         "violations": violations,
         "warnings": warnings,

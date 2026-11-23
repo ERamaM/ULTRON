@@ -818,3 +818,39 @@ def test_strict_verifiers_accept_aliases_heading_formats_and_unchanged_current_y
         result = json.loads(capsys.readouterr().out)
         assert result["authorized_experience_month_bounds"] == [3, 3]
         assert result["source_experience_months"] == 3
+
+
+def test_strict_rewrites_keep_separate_metrics_and_authorized_approximate_roles(tmp_path, capsys):
+    head = "Ada Lovelace\nExperience\nEngineer | Atlas Systems"
+    first_role = " | Jan 2020 - Jan 2021\n"
+    second_role = "Consultant | Boreal Labs | 2022 - 2024\n"
+    source = tmp_path / "source.txt"
+    source.write_text(
+        head + " | London" + first_role
+        + "- Reduced costs by 20% using Python.\n- Reduced latency by 30% using SQL.\n",
+        encoding="utf-8",
+    )
+    draft = tmp_path / "draft.txt"
+    draft.write_text(
+        head + first_role + "- Reduced costs by 20% using Python and reduced latency by 30% using SQL.\n"
+        + second_role,
+        encoding="utf-8",
+    )
+    facts = tmp_path / "confirmed.txt"
+    facts.write_text(second_role, encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict",
+                "--as-of", "2026-11-24", "--confirmed", str(facts)]
+        assert cli.main(args) == 0
+        capsys.readouterr()
+
+    source.write_text("Ada Lovelace\nExperience\nEngineer\nJan 2020 - Jan 2021\n- Reduced costs by 20%.\n",
+                      encoding="utf-8")
+    draft.write_text(head + first_role + "- Increased costs by 20%.\n", encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == 1
+        assert any(item["type"] == "unsupported_claim_attribution"
+                   for item in json.loads(capsys.readouterr().out)["violations"])

@@ -335,18 +335,22 @@ def _work_lines_for_duration(text: str) -> list[str]:
     return [line for name, lines in sections.items() if name not in excluded for line in lines]
 
 
-def authorized_month_bounds(source_text: str, confirmed: list[str], ref: date, source: dict) -> tuple[int, int]:
-    """Combine source and explicitly confirmed timelines into conservative duration bounds."""
+def authorized_timeline(
+    source_text: str, confirmed: list[str], ref: date, source: dict,
+) -> tuple[tuple[int, int], int]:
+    """Combine source and confirmed timelines into conservative bounds and a month estimate."""
     minimum, maximum = int(source["minimum_total_months"]), int(source["maximum_total_months"])
+    estimate = int(source["total_months"])
     if not confirmed:
-        return minimum, maximum
+        return (minimum, maximum), estimate
     entries = cv_experience.parse_date_ranges_from_lines(
         _work_lines_for_duration(source_text) + confirmed, as_of=ref,
     )
-    combined_min, combined_max = cv_experience.experience_month_bounds(
-        [entry for entry in entries if not entry.is_internship], as_of=ref,
-    )
-    return max(minimum, combined_min), max(maximum, combined_max)
+    work = [entry for entry in entries if not entry.is_internship]
+    combined_min, combined_max = cv_experience.experience_month_bounds(work, as_of=ref)
+    merged = cv_experience.merge_intervals([(entry.start_index, entry.end_index) for entry in work])
+    combined_estimate = sum(end - start + 1 for start, end in merged)
+    return (max(minimum, combined_min), max(maximum, combined_max)), max(estimate, combined_estimate)
 
 
 def check_duration_claim(
@@ -393,14 +397,13 @@ def _check_years_and_experience(
     src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
     opt_exp = cv_experience.analyze_experience(optimized_text, as_of=ref)
 
-    bounds = authorized_month_bounds(source_text, confirmed, ref, src_exp)
+    bounds, authorized_estimate = authorized_timeline(source_text, confirmed, ref, src_exp)
     opt_months = int(opt_exp["total_months"])
-    estimate = int(src_exp["total_months"])
-    delta = opt_months - estimate
+    delta = opt_months - int(src_exp["total_months"])
     if bounds[0] < bounds[1] or opt_months > bounds[1] + 1:
         check_duration_claim(
             opt_months, bounds=bounds, approximate=opt_exp["experience_precision"] == "approximate",
-            estimate=estimate, violations=violations,
+            estimate=authorized_estimate, violations=violations,
         )
 
     src_work_years = {

@@ -123,7 +123,7 @@ def verify_cover_letter_truth(
     info: list[dict[str, Any]] = []
 
     src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
-    bounds = cv_truth.authorized_month_bounds(source_text, confirmed, ref, src_exp)
+    bounds, authorized_estimate = cv_truth.authorized_timeline(source_text, confirmed, ref, src_exp)
     verified_years = round(bounds[0] / 12.0, 1)
 
     auth_years = set(cv_truth._YEAR_RE.findall(authorized_text)) | _spanned_verified_years(
@@ -142,7 +142,7 @@ def verify_cover_letter_truth(
     cv_truth.check_duration_claim(
         int(draft_exp["total_months"]), bounds=bounds,
         approximate=draft_exp["experience_precision"] == "approximate",
-        estimate=int(src_exp["total_months"]), violations=violations,
+        estimate=authorized_estimate, violations=violations,
     )
 
     cv_truth._check_metrics(authorized_text, claim_text, bounds, violations, info)

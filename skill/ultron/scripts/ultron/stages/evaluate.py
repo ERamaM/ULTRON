@@ -21,7 +21,7 @@ EXCERPT_CHARS = 1500
 GEO_EXCERPT_CHARS = 800
 
 
-_EVIDENCE_BOUNDARY = re.compile(r"\r?\n|(?<=[.!?])(?=[ \t]+[A-Z])")
+_EVIDENCE_BOUNDARY = re.compile(r"\r?\n|(?<=[.!?])[ \t]+(?=[A-Z])")
 _YEARS = r"(?:[0-9]{1,2}\+?|one|two|three|four|five|six|seven|eight|nine|ten|tres|cuatro|cinco|seis)"
 _EVIDENCE_PATTERNS = {
     "Experience": re.compile(rf"\b{_YEARS}[ \t]+(?:years?|anos?)\b|\bequivalent (?:practical )?experience\b"),
@@ -39,8 +39,8 @@ _EVIDENCE_PATTERNS = {
 
 def _evidence_excerpt(body: str) -> tuple[str, bool]:
     evidence: dict[str, list[str]] = {label: [] for label in _EVIDENCE_PATTERNS}
-    for segment in _EVIDENCE_BOUNDARY.split(body):
-        segment = segment.strip()
+    segments = [piece.strip() for piece in _EVIDENCE_BOUNDARY.split(body) if piece.strip()]
+    for segment in segments:
         folded = normalize_text(segment)
         for label, pattern in _EVIDENCE_PATTERNS.items():
             entries = evidence[label]
@@ -61,10 +61,13 @@ def _evidence_excerpt(body: str) -> tuple[str, bool]:
                 remaining -= len(line) + 1
     if not parts:
         return body[:EXCERPT_CHARS], len(body) > EXCERPT_CHARS
-    context = body[:max(0, remaining - len("Context: "))]
-    if context:
-        parts.append(f"Context: {context}")
-    return "\n".join(parts), len(body) > len(context)
+    context = "\n".join(segment for segment in segments if segment not in selected)
+    if len(body) <= EXCERPT_CHARS and len(context) + len("Context: ") > remaining:
+        return body, False
+    bounded_context = context[:max(0, remaining - len("Context: "))]
+    if bounded_context:
+        parts.append(f"Context: {bounded_context}")
+    return "\n".join(parts), len(context) > len(bounded_context)
 
 
 class RecordError(ValueError):

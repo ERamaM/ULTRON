@@ -69,7 +69,10 @@ def test_unattended_coverage_distinguishes_matching_from_reach():
 
     complete = {"seeds_completed": 4, "seeds_partial": 0, "seeds_failed": 0, "seeds_skipped": 0, "candidates": 8}
     failed = {**complete, "seeds_completed": 1, "seeds_failed": 2, "seeds_skipped": 1}
-    stages = {"discover": complete, "fetch": {"fetched": 8}, "filter": {"ambiguous": 2}}
+    stages = {
+        "discover": complete, "fetch": {"fetched": 8}, "filter": {"ambiguous": 2},
+        "discover_feeds": {"sources_ok": 1, "sources_failed": 0, "sources_skipped": 0},
+    }
 
     summary = summarize_coverage(stages, 3, [])
     assert summary["status"] == "completed"
@@ -86,3 +89,8 @@ def test_unattended_coverage_distinguishes_matching_from_reach():
     assert summarize_coverage(stages, 0, [])["status"] == "completed"
     assert summarize_coverage({**stages, "fetch": {"fetched": 0}}, 0, [])["status"] == "nothing_fetched"
     assert summarize_coverage({}, 0, [])["status"] == "unknown"
+    feed_limited = summarize_coverage({
+        **stages, "discover_feeds": {"sources_ok": 0, "sources_failed": 1, "sources_skipped": 2},
+    }, 3, [])
+    assert feed_limited["status"] == "limited"
+    assert feed_limited["feeds"] == {"ok": 0, "failed": 1, "skipped": 2}

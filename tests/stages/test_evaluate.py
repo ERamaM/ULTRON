@@ -183,6 +183,7 @@ def test_pending_prioritizes_decisive_clauses_after_long_introduction(capsys):
         "short": decisive,
         "padded": ("Company overview. " * 200) + "\n" + decisive,
         "no-requirements": "We make scientific instruments.",
+        "long-lead": "You will " + "maintain our platforms " * 35 + ". Mandatory skills: Python and SQL.",
     }
     runs.write_jsonl(path, [
         {**sample, "identity_key": key, "job": {**sample["job"], "body_text": body}}
@@ -199,4 +200,7 @@ def test_pending_prioritizes_decisive_clauses_after_long_introduction(capsys):
         assert len(excerpt) <= 1500
     assert items["padded"]["body_excerpt_truncated"] is True
     assert items["short"]["body_excerpt_truncated"] is False
+    assert items["long-lead"]["body_excerpt"].count("You will") == 1
+    assert "Mandatory skills: Python and SQL." in items["long-lead"]["body_excerpt"]
+    assert items["long-lead"]["body_excerpt_truncated"] is False
     assert items["no-requirements"]["body_excerpt"] == bodies["no-requirements"]

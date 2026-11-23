@@ -425,6 +425,7 @@ def test_offline_audit_finds_older_recorded_vacancy_after_latest_capture_is_remo
     "SQL or Python is required. Tableau is desirable. Our company uses Redis. Docker is not required.",
     "SQL o Python es obligatorio. Tableau es deseable. Nuestra empresa usa Redis. Docker no es obligatorio.",
     "Requirements:\n\nSQL or Python\n\nPreferred:\nTableau\nCompany:\nRedis and Docker",
+    "## Requirements\nSQL or Python\nPreferred\nTableau\n## Company\nRedis and Docker",
 ])
 def test_audit_prioritizes_requirements_and_preserves_alternatives(tmp_path, capsys, posting):
     job = tmp_path / "posting.txt"
@@ -448,3 +449,15 @@ def test_audit_prioritizes_requirements_and_preserves_alternatives(tmp_path, cap
     assert any(row["category"] == "unspecified" and row["alternatives"] == ["Docker"] for row in evidence)
     assert any(row["category"] == "unspecified" and row["alternatives"] == ["Redis"] for row in evidence)
     assert "Required · matched" in Path(sql["report_path"]).read_text(encoding="utf-8")
+
+
+def test_audit_resolves_or_with_overlapping_term_matches(tmp_path, capsys):
+    job = tmp_path / "posting.txt"
+    job.write_text("Power BI or Tableau is required.", encoding="utf-8")
+    cv = tmp_path / "tableau.txt"
+    cv.write_text("Ada Lovelace\nSkills\nTableau\n", encoding="utf-8")
+    assert cli.main(["cv", "audit", str(cv), "--job-file", str(job)]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["subscores"]["target_alignment"] == 20
+    (criterion,) = output["keyword_alignment"]["criteria"]
+    assert criterion["alternatives"] == ["Power BI", "Tableau"]

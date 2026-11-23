@@ -17,11 +17,19 @@ _PREFERRED = re.compile(
 _NEGATED = re.compile(r"\b(?:not|no)\b")
 _ALTERNATIVE = re.compile(r"\b(?:or|o)\b")
 _CONJUNCTION = re.compile(r"\b(?:and|y)\b|,")
+_SECTION_HEADINGS = {
+    "requirements", "minimum requirements", "required qualifications", "essential skills", "requisitos",
+    "requisitos minimos", "requisitos obligatorios", "preferred", "preferred qualifications", "nice to have",
+    "deseables", "requisitos deseables", "company", "about us", "about the role", "responsibilities",
+    "empresa", "sobre nosotros", "responsabilidades", "benefits", "beneficios",
+}
 
 
 def _category(text: str, heading: str) -> str:
     required = bool(_REQUIRED.search(text))
     preferred = bool(_PREFERRED.search(text))
+    if text in {"preferred qualifications", "requisitos deseables"}:
+        return "preferred"
     if (required and preferred) or (_NEGATED.search(text) and (required or preferred or heading != "unspecified")):
         return "unspecified"
     if required:
@@ -31,11 +39,18 @@ def _category(text: str, heading: str) -> str:
     return heading
 
 
+def _specific_terms(option: str, terms: list[str]) -> tuple[str, ...]:
+    hits = [term for term in terms if contains_term(option, term)]
+    return tuple(term for term in hits if not any(
+        len(other) > len(term) and contains_term(other, term) for other in hits
+    ))
+
+
 def _groups(clause: str, terms: list[str]) -> list[tuple[str, ...]]:
     groups = []
     for segment in _CONJUNCTION.split(clause):
         options = _ALTERNATIVE.split(segment)
-        hits = [tuple(term for term in terms if contains_term(option, term)) for option in options]
+        hits = [_specific_terms(option, terms) for option in options]
         if len(hits) > 1 and all(len(hit) == 1 for hit in hits):
             groups.append(tuple(dict.fromkeys(hit[0] for hit in hits)))
         else:
@@ -51,8 +66,9 @@ def classify_requirements(body: str, terms: list[str]) -> list[dict]:
         if not line.strip():
             continue
         stripped = line.strip()
-        if stripped.endswith(":") and len(stripped) <= 80:
-            heading = _category(normalize_text(stripped), "unspecified")
+        section = normalize_text(stripped.strip("#* :"))
+        if len(stripped) <= 80 and (stripped.endswith(":") or section in _SECTION_HEADINGS):
+            heading = _category(section, "unspecified")
             continue
         for fragment in _BOUNDARY.split(stripped):
             clause = normalize_text(fragment)

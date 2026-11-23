@@ -91,10 +91,12 @@ _LANGUAGE_NAME = (
 )
 _APPLICATION_INSTRUCTION = re.compile(
     rf"\b{_APPLICATION_DOCUMENT}(?:[ \t]+(?:must be|should be|debe estar|deber[aá] estar))?"
-    rf"[ \t]+(?:in|en|em|auf)[ \t]+(?P<first>{_LANGUAGE_NAME})\b"
-    rf"(?:[ \t]+(?:or|o|ou|oder|and|y|et|e|und)[ \t]+(?P<second>{_LANGUAGE_NAME})\b)?",
+    rf"[ \t]+(?:in|en|em|auf)[ \t]+(?P<languages>(?:{_LANGUAGE_NAME})\b"
+    rf"(?:[ \t]{{0,5}}(?:,|/|\b(?:or|o|ou|oder|and|y|et|e|und)\b)[ \t]{{0,5}}"
+    rf"(?:{_LANGUAGE_NAME})\b){{0,5}})",
     re.IGNORECASE,
 )
+_LANGUAGE_TOKEN = re.compile(rf"\b(?:{_LANGUAGE_NAME})\b", re.IGNORECASE)
 _LANGUAGE_CODES = {
     "english": "en", "ingles": "en", "anglais": "en", "englisch": "en", "inglese": "en",
     "spanish": "es", "espanol": "es", "german": "de", "deutsch": "de", "aleman": "de",
@@ -107,9 +109,7 @@ def _application_language(body: str) -> dict[str, Any]:
     evidence = []
     languages = set()
     for match in _APPLICATION_INSTRUCTION.finditer(body):
-        for name in (match["first"], match["second"]):
-            if name:
-                languages.add(_LANGUAGE_CODES[normalize_text(name)])
+        languages.update(_LANGUAGE_CODES[normalize_text(name)] for name in _LANGUAGE_TOKEN.findall(match["languages"]))
         if len(evidence) < 4:
             evidence.append(str(redact(match[0])))
     return {

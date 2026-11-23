@@ -156,7 +156,8 @@ def _find_local_job(job_arg: str, *, run_id: str | None = None) -> dict[str, Any
         )
         recent = [item["run_id"] for item in available if item.get("run_id") and "fetch" in (item.get("stages_done") or [])][:6]
         known = set(candidate_runs) | set(recent)
-        candidate_runs = [item["run_id"] for item in available if item.get("run_id") in known]
+        creation = {item["run_id"]: item.get("created_at") or "" for item in available if item.get("run_id")}
+        candidate_runs = sorted(known, key=lambda rid: (rid[:15], creation.get(rid, ""), rid), reverse=True)
 
     for rid in candidate_runs:
         folder = runs.run_dir(rid)

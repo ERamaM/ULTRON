@@ -49,7 +49,6 @@ def classify_requirements(body: str, terms: list[str]) -> list[dict]:
     heading = "unspecified"
     for line in body.splitlines():
         if not line.strip():
-            heading = "unspecified"
             continue
         stripped = line.strip()
         if stripped.endswith(":") and len(stripped) <= 80:

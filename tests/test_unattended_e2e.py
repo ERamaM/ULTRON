@@ -94,3 +94,8 @@ def test_unattended_coverage_distinguishes_matching_from_reach():
     }, 3, [])
     assert feed_limited["status"] == "limited"
     assert feed_limited["feeds"] == {"ok": 0, "failed": 1, "skipped": 2}
+    verification_limited = summarize_coverage({
+        **stages, "feed_companies": {"verification_budget_exhausted": True, "deferred_count": 1},
+    }, 3, [])
+    assert verification_limited["limits"] == ["feed_verification_budget"]
+    assert verification_limited["status"] == "limited"

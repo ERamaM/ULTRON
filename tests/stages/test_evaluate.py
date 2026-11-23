@@ -183,6 +183,8 @@ def test_pending_prioritizes_decisive_clauses_after_long_introduction(capsys):
         "short": decisive,
         "padded": ("Company overview. " * 200) + "\n" + decisive,
         "no-requirements": "We make scientific instruments.",
+        "qualified": "Introduction. " * 400 + "\nPreferred qualifications:\n" + clause
+        + "\nThis position is\nnot\nremote.",
         "long-lead": "You will " + "maintain our platforms " * 35 + ". Mandatory skills: Python and SQL.",
     }
     runs.write_jsonl(path, [
@@ -204,3 +206,6 @@ def test_pending_prioritizes_decisive_clauses_after_long_introduction(capsys):
     assert "Mandatory skills: Python and SQL." in items["long-lead"]["body_excerpt"]
     assert items["long-lead"]["body_excerpt_truncated"] is False
     assert items["no-requirements"]["body_excerpt"] == bodies["no-requirements"]
+    qualified = items["qualified"]["body_excerpt"]
+    assert f"Experience: Preferred qualifications:\n{clause}" in qualified
+    assert "Work policy: This position is\nnot\nremote." in qualified

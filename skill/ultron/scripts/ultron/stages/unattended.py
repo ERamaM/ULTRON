@@ -29,6 +29,7 @@ def verify_feed_companies(run_id: str) -> dict:
     verified = []
     unconfirmed_seeds = []
     tried = 0
+    verification_budget_exhausted = False
     page_hops = seeds.PageHops()
     for row in rows:
         tried += 1
@@ -40,9 +41,8 @@ def verify_feed_companies(run_id: str) -> dict:
             verified.append(seeds.as_feed_company(result.seed))
         elif (unconfirmed := seeds.stored_seed(result)) is not None:
             unconfirmed_seeds.append(unconfirmed)  # tagged guessed board, low priority (seed_yield decides)
-            if result.reason == "budget_exhausted":
-                break
-        elif result.reason == "budget_exhausted":
+        if result.reason == "budget_exhausted":
+            verification_budget_exhausted = True
             break
     added = 0
     if verified or unconfirmed_seeds:
@@ -50,7 +50,11 @@ def verify_feed_companies(run_id: str) -> dict:
             added = seeds.add_seeds([*verified, *unconfirmed_seeds], profile_slug=run["profile_slug"])
         except seeds.SeedFileError:
             added = 0
-    return {"tried": tried, "verified": len(verified), "unconfirmed": len(unconfirmed_seeds), "seeds_added": added}
+    return {
+        "tried": tried, "verified": len(verified), "unconfirmed": len(unconfirmed_seeds), "seeds_added": added,
+        "verification_budget_exhausted": verification_budget_exhausted,
+        "deferred_count": len(rows) - tried + 1 if verification_budget_exhausted else 0,
+    }
 
 
 def summarize_coverage(stages: dict, roles: int, board_observations: list[dict]) -> dict:
@@ -71,7 +75,7 @@ def summarize_coverage(stages: dict, roles: int, board_observations: list[dict])
     }
     if fetch_summary.get("capped"):
         limits.add("max_pages_limit")
-    if stages.get("feed_companies", {}).get("deferred"):
+    if stages.get("feed_companies", {}).get("verification_budget_exhausted"):
         limits.add("feed_verification_budget")
     if fetch_summary.get("stopped"):
         limits.add(fetch_summary["stopped"])

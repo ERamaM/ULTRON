@@ -37,9 +37,26 @@ _EVIDENCE_PATTERNS = {
 }
 
 
+_CONTINUED = re.compile(r"\b(?:not|no|is|are|be|must|should|for|en|es|son|ser)\s*$")
+
+
+def _clause_segments(body: str) -> list[str]:
+    segments: list[str] = []
+    for raw in _EVIDENCE_BOUNDARY.split(body):
+        fragment = raw.strip()
+        if not fragment:
+            continue
+        previous = segments[-1] if segments else ""
+        if previous and (previous.endswith(":") or _CONTINUED.search(normalize_text(previous))):
+            segments[-1] = f"{previous}\n{fragment}"
+        else:
+            segments.append(fragment)
+    return segments
+
+
 def _evidence_excerpt(body: str) -> tuple[str, bool]:
     evidence: dict[str, list[str]] = {label: [] for label in _EVIDENCE_PATTERNS}
-    segments = [piece.strip() for piece in _EVIDENCE_BOUNDARY.split(body) if piece.strip()]
+    segments = _clause_segments(body)
     for segment in segments:
         folded = normalize_text(segment)
         for label, pattern in _EVIDENCE_PATTERNS.items():

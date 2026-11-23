@@ -153,7 +153,9 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
         _record_search_result(conn, "tuesday", 3, slug, [])
         _record_search_result(conn, "wednesday", 4, slug, [], search_id=search_id)
         _record_search_result(conn, "thursday", 5, slug, [posting], search_id=search_id)
-        _record_search_result(conn, "friday", 6, slug, [posting], search_id=search_id)
+        _record_search_result(conn, "friday", 6, slug, [posting.model_copy(update={"match_score": 81})],
+                              search_id=search_id)
+        _record_search_result(conn, "saturday", 7, "management", [posting.model_copy(update={"match_score": 27})])
 
     def call(*args):
         assert main(list(args)) == 0
@@ -168,6 +170,9 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
         (job,) = call("jobs", "list", "--profile", profile_slug)["jobs"]
         assert (job["feedback_scope"], job["feedback_relevance"]) == ("profile", relevance)
         assert job["review_state"] == "applied"
+        assert job["profile_slug"] == profile_slug
+        assert job["match_score"] == (81 if profile_slug == slug else 27)
+        assert job["last_seen_run_id"] == ("friday" if profile_slug == slug else "saturday")
         assert job["unscoped_feedback_relevance"] == "uncertain"
     assert call("jobs", "list")["jobs"][0]["feedback_scope"] == "unscoped"
     assert call("jobs", "list", "--new", "--profile", slug)["count"] == 0
@@ -185,3 +190,40 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
     assert call("jobs", "new-since", "tuesday")["count"] == 0
     assert main(["jobs", "new-since", "monday", "--saved-search", "daily"]) != 0
     assert "selected search scope" in capsys.readouterr().out
+
+
+def test_cleaning_run_artifacts_preserves_novelty_and_scoped_labels(capsys):
+    from contextlib import closing
+
+    from ultron.core.models import FinalRow
+    from ultron.storage import ledger, review
+
+    profiles.install_example()
+    slug = profiles.EXAMPLE_SLUG
+    saved.create("daily", slug)
+    search_id = ledger.saved_search_identity("daily", saved.get("daily")["created_at"])
+    old = runs.new_run(slug, "balanced")
+    newer = runs.new_run(slug, "balanced")
+    vacancy = FinalRow(title="Engineer", company="Acme", apply_url="https://boards.greenhouse.io/acme/jobs/15",
+                       location="Spain", remote_policy="remote_eu", eligibility="confirmed",
+                       eligibility_evidence="Spain", fit_signals=[], freshness="")
+    with closing(ledger.connect()) as conn:
+        _record_search_result(conn, old, 1, slug, [vacancy], search_id=search_id)
+
+    assert main(["data", "delete-run", old, "--yes"]) == 0
+    capsys.readouterr()
+    assert not runs.run_dir(old).exists()
+
+    with closing(ledger.connect()) as conn:
+        _record_search_result(conn, newer, 2, slug, [vacancy], search_id=search_id)
+        assert ledger.new_keys_in_saved_search(conn, newer) == set()
+        assert conn.execute("SELECT 1 FROM runs WHERE run_id = ?", (old,)).fetchone() is None
+    assert main(["jobs", "new-since", old, "--saved-search", "daily"]) == 0
+    assert json.loads(capsys.readouterr().out)["count"] == 0
+
+    key = review.set_feedback(vacancy.apply_url, "relevant", profile=slug)
+    with closing(ledger.connect()) as conn:
+        ledger.record_occurrences(conn, old, [])
+        ledger.record_occurrences(conn, newer, [])
+        assert conn.execute("SELECT times_seen FROM jobs WHERE identity_key = ?", (key,)).fetchone() == (0,)
+    assert review.set_feedback(key, "uncertain", profile=slug) == key

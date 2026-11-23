@@ -209,9 +209,16 @@ def _apply_v5(conn: sqlite3.Connection) -> None:
 
 
 def _apply_search_scope(conn: sqlite3.Connection) -> None:
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
-    if "saved_search_id" not in columns:
-        conn.execute("ALTER TABLE runs ADD COLUMN saved_search_id TEXT")
+    conn.execute("""CREATE TABLE IF NOT EXISTS run_scopes (
+        run_id TEXT PRIMARY KEY,
+        profile_slug TEXT NOT NULL,
+        saved_search_id TEXT,
+        created_at TEXT
+    )""")
+    conn.execute(
+        "INSERT OR IGNORE INTO run_scopes (run_id, profile_slug, created_at)"
+        " SELECT run_id, profile_slug, created_at FROM runs"
+    )
     conn.execute("""CREATE TABLE IF NOT EXISTS profile_job_feedback (
         identity_key TEXT NOT NULL REFERENCES jobs(identity_key),
         profile_slug TEXT NOT NULL,
@@ -221,8 +228,8 @@ def _apply_search_scope(conn: sqlite3.Connection) -> None:
         labeled_at TEXT NOT NULL,
         PRIMARY KEY (identity_key, profile_slug)
     )""")
-    conn.execute("CREATE INDEX IF NOT EXISTS runs_saved_search ON runs(saved_search_id, created_at)")
-    conn.execute("CREATE INDEX IF NOT EXISTS runs_profile ON runs(profile_slug, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS runs_saved_search ON run_scopes(saved_search_id, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS runs_profile ON run_scopes(profile_slug, created_at)")
 
 
 def migrate(conn: sqlite3.Connection) -> int:
@@ -291,6 +298,13 @@ _JOB_DETAILS = (
 _SET_DETAILS = ", ".join(f"{column} = ?" for column in _JOB_DETAILS)
 
 
+def occurrence_details(payload: str | None) -> dict:
+    """Decode a vacancy occurrence snapshot using its original field order."""
+    if not payload:
+        return {}
+    return dict(zip(_JOB_DETAILS, json.loads(payload), strict=False))
+
+
 def _remove_occurrence(conn: sqlite3.Connection, run_id: str, key: str) -> None:
     conn.execute("DELETE FROM job_occurrences WHERE run_id = ? AND identity_key = ?", (run_id, key))
     first = conn.execute(
@@ -320,8 +334,9 @@ def _remove_occurrence(conn: sqlite3.Connection, run_id: str, key: str) -> None:
     conn.execute(
         "DELETE FROM jobs WHERE identity_key = ? AND times_seen = 0 AND review_state = 'unreviewed'"
         " AND review_changed_at IS NULL AND notes = ''"
-        " AND NOT EXISTS (SELECT 1 FROM job_feedback WHERE identity_key = ?)",
-        (key, key),
+        " AND NOT EXISTS (SELECT 1 FROM job_feedback WHERE identity_key = ?)"
+        " AND NOT EXISTS (SELECT 1 FROM profile_job_feedback WHERE identity_key = ?)",
+        (key, key, key),
     )
 
 
@@ -393,16 +408,24 @@ def _record_run(
     saved_search_id: str | None = None,
 ) -> None:
     conn.execute(
-        "INSERT INTO runs (run_id, profile_slug, preset, created_at, finished_at, roles_kept,"
-        " discard_counts_json, saved_search_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO runs (run_id, profile_slug, preset, created_at, finished_at, roles_kept, discard_counts_json)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)"
         " ON CONFLICT(run_id) DO UPDATE SET profile_slug = excluded.profile_slug, preset = excluded.preset,"
         " created_at = excluded.created_at, finished_at = excluded.finished_at,"
-        " roles_kept = excluded.roles_kept, discard_counts_json = excluded.discard_counts_json,"
-        " saved_search_id = COALESCE(excluded.saved_search_id, runs.saved_search_id)",
+        " roles_kept = excluded.roles_kept, discard_counts_json = excluded.discard_counts_json",
         (
             run_id, profile_slug, preset, summary.started_at.isoformat(), summary.ended_at.isoformat(),
-            summary.roles_kept, json.dumps(summary.discard_counts, ensure_ascii=False), saved_search_id,
+            summary.roles_kept, json.dumps(summary.discard_counts, ensure_ascii=False),
         ),
+    )
+
+
+    conn.execute(
+        "INSERT INTO run_scopes (run_id, profile_slug, saved_search_id, created_at) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT(run_id) DO UPDATE SET profile_slug = excluded.profile_slug,"
+        " saved_search_id = COALESCE(excluded.saved_search_id, run_scopes.saved_search_id),"
+        " created_at = excluded.created_at",
+        (run_id, profile_slug, saved_search_id, summary.started_at.isoformat()),
     )
 
 
@@ -439,9 +462,9 @@ def saved_search_identity(name: str, created_at: str) -> str:
 def new_keys_in_saved_search(conn: sqlite3.Connection, run_id: str) -> set[str]:
     """Return vacancy identities making their first appearance in this saved search."""
     return {row[0] for row in conn.execute(
-        "SELECT o.identity_key FROM job_occurrences o JOIN runs current ON current.run_id = o.run_id"
+        "SELECT o.identity_key FROM job_occurrences o JOIN run_scopes current ON current.run_id = o.run_id"
         " WHERE o.run_id = ? AND current.saved_search_id IS NOT NULL AND NOT EXISTS ("
-        " SELECT 1 FROM job_occurrences older JOIN runs prior ON prior.run_id = older.run_id"
+        " SELECT 1 FROM job_occurrences older JOIN run_scopes prior ON prior.run_id = older.run_id"
         " WHERE older.identity_key = o.identity_key AND prior.saved_search_id = current.saved_search_id"
         " AND (prior.created_at, prior.run_id) < (current.created_at, current.run_id))",
         (run_id,),

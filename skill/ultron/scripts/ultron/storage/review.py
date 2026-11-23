@@ -78,7 +78,7 @@ def _resolve_scope(conn, profile: str | None, saved_search: str | None, baseline
     scope = {"kind": "saved_search", "saved_search": saved_search, "profile": slug}
     if baseline:
         provenance = conn.execute(
-            "SELECT profile_slug, saved_search_id FROM runs WHERE run_id = ?", (baseline,),
+            "SELECT profile_slug, saved_search_id FROM run_scopes WHERE run_id = ?", (baseline,),
         ).fetchone()
         if provenance == (slug, None):
             return "profile_slug", slug, {"kind": "profile", "profile": slug, "requested_search": saved_search}
@@ -95,7 +95,7 @@ def _scoped_rows(
     params = [value, scope["profile"]]
     if since_run:
         baseline = conn.execute(
-            f"SELECT created_at FROM runs WHERE run_id = ? AND {column} = ?", (since_run, value),
+            f"SELECT created_at FROM run_scopes WHERE run_id = ? AND {column} = ?", (since_run, value),
         ).fetchone()
         if baseline is None or baseline[0] is None:
             raise ValueError("baseline run is unavailable in the selected search scope")
@@ -109,15 +109,18 @@ def _scoped_rows(
         params.append(state)
     sql = (
         "WITH scoped_runs AS (SELECT run_id, created_at || '|' || run_id AS run_order"
-        f" FROM runs WHERE {column} = ? AND created_at IS NOT NULL),"
+        f" FROM run_scopes WHERE {column} = ? AND created_at IS NOT NULL),"
         " sightings AS (SELECT o.identity_key, MIN(r.run_order) AS first_run, MAX(r.run_order) AS last_run"
         " FROM scoped_runs r JOIN job_occurrences o USING (run_id) GROUP BY o.identity_key)"
-        " SELECT j.*, s.first_run AS scoped_first_seen, s.last_run AS scoped_last_seen,"
+        " SELECT j.*, scoped.details_json AS scoped_details, s.first_run AS scoped_first_seen,"
+        " s.last_run AS scoped_last_seen,"
         " COALESCE(p.relevance, f.relevance) AS feedback_relevance,"
         " COALESCE(p.reason_code, f.reason_code) AS feedback_reason,"
         " CASE WHEN p.relevance IS NOT NULL THEN 'profile' WHEN f.relevance IS NOT NULL THEN 'unscoped' END"
         " AS feedback_scope, f.relevance AS unscoped_feedback_relevance"
         " FROM sightings s JOIN jobs j USING (identity_key)"
+        " JOIN scoped_runs latest ON latest.run_order = s.last_run"
+        " JOIN job_occurrences scoped ON scoped.run_id = latest.run_id AND scoped.identity_key = j.identity_key"
         " LEFT JOIN profile_job_feedback p ON p.identity_key = j.identity_key AND p.profile_slug = ?"
         " LEFT JOIN job_feedback f ON f.identity_key = j.identity_key WHERE 1 = 1"
         f"{condition} ORDER BY s.last_run DESC, j.identity_key"
@@ -125,7 +128,18 @@ def _scoped_rows(
     if limit is not None:
         sql += " LIMIT ?"
         params.append(max(0, limit))
-    return _rows(conn, sql, tuple(params)), scope
+    found = _rows(conn, sql, tuple(params))
+    for row in found:
+        detail = ledger.occurrence_details(row.pop("scoped_details"))
+        for field in ("title", "company", "location", "canonical_url", "source_type", "source_key"):
+            if field in detail:
+                row[field] = detail[field]
+        row["match_score"] = detail.get("match_score")
+        row["match_band"] = detail.get("match_band")
+        row["profile_slug"] = detail.get("profile_slug", scope["profile"])
+        row["first_seen"], row["first_seen_run_id"] = row.pop("scoped_first_seen").split("|", 1)
+        row["last_seen"], row["last_seen_run_id"] = row.pop("scoped_last_seen").split("|", 1)
+    return found, scope
 
 
 def list_scoped_jobs(

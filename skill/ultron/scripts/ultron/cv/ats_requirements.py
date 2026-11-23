@@ -40,7 +40,11 @@ def _category(text: str, heading: str) -> str:
 
 
 def _specific_terms(option: str, terms: list[str]) -> tuple[str, ...]:
-    hits = [term for term in terms if contains_term(option, term)]
+    hits = [
+        term for term in terms
+        if contains_term(option, term) and _category(normalize_text(term), "unspecified") == "unspecified"
+        and ":" not in term
+    ]
     return tuple(term for term in hits if not any(
         len(other) > len(term) and contains_term(other, term) for other in hits
     ))
@@ -70,13 +74,16 @@ def classify_requirements(body: str, terms: list[str]) -> list[dict]:
         if len(stripped) <= 80 and (stripped.endswith(":") or section in _SECTION_HEADINGS):
             heading = _category(section, "unspecified")
             continue
-        for fragment in _BOUNDARY.split(stripped):
-            clause = normalize_text(fragment)
-            category = _category(clause, heading)
-            for group in _groups(clause, terms):
-                found.setdefault((category, group), {
-                    "category": category,
-                    "alternatives": list(group),
-                    "evidence": str(redact(fragment.strip()[:500])),
-                })
+        for segment in _BOUNDARY.split(stripped):
+            normalized = normalize_text(segment)
+            fragments = segment.split(",") if _REQUIRED.search(normalized) and _PREFERRED.search(normalized) else [segment]
+            for fragment in fragments:
+                clause = normalize_text(fragment)
+                category = _category(clause, heading)
+                for group in _groups(clause, terms):
+                    found.setdefault((category, group), {
+                        "category": category,
+                        "alternatives": list(group),
+                        "evidence": str(redact(fragment.strip()[:500])),
+                    })
     return list(found.values())

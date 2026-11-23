@@ -733,6 +733,8 @@ def test_cover_letter_edge_cases_and_cli_error_paths(tmp_path: Path, monkeypatch
     ("Envía tu candidatura en inglés.", None, "en", "application_instruction", False, False),
     ("Envía tu candidatura en inglés.", "es", "es", "override", True, False),
     ("No envíes tu candidatura en inglés.", None, "es", "auto_detected", False, False),
+    ("No obstante, envía tu candidatura en inglés.", None, "en", "application_instruction", False, False),
+    ("No experience is required, submit your application in English.", None, "en", "application_instruction", False, False),
     ("No envíes tu candidatura en inglés.", "en", "en", "override", True, False),
     ("Requisitos: hablar inglés con fluidez.", None, "es", "auto_detected", False, False),
     ("Envía tu candidatura en inglés. Submit your application in Spanish.",

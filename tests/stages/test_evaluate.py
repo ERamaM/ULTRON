@@ -168,3 +168,35 @@ def test_pending_and_finalize_include_kept_outside_ambiguity_queue(tmp_path, cap
     assert (result["pending"], result["pending_ambiguous"]) == (1, 0)
     assert main(["finalize", "--run", run_id]) == 0
     assert json.loads(capsys.readouterr().out)["heuristic_fallback"] == 1
+
+
+def test_pending_prioritizes_decisive_clauses_after_long_introduction(capsys):
+    run_id = _filtered(capsys)
+    path = runs.run_dir(run_id) / "ambiguous.jsonl"
+    sample = runs.read_jsonl(path)[0]
+    clause = "Five years preferred, or equivalent practical experience."
+    decisive = (
+        f"You will deploy production models.\n{clause}\n"
+        "This role is not hybrid.\nApplicants must reside in Spain."
+    )
+    bodies = {
+        "short": decisive,
+        "padded": ("Company overview. " * 200) + "\n" + decisive,
+        "no-requirements": "We make scientific instruments.",
+    }
+    runs.write_jsonl(path, [
+        {**sample, "identity_key": key, "job": {**sample["job"], "body_text": body}}
+        for key, body in bodies.items()
+    ])
+    assert main(["evaluate", "pending", "--run", run_id]) == 0
+    items = {row["identity_key"]: row for row in json.loads(capsys.readouterr().out)["items"]}
+    for key in ("short", "padded"):
+        excerpt = items[key]["body_excerpt"]
+        assert f"Experience: {clause}" in excerpt
+        assert "Work policy: This role is not hybrid." in excerpt
+        assert "Eligibility: Applicants must reside in Spain." in excerpt
+        assert "Responsibilities: You will deploy production models." in excerpt
+        assert len(excerpt) <= 1500
+    assert items["padded"]["body_excerpt_truncated"] is True
+    assert items["short"]["body_excerpt_truncated"] is False
+    assert items["no-requirements"]["body_excerpt"] == bodies["no-requirements"]

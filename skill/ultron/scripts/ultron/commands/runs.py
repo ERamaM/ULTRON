@@ -73,7 +73,9 @@ def _runs_list(args: argparse.Namespace) -> int:
 
 def _runs_show(args: argparse.Namespace) -> int:
     try:
-        emit({"run": runs.load_run(args.run_id)})
+        run = runs.load_run(args.run_id)
+        run.setdefault("coverage", {"status": "unknown"})
+        emit({"run": run})
     except runs.RunNotFoundError as exc:
         return fail("run_not_found", str(exc))
     return 0

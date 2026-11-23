@@ -98,6 +98,13 @@ def load_run(run_id: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def record_coverage(run_id: str, coverage: dict) -> None:
+    """Persist the coverage recorded by an unattended search."""
+    run = load_run(run_id)
+    run["coverage"] = coverage
+    _write_run(run_id, run)
+
+
 def list_runs() -> list[dict]:
     """List recorded runs ordered newest first."""
     out = []

@@ -162,7 +162,7 @@ def test_discover_records_attempted_seeds_and_reads_yields(pack_dir):
     )
     with closing(ledger.connect()) as conn, conn:
         conn.executemany(
-            "INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES (?, 'lever:dead', ?, 0)",
+            "INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept, outcome) VALUES (?, 'lever:dead', ?, 0, 'completed')",
             [(SLUG, f"old{i}") for i in range(5)],
         )
     run_id = runs.new_run(SLUG, "balanced")
@@ -202,7 +202,7 @@ def _ats_run(capsys, attempts: list[str] | None):
         }
     runs.write_jsonl(d / "postings.jsonl", rows)
     if attempts is not None:
-        runs.write_jsonl(d / SEED_ATTEMPTS_FILE, [{"seed_key": key} for key in attempts])
+        runs.write_jsonl(d / SEED_ATTEMPTS_FILE, [{"seed_key": key, "status": "completed"} for key in attempts])
     assert main(["filter", "--run", run_id]) == 0
     capsys.readouterr()
     return run_id
@@ -246,3 +246,24 @@ def test_backup_and_restore_keep_seed_yields(capsys):
         conn.execute("DELETE FROM seed_yield_runs")
     maintenance.restore(target, yes=True)
     assert _yields() == {"lever:ghost": (1, 0)}
+
+
+def test_only_completed_board_observations_can_lower_yield(capsys):
+    run_id = _ats_run(capsys, [])
+    path = runs.run_dir(run_id) / SEED_ATTEMPTS_FILE
+    runs.write_jsonl(path, [
+        {"seed_key": "greenhouse:example", "status": "partial", "reason": "page_limit"},
+        {"seed_key": "lever:success", "status": "completed"},
+        {"seed_key": "lever:timeout", "status": "failed"},
+        {"seed_key": "lever:budget", "status": "skipped"},
+        {"seed_key": "lever:legacy"},
+    ])
+    for _ in range(2):
+        assert main(["finalize", "--run", run_id]) == 0
+        capsys.readouterr()
+    assert _yields() == {"greenhouse:example": (1, 1), "lever:success": (1, 0)}
+    with closing(ledger.connect()) as conn:
+        assert dict(conn.execute("SELECT seed_key, outcome FROM seed_yield_runs")) == {
+            "greenhouse:example": "partial", "lever:success": "completed", "lever:timeout": "failed",
+            "lever:budget": "skipped", "lever:legacy": "unknown",
+        }

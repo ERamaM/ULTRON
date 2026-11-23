@@ -11,262 +11,18 @@ from __future__ import annotations
 import itertools
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 
 from ultron.core.rules.term_matching import contains_term, normalize_text
-
-# Canonical section headings mapped from accent-folded lowercase labels.
-_SECTION_SYNONYMS: dict[str, tuple[str, ...]] = {
-    "experience": (
-        "experience",
-        "work experience",
-        "professional experience",
-        "relevant experience",
-        "employment",
-        "employment history",
-        "work history",
-        "career history",
-        "positions held",
-        "experiencia",
-        "experiencia laboral",
-        "experiencia profesional",
-        "trayectoria profesional",
-        "historial laboral",
-        "experience professionnelle",
-        "experiences professionnelles",
-        "parcours professionnel",
-        "berufserfahrung",
-        "beruflicher werdegang",
-        "berufspraxis",
-        "tatigkeiten",
-        "taetigkeiten",
-        "experiencia profissional",
-        "historico profissional",
-        "esperienza",
-        "esperienza lavorativa",
-        "esperienza professionale",
-    ),
-    "education": (
-        "education",
-        "academic background",
-        "education and training",
-        "academics",
-        "qualifications",
-        "formacion",
-        "educacion",
-        "formacion academica",
-        "estudios",
-        "formation",
-        "formations",
-        "etudes",
-        "ausbildung",
-        "studium",
-        "bildungsweg",
-        "formacao",
-        "formacao academica",
-        "educacao",
-        "formazione",
-        "istruzione",
-    ),
-    "skills": (
-        "skills",
-        "technical skills",
-        "core skills",
-        "key skills",
-        "competencies",
-        "core competencies",
-        "technologies",
-        "tech stack",
-        "tools and technologies",
-        "habilidades",
-        "habilidades tecnicas",
-        "competencias",
-        "competencias tecnicas",
-        "aptitudes",
-        "competences",
-        "competences techniques",
-        "connaissances",
-        "fahigkeiten",
-        "faehigkeiten",
-        "kenntnisse",
-        "kompetenzen",
-        "competenze",
-        "competenze tecniche",
-    ),
-    "summary": (
-        "summary",
-        "professional summary",
-        "executive summary",
-        "profile",
-        "professional profile",
-        "about",
-        "about me",
-        "objective",
-        "career objective",
-        "resumen",
-        "resumen profesional",
-        "perfil",
-        "perfil profesional",
-        "sobre mi",
-        "objetivo",
-        "profil",
-        "a propos",
-        "kurzprofil",
-        "uber mich",
-        "ueber mich",
-        "resumo",
-        "resumo profissional",
-        "profilo",
-        "profilo professionale",
-    ),
-    "projects": (
-        "projects",
-        "key projects",
-        "selected projects",
-        "personal projects",
-        "proyectos",
-        "proyectos destacados",
-        "projets",
-        "projekte",
-        "projetos",
-        "progetti",
-    ),
-    "certifications": (
-        "certifications",
-        "certificates",
-        "licenses",
-        "licenses and certifications",
-        "certifications and licenses",
-        "courses and certifications",
-        "certificaciones",
-        "certificados",
-        "licencias y certificaciones",
-        "zertifikate",
-        "zertifizierungen",
-        "certificacoes",
-        "certificazioni",
-    ),
-    "languages": (
-        "languages",
-        "spoken languages",
-        "idiomas",
-        "lenguas",
-        "langues",
-        "sprachen",
-        "lingue",
-    ),
-    "publications": (
-        "publications",
-        "papers",
-        "research",
-        "research and publications",
-        "publicaciones",
-        "publikationen",
-        "publicacoes",
-        "pubblicazioni",
-    ),
-}
+from ultron.cv.experience_terms import MONTH_MAP, PRESENT_TOKENS, SECTION_SYNONYMS
 
 _HEADING_MAP: dict[str, str] = {
-    phrase: section for section, phrases in _SECTION_SYNONYMS.items() for phrase in phrases
+    phrase: section for section, phrases in SECTION_SYNONYMS.items() for phrase in phrases
 }
 
-_MONTH_MAP: dict[str, int] = {
-    # English
-    "jan": 1, "january": 1,
-    "feb": 2, "february": 2,
-    "mar": 3, "march": 3,
-    "apr": 4, "april": 4,
-    "may": 5,
-    "jun": 6, "june": 6,
-    "jul": 7, "july": 7,
-    "aug": 8, "august": 8,
-    "sep": 9, "sept": 9, "september": 9,
-    "oct": 10, "october": 10,
-    "nov": 11, "november": 11,
-    "dec": 12, "december": 12,
-    # Spanish
-    "ene": 1, "enero": 1,
-    "febrero": 2,
-    "marzo": 3,
-    "abr": 4, "abril": 4,
-    "mayo": 5,
-    "junio": 6,
-    "julio": 7,
-    "ago": 8, "agosto": 8,
-    "septiembre": 9, "setiembre": 9,
-    "octubre": 10,
-    "noviembre": 11,
-    "dic": 12, "diciembre": 12,
-    # French
-    "janv": 1, "janvier": 1,
-    "fev": 2, "fevr": 2, "fevrier": 2,
-    "mars": 3,
-    "avr": 4, "avril": 4,
-    "mai": 5,
-    "juin": 6,
-    "juil": 7, "juillet": 7,
-    "aout": 8,
-    "septembre": 9,
-    "octobre": 10,
-    "novembre": 11,
-    "decembre": 12,
-    # German
-    "januar": 1, "jaenner": 1, "janner": 1,
-    "februar": 2,
-    "maerz": 3, "marz": 3, "mrz": 3,
-    "juni": 6,
-    "juli": 7,
-    "okt": 10, "oktober": 10,
-    "dez": 12, "dezember": 12,
-    # Portuguese
-    "janeiro": 1,
-    "fevereiro": 2,
-    "marco": 3,
-    "maio": 5,
-    "junho": 6,
-    "julho": 7,
-    "set": 9, "setembro": 9,
-    "out": 10, "outubro": 10,
-    "dezembro": 12,
-    # Italian
-    "gen": 1, "gennaio": 1,
-    "febbraio": 2,
-    "aprile": 4,
-    "mag": 5, "maggio": 5,
-    "giu": 6, "giugno": 6,
-    "lug": 7, "luglio": 7,
-    "settembre": 9,
-    "ott": 10, "ottobre": 10,
-    "dicembre": 12,
-}
-
-_PRESENT_TOKENS = (
-    "present",
-    "presente",
-    "current",
-    "currently",
-    "now",
-    "today",
-    "ongoing",
-    "actualidad",
-    "actual",
-    "hoy",
-    "heute",
-    "aktuell",
-    "derzeit",
-    "actuel",
-    "actuellement",
-    "atual",
-    "atualmente",
-    "oggi",
-    "corrente",
-    "in corso",
-)
-
-_MONTH_ALT = "|".join(sorted(_MONTH_MAP, key=len, reverse=True))
-_PRESENT_ALT = "|".join(sorted(_PRESENT_TOKENS, key=len, reverse=True))
+_MONTH_ALT = "|".join(sorted(MONTH_MAP, key=len, reverse=True))
+_PRESENT_ALT = "|".join(sorted(PRESENT_TOKENS, key=len, reverse=True))
 _YEAR = r"(?:19|20)\d{2}"
 _START_ENDPOINT = (
     rf"(?:(?:{_MONTH_ALT})\.?(?:\s+de)?\s+{_YEAR}"
@@ -430,6 +186,7 @@ class ExperienceEntry:
     line_index: int
     date_text: str
     start_line_index: int | None = None
+    display_start: YearMonth | None = None
     display_end: YearMonth | None = None
     matches_profile: bool | None = None
 
@@ -571,7 +328,7 @@ def _parse_endpoint(token: str, *, is_end: bool, as_of: date) -> tuple[YearMonth
         return YearMonth(as_of.year, as_of.month, year_only=False), True
     max_year = as_of.year + 1
     if match := _MONTH_YEAR_RE.fullmatch(norm):
-        year, mon = int(match.group("year")), _MONTH_MAP[match.group("mon")]
+        year, mon = int(match.group("year")), MONTH_MAP[match.group("mon")]
         return (YearMonth(year, mon) if _MIN_YEAR <= year <= max_year else None), False
     if match := _ISO_YM_RE.fullmatch(norm):
         year, mon = int(match.group("year")), int(match.group("mon"))
@@ -746,6 +503,7 @@ def parse_date_ranges_from_lines(
                     line_index=idx,
                     date_text=date_text,
                     start_line_index=start_line_index,
+                    display_start=start_raw,
                     display_end=end_raw,
                 )
             )
@@ -770,6 +528,35 @@ def merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 def _merged_months(intervals: list[tuple[int, int]]) -> int:
     return sum((end - start) + 1 for start, end in merge_intervals(intervals))
+
+
+def _uncertain_endpoint(endpoint: YearMonth, *, latest: bool) -> int:
+    if not endpoint.year_only:
+        return endpoint.index
+    return YearMonth(endpoint.year, 12 if latest else 1).index
+
+
+def _entry_bounds(entry: ExperienceEntry, as_of: date) -> tuple[tuple[int, int], tuple[int, int]]:
+    first, last = entry.display_start or entry.start, entry.display_end or entry.end
+    cap = YearMonth(as_of.year, as_of.month).index
+    earliest_start = _uncertain_endpoint(first, latest=False)
+    latest_start = min(cap, _uncertain_endpoint(first, latest=True))
+    earliest_end = _uncertain_endpoint(last, latest=False)
+    latest_end = min(cap, _uncertain_endpoint(last, latest=True)) if last.year_only else last.index
+    return (latest_start, earliest_end), (earliest_start, latest_end)
+
+
+def experience_month_bounds(entries: list[ExperienceEntry], *, as_of: date) -> tuple[int, int]:
+    """Return conservative guaranteed and possible elapsed months, merging concurrent roles."""
+    certain = []
+    possible = []
+    for entry in entries:
+        minimum, maximum = _entry_bounds(entry, as_of)
+        if minimum[0] <= minimum[1]:
+            certain.append(minimum)
+        if maximum[0] <= maximum[1]:
+            possible.append(maximum)
+    return _merged_months(certain), _merged_months(possible)
 
 
 def _career_gaps_months(intervals: list[tuple[int, int]], *, min_gap_months: int = 4) -> int:
@@ -921,27 +708,21 @@ def analyze_experience(
             if has_profile
             else None
         )
-        enriched.append(
-            ExperienceEntry(
-                title_hint=entry.title_hint,
-                start=entry.start,
-                end=entry.end,
-                is_present=entry.is_present,
-                months=entry.months,
-                is_internship=entry.is_internship,
-                line_index=entry.line_index,
-                date_text=entry.date_text,
-                start_line_index=entry.start_line_index,
-                display_end=entry.display_end,
-                matches_profile=matches,
-            )
-        )
+        enriched.append(replace(entry, matches_profile=matches))
 
     work_intervals = [(e.start_index, e.end_index) for e in enriched if not e.is_internship]
     intern_intervals = [(e.start_index, e.end_index) for e in enriched if e.is_internship]
     all_intervals = [(e.start_index, e.end_index) for e in enriched]
 
+    work_entries = [entry for entry in enriched if not entry.is_internship]
+    precision = "approximate" if any(
+        (entry.display_start or entry.start).year_only or (entry.display_end or entry.end).year_only
+        for entry in work_entries
+    ) else "month"
+    minimum_months, maximum_months = experience_month_bounds(work_entries, as_of=ref)
     total_months = _merged_months(work_intervals)
+    if precision == "approximate":
+        warnings.append("approximate_experience_dates")
     intern_months = _merged_months(intern_intervals)
     combined_months = _merged_months(all_intervals)
     total_years = round(total_months / 12.0, 1)
@@ -968,6 +749,9 @@ def analyze_experience(
         "as_of": ref.isoformat(),
         "total_months": total_months,
         "total_years": total_years,
+        "experience_precision": precision,
+        "minimum_total_months": minimum_months,
+        "maximum_total_months": maximum_months,
         "internship_months": intern_months,
         "total_months_including_internships": combined_months,
         "relevant_months": relevant_months,
@@ -983,7 +767,9 @@ def analyze_experience(
         "roles": [
             {
                 "title_hint": e.title_hint,
-                "start": e.start.label(),
+                "start": (e.display_start or e.start).label(),
+                "start_precision": "year" if (e.display_start or e.start).year_only else "month",
+                "end_precision": "year" if (e.display_end or e.end).year_only else "month",
                 "end": "present" if e.is_present else (e.display_end or e.end).label(),
                 "months": e.months,
                 "is_internship": e.is_internship,

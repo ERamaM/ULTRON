@@ -201,11 +201,12 @@ def render_audit_markdown(audit: dict[str, Any]) -> str:
         lines.append(f"- Target keyword alignment: {audit['subscores']['target_alignment']}/20")
 
     exp = audit.get("experience") or {}
+    approximation = "approximately " if exp.get("experience_precision") == "approximate" else ""
     lines.extend([
         "",
         "## Parsed Experience Summary",
         "",
-        f"- Total non-internship work experience: **{exp.get('total_years', 0.0)} years** ({exp.get('total_months', 0)} months)",
+        f"- Total non-internship work experience: **{approximation}{exp.get('total_years', 0.0)} years** ({exp.get('total_months', 0)} months)",
         f"- Internship experience (separated): {exp.get('internship_months', 0)} months",
         f"- Inferred seniority band: `{exp.get('inferred_seniority_band', 'unknown')}`",
         f"- Chronology: `{exp.get('chronology_order', 'unknown')}`",

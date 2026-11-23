@@ -30,4 +30,5 @@ def parse(page: JobRawPage, ats_hints: dict[str, str] | None = None) -> Extracte
         published = clean_text(date.get("content"))
         if published:
             updates["posting_date"] = published
+            updates["posting_date_verified"] = True
     return parsed.model_copy(update=updates) if updates else parsed

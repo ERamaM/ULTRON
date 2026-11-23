@@ -28,7 +28,8 @@ def test_finalize_xlsx_real_path(capsys):
     results = json.loads((d / "results.json").read_text(encoding="utf-8"))
     n_disc = len(runs.read_jsonl(d / "discarded.jsonl")) + len(runs.read_jsonl(d / "finalize_discards.jsonl"))
     wb = load_workbook(d / "results.xlsx")
-    assert wb.sheetnames == ["Summary", f"Roles ({len(results['rows'])})", f"Discards ({n_disc})"]
+    assert wb.sheetnames == ["Summary", f"Roles ({len(results['rows'])})", f"Discards ({n_disc})", "Vacancy Dates"]
+    assert wb["Vacancy Dates"]["E2"].value == results["rows"][0]["first_seen"]
     assert len(results["rows"]) >= 1
     assert wb[wb.sheetnames[1]].max_row == len(results["rows"]) + 1
 

@@ -190,6 +190,9 @@ def finalize(run_id: str) -> dict:
             seed_kept=_seed_kept(out_dir, ranked),
         )
 
+        first_seen = ledger.first_observations(conn, run_id)
+    for row in ranked:
+        row.first_seen = first_seen.get(_row_key(row))
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
     # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.
     payload = json.loads(Path(js).read_text(encoding="utf-8"))

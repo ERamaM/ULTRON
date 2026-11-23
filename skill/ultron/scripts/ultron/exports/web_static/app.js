@@ -673,6 +673,14 @@
         `Score: ${job.match_score ?? "—"} · First seen: ${formatDate(job.first_seen)} · Last seen: ${formatDate(job.last_seen)} · Seen ${job.times_seen}x`
       )
     );
+    const vacancyDates = [
+      ["Published", job.published_at],
+      ["Updated", job.updated_at],
+      ["Unverified source date", job.unverified_date],
+    ].filter(([, value]) => value);
+    for (const [label, value] of vacancyDates) {
+      metaSec.appendChild(el("p", "job-org", label + ": " + value));
+    }
     metaSec.appendChild(createExternalLink(job.canonical_url, "Open job posting ↗", "btn btn-primary"));
     body.appendChild(metaSec);
 

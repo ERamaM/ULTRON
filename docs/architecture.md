@@ -15,7 +15,7 @@ enforces the rules below on every import.
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`), experience timeline, truthfulness check and the `.docx` writer. |
 | `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
-| `salary/` | Expected-salary analysis from run postings. |
+| `salary/` | Salary estimation (estimator), disclosure extraction (disclosure), and run-local market observations (observations). |
 | `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, saved searches, review states and maintenance (purge, export). |
 | `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |
 | `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize), the unattended run and the per-run HTTP client factory. |

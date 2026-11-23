@@ -461,3 +461,16 @@ def test_audit_resolves_or_with_overlapping_term_matches(tmp_path, capsys):
     assert output["subscores"]["target_alignment"] == 20
     (criterion,) = output["keyword_alignment"]["criteria"]
     assert criterion["alternatives"] == ["Power BI", "Tableau"]
+
+
+@pytest.mark.parametrize(("description", "skill", "expected"), [
+    ("Required skills: Python", "Python", 20),
+    ("SQL required, Python preferred. Tableau is desirable.", "Tableau", 4),
+])
+def test_audit_keeps_independent_requirements(description, skill, expected, tmp_path, capsys):
+    job = tmp_path / "posting.txt"
+    job.write_text(description, encoding="utf-8")
+    cv = tmp_path / "cv.txt"
+    cv.write_text(f"Ada Lovelace\nSkills\n{skill}\n", encoding="utf-8")
+    assert cli.main(["cv", "audit", str(cv), "--job-file", str(job)]) == 0
+    assert json.loads(capsys.readouterr().out)["subscores"]["target_alignment"] == expected

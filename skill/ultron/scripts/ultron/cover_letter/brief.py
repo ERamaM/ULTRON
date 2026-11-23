@@ -105,9 +105,11 @@ _LANGUAGE_CODES = {
 }
 
 
-_INSTRUCTION_BOUNDARY = re.compile(r"[.!?;\r\n]")
+_INSTRUCTION_BOUNDARY = re.compile(r"[.!?;,\r\n]")
 _NEGATED_INSTRUCTION = re.compile(
-    r"\b(?:no|do not|don't|must not|should not|ne pas|nicht|nao)\b[^.!?;\r\n]{0,100}$"
+    r"\b(?:no|do not|don.t|must not|should not|ne pas|nicht|nao)"
+    r"(?:[ \t]+(?:submit|send|write|accept|envies|enviar|mandes|envoie|schicken|envie))?"
+    r"(?:[ \t]+(?:your|an?|the|tu|su|una|la|votre|sua))?[ \t]*$"
 )
 _NEGATED_ACCEPTANCE = re.compile(r"^\s+(?:(?:is|are|will be)\s+)?not (?:accepted|allowed)\b")
 

@@ -26,6 +26,41 @@ _DIRECTIONS = {
     "decrease": re.compile(r"\b(?:reduc\w{0,8}|cut|lower\w{0,5}|decreas\w{0,5}|ahorr\w{0,5}|disminu\w{0,5})\b"),
     "increase": re.compile(r"\b(?:increas\w{0,5}|grew|grow\w{0,5}|rais\w{0,5}|aument\w{0,5}|creci\w{0,5})\b"),
 }
+SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
+    ("ml", "machine learning"),
+    ("ai", "artificial intelligence"),
+    ("nlp", "natural language processing"),
+    ("llm", "large language model"),
+    ("llms", "large language models"),
+    ("rag", "retrieval augmented generation"),
+    ("rag", "retrieval-augmented generation"),
+    ("k8s", "kubernetes"),
+    ("ci/cd", "continuous integration"),
+    ("js", "javascript"),
+    ("ts", "typescript"),
+    ("sql", "structured query language"),
+    ("etl", "extract transform load"),
+    ("elt", "extract load transform"),
+    ("aws", "amazon web services"),
+    ("gcp", "google cloud platform"),
+    ("api", "application programming interface"),
+    ("rest", "representational state transfer"),
+    ("oop", "object oriented programming"),
+    ("oop", "object-oriented programming"),
+    ("tdd", "test driven development"),
+    ("tdd", "test-driven development"),
+    ("bi", "business intelligence"),
+    ("qa", "quality assurance"),
+    ("ui", "user interface"),
+    ("ux", "user experience"),
+    ("db", "database"),
+    ("dl", "deep learning"),
+)
+
+_CANONICAL_METHODS = {
+    **{normalize_text(term): normalize_text(term) for term in KNOWN_SKILL_TERMS},
+    **{term: short for short, full in SAFE_EXPANSION_PAIRS for term in (short, full)},
+}
 Metrics = Callable[[str], Iterable[str]]
 
 
@@ -58,7 +93,7 @@ def _blocks(text: str, ref: date) -> list[tuple[ClaimScope, str]]:
         line for name, lines in sections.items() if name != "experience" for line in lines
     ))]
     for index, entry in enumerate(entries):
-        parts = [normalize_text(part) for part in _ROLE_SEPARATOR.split(entry.title_hint) if part.strip()]
+        parts = [normalize_text(part.strip()) for part in _ROLE_SEPARATOR.split(entry.title_hint) if part.strip()]
         scope = ClaimScope(parts[-1], parts[0]) if len(parts) >= 2 else ClaimScope()
         end = entries[index + 1].heading_line_index if index + 1 < len(entries) else len(work)
         out.append((scope, "\n".join(work[entry.line_index + 1:end])))
@@ -87,7 +122,8 @@ def _claims(blocks: list[tuple[ClaimScope, str]], employers: set[str], metrics: 
                 sentence.strip(), scope,
                 {name for name, pattern in _OUTCOMES.items() if pattern.search(text)},
                 {name for name, pattern in _DIRECTIONS.items() if pattern.search(text)},
-                {term for term in KNOWN_SKILL_TERMS if causal and contains_term(text[causal.end():], term)},
+                {canonical for term, canonical in _CANONICAL_METHODS.items()
+                 if causal and contains_term(text[causal.end():], term)},
             )
             for key in metric_keys:
                 found.setdefault(key, []).append(claim)

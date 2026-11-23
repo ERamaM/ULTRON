@@ -796,3 +796,25 @@ def test_approximate_years_are_not_certified_as_exact_tenure(tmp_path, capsys):
         result = json.loads(capsys.readouterr().out)
         assert result["authorized_experience_month_bounds"] == [14, 36]
         assert any(row["type"] == "uncertain_experience_duration" for row in result["violations"])
+
+
+def test_strict_verifiers_accept_aliases_heading_formats_and_unchanged_current_year(tmp_path, capsys):
+    source = tmp_path / "source.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Nov 2025 - 2026\n"
+        "- Reduced costs by 20% using k8s.\n",
+        encoding="utf-8",
+    )
+    draft = tmp_path / "draft.txt"
+    draft.write_text(
+        "Ada Lovelace\nExperience\nEngineer at Atlas Systems | Nov 2025 - 2026\n"
+        "- Reduced costs by 20% using Kubernetes.\n",
+        encoding="utf-8",
+    )
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict", "--as-of", "2026-01-01"]
+        assert cli.main(args) == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["authorized_experience_month_bounds"] == [3, 3]
+        assert result["source_experience_months"] == 3

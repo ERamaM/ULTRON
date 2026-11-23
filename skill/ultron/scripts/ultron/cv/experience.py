@@ -363,6 +363,8 @@ def _resolve_interval(start: YearMonth, end: YearMonth, *, is_present: bool, as_
     elif end.year_only:
         end_month = 12 if end.year > start.year else 6
         end = YearMonth(end.year, end_month, year_only=True)
+    if end.year_only and end.year == as_of.year and end.month > as_of.month:
+        end = YearMonth(end.year, as_of.month, year_only=True)
     if end.index < start.index:
         return None
     return start, end

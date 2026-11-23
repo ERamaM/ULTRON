@@ -80,7 +80,10 @@ def register(subparsers) -> None:
     scope.add_argument("--profile")
     scope.add_argument("--saved-search")
     p.add_argument("--since-run")
-    p.add_argument("--new", action="store_true", help="only jobs seen in a single run")
+    p.add_argument(
+        "--new", action="store_true",
+        help="scoped first appearances since the baseline or in the latest run, otherwise globally seen once",
+    )
     p.add_argument("--limit", type=int, default=50)
     p.set_defaults(func=_list)
     p = sub.add_parser("mark", help="set a review state")

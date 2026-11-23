@@ -6,6 +6,7 @@ import functools
 import html as html_lib
 import json
 import re
+from datetime import datetime
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import yaml
@@ -319,6 +320,21 @@ def _workday_cxs_detail_url(url: str) -> str | None:
     return f"https://{host}/wday/cxs/{tenant}/{site}/{rest}"
 
 
+def _workday_publication(info: dict, job: ExtractedJob) -> tuple[str | None, bool]:
+    if job.posting_date and job.posting_date_verified:
+        return job.posting_date, True
+    posted = str(info.get("postedOn") or "").strip()
+    start = str(info.get("startDate") or "").strip()
+    for value in (posted, start):
+        if value:
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                continue
+            return value, True
+    return job.posting_date or posted or start or None, False
+
+
 def _workday_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> tuple[ExtractedJob, bool]:
     body = (job.body_text or "").strip()
     if len(body) >= _SPA_BODY_MIN_CHARS:
@@ -339,14 +355,15 @@ def _workday_api_enrich(candidate: CandidateUrl, job: ExtractedJob, client) -> t
     remote_type = str(info.get("remoteType") or "").strip()
     location = str(info.get("location") or candidate.ats_location or job.location).strip()
     company = candidate.ats_company or job.company
+    posting_date, verified = _workday_publication(info, job)
     return job.model_copy(update={
         "title": clean_text(info.get("title") or candidate.ats_title or job.title),
         "company": clean_text(company),
         "location": clean_text(location),
         "remote_text": clean_text(f"{remote_type} {location}".strip() if remote_type else job.remote_text),
         "body_text": desc,
-        "posting_date": str(info.get("postedOn") or job.posting_date or info.get("startDate") or "").strip() or None,
-        "posting_date_verified": bool(info.get("postedOn")) or job.posting_date_verified,
+        "posting_date": posting_date,
+        "posting_date_verified": verified,
     }), True
 
 

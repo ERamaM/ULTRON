@@ -388,3 +388,23 @@ def test_salary_uses_latest_usable_observation_and_excludes_withdrawn_band(monke
     assert evidence["disclosed_count"] == 0
     assert evidence["target_comparable_groups"] == []
     assert evidence["withdrawals"][0]["market"] == "spain"
+
+
+def test_salary_prefers_disclosure_market_and_scopes_withdrawals_to_their_clause():
+    date = "2026-11-10T12:00:00+00:00"
+    rid = _salary_capture(
+        "Base salary for US locations: $150k - $190k/year. "
+        "Spain .NET developer gross base salary: EUR 60,000 - 80,000 per year. "
+        "Germany salary range has been withdrawn.",
+        date,
+        location="Spain",
+    )
+    comps = salary.mine_run_salaries(rid, target_markets=("Spain",))
+    (spanish,) = comps["target_comparable_groups"]
+    assert (spanish["currency"], spanish["median"], spanish["gross_or_net"]) == ("EUR", 70_000, "gross")
+    assert [withdrawal["market"] for withdrawal in comps["withdrawals"]] == ["germany"]
+    us_comps = salary.mine_run_salaries(rid, target_markets=("Remote US",))
+    (us,) = us_comps["target_comparable_groups"]
+    assert (us["market"], us["currency"], us["median"]) == ("united states", "USD", 170_000)
+    hits = salary.extract_salaries_from_text("Spain .NET developer base salary: EUR 60,000 - 80,000 per year.")
+    assert hits[0]["gross_or_net"] is None

@@ -336,7 +336,7 @@ _MARKET_PATTERN = re.compile(
 _BASE_PAY = re.compile(r"\b(?:base (?:salary|pay)|salario base|sueldo base)\b")
 _TOTAL_PAY = re.compile(r"\b(?:total compensation|total pay|compensacion total|retribucion total|ote)\b")
 _GROSS = re.compile(r"\b(?:gross|brut[oa])\b")
-_NET = re.compile(r"\b(?:net|net[oa])\b")
+_NET = re.compile(r"(?<![.\w])(?:net|net[oa])\b")
 
 
 def salary_markets(text: str) -> set[str]:
@@ -407,6 +407,7 @@ def _build_salary_hit(
         "annual_high": annual_high,
         "annual_mid": round((annual_low + annual_high) / 2),
         "geo_hint": detect_geo_hint(window),
+        "clause_geo_hint": detect_geo_hint(clause),
         **_disclosure_context(folded_clause),
         "snippet": str(redact(snippet)),
         "span": (match.start(), match.end()),

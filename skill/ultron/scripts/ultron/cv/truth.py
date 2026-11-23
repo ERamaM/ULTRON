@@ -20,7 +20,7 @@ from ultron.cv import ats as cv_ats
 from ultron.cv import ats_target
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
-from ultron.cv.claim_attribution import verify_claim_attribution
+from ultron.cv.claim_attribution import SAFE_EXPANSION_PAIRS, verify_claim_attribution
 
 _YEAR_RE = re.compile(r"\b(19[6-9]\d|20[0-3]\d)\b")
 _PHONE_LINE_RE = re.compile(
@@ -101,36 +101,7 @@ _NON_TECH_ACRONYMS = frozenset({
     "USD", "EUR", "GBP", "CHF", "JPY", "INR", "CAD", "AUD",
 })
 
-_SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
-    ("ml", "machine learning"),
-    ("ai", "artificial intelligence"),
-    ("nlp", "natural language processing"),
-    ("llm", "large language model"),
-    ("llms", "large language models"),
-    ("rag", "retrieval augmented generation"),
-    ("rag", "retrieval-augmented generation"),
-    ("k8s", "kubernetes"),
-    ("ci/cd", "continuous integration"),
-    ("js", "javascript"),
-    ("ts", "typescript"),
-    ("sql", "structured query language"),
-    ("etl", "extract transform load"),
-    ("elt", "extract load transform"),
-    ("aws", "amazon web services"),
-    ("gcp", "google cloud platform"),
-    ("api", "application programming interface"),
-    ("rest", "representational state transfer"),
-    ("oop", "object oriented programming"),
-    ("oop", "object-oriented programming"),
-    ("tdd", "test driven development"),
-    ("tdd", "test-driven development"),
-    ("bi", "business intelligence"),
-    ("qa", "quality assurance"),
-    ("ui", "user interface"),
-    ("ux", "user experience"),
-    ("db", "database"),
-    ("dl", "deep learning"),
-)
+
 
 _ACRONYM_RE = re.compile(r"\b[A-Z][A-Z0-9/+.#-]{1,6}\b")
 
@@ -331,7 +302,7 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
         elif contains_term(body, term):
             record(term)
 
-    for left, right in _SAFE_EXPANSION_PAIRS:
+    for left, right in SAFE_EXPANSION_PAIRS:
         for term in (left, right):
             if contains_term(body, term):
                 record(term)
@@ -348,7 +319,7 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
 
 def _safe_expansion_partner(token_key: str, authorized_text: str) -> str | None:
     norm_auth = normalize_text(authorized_text)
-    for left, right in _SAFE_EXPANSION_PAIRS:
+    for left, right in SAFE_EXPANSION_PAIRS:
         if token_key == left and contains_term(norm_auth, right):
             return right
         if token_key == right and contains_term(norm_auth, left):

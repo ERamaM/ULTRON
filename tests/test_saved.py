@@ -61,12 +61,14 @@ def test_overrides_applied():
 def test_run_unattended_writes_digest():
     _setup_network()
     saved.create("daily", profiles.EXAMPLE_SLUG)
+    initial = main(["run", "--unattended", "--profile", profiles.EXAMPLE_SLUG])
+    assert initial == 0
     first = saved.run("daily", unattended=True)
     digest = (runs.run_dir(first["run_id"]) / "digest.md").read_text(encoding="utf-8")
     assert first["new_roles"] >= 1 and first["digest"].endswith("digest.md")
     rows = json.loads((runs.run_dir(first["run_id"]) / "results.json").read_text(encoding="utf-8"))["rows"]
     for r in rows:
-        assert (r["title"] in digest) == bool(r["is_new"])
+        assert (r["title"] in digest) == bool(r["is_new_in_saved_search"])
     second = saved.run("daily", unattended=True)
     assert second["new_roles"] == 0
     digest2 = (runs.run_dir(second["run_id"]) / "digest.md").read_text(encoding="utf-8")
@@ -119,3 +121,67 @@ def test_cli_rejects_bad_override_value(capsys):
     profiles.install_example()
     assert main(["saved-search", "create", "e", "--profile", profiles.EXAMPLE_SLUG, "--override", "max_roles=abc"]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "invalid_value"
+
+
+def _record_search_result(conn, run_id, day, profile, rows, *, search_id=None):
+    from datetime import UTC, datetime
+
+    from ultron.core.models import RunSummary
+    from ultron.storage import ledger
+
+    timestamp = datetime(2026, 11, day, tzinfo=UTC)
+    summary = RunSummary(run_id=run_id, started_at=timestamp, ended_at=timestamp, ats_pages_opened=len(rows),
+                         roles_kept=len(rows), discard_counts={}, full_query_log=[])
+    ledger.record_finalized_run(conn, summary, rows, profile_slug=profile, preset="balanced", saved_search_id=search_id)
+
+
+def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
+    from contextlib import closing
+
+    from ultron.core.models import FinalRow
+    from ultron.storage import ledger
+
+    posting = FinalRow(title="Engineer", company="Acme", apply_url="https://boards.greenhouse.io/acme/jobs/12",
+                       location="Spain", remote_policy="remote_eu", eligibility="confirmed",
+                       eligibility_evidence="Spain", fit_signals=[], freshness="")
+    profiles.install_example()
+    saved.create("daily", profiles.EXAMPLE_SLUG)
+    search_id = ledger.saved_search_identity("daily", saved.get("daily")["created_at"])
+    slug = profiles.EXAMPLE_SLUG
+    with closing(ledger.connect()) as conn:
+        _record_search_result(conn, "monday", 2, "management", [posting])
+        _record_search_result(conn, "tuesday", 3, slug, [])
+        _record_search_result(conn, "wednesday", 4, slug, [], search_id=search_id)
+        _record_search_result(conn, "thursday", 5, slug, [posting], search_id=search_id)
+        _record_search_result(conn, "friday", 6, slug, [posting], search_id=search_id)
+
+    def call(*args):
+        assert main(list(args)) == 0
+        return json.loads(capsys.readouterr().out)
+
+    url = posting.apply_url
+    call("jobs", "feedback", url, "uncertain")
+    call("jobs", "feedback", url, "relevant", "--profile", slug)
+    call("jobs", "feedback", url, "not_relevant", "--profile", "management")
+    call("jobs", "mark", url, "applied")
+    for profile_slug, relevance in ((slug, "relevant"), ("management", "not_relevant")):
+        (job,) = call("jobs", "list", "--profile", profile_slug)["jobs"]
+        assert (job["feedback_scope"], job["feedback_relevance"]) == ("profile", relevance)
+        assert job["review_state"] == "applied"
+        assert job["unscoped_feedback_relevance"] == "uncertain"
+    assert call("jobs", "list")["jobs"][0]["feedback_scope"] == "unscoped"
+    assert call("jobs", "list", "--new", "--profile", slug)["count"] == 0
+
+    scoped = call("jobs", "list", "--new", "--since-run", "tuesday", "--profile", slug)
+    assert scoped["count"] == 1
+    assert scoped["scope"] == {"kind": "profile", "profile": slug}
+    legacy = call("jobs", "new-since", "tuesday", "--saved-search", "daily")
+    assert legacy["count"] == 1
+    assert legacy["scope"]["kind"] == "profile"
+    assert legacy["scope"]["requested_search"] == "daily"
+    actual = call("jobs", "new-since", "wednesday", "--saved-search", "daily")
+    assert actual["scope"]["kind"] == "saved_search" and actual["count"] == 1
+    assert call("jobs", "new-since", "thursday", "--saved-search", "daily")["count"] == 0
+    assert call("jobs", "new-since", "tuesday")["count"] == 0
+    assert main(["jobs", "new-since", "monday", "--saved-search", "daily"]) != 0
+    assert "selected search scope" in capsys.readouterr().out

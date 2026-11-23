@@ -67,7 +67,9 @@ def _write_run(run_id: str, data: dict) -> None:
     _atomic_write(run_dir(run_id) / "run.json", json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> str:
+def new_run(
+    profile_slug: str, preset: str, overrides: dict | None = None, *, saved_search_id: str | None = None,
+) -> str:
     """Create a new run folder with resolved preset settings and return its run ID."""
     settings = presets.resolve(preset)
     if overrides:
@@ -86,6 +88,7 @@ def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> st
         "profile_snapshot": snapshot,
         "stages_done": [],
         "created_at": now.isoformat(),
+        **({"saved_search_id": saved_search_id} if saved_search_id is not None else {}),
     })
     return run_id
 

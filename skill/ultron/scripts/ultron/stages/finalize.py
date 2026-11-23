@@ -187,14 +187,18 @@ def finalize(run_id: str) -> dict:
     with closing(ledger.connect()) as conn:
         is_new = ledger.record_finalized_run(
             conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"],
-            seed_kept=_seed_kept(out_dir, ranked),
+            seed_kept=_seed_kept(out_dir, ranked), saved_search_id=run.get("saved_search_id"),
         )
 
+        new_to_search = ledger.new_keys_in_saved_search(conn, run_id) if run.get("saved_search_id") else None
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
     # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.
     payload = json.loads(Path(js).read_text(encoding="utf-8"))
     for row, data in zip(ranked, payload["rows"], strict=True):
-        data["is_new"] = is_new[_row_key(row)]
+        key = _row_key(row)
+        data["is_new"] = is_new[key]
+        if new_to_search is not None:
+            data["is_new_in_saved_search"] = key in new_to_search
     Path(js).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     finalize_discards = out_dir / "finalize_discards.jsonl"

@@ -72,14 +72,38 @@ _US = "united states"
 _UK = "united kingdom"
 
 
+_REGION_MARKETS = {"us": _US, "uk": _UK, "eu": "eu"}
+_CLAUSES = re.compile(r"[;\r\n]|(?<=[.!?])[ \t]+(?=[A-Z])")
+
+
+def _location_markets(text: str) -> set[str]:
+    named = salary_markets(text)
+    broad = _REGION_MARKETS.get(detect_geo_hint(text, is_location_field=True))
+    return named or ({broad} if broad else set())
+
+
 def _market(hit: dict, location: str) -> str | None:
-    named = hit["markets"] or sorted(salary_markets(location))
+    explicit = hit["markets"]
+    if explicit:
+        return explicit[0] if len(explicit) == 1 else None
+    clause_market = _REGION_MARKETS.get(hit["clause_geo_hint"])
+    if clause_market:
+        return clause_market
+    named = _location_markets(location)
     if named:
-        return named[0] if len(named) == 1 else None
-    broad = detect_geo_hint(location, is_location_field=True)
-    if broad == "unspecified":
-        broad = hit["geo_hint"]
-    return {"us": _US, "uk": _UK, "eu": "eu"}.get(broad)
+        return next(iter(named)) if len(named) == 1 else None
+    return _REGION_MARKETS.get(hit["geo_hint"])
+
+
+def _withdrawn_markets(body: str, location: str) -> set[str | None]:
+    withdrawn: set[str | None] = set()
+    for clause in _CLAUSES.split(body):
+        if not _WITHDRAWAL.search(normalize_text(clause)):
+            continue
+        named = salary_markets(clause)
+        broad = _REGION_MARKETS.get(detect_geo_hint(clause))
+        withdrawn.update(named or ({broad} if broad else _location_markets(location)) or {None})
+    return withdrawn
 
 
 def _context(row: dict, run_id: str, observed_at: str, kept_keys: set[str]) -> tuple[str, dict, dict] | None:
@@ -140,12 +164,10 @@ def _selected_disclosures(run_ids: list[str]) -> tuple[set[str], list[tuple[str,
             latest[identity] = max(capture, latest.get(identity, capture))
             body = str(job.get("body_text") or "")
             location = f"{job.get('location') or ''} {job.get('remote_text') or ''}"
-            if _WITHDRAWAL.search(normalize_text(body)):
-                markets = salary_markets(body) or salary_markets(location) or {None}
-                for market in markets:
-                    key = (identity, market)
-                    if key not in withdrawals or capture > withdrawals[key][0]:
-                        withdrawals[key] = (capture, {**meta, "market": market})
+            for market in _withdrawn_markets(body, location):
+                key = (identity, market)
+                if key not in withdrawals or capture > withdrawals[key][0]:
+                    withdrawals[key] = (capture, {**meta, "market": market})
             for hit in extract_salaries_from_text(body):
                 market = _market(hit, location)
                 region = {"eu": "eu", _US: "us", _UK: "uk"}.get(market)
@@ -200,9 +222,7 @@ def mine_run_salaries(
             "compensation_type": compensation_type or None, "gross_or_net": gross_or_net or None,
             "historical_count": sum(item["historical"] for item in items), **_stats(items),
         })
-    requested = set().union(*(salary_markets(text) for text in target_markets))
-    if not requested and any(detect_geo_hint(target, is_location_field=True) == "eu" for target in target_markets):
-        requested.add("eu")
+    requested = set().union(*(_location_markets(text) for text in target_markets))
     geo_order = {"unspecified": 1, "us": 2}
     ranked_samples = sorted(
         (item for _, item in samples),

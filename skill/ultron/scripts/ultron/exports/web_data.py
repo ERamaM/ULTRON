@@ -201,11 +201,13 @@ def _read_runs(conn: sqlite3.Connection, tables: set[str], new_per_run: Counter)
 def _read_seed_yields(conn: sqlite3.Connection, tables: set[str]) -> list[dict[str, Any]]:
     if "seed_yield_runs" not in tables:
         return []
+    has_outcomes = "outcome" in _columns(conn, "seed_yield_runs")
+    eligible = "(outcome = 'completed' OR kept > 0)" if has_outcomes else "kept > 0"
     sql = (
         "SELECT profile_slug, seed_key, COUNT(*) AS attempts,"
         " SUM(CASE WHEN kept > 0 THEN 1 ELSE 0 END) AS runs_with_keeps,"
         " COALESCE(SUM(kept), 0) AS total_kept"
-        " FROM seed_yield_runs GROUP BY profile_slug, seed_key"
+        " FROM seed_yield_runs WHERE " + eligible + " GROUP BY profile_slug, seed_key"
         " ORDER BY total_kept DESC, runs_with_keeps DESC, attempts DESC, seed_key"
     )
     items: list[dict[str, Any]] = []

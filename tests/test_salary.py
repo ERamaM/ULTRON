@@ -408,3 +408,20 @@ def test_salary_prefers_disclosure_market_and_scopes_withdrawals_to_their_clause
     assert (us["market"], us["currency"], us["median"]) == ("united states", "USD", 170_000)
     hits = salary.extract_salaries_from_text("Spain .NET developer base salary: EUR 60,000 - 80,000 per year.")
     assert hits[0]["gross_or_net"] is None
+
+
+def test_pay_basis_and_shared_country_lists_are_order_independent():
+    date = "2026-11-10T12:00:00+00:00"
+    for locations in ("Spain and Germany", "Germany, Spain"):
+        rid = _salary_capture(f"{locations} base salary: EUR 60,000 - 80,000 per year.", date)
+        comps = salary.mine_run_salaries(rid, target_markets=("Spain",))
+        assert comps["target_comparable_groups"] == []
+        assert comps["comparable_groups"][0]["market"] is None
+        assert comps["samples"][0]["markets"] == ["germany", "spain"]
+    german = salary.extract_salaries_from_text(
+        "Germany Gehalt: EUR 60.000 - 80.000 brutto pro Jahr.\n"
+        "Germany Gehalt: EUR 40.000 - 50.000 netto pro Jahr."
+    )
+    assert [(band["gross_or_net"], band["annual_low"]) for band in german] == [
+        ("gross", 60_000), ("net", 40_000),
+    ]

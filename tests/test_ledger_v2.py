@@ -129,7 +129,7 @@ def test_migrate_v3_adds_seed_yield_table_and_backs_up():
         with conn:
             conn.execute("INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES ('p', 'lever:a', 'r1', 2)")
             conn.execute("INSERT INTO seed_yield_runs (profile_slug, seed_key, run_id, kept) VALUES ('p', 'lever:a', 'r2', 0)")
-        assert ledger.seed_yields(conn, "p") == {"lever:a": (2, 1)}
+        assert ledger.seed_yields(conn, "p") == {"lever:a": (1, 1)}
     [backup] = (home.ultron_home() / "backups").glob("ultron-*-pre-v4.sqlite3")
     with closing(sqlite3.connect(backup)) as conn:
         assert conn.execute("PRAGMA user_version").fetchone() == (3,)

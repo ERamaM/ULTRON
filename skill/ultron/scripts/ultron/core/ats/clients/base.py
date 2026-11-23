@@ -25,6 +25,13 @@ class AtsPosting:
     posted_at: str | None = None
     raw_payload: dict | None = None
 
+class PartialAtsPostings(list[AtsPosting]):
+    """Usable postings from a board whose response was incomplete."""
+
+    def __init__(self, postings: list[AtsPosting], reason: str) -> None:
+        self.extend(postings)
+        self.reason = reason
+
 
 class AtsClientError(RuntimeError):
     """Raised when an ATS board response or identifier fails vendor validation."""

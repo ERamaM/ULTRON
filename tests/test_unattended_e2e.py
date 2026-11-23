@@ -49,6 +49,8 @@ def test_unattended_e2e(capsys):
     md = Path(out["outputs"]["results_md"])
     assert md.is_file()
     assert out["roles"] >= 1
+    assert out["coverage"]["boards"]["completed"] == 1
+    assert out["coverage"] == runs.load_run(out["run_id"])["coverage"]
     rows = json.loads(Path(out["outputs"]["results_json"]).read_text(encoding="utf-8"))["rows"]
     assert any(r["evaluation_verdict"] == "keep" for r in rows)
     assert out["agent_evaluated"] == 0 and out["heuristic_fallback"] >= 1
@@ -60,3 +62,27 @@ def test_run_new_still_works(capsys):
     profiles.install_example()
     assert main(["run", "new", "--profile", profiles.EXAMPLE_SLUG]) == 0
     assert "run_id" in json.loads(capsys.readouterr().out)
+
+
+def test_unattended_coverage_distinguishes_matching_from_reach():
+    from ultron.stages.unattended import summarize_coverage
+
+    complete = {"seeds_completed": 4, "seeds_partial": 0, "seeds_failed": 0, "seeds_skipped": 0, "candidates": 8}
+    failed = {**complete, "seeds_completed": 1, "seeds_failed": 2, "seeds_skipped": 1}
+    stages = {"discover": complete, "fetch": {"fetched": 8}, "filter": {"ambiguous": 2}}
+
+    summary = summarize_coverage(stages, 3, [])
+    assert summary["status"] == "completed"
+    assert summary["boards"] == {"attempted": 4, "completed": 4, "partial": 0, "failed": 0, "skipped": 0}
+    assert summary["pending_ambiguous"] == 2
+
+    limited = summarize_coverage(
+        {**stages, "discover": failed}, 3, [{"status": "skipped", "reason": "vendor_budget_exhausted"}],
+    )
+    assert limited["status"] == "limited" and limited["roles"] == 3
+    assert limited["boards"]["attempted"] == 3
+    assert limited["limits"] == ["vendor_budget_exhausted"]
+
+    assert summarize_coverage(stages, 0, [])["status"] == "completed"
+    assert summarize_coverage({**stages, "fetch": {"fetched": 0}}, 0, [])["status"] == "nothing_fetched"
+    assert summarize_coverage({}, 0, [])["status"] == "unknown"

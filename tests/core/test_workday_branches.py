@@ -93,14 +93,14 @@ def test_workday_respects_page_cap():
     assert client.requests_made <= client.max_requests
 
 
-def test_workday_budget_stop_propagates_instead_of_partial_results():
+def test_workday_global_budget_returns_partial_postings_without_extra_requests():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"jobPostings": [_job(i) for i in range(20)]})
 
     client = _http_client(handler, max_requests=7)
-    with pytest.raises(RequestBudgetExceeded) as info:
-        workday.fetch_workday_jobs("wd.example/External/Acme", client=client)
-    assert info.value.scope == "global"
+    out = workday.fetch_workday_jobs("wd.example/External/Acme", client=client)
+    assert len(out) == 20
+    assert isinstance(out, workday.PartialAtsPostings) and out.reason == "global_budget"
     assert client.requests_made == 7
 
 
@@ -198,6 +198,8 @@ def test_workday_host_budget_returns_partial_results_and_max_pages_caps():
     calls = 0
     capped = workday.fetch_workday_jobs("acme.wd5.myworkdayjobs.com/External", client=HostCapClient(), max_pages=1)
     assert len(capped) == 20 and calls == 1
+    assert isinstance(out, workday.PartialAtsPostings) and out.reason == "host_budget"
+    assert isinstance(capped, workday.PartialAtsPostings) and capped.reason == "page_limit"
 
 
 def test_workday_interleaves_preferred_country_with_unfiltered_pages():

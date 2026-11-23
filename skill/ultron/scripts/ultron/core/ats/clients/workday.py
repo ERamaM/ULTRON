@@ -12,6 +12,7 @@ from ultron.core.ats.clients.base import (
     AtsClientError,
     AtsHTTPClient,
     AtsPosting,
+    PartialAtsPostings,
     locator_has_host,
     locator_url,
     refuse_browser_fallback,
@@ -148,6 +149,7 @@ def fetch_workday_jobs(
     seen: set[str] = set()
     pages: deque[tuple[dict[str, list[str]], int, int | None]] = deque([({}, 0, None)])
     initial_cxs_error: HttpError | None = None
+    partial_reason = ""
     for page in range(page_cap):
         if not pages:
             break
@@ -160,7 +162,7 @@ def fetch_workday_jobs(
                 json_body={"appliedFacets": facets, "limit": _WD_PAGE_LIMIT, "offset": offset, "searchText": ""},
             )
         except RequestBudgetExceeded as exc:
-            if exc.scope in {"host", "vendor"} and out:
+            if out:
                 logger.warning(
                     "workday pagination stopped on %s budget board=%s page=%d; returning partial results (%d postings)",
                     exc.scope,
@@ -168,12 +170,12 @@ def fetch_workday_jobs(
                     page,
                     len(out),
                 )
-                return out
+                return PartialAtsPostings(out, f"{exc.scope}_budget")
             raise
         except HostBlocked:
             # The host or the whole vendor is blocked for this run: keep what was collected, no HTML fallback.
             if out:
-                return out
+                return PartialAtsPostings(out, "host_blocked")
             raise
         except HttpError as exc:
             if page == 0:
@@ -190,6 +192,7 @@ def fetch_workday_jobs(
                 exc,
                 len(out),
             )
+            partial_reason = "page_http_error"
             break
         except URLRejected:
             raise
@@ -202,6 +205,7 @@ def fetch_workday_jobs(
                 exc,
                 len(out),
             )
+            partial_reason = "page_error"
             break
         jobs = payload.get("jobPostings", []) if isinstance(payload, dict) else []
         if not jobs:
@@ -239,6 +243,8 @@ def fetch_workday_jobs(
                 len(out),
             )
     if out:
+        if partial_reason or pages:
+            return PartialAtsPostings(out, partial_reason or "page_limit")
         return out
 
     html = ""

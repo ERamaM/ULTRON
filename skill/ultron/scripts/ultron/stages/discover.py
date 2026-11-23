@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from ultron import seeds as seed_store
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.ashby import ASHBY_API_HOST
+from ultron.core.ats.clients.base import PartialAtsPostings
 from ultron.core.ats.identity import seed_identity
 from ultron.core.discovery.prefilter import (
     is_clearly_ineligible_at_discovery,
@@ -455,6 +456,7 @@ def discover_ats(run_id: str) -> dict:
     candidates: list[CandidateUrl] = []
     seen_urls: set[str] = set()
     errors: list[dict] = []
+    partial: dict[str, str] = {}
     queried = 0
     budget_spent = False
     # Workday boards paginate: each one gets an equal share of what the vendor budget leaves for this stage.
@@ -477,8 +479,11 @@ def discover_ats(run_id: str) -> dict:
                     if allowance is not None:
                         options["max_pages"] = max(1, allowance // max(1, workday_left))
                     workday_left -= 1
-                postings = [_clean_posting(p) for p in fetch_vendor_jobs(
-                    seed.ats, seed.board_identifier, client=client, timeout=timeout, **options)]
+                batch = fetch_vendor_jobs(seed.ats, seed.board_identifier, client=client, timeout=timeout, **options)
+                if isinstance(batch, PartialAtsPostings):
+                    partial[seed.seed_id] = batch.reason
+                    budget_spent = batch.reason == "global_budget"
+                postings = [_clean_posting(posting) for posting in batch]
             except RequestBudgetExceeded as exc:
                 if exc.scope == "host":
                     errors.append({
@@ -552,11 +557,19 @@ def discover_ats(run_id: str) -> dict:
     ]
     runs.write_jsonl(out_dir / "candidates.jsonl", [*candidates, *kept_rows])
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
-    skipped_ids = {e["seed_id"] for e in errors if e.get("skipped")}
-    runs.write_jsonl(
-        out_dir / SEED_ATTEMPTS_FILE,
-        [{"seed_key": seed_key(seed)} for seed, _group in seeds if seed.seed_id not in skipped_ids],
-    )
+    errors_by_seed = {error["seed_id"]: error for error in errors}
+    observations = []
+    for seed, _group in seeds:
+        error = errors_by_seed.get(seed.seed_id, {})
+        if error:
+            status = "skipped" if error.get("skipped") else "failed"
+        else:
+            status = "partial" if seed.seed_id in partial else "completed"
+        observations.append({
+            "seed_key": seed_key(seed), "status": status,
+            "reason": error.get("error") or partial.get(seed.seed_id, ""),
+        })
+    runs.write_jsonl(out_dir / SEED_ATTEMPTS_FILE, observations)
     runs.mark_stage(run_id, "discover_ats")
     skipped = sum(1 for e in errors if e.get("skipped"))
     # Per group: queried = selected and requested (failures included); skipped = selected but not requested.
@@ -572,6 +585,8 @@ def discover_ats(run_id: str) -> dict:
             group["failed"] += 1
     return {
         "seeds_queried": queried,
+        "seeds_completed": len(seeds) - len(errors) - len(partial),
+        "seeds_partial": len(partial),
         "seeds_failed": len(errors) - skipped,
         "seeds_skipped": skipped,
         "candidates": len(candidates),

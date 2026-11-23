@@ -270,7 +270,7 @@ Output:
 ```json
 {"pending": 45, "returned": 10, "items": [{"identity_key": "...", "title": "...", "company": "...",
  "location": "...", "remote_text": "...", "heuristic": {"verdict": "unsure", "discard_reason": null},
- "body_excerpt": "first 1500 characters of the posting"}]}
+ "body_excerpt": "labelled evidence and context within 1500 characters", "body_excerpt_truncated": true}]}
 ```
 
 Judge each item with `references/evaluation.md`, write one line per item to a new

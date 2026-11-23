@@ -7,16 +7,64 @@ otherwise); ``evaluate`` itself has no declared prerequisite in ``runs.STAGE_REQ
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from ultron.core.models import JobEvaluation
 from ultron.core.rules.geography import build_geo_body_excerpt
+from ultron.core.rules.term_matching import normalize_text
 from ultron.storage import runs
 
 EXCERPT_CHARS = 1500
 GEO_EXCERPT_CHARS = 800
+
+
+_EVIDENCE_BOUNDARY = re.compile(r"\r?\n|(?<=[.!?])(?=[ \t]+[A-Z])")
+_YEARS = r"(?:[0-9]{1,2}\+?|one|two|three|four|five|six|seven|eight|nine|ten|tres|cuatro|cinco|seis)"
+_EVIDENCE_PATTERNS = {
+    "Experience": re.compile(rf"\b{_YEARS}[ \t]+(?:years?|anos?)\b|\bequivalent (?:practical )?experience\b"),
+    "Work policy": re.compile(r"\b(?:remot[eo]|hybrid|hibrido|onsite|on-site|presencial|office days)\b"),
+    "Eligibility": re.compile(
+        r"\b(?:eligible|eligibility|work authori[sz]ation|sponsorship|must reside|candidates based|"
+        r"right to work|permiso de trabajo|residir|candidatos en)\b"
+    ),
+    "Responsibilities": re.compile(
+        r"\b(?:responsibilities|responsible for|you will|what you.ll do|responsabilidades|te encargaras|"
+        r"tu mision)\b"
+    ),
+}
+
+
+def _evidence_excerpt(body: str) -> tuple[str, bool]:
+    evidence: dict[str, list[str]] = {label: [] for label in _EVIDENCE_PATTERNS}
+    for segment in _EVIDENCE_BOUNDARY.split(body):
+        segment = segment.strip()
+        folded = normalize_text(segment)
+        for label, pattern in _EVIDENCE_PATTERNS.items():
+            entries = evidence[label]
+            if pattern.search(folded) and segment not in entries and len(entries) < 3:
+                entries.append(segment)
+    parts = []
+    selected = set()
+    remaining = EXCERPT_CHARS
+    for index in range(3):
+        for label, entries in evidence.items():
+            if index >= len(entries) or entries[index] in selected:
+                continue
+            fragment = entries[index]
+            line = f"{label}: {fragment}"
+            if len(line) + 1 <= remaining:
+                parts.append(line)
+                selected.add(fragment)
+                remaining -= len(line) + 1
+    if not parts:
+        return body[:EXCERPT_CHARS], len(body) > EXCERPT_CHARS
+    context = body[:max(0, remaining - len("Context: "))]
+    if context:
+        parts.append(f"Context: {context}")
+    return "\n".join(parts), len(body) > len(context)
 
 
 class RecordError(ValueError):
@@ -90,6 +138,8 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
     items = []
     for row in todo[: max(limit, 0)]:
         job, heuristic = row["job"], row["heuristic"]
+        body = job.get("body_text") or ""
+        excerpt, truncated = _evidence_excerpt(body)
         items.append({
             "identity_key": row["identity_key"],
             "title": job.get("title", ""),
@@ -97,7 +147,8 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
             "location": job.get("location", ""),
             "remote_text": job.get("remote_text", ""),
             "heuristic": {"verdict": heuristic.get("verdict"), "discard_reason": heuristic.get("discard_reason")},
-            "body_excerpt": (job.get("body_text") or "")[:EXCERPT_CHARS],
-            "geo_excerpt": build_geo_body_excerpt(job.get("body_text") or "", max_chars=GEO_EXCERPT_CHARS),
+            "body_excerpt": excerpt,
+            "body_excerpt_truncated": truncated,
+            "geo_excerpt": build_geo_body_excerpt(body, max_chars=GEO_EXCERPT_CHARS),
         })
     return {"pending": len(todo), "returned": len(items), "items": items}

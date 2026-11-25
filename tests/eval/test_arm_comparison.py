@@ -306,7 +306,7 @@ def test_pool_resets_labels_of_merged_jobs(session, home, reports_dir):
     _write_jsonl(reports_dir, "b2.jsonl", [bridge])
     ac.ingest_agent(session, 2, "b2.jsonl")
     result = ac.pool(session)
-    assert len(result["merged_ids_relabel"]) == 1 and result["pending"] == 1
+    assert len(result["relabel_ids"]) == 1 and result["pending"] == 1
 
 
 def test_score_end_to_end(session, home, reports_dir):
@@ -358,8 +358,12 @@ def test_score_refuses_pending_labels(session, home, reports_dir):
 
 
 @pytest.mark.parametrize("spot, message", [
-    (None, "no spot check"), ({"pending": 2, "relabel": False}, "2 pending"),
-    ({"pending": 0, "relabel": True}, "relabel"), ({"pending": 0, "relabel": False}, None),
+    (None, "no spot check"),
+    ({"stale": ["j1"], "pending": 0, "compared": 2, "relabel": False}, "no longer in the pool"),
+    ({"stale": [], "pending": 2, "compared": 2, "relabel": False}, "2 pending"),
+    ({"stale": [], "pending": 0, "compared": 0, "relabel": False}, "no true/false"),
+    ({"stale": [], "pending": 0, "compared": 2, "relabel": True}, "relabel"),
+    ({"stale": [], "pending": 0, "compared": 2, "relabel": False}, None),
 ])
 def test_spotcheck_problems(spot, message):
     problems = ac._spotcheck_problems(spot)
@@ -389,16 +393,39 @@ def test_spotcheck_flow(session, home, reports_dir):
     _label_all(reports_dir, session, {"https://jobs.example.test/1"})
     result = ac.spotcheck(session, 2)
     assert result["compared"] == 2 and result["pending"] == 0
-    assert ac.load_state(session)["spotcheck"]["size"] == 2
+    assert result["size"] == 2 and result["stale"] == []
     path.write_text("session: s1\njobs: 3\n", encoding="utf-8")
     with pytest.raises(ac.ComparisonError, match="jobs"):
         ac.spotcheck(session, 2)
 
 
+def test_spotcheck_is_recomputed_after_relabelling(session, home, reports_dir):
+    _full_experiment(session, home, reports_dir)
+    _label_all(reports_dir, session, {"https://jobs.example.test/1", "https://jobs.example.test/3"})
+    _fill_spotcheck(reports_dir, session, size=4)
+    assert ac.build_report(session)["complete"] is True
+    _label_all(reports_dir, session, set())  # the main labels now disagree with the user's sample
+    with pytest.raises(ac.ComparisonError, match="disagreement"):
+        ac.build_report(session)
+
+
+def test_spotcheck_goes_stale_when_the_pool_changes(session, home, reports_dir):
+    _full_experiment(session, home, reports_dir)
+    _label_all(reports_dir, session, {"https://jobs.example.test/1"})
+    _fill_spotcheck(reports_dir, session, size=4)
+    ac.discard(session, "baseline", 3)
+    ac.discard(session, "baseline", 2)
+    ac.discard(session, "baseline", 1)
+    ac.pool(session)
+    report = ac.build_report(session, allow_partial=True)
+    assert report["spotcheck"]["stale"] and any("no longer in the pool" in p for p in report["problems"])
+
+
 def test_discard_drops_a_repetition(session, reports_dir):
     _write_jsonl(reports_dir, "b1.jsonl", [_row(1)])
     ac.ingest_agent(session, 1, "b1.jsonl")
-    assert ac.discard(session, "baseline", 1)["discarded"] == {"arm": "baseline", "rep": 1}
+    result = ac.discard(session, "baseline", 1)
+    assert result["discarded"] == {"arm": "baseline", "rep": 1}
     assert "baseline" not in ac.load_state(session)["arms"]
     with pytest.raises(ac.ComparisonError, match="not ingested"):
         ac.discard(session, "baseline", 1)

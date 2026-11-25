@@ -59,3 +59,32 @@ def test_read_report_rejects_a_file_resolving_outside(tmp_path, monkeypatch):
     monkeypatch.setattr(safe_paths, "inside", lambda path, folder: False)
     with pytest.raises(safe_paths.UnsafePathError, match="link or resolves outside"):
         safe_paths.read_report("in.json")
+
+
+def test_remove_report_refuses_a_linked_reports_folder(tmp_path, monkeypatch):
+    import os
+
+    import pytest
+    import safe_paths
+
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    (target / "s1.labels.yaml").write_text("keep", encoding="utf-8")
+    link = tmp_path / "ultron-eval-link"
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available")
+    monkeypatch.setattr(safe_paths, "REPORTS_DIR", str(link))
+    with pytest.raises(safe_paths.UnsafePathError):
+        safe_paths.remove_report("s1.labels.yaml")
+    assert (target / "s1.labels.yaml").read_text(encoding="utf-8") == "keep"
+
+
+def test_remove_report(tmp_path, monkeypatch):
+    import safe_paths
+
+    monkeypatch.setattr(safe_paths, "REPORTS_DIR", str(tmp_path / "ultron-eval-test"))
+    safe_paths.write_report("gone.yaml", "x")
+    assert safe_paths.remove_report("gone.yaml") is True
+    assert safe_paths.remove_report("gone.yaml") is False

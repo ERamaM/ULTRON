@@ -277,10 +277,11 @@ Protocol:
      shortlist.
 3. **Label blind.** `pool` clusters the scored rows into jobs. Two rows are the same job when
    their canonical posting identity matches, or when company, normalized title and location are
-   all equal and none is empty or a placeholder such as `Confidential`.
-   - Job ids are stored in the session, so labels survive later ingestions in any order. `pool`
-     resets the label of any job a new row joined into another, and lists those ids under
-     `merged_ids_relabel`.
+   all equal and none is empty or a placeholder such as `Confidential` or ULTRON's
+   `company_not_found` and `title_not_found`.
+   - Job ids are stored in the session, so labels survive later ingestions in any order. When a
+     new row merges jobs, or a discarded repetition splits one, every cluster still gets its own
+     id. `pool` resets the labels of the jobs involved and lists them under `relabel_ids`.
    - `<session>.labels.yaml` is shuffled and shows no arm. Each entry lists every URL and location
      variant of its job. The URL hosts can still hint at the source, ATS board or aggregator,
      so the blinding is imperfect. The report says so.
@@ -289,14 +290,18 @@ Protocol:
 4. **Spot check.** `spotcheck` writes a reproducible blind sample (`--size`, default 20) for the
    user to label `relevant` without looking at the labels file. Run it again once the sample is
    filled in to get the disagreement rate on `relevant`. A sampled job stays pending until both
-   the user and the main labels have judged it. The result is saved in the session and shown in
-   the report. Above 15%, relabel everything and run `spotcheck` again.
+   the user and the main labels have judged it. `score` recomputes the agreement from the current
+   labels, so a later relabelling is always reflected. If the pool changed and the sample now
+   holds jobs that are gone, delete the spot-check file and draw a new one. A sample with no
+   `true`/`false` judgments does not count. Above 15% disagreement, relabel everything and run
+   `spotcheck` again.
 5. **Score.** `score` refuses to run when the experiment is incomplete:
    - a label is pending;
    - an arm is missing, or has fewer than 3 repetitions;
    - the two arms have different repetition numbers;
    - a repetition has no tokens, tool calls or seconds recorded;
-   - the spot check is missing, unfinished or above the disagreement threshold.
+   - the spot check is missing, stale, unfinished, has nothing to compare, or is above the
+     disagreement threshold.
 
    `--allow-partial` scores anyway, marks the report partial and lists the reasons. The report
    gives each repetition, then the mean ± sample std with its `n`:

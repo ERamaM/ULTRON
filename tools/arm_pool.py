@@ -14,11 +14,12 @@ import yaml
 from arm_metrics import LABEL_FIELDS
 
 from ultron.core.job_identity import canonical_job_identity
+from ultron.core.models import COMPANY_NOT_FOUND, TITLE_NOT_FOUND
 from ultron.core.ranker.final_rows import normalize_title_for_dedup
 
 PENDING = "pending"
 LABEL_VALUES = (True, False, None, PENDING)
-PLACEHOLDER_COMPANIES = {"", "not found", "unknown", "n/a", "company not found", "confidential",
+PLACEHOLDER_COMPANIES = {"", COMPANY_NOT_FOUND, "not found", "unknown", "n/a", "company not found", "confidential",
                          "confidential company", "undisclosed", "stealth", "stealth startup"}
 LABELS_HEADER = (
     "# Blind labels: one entry per pooled job, arms hidden. Replace each 'pending' with true, false or\n"
@@ -40,8 +41,8 @@ def _fold(text: str) -> str:
 def row_keys(row: dict[str, str]) -> list[str]:
     """Matching keys of a row: its canonical identity, plus an alias when company, title and location are usable."""
     keys = ["id:" + canonical_job_identity(row["apply_url"]).identity_key]
-    company, title = _fold(row.get("company", "")), normalize_title_for_dedup(row["title"])
-    location = _fold(row.get("location", ""))
+    company, location = _fold(row.get("company", "")), _fold(row.get("location", ""))
+    title = "" if _fold(row["title"]) == TITLE_NOT_FOUND else normalize_title_for_dedup(row["title"])
     if company not in PLACEHOLDER_COMPANIES and title and location:
         keys.append(f"alias:{company}|{title}|{location}")
     return keys
@@ -79,12 +80,33 @@ def _job_id(identity: str) -> str:
     return "j" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
 
 
+def _unused_id(identities: list[str], used: set[str]) -> str:
+    """A fresh job id for a cluster, never one another current cluster already holds."""
+    candidates = [*identities, *(f"{identities[0]}#{n}" for n in range(1, 1000))]
+    return next(job for job in map(_job_id, candidates) if job not in used)
+
+
+def _pick_id(existing: list[str], identities: list[str], used: set[str]) -> tuple[str, list[str]]:
+    """The cluster's job id and the ids whose labels no longer apply (empty when nothing changed).
+
+    Several existing ids mean the cluster merged former jobs. An existing id already taken by another
+    cluster means a former job split; both halves must be judged again.
+    """
+    free = [job for job in existing if job not in used]
+    job = free[0] if free else _unused_id(identities, used)
+    if len(existing) > 1:
+        return job, existing
+    if existing and job != existing[0]:
+        return job, [existing[0], job]
+    return job, []
+
+
 def assign_ids(state: dict[str, Any]) -> dict[str, Any]:
     """Cluster the scored rows and give each cluster a job id, reusing ids already in ``state``.
 
     Updates ``state["job_ids"]`` (identity key -> job id). Returns ``jobs`` (job id -> title, company and
-    the distinct url/location variants), ``rows`` ((arm, rep, index) -> job id) and ``merged`` (job ids
-    that a new row joined into one; their labels must be checked).
+    the distinct url/location variants), ``rows`` ((arm, rep, index) -> job id) and ``relabel`` (groups of
+    job ids that merged or split since the last pooling; their labels no longer apply).
     """
     rows = scored_rows(state)
     clusters = _Clusters()
@@ -96,20 +118,21 @@ def assign_ids(state: dict[str, Any]) -> dict[str, Any]:
     known = state.setdefault("job_ids", {})
     jobs: dict[str, dict[str, Any]] = {}
     row_ids: dict[tuple[str, str, int], str] = {}
-    merged: list[list[str]] = []
+    relabel: list[list[str]] = []
+    used: set[str] = set()
     for group in members.values():
         identities = sorted({row_keys(row)[0] for *_, row in group})
-        existing = sorted({known[key] for key in identities if key in known})
-        job = existing[0] if existing else _job_id(identities[0])
-        if len(existing) > 1:
-            merged.append(existing)
+        job, stale = _pick_id(sorted({known[key] for key in identities if key in known}), identities, used)
+        if stale:
+            relabel.append(stale)
+        used.add(job)
         known.update(dict.fromkeys(identities, job))
         first = group[0][3]
         variants = sorted({(row["apply_url"], row.get("location", "")) for *_, row in group})
         jobs[job] = {"title": first["title"], "company": first.get("company", ""),
                      "variants": [{"apply_url": url, "location": loc} for url, loc in variants]}
         row_ids.update({(arm, rep, index): job for arm, rep, index, _ in group})
-    return {"jobs": jobs, "rows": row_ids, "merged": merged}
+    return {"jobs": jobs, "rows": row_ids, "relabel": relabel}
 
 
 def blind_order(job_id: str, salt: str) -> str:

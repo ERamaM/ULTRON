@@ -275,3 +275,46 @@ def test_finalize_preserves_agent_high_eligibility_when_heur_remote_policy_none(
     )
     assert row.remote_policy == "remote_eu"
     assert row.eligibility == "high"
+
+
+def test_finalize_preserves_distinct_vacancy_dates_and_first_seen(capsys):
+    from contextlib import closing
+
+    published = "2026-01-12T09:00:00Z"
+    updated = "2026-03-15T09:00:00Z"
+
+    def write_dates(run_id, **dates):
+        kept = runs.run_dir(run_id) / "kept.jsonl"
+        path = kept if runs.read_jsonl(kept) else runs.run_dir(run_id) / "ambiguous.jsonl"
+        rows = runs.read_jsonl(path)
+        assert len(rows) == 1
+        rows[0]["job"].update(dates)
+        runs.write_jsonl(path, rows)
+        assert main(["finalize", "--run", run_id]) == 0
+        capsys.readouterr()
+        return _results(run_id)["rows"][0]
+
+    first = _filtered(capsys, KEEP[:1])
+    row = write_dates(first, posting_date=None, updated_at=updated)
+    assert row["published_at"] is None
+    assert row["updated_at"] == updated
+    assert row["freshness"] == f"Updated {updated}"
+    assert row["first_seen"]
+
+    second = _filtered(capsys, KEEP[:1])
+    current = write_dates(second, posting_date=published, posting_date_verified=True, updated_at=updated)
+    assert current["published_at"] == published
+    assert current["updated_at"] == updated
+    assert current["first_seen"] == row["first_seen"]
+    report = (runs.run_dir(second) / "results.md").read_text(encoding="utf-8")
+    assert all(date in report for date in (published, updated, row["first_seen"]))
+    with closing(ledger.connect()) as conn:
+        assert conn.execute("SELECT published_at, updated_at, first_seen FROM jobs").fetchone() == (
+            published, updated, row["first_seen"],
+        )
+
+    legacy = _filtered(capsys, KEEP[:1])
+    unknown = write_dates(legacy, posting_date="2026-02-12", posting_date_verified=False)
+    assert unknown["published_at"] is None
+    assert unknown["unverified_date"] == "2026-02-12"
+    assert unknown["freshness"] == "Unverified date 2026-02-12"

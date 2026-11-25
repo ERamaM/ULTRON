@@ -213,6 +213,12 @@ def _job_card(rank: int, row: dict) -> str:
 
     fit = _t(row.get("fit_signals"))
     evidence = _t(row.get("eligibility_evidence"))
+    dates = [
+        (label, _t(row.get(key)))
+        for key, label in (("published_at", "Published"), ("updated_at", "Updated"),
+                           ("unverified_date", "Unverified source date"), ("first_seen", "First seen"))
+        if row.get(key)
+    ]
     freshness = _t(row.get("freshness"))
     reqs = [(label, _t(row.get(key))) for key, label in (
         ("matched_requirements", "Matched"), ("missing_requirements", "Missing"),
@@ -232,12 +238,14 @@ def _job_card(rank: int, row: dict) -> str:
         parts.append(f'<ul class="pills" aria-label="Labels">{"".join(pills)}</ul>')
     if fit:
         parts.append(f'<p class="fit">{fit}</p>')
-    if evidence or freshness:
+    if evidence or freshness or dates:
         parts.append("<details><summary>Eligibility evidence</summary>")
         if evidence:
             parts.append(f"<p>{evidence}</p>")
-        if freshness:
-            parts.append(f"<p>Posted: {freshness}</p>")
+        for label, value in dates:
+            parts.append(f"<p>{label}: {value}</p>")
+        if freshness and not any(row.get(key) for key in ("published_at", "updated_at", "unverified_date")):
+            parts.append(f"<p>Date evidence: {freshness}</p>")
         parts.append("</details>")
     if reqs:
         parts.append("<details><summary>Requirements</summary><dl>")

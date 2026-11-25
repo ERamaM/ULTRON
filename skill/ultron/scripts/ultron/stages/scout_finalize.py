@@ -19,7 +19,7 @@ from ultron.core.ranker.final_rows import rank_scout_rows
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.stages import scout_verified
-from ultron.stages.final_helpers import TOP_N, row_identity, seed_kept
+from ultron.stages.final_helpers import TOP_N, row_identity, seed_kept, stamp_first_seen
 from ultron.storage import ledger, runs, scout_memory
 
 
@@ -97,6 +97,7 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
                                              preset=run["preset"], seed_kept=seed_kept(out_dir, ranked))
         scout_memory.record_verdicts(conn, run["profile_slug"], run_id, out.verdicts,
                                      scout_memory.profile_hash(run.get("profile_snapshot") or {}))
+        stamp_first_seen(conn, run_id, ranked)
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, out.discards)
     payload = json.loads(Path(js).read_text(encoding="utf-8"))
     for row, data in zip(ranked, payload["rows"], strict=True):

@@ -11,7 +11,7 @@ from ultron.core.ats.registry import extract_seed_from_url
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, DiscardRecord, ExtractedJob, FinalRow
 from ultron.stages.discover import SEED_ATTEMPTS_FILE
-from ultron.storage import runs
+from ultron.storage import ledger, runs
 
 TOP_N = 5
 
@@ -64,3 +64,10 @@ def row_board_key(row: FinalRow) -> str:
         return ":".join(seed_identity(vendor, board))
     seed = extract_seed_from_url(row.apply_url, row.company)
     return ":".join(seed_identity(seed.ats, seed.board_identifier)) if seed is not None else ""
+
+
+def stamp_first_seen(conn, run_id: str, rows: list[FinalRow]) -> None:
+    """Set each row's ``first_seen`` to the ledger's first observation of its vacancy (after recording the run)."""
+    first_seen = ledger.first_observations(conn, run_id)
+    for row in rows:
+        row.first_seen = first_seen.get(row_identity(row))

@@ -12,7 +12,7 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 from ultron.infra import home
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -210,7 +210,7 @@ def _apply_v3(conn: sqlite3.Connection) -> None:
         " WHEN j.last_seen_run_id = o.run_id THEN j.last_seen END FROM jobs j WHERE j.identity_key = o.identity_key),"
         " (SELECT finished_at FROM runs WHERE run_id = o.run_id))"
     )
-    columns = ", ".join(f"j.{column}" for column in _JOB_DETAILS)
+    columns = ", ".join(f"j.{column}" for column in _JOB_DETAILS if column not in _JOB_DATE_DETAILS)
     conn.execute(
         f"UPDATE job_occurrences AS o SET details_json = (SELECT json_array({columns}) FROM jobs j"
         " WHERE j.identity_key = o.identity_key AND j.last_seen_run_id = o.run_id)"
@@ -223,6 +223,14 @@ def _apply_v4(conn: sqlite3.Connection) -> None:
 
 
 _IDENTITY_TABLES = ("jobs", "job_occurrences", "job_feedback", "diagnostics")
+
+
+def _apply_v8(conn: sqlite3.Connection) -> None:
+    """v8: the publication, update and unverified dates of each job."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
+    for column in _JOB_DATE_DETAILS:
+        if column not in columns:
+            conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
 
 
 def _apply_v6(conn: sqlite3.Connection) -> None:
@@ -316,6 +324,9 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version == 6:
                 _apply_search_scope(conn)
                 version = 7
+            if version == 7:
+                _apply_v8(conn)
+                version = 8
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:
@@ -336,11 +347,25 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+_JOB_DATE_DETAILS = ("published_at", "updated_at", "unverified_date")
 _JOB_DETAILS = (
     "canonical_url", "title", "company", "location", "source_type", "source_key",
-    "match_score", "match_band", "profile_slug",
+    "match_score", "match_band", "profile_slug", *_JOB_DATE_DETAILS,
 )
 _SET_DETAILS = ", ".join(f"{column} = ?" for column in _JOB_DETAILS)
+
+
+def _expand_snapshot(payload: str) -> list:
+    values = json.loads(payload)
+    return values + [None] * (len(_JOB_DETAILS) - len(values))
+
+
+def first_observations(conn: sqlite3.Connection, run_id: str) -> dict[str, str]:
+    """Return the ledger's first observation for vacancies in a run."""
+    return dict(conn.execute(
+        "SELECT j.identity_key, j.first_seen FROM job_occurrences o JOIN jobs j USING (identity_key)"
+        " WHERE o.run_id = ?", (run_id,),
+    ))
 
 
 def occurrence_details(payload: str | None) -> dict:
@@ -365,7 +390,7 @@ def _remove_occurrence(conn: sqlite3.Connection, run_id: str, key: str) -> None:
     if details is not None:
         conn.execute(
             f"UPDATE jobs SET {_SET_DETAILS} WHERE identity_key = ? AND last_seen_run_id = ?",
-            (*json.loads(details), key, run_id),
+            (*_expand_snapshot(details), key, run_id),
         )
     conn.execute(
         "UPDATE jobs SET times_seen = MAX(0, times_seen - 1),"
@@ -399,6 +424,7 @@ def _record_occurrences(
         details = (
             ident.canonical_url, row.title, row.company, row.location, row.source_type, row.source_key,
             row.match_score, row.match_band, profile_slug,
+            row.published_at, row.updated_at, row.unverified_date,
         )
         snapshot = json.dumps(details, ensure_ascii=False)
         if key in previous:

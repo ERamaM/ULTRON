@@ -306,9 +306,12 @@ def test_fetch_greenhouse_custom_domain_spa_enriches_from_api(capsys):
     row = runs.read_jsonl(d / "postings.jsonl")[0]
     assert row["ats_fingerprint"] is True
     assert "agentic RAG at Elastic" in row["job"]["body_text"]
+    assert row["job"]["posting_date"] is None
+    assert row["job"]["updated_at"] == "2026-11-18T12:00:00Z"
 
 
-def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys):
+@pytest.mark.parametrize("absolute", ["2026-11-04", ""])
+def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys, absolute):
     sr_wrapper = "<html><head><title>Careers at Bosch</title></head><body><h1>Careers at Bosch</h1><p>Explore Bosch worldwide.</p></body></html>"
     wd_spa = "<html><head><title></title></head><body><div id='root'></div></body></html>"
 
@@ -335,6 +338,7 @@ def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys):
                     "location": "Contern, Luxembourg",
                     "remoteType": "On-site",
                     "postedOn": "Posted Today",
+                    "startDate": absolute,
                     "jobDescription": "<p>Develop nonwoven Tyvek materials and run plant scale-up trials.</p>",
                 }
             })
@@ -372,6 +376,8 @@ def test_fetch_smartrecruiters_wrapper_redirect_and_workday_spa_enrich(capsys):
     wd = by_company["DuPont"]["job"]
     assert wd["title"] == "Tyvek R&D Product Development Engineer"
     assert "nonwoven Tyvek materials" in wd["body_text"]
+    assert wd["posting_date"] == (absolute or "Posted Today")
+    assert wd["posting_date_verified"] is bool(absolute)
 
 
 def test_fetch_bamboohr_spa_and_greenhouse_form_shell_enrich_from_api(capsys):

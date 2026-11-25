@@ -16,7 +16,7 @@ from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope, other_country_restriction
 from ultron.core.rules.hard_filters import is_full_remote_only
-from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept
+from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept, stamp_first_seen
 from ultron.stages.scout_finalize import finalize_scout
 from ultron.storage import ledger, runs
 
@@ -149,7 +149,7 @@ def finalize(run_id: str) -> dict:
             conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"],
             seed_kept=seed_kept(out_dir, ranked), saved_search_id=run.get("saved_search_id"),
         )
-
+        stamp_first_seen(conn, run_id, ranked)
         new_to_search = ledger.new_keys_in_saved_search(conn, run_id) if run.get("saved_search_id") else None
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
     # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.

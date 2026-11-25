@@ -120,6 +120,9 @@ def _read_jobs(
         ("match_score", "NULL"),
         ("match_band", "NULL"),
         ("profile_slug", "''"),
+        ("published_at", "NULL"),
+        ("updated_at", "NULL"),
+        ("unverified_date", "NULL"),
     )
     fields = ["j.identity_key", "j.canonical_url", "j.title", "j.company", "j.first_seen", "j.last_seen", "j.times_seen", "j.review_state"]
     for name, fallback in optional:
@@ -149,6 +152,8 @@ def _read_jobs(
                 "source_key": sanitize.clean_text(row["source_key"]),
                 "first_seen": sanitize.clean_text(row["first_seen"]),
                 "last_seen": sanitize.clean_text(row["last_seen"]),
+                **{field: sanitize.clean_text(row[field]) or None
+                   for field in ("published_at", "updated_at", "unverified_date")},
                 "times_seen": max(0, int(row["times_seen"] or 0)),
                 "review_state": sanitize.normalize_token(row["review_state"], _STATES, default="unreviewed"),
                 "review_changed_at": sanitize.clean_text(row["review_changed_at"]) or None,

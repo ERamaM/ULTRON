@@ -77,7 +77,7 @@ Because the report is a standalone offline file, users can still review and tria
    - Dismissed cards dim visually (with a `"Hide dismissed"` checkbox in the toolbar).
 2. **"Sync to ULTRON" drawer/dialog (pure client-side):**
    - A toolbar button (`Export triage (N)`) opens a clean native `<dialog>` (or collapsible panel) showing:
-     - Ready-to-run shell commands (`ultron jobs review <identity_key> --state <state>` and `ultron jobs note <identity_key> "<note>"`, with shell-safe quoting!) for every triaged role,
+     - Ready-to-run shell commands (`ultron jobs mark <identity_key> <state>` and `ultron jobs note <identity_key> "<note>"`, matching `commands/jobs.py` with shell-safe quoting!) for every triaged role,
      - A **"Copy commands"** button (`navigator.clipboard.writeText` with fallback textarea selection),
      - A **"Reset local triage"** button with confirmation.
    - Every card stores its sanitized `data-id` (`identity_key`), `data-priority`, `data-remote`, `data-salary-mid`, `data-date`, and `data-tags` attributes so `REPORT_JS` operates purely on DOM attributes without any embedded JSON script injection.

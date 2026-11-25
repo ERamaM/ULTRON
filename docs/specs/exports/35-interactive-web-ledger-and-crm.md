@@ -103,7 +103,7 @@ Register every new static asset route in `web_server._load_static_routes()` from
 |---|---|
 | `skill/ultron/scripts/ultron/storage/review.py` | Add `"interview"` to `STATES` |
 | `skill/ultron/scripts/ultron/storage/ledger.py` | Bump `SCHEMA_VERSION = 9`, add `_apply_v9` migration with backup |
-| `skill/ultron/scripts/ultron/commands/jobs.py` | Accept `"interview"` in `jobs review --state` |
+| `skill/ultron/scripts/ultron/commands/jobs.py` | Accept `"interview"` in `jobs mark <identity_key> <state>` and `jobs list --state` |
 | `skill/ultron/scripts/ultron/commands/export.py` | Add `--editable` flag to `ultron export web` |
 | `skill/ultron/scripts/ultron/exports/web_api.py` | New module: CSRF/Origin/Host/body validation and mutation handlers (`state`, `notes`, `feedback`, `watchlist`) |
 | `skill/ultron/scripts/ultron/exports/web_server.py` | Optional `editable=False`, session token injection, route dispatch to `web_api`, static routes for split JS/CSS |

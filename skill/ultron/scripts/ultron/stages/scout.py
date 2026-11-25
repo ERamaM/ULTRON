@@ -32,6 +32,9 @@ AGENT_SOURCES = frozenset({"web_search", EMPLOYER_PAGE})
 WATCH_PASS = "watch"
 EXPANSION_PASS = "expansion"
 DEFAULT_QUEUE_CAP = 60
+# Live finds the agent should reach before it stops searching: the size of the shortlist it is asked for.
+LIVE_FINDS_TARGET = 25
+CLOSED_FETCH_ERRORS = frozenset({"expired_or_closed"})
 NOT_EVALUATED_FILE = "not_evaluated.jsonl"
 CARRIED_FILE = "carried.jsonl"
 CLOSED_REASONS = frozenset({"expired_or_closed"})
@@ -42,8 +45,11 @@ SEARCH_ADVICE = (
     "Search by role and region first (target titles plus remote or the regions in the profile).",
     "Follow aggregator listings (remote job boards, job search engines) to the employer's own posting.",
     "Add finds in batches with `ultron candidates add`; the reply says which are new, seen or rejected.",
+    "Run `ultron fetch` after every batch: `agent_finds.live` counts your finds that are open postings.",
+    ("Many search hits are stale copies of closed postings, so keep searching until agent_finds.live reaches "
+    "live_finds_target (or the shortlist size the user asked for)."),
     "Skip employers in rejected_employers, and postings flagged seen or rejected.",
-    "Stop when two searches in a row add no new employer, or when you have the shortlist size asked for.",
+    "Stop early only when two searches in a row add no new employer.",
 )
 
 
@@ -122,6 +128,7 @@ def brief(run: dict, queued_watch: int = 0) -> dict[str, Any]:
             "max_requests_per_vendor": settings["max_requests_per_vendor"],
             "boards_to_expand": settings["max_seeds_per_run"],
             "evaluation_queue": queue_cap(settings),
+            "live_finds_target": LIVE_FINDS_TARGET,
         },
         "advice": list(SEARCH_ADVICE),
     }
@@ -141,6 +148,43 @@ def queue_pending_watch(run_id: str, run: dict) -> int:
         watchlist.mark_queued(conn, run["profile_slug"], keys, run_id)
     runs.mark_stage(run_id, "candidates")  # the run can fetch its watched postings without any agent find
     return len(rows)
+
+
+# --- incremental fetch ----------------------------------------------------------------------------
+
+
+def pending_fetches(out_dir, unique: list) -> tuple[list, list[dict], list[dict]]:
+    """Candidates a scout run has not fetched yet, and the postings and errors already recorded.
+
+    ``unique`` holds ``(candidate, identity)`` pairs. A candidate counts as fetched when its identity has a
+    posting or its URL has a fetch error, so repeated fetches between batches of finds never refetch it.
+    """
+    postings = runs.read_jsonl(out_dir / "postings.jsonl")
+    errors = runs.read_jsonl(out_dir / "fetch_errors.jsonl")
+    done_keys = {row.get("identity_key") for row in postings}
+    done_urls = {row.get("url") for row in errors} | {
+        (row.get("candidate") or {}).get("normalized_url") for row in postings
+    }
+    todo = [(candidate, key) for candidate, key in unique
+            if key not in done_keys and candidate.normalized_url not in done_urls]
+    return todo, postings, errors
+
+
+def agent_find_counts(out_dir, postings: list[dict], errors: list[dict]) -> dict[str, int]:
+    """How the agent's own finds fared at fetch: open postings, closed ones and other failures."""
+    finds = {row.get("normalized_url") for row in runs.read_jsonl(out_dir / "candidates.jsonl")
+             if found_by(row) == "agent"}
+    live = {(row.get("candidate") or {}).get("normalized_url") for row in postings
+            if found_by(row.get("candidate")) == "agent"}
+    closed = failed = 0
+    for row in errors:
+        if row.get("url") not in finds:
+            continue
+        if str(row.get("error") or "").split(":")[0] in CLOSED_FETCH_ERRORS:
+            closed += 1
+        else:
+            failed += 1
+    return {"live": len(live), "closed": closed, "failed": failed, "target": LIVE_FINDS_TARGET}
 
 
 # --- expansion ------------------------------------------------------------------------------------

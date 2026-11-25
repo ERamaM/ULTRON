@@ -32,7 +32,7 @@ from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.infra.urlpolicy import admit_url
-from ultron.stages import http_factory
+from ultron.stages import http_factory, scout
 from ultron.stages.http_factory import client_for_run
 from ultron.storage import runs
 
@@ -541,11 +541,16 @@ def fetch(run_id: str) -> dict:
         seen.add(identity)
         unique.append((candidate, identity))
 
+    previous_postings: list[dict] = []
+    previous_errors: list[dict] = []
+    scout_run = runs.run_mode(run) == "scout"
+    if scout_run:  # fetch only what is new: the agent fetches after every batch of finds
+        unique, previous_postings, previous_errors = scout.pending_fetches(out_dir, unique)
     ordered = _round_robin(unique)
     capped: list[tuple[CandidateUrl, str]] = []
     # Page slots: every candidate takes one, except those skipped without a request because their ATS vendor is
     # blocked or out of budget for this run; their slot goes to the next candidate instead of being wasted.
-    slots = 0
+    slots = len(previous_postings) + len(previous_errors)
     postings: list[dict] = []
     errors: list[dict] = []
     skipped_hosts: set[str] = set()
@@ -694,8 +699,8 @@ def fetch(run_id: str) -> dict:
          "error": "max_pages_limit"}
         for candidate, identity in capped
     ])
-    runs.write_jsonl(out_dir / "postings.jsonl", postings)
-    runs.write_jsonl(out_dir / "fetch_errors.jsonl", errors)
+    runs.write_jsonl(out_dir / "postings.jsonl", [*previous_postings, *postings])
+    runs.write_jsonl(out_dir / "fetch_errors.jsonl", [*previous_errors, *errors])
     runs.mark_stage(run_id, "fetch")
     summary = {"fetched": len(postings), "failed": len(errors), "capped": len(capped),
                "navigation_failures": nav_failures, "requests": client.requests_made,
@@ -704,4 +709,8 @@ def fetch(run_id: str) -> dict:
                "vendors_blocked": client.vendors_blocked()}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
+    if scout_run:
+        summary["already_fetched"] = len(previous_postings) + len(previous_errors)
+        summary["agent_finds"] = scout.agent_find_counts(out_dir, [*previous_postings, *postings],
+                                                         [*previous_errors, *errors])
     return summary

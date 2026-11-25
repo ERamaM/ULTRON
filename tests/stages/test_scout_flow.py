@@ -284,3 +284,25 @@ def test_kept_agent_find_puts_its_board_on_the_watchlist(capsys):
     _cli(capsys, "finalize", "--run", run_id)
     listed = _cli(capsys, "watchlist", "list", "--profile", profiles.EXAMPLE_SLUG)
     assert [w["seed_key"] for w in listed["watched"]] == ["greenhouse:acme"]
+
+
+def test_scout_fetch_is_incremental_and_counts_live_finds(capsys):
+    run_id = _new_scout(capsys)["run_id"]
+    dead = "https://boards.greenhouse.io/acme/jobs/999"  # handler answers 200 for any greenhouse page
+    _cli(capsys, "candidates", "add", "--run", run_id, "--from", _write(run_id, "agent_a.jsonl", [{"url": POSTING}]))
+    first = _cli(capsys, "fetch", "--run", run_id)
+    assert first["fetched"] == 1 and first["agent_finds"]["live"] == 1 and first["agent_finds"]["target"] == 25
+    _cli(capsys, "candidates", "add", "--run", run_id, "--from",
+         _write(run_id, "agent_b.jsonl", [{"url": EMPLOYER}, {"url": "https://careers.example.org/gone"}, {"url": dead}]))
+    second = _cli(capsys, "fetch", "--run", run_id)
+    assert second["already_fetched"] == 1 and second["fetched"] == 2
+    assert second["agent_finds"] == {"live": 3, "closed": 1, "failed": 0, "target": 25}
+    assert len(runs.read_jsonl(runs.run_dir(run_id) / "postings.jsonl")) == 3
+    third = _cli(capsys, "fetch", "--run", run_id)
+    assert third["fetched"] == 0 and third["already_fetched"] == 4
+
+
+def test_brief_sets_a_live_finds_target(capsys):
+    brief = _new_scout(capsys)["brief"]
+    assert brief["budgets"]["live_finds_target"] == 25
+    assert any("agent_finds.live" in tip for tip in brief["advice"])

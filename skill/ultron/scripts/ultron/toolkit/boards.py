@@ -16,7 +16,7 @@ from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.models import AtsBoardSeed, ExtractedJob
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked
 from ultron.seeds import load_inventory
-from ultron.seeds.inventory import make_seed_id
+from ultron.seeds.inventory import is_unconfirmed, make_seed_id
 from ultron.seeds.naming import company_key, slug_candidates
 from ultron.seeds.verify import Proposal, guessed_board_ownership
 from ultron.stages.candidates import candidate_identity
@@ -127,7 +127,8 @@ def probe_board(name: str, client, timeout: int) -> tuple[AtsBoardSeed | None, l
 def company_dossiers(name: str, client, timeout: int, context: ProfileContext, *,
                      detail: bool = False) -> tuple[list[dict], list[dict], dict[str, Any] | None]:
     """``(dossiers, cache rows, miss)``: a company's matching postings, or a miss record when it has none."""
-    seed, confirmed = inventory_board(name), True
+    seed = inventory_board(name)
+    confirmed = seed is not None and not is_unconfirmed(seed)
     postings: list[AtsPosting] = []
     if seed is not None:
         try:

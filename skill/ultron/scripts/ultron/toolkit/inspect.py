@@ -302,15 +302,20 @@ def _flag(dossiers: list[dict], profile_slug: str) -> None:
             dossier["memory"] = flags[dossier["id"]]
 
 
+def _strength(dossier: dict) -> tuple[bool, bool]:
+    """Lower is better: a read posting beats a listed one, and one asked for beats a board sibling."""
+    return dossier["status"] != "open", bool(dossier.get("via"))
+
+
 def _unique(dossiers: list[dict]) -> list[dict]:
-    """One dossier per posting (a posting read directly wins over the same one seen on its board)."""
+    """One dossier per posting: the explicit read of a posting wins over the same posting seen on its board."""
     seen: dict[str, dict] = {}
     rest = []
     for dossier in dossiers:
         key = dossier.get("id")
         if key is None:
             rest.append(dossier)
-        elif key not in seen or (seen[key].get("via") and not dossier.get("via")):
+        elif key not in seen or _strength(dossier) < _strength(seen[key]):
             seen[key] = dossier
     return [*seen.values(), *rest]
 

@@ -6,7 +6,7 @@ import json
 import threading
 import time
 from collections.abc import Callable, Mapping
-from contextlib import nullcontext
+from contextlib import ExitStack
 from datetime import UTC
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -401,10 +401,17 @@ class HttpClient:
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
         headers: Mapping[str, str] | None = None,
     ) -> tuple[int, httpx.Headers, str]:
-        """Send one request; with a shared gate, never in parallel with another client's request to ``host``."""
-        with self._gate.lock_for(host) if self._gate is not None else nullcontext():
-            if self._gate is not None:
-                self._gate.space(host, self.host_delay(host), self._clock, self._sleep)
+        """Send one request; with a shared gate, never in parallel with another client's request to ``host`` or to
+        another tenant of its vendor, and spaced by both intervals across clients."""
+        if self._gate is None:
+            return self._send_unlocked(method, url, host, timeout, json_body, max_bytes, headers)
+        vendor = self.vendor_for(host)
+        keys = sorted({host, *((_VENDOR_KEY + vendor,) if vendor else ())})  # one lock order: no deadlock
+        with ExitStack() as stack:
+            for key in keys:
+                stack.enter_context(self._gate.lock_for(key))
+            for key in keys:
+                self._gate.space(key, self.host_delay(key), self._clock, self._sleep)
             return self._send_unlocked(method, url, host, timeout, json_body, max_bytes, headers)
 
     def _send_unlocked(

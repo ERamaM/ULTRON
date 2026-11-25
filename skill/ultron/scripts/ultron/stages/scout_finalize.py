@@ -70,7 +70,7 @@ def finalize_scout(run_id: str, run: dict) -> dict:
     for row in duplicates:
         out.discard(row, "duplicate_role", f"duplicate of earlier role company={row.company} title={row.title}",
                     "dedup")
-    ranked = rank_scout_rows(deduped, out.new)
+    ranked = rank_scout_rows(deduped)
     max_roles = max(0, int(run["settings"].get("max_roles") or 0))
     capped = ranked[max_roles:] if max_roles else []
     ranked = ranked[:max_roles] if max_roles else ranked

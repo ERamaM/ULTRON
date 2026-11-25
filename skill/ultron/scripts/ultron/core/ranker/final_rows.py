@@ -247,23 +247,17 @@ def rank_final_rows(rows: list[FinalRow], *, use_match_score: bool = False) -> l
     )
 
 
-def rank_scout_rows(rows: list[FinalRow], new_keys: set[int] | None = None) -> list[FinalRow]:
-    """Order a scout shortlist the way the agent judged it, in two tiers.
+def rank_scout_rows(rows: list[FinalRow]) -> list[FinalRow]:
+    """Order a saved shortlist the way the agent judged it.
 
-    Tier 0 holds the agent's verified finds, tier 1 everything else (extras it kept from the queue, rows carried
-    from memory). Within a tier every ``keep`` comes before every ``unsure``, then priority (none reads as 2), then
-    eligibility; rows whose ``id`` is in ``new_keys`` come first among equals, and the match score breaks the
-    remaining ties.
+    The agent's verified finds come first (tier 0), then any other row. Within a tier every ``keep`` comes before
+    every ``unsure``, then the agent's priority (none reads as 2), then the order the agent sent the rows in, best
+    first. ULTRON's own score never reorders what the agent ranked.
     """
-    new_keys = new_keys or set()
+    position = {id(row): index for index, row in enumerate(rows)}
     return sorted(rows, key=lambda row: (
         _tier(row),
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
         row.priority if row.priority is not None else 2,
-        _ELIGIBILITY_RANK.get(row.eligibility, 4),
-        0 if id(row) in new_keys else 1,
-        -(row.match_score if row.match_score is not None else 0),
-        row.company.casefold(),
-        row.title.casefold(),
-        row.apply_url,
+        position[id(row)],
     ))

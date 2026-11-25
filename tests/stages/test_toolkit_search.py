@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -221,7 +222,7 @@ def test_watch_records_the_employer_posting_behind_an_aggregator(capsys):
     assert main(["watch", "--profile", SLUG]) == 0
     capsys.readouterr()
     served = {d["url"] for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"}
-    assert POSTING in served and not any("remotive.com" in url or "jobicy.com" in url for url in served)
+    assert POSTING in served and not {urlsplit(url).hostname for url in served} & {"remotive.com", "jobicy.com"}
 
 
 def test_pending_postings_follow_an_explicit_query(capsys):
@@ -235,3 +236,52 @@ def test_pending_postings_follow_an_explicit_query(capsys):
 def test_keyed_sources_are_aggregators():
     from ultron.core.feeds.urls import is_aggregator_host
     assert is_aggregator_host("www.adzuna.es") and is_aggregator_host("www.reed.co.uk")
+
+
+def test_pending_postings_keep_their_remote_hint():
+    from contextlib import closing
+
+    from ultron.storage import ledger, watchlist
+    candidate = {"identity_key": "greenhouse:acme:999", "normalized_url": "https://boards.greenhouse.io/acme/jobs/999",
+                 "ats_title": "Senior Machine Learning Engineer", "ats_company": "Acme",
+                 "ats_location": "United States", "ats_remote_hint": "Remote - Europe"}
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [(candidate["identity_key"], candidate)])
+    served = [d["id"] for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"]
+    assert "greenhouse:acme:999" in served
+
+
+def test_a_failing_term_keeps_the_other_terms_rows(monkeypatch):
+    def flaky(request):
+        if request.url.host == "remotive.com" and "Second" in str(request.url):
+            return httpx.Response(500)
+        return _handler(request)
+    http_factory.set_test_overrides(transport=httpx.MockTransport(flaky), resolver=lambda h, p: ["93.184.216.34"],
+                                    sleep=lambda s: None, min_interval_per_host=0.0)
+    from ultron.core.feeds.role_search import SOURCES
+    remotive = next(s for s in SOURCES if s.name == "remotive")
+    status, rows = role_feeds.role_source_rows(remotive, ["Machine Learning", "Second Role"],
+                                               http_factory.client_for_run({"settings": {
+                                                   "max_pages": 50, "max_seeds_per_run": 10,
+                                                   "max_requests_per_host": 50, "ats_api_timeout": 5}}), 5)
+    assert status["status"] == "partial" and rows
+
+
+def test_aggregator_resolution_moves_past_known_listings(monkeypatch, capsys):
+    from ultron.stages import watch as watch_stage
+    monkeypatch.setattr(watch_stage, "MAX_RESOLVED", 1)
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    first = set(role_feeds.known_resolutions())
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    assert len(role_feeds.known_resolutions()) > len(first)  # the second watch followed a new listing
+
+
+def test_search_flags_an_aggregator_listing_with_its_employer_postings_memory():
+    from ultron.toolkit import inspect
+    listing = next(d for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "Remotive")
+    (read,) = inspect.inspect_jobs(SLUG, [listing["url"]])["dossiers"]
+    shortlist.save_shortlist(SLUG, [{"id": read["id"], "verdict": "discard"}])
+    again = {d["id"]: d["memory"] for d in search.search_jobs(SLUG)["dossiers"]}
+    assert again[listing["id"]] == "rejected"

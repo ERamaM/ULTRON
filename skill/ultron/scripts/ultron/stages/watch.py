@@ -33,7 +33,15 @@ from ultron.stages.candidates import candidate_identity
 from ultron.stages.discover import clean_posting, posting_candidate, seed_key
 from ultron.stages.fetch import fetch_posting, posting_status
 from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
-from ultron.stages.role_feeds import keyless_sources, local_feed_rows, local_feeds, query_terms, role_source_rows
+from ultron.stages.role_feeds import (
+    keyless_sources,
+    known_resolutions,
+    local_feed_rows,
+    local_feeds,
+    query_terms,
+    remember_resolutions,
+    role_source_rows,
+)
 from ultron.stages.scout import WATCH_PASS, watch_seeds
 from ultron.stages.scout_finds import web_candidate
 from ultron.stages.scout_resolve import resolve_aggregator
@@ -69,9 +77,13 @@ def _query(seed, client, timeout: int) -> tuple[list, str | None]:
 
 
 def as_postings(rows: list[dict]) -> list[AtsPosting]:
-    """Feed rows (``title``, ``url``, ``location``, ``posted``) as board-like postings for profile matching."""
+    """Feed rows (``title``, ``url``, ``location``, ``remote``, ``posted``) as board-like postings for matching.
+
+    Without a ``remote`` hint, the location stands in for it (feeds state remote scope as the location).
+    """
     return [AtsPosting(title=r["title"], apply_url=r["url"], location=r.get("location", ""),
-                       remote_hint=r.get("location", ""), posted_at=r.get("posted") or None) for r in rows]
+                       remote_hint=r.get("remote") or r.get("location", ""), posted_at=r.get("posted") or None)
+            for r in rows]
 
 
 def _role_candidates(run: dict, client, timeout: int) -> tuple[list[dict], dict[str, dict]]:
@@ -88,22 +100,26 @@ def _role_candidates(run: dict, client, timeout: int) -> tuple[list[dict], dict[
         rows.extend(got)
     company = {r["url"]: r.get("company_name", "") for r in rows}
     source = {r["url"]: r.get("source", "") for r in rows}
-    candidates, resolved = [], 0
+    candidates, resolved, known, learned = [], 0, known_resolutions(), {}
     for posting in profile_matches(as_postings(rows), profile):
         url = posting.apply_url
         if is_aggregator_host(domain_of(normalize_url(url))):
-            # A scout run drops aggregator pages, so only the employer posting they link to is recorded.
-            if resolved >= MAX_RESOLVED:
+            # A scout run drops aggregator pages, so only the employer posting they link to is recorded. Links
+            # followed before are reused, so the per-watch bound only applies to new listings and never starves them.
+            if url not in known:
+                if resolved >= MAX_RESOLVED:
+                    continue
+                resolved += 1
+                found = resolve_aggregator(url, client, timeout, company[url])
+                known[url] = learned[url] = found.url if found.outcome == "resolved_aggregator" else ""
+            if not known[url]:
                 continue
-            resolved += 1
-            found = resolve_aggregator(url, client, timeout, company[url])
-            if found.outcome != "resolved_aggregator":
-                continue
-            url = found.url
+            url = known[url]
         candidate = web_candidate(url, {"title": posting.title, "company": company[posting.apply_url],
                                         "location": posting.location}, f"watch:{source[posting.apply_url]}")
         candidate.search_pass = WATCH_PASS
         candidates.append(candidate.model_dump(mode="json"))
+    remember_resolutions(learned)
     return candidates, statuses
 
 

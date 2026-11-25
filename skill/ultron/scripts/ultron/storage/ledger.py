@@ -132,6 +132,7 @@ _SCOUT_TABLES = (
     discard_category TEXT NOT NULL DEFAULT '',
     priority INTEGER,
     content_hash TEXT NOT NULL DEFAULT '',
+    profile_hash TEXT NOT NULL DEFAULT '',
     company TEXT NOT NULL DEFAULT '',
     row_json TEXT,
     run_id TEXT NOT NULL,

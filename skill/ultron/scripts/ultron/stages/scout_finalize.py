@@ -23,8 +23,8 @@ from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope
 from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept
-from ultron.stages.scout import CARRIED_FILE, NOT_EVALUATED_FILE
-from ultron.storage import ledger, runs, scout_memory
+from ultron.stages.scout import CARRIED_FILE, NOT_EVALUATED_FILE, WATCH_PASS
+from ultron.storage import ledger, runs, scout_memory, watchlist
 
 
 class _Collector:
@@ -37,6 +37,7 @@ class _Collector:
         self.discards: list[DiscardRecord] = []
         self.stage_discards: list[dict] = []
         self.verdicts: list[dict] = []
+        self.unjudged_watch: list[str] = []
 
     def discard(self, record: DiscardRecord, key: str, stage: str) -> None:
         self.discards.append(record)
@@ -85,6 +86,8 @@ def _unjudged(out_dir: Path, queue: list[dict], agent: dict, out: _Collector) ->
                          *((e, "queue_cap") for e in runs.read_jsonl(out_dir / NOT_EVALUATED_FILE))]:
         job = ExtractedJob(**entry["job"])
         out.discard(discard_record(job, "not_evaluated", stage), entry["identity_key"], stage)
+        if entry.get("found_by") == WATCH_PASS:  # back to the watch's pending list for the next scout run
+            out.unjudged_watch.append(entry["identity_key"])
 
 
 def _carry(out_dir: Path, out: _Collector) -> int:
@@ -153,7 +156,9 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
     with closing(ledger.connect()) as conn:
         is_new = ledger.record_finalized_run(conn, summary, ranked, profile_slug=run["profile_slug"],
                                              preset=run["preset"], seed_kept=seed_kept(out_dir, ranked))
-        scout_memory.record_verdicts(conn, run["profile_slug"], run_id, out.verdicts)
+        scout_memory.record_verdicts(conn, run["profile_slug"], run_id, out.verdicts,
+                                     scout_memory.profile_hash(run.get("profile_snapshot") or {}))
+        watchlist.return_to_pending(conn, run["profile_slug"], out.unjudged_watch)
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, out.discards)
     payload = json.loads(Path(js).read_text(encoding="utf-8"))
     for row, data in zip(ranked, payload["rows"], strict=True):

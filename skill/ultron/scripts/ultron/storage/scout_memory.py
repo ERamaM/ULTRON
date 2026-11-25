@@ -33,6 +33,12 @@ def content_hash(title: str, location: str, remote_text: str = "", body_text: st
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+def profile_hash(profile: dict) -> str:
+    """A digest of the profile's search criteria; a carried verdict is valid only under the same criteria."""
+    criteria = json.dumps((profile or {}).get("criteria") or {}, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(criteria.encode("utf-8")).hexdigest()[:16]
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -72,27 +78,38 @@ def _flag(conn: sqlite3.Connection, profile_slug: str, key: str) -> Flag:
     return "seen" if exported else "new"
 
 
-def carried_row(conn: sqlite3.Connection, profile_slug: str, key: str, digest: str) -> tuple[FinalRow, int | None] | None:
-    """The last exported row and priority of a seen posting whose facts did not change, else ``None``."""
+def carried_row(
+    conn: sqlite3.Connection, profile_slug: str, key: str, digest: str, criteria_digest: str,
+) -> tuple[FinalRow, int | None] | None:
+    """The last row and priority of a seen posting, else ``None``.
+
+    The row is carried only when neither the posting's facts nor the profile's criteria changed since the agent
+    judged it; otherwise the posting is judged again.
+    """
     found = conn.execute(
-        "SELECT verdict, content_hash, row_json, priority FROM scout_verdicts"
+        "SELECT verdict, content_hash, row_json, priority, profile_hash FROM scout_verdicts"
         " WHERE profile_slug = ? AND identity_key = ?",
         (profile_slug, key),
     ).fetchone()
     if not found or found[0] not in {"keep", "unsure"} or found[1] != digest or not found[2]:
         return None
+    if found[4] != criteria_digest:
+        return None
     return FinalRow.model_validate(json.loads(found[2])), found[3]
 
 
-def record_verdicts(conn: sqlite3.Connection, profile_slug: str, run_id: str, verdicts: Iterable[dict]) -> int:
+def record_verdicts(
+    conn: sqlite3.Connection, profile_slug: str, run_id: str, verdicts: Iterable[dict], criteria_digest: str = "",
+) -> int:
     """Store the agent verdicts of a finalized scout run; each later verdict replaces the earlier one.
 
     Each item has ``identity_key``, ``verdict``, ``discard_category``, ``priority``, ``content_hash``,
-    ``company`` and ``row`` (the exported ``FinalRow``, or ``None`` for a discard).
+    ``company`` and ``row`` (the exported ``FinalRow``, or ``None`` for a discard). ``criteria_digest`` is the
+    ``profile_hash`` of the criteria the verdicts were made under.
     """
     rows = [
         (profile_slug, item["identity_key"], item["verdict"], item.get("discard_category") or "",
-         item.get("priority"), item.get("content_hash") or "", item.get("company") or "",
+         item.get("priority"), item.get("content_hash") or "", criteria_digest, item.get("company") or "",
          json.dumps(item["row"].model_dump(mode="json"), ensure_ascii=False) if item.get("row") else None,
          run_id, _now())
         for item in verdicts
@@ -100,10 +117,12 @@ def record_verdicts(conn: sqlite3.Connection, profile_slug: str, run_id: str, ve
     with conn:
         conn.executemany(
             "INSERT INTO scout_verdicts (profile_slug, identity_key, verdict, discard_category, priority,"
-            " content_hash, company, row_json, run_id, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            " content_hash, profile_hash, company, row_json, run_id, recorded_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             " ON CONFLICT(profile_slug, identity_key) DO UPDATE SET verdict = excluded.verdict,"
             " discard_category = excluded.discard_category, priority = excluded.priority,"
-            " content_hash = excluded.content_hash, company = excluded.company, row_json = excluded.row_json,"
+            " content_hash = excluded.content_hash, profile_hash = excluded.profile_hash,"
+            " company = excluded.company, row_json = excluded.row_json,"
             " run_id = excluded.run_id, recorded_at = excluded.recorded_at",
             rows,
         )

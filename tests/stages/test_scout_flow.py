@@ -264,3 +264,23 @@ def test_saved_search_watch_applies_overrides(capsys):
     _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
     out = _cli(capsys, "saved-search", "run", "tight", "--watch")
     assert out["requests"] <= 1
+
+
+def test_unevaluated_watch_postings_return_to_pending(capsys):
+    _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
+    found = _cli(capsys, "watch", "--profile", profiles.EXAMPLE_SLUG)["new_postings"]
+    run_id = _new_scout(capsys)["run_id"]
+    _cli(capsys, "fetch", "--run", run_id)
+    _cli(capsys, "filter", "--run", run_id)
+    _cli(capsys, "finalize", "--run", run_id)  # nothing judged
+    with closing(ledger.connect()) as conn:
+        assert len(watchlist.pending(conn, profiles.EXAMPLE_SLUG)) == found
+
+
+def test_kept_agent_find_puts_its_board_on_the_watchlist(capsys):
+    run_id, _discover, _routed, pending = _full_run(capsys)
+    find = next(i["identity_key"] for i in pending["items"] if i["identity_key"] == "greenhouse:acme:4012345")
+    _cli(capsys, "evaluate", "record", "--run", run_id, "--from", _write(run_id, "agent_eval.jsonl", [_verdict(find, "keep", 1)]))
+    _cli(capsys, "finalize", "--run", run_id)
+    listed = _cli(capsys, "watchlist", "list", "--profile", profiles.EXAMPLE_SLUG)
+    assert [w["seed_key"] for w in listed["watched"]] == ["greenhouse:acme"]

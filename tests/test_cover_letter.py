@@ -877,3 +877,36 @@ def test_strict_attribution_checks_each_outcome_and_preserves_employment_scope(t
         assert result["passed"] is passed
         if not passed:
             assert any(row["type"] == "unsupported_claim_attribution" for row in result["violations"])
+
+
+@pytest.mark.parametrize(("instruction", "override", "language", "source", "conflict", "ambiguous"), [
+    ("Envía tu candidatura en inglés.", None, "en", "application_instruction", False, False),
+    ("Envía tu candidatura en inglés.", "es", "es", "override", True, False),
+    ("No envíes tu candidatura en inglés.", None, "es", "auto_detected", False, False),
+    ("No obstante, envía tu candidatura en inglés.", None, "en", "application_instruction", False, False),
+    ("No experience is required, submit your application in English.", None, "en", "application_instruction", False, False),
+    ("No envíes tu candidatura en inglés.", "en", "en", "override", True, False),
+    ("Requisitos: hablar inglés con fluidez.", None, "es", "auto_detected", False, False),
+    ("Envía tu candidatura en inglés. Submit your application in Spanish.",
+     None, "es", "auto_detected", False, True),
+    ("Submit your application in English or Spanish.", None, "es", "auto_detected", False, True),
+    ("Submit your application in English, Spanish or German.", None, "es", "auto_detected", False, True),
+    ("Submit your application in English/Spanish.", "es", "es", "override", False, True),
+])
+def test_brief_respects_requested_application_language(tmp_path, instruction, override, language, source,
+                                                       conflict, ambiguous):
+    job_file = tmp_path / "posting.txt"
+    job_file.write_text(
+        "Buscamos una persona para trabajar con el equipo de la empresa.\n"
+        "Requisitos y responsabilidades del puesto.\n" + instruction,
+        encoding="utf-8",
+    )
+    data = brief.prepare_cover_letter_brief(cv_path=_write_sample_cv(tmp_path), job_file=job_file, lang=override)
+    target = data["target_job"]
+    assert target["detected_language"] == "es"
+    assert target["application_language_ambiguous"] is ambiguous
+    assert data["language"] == language
+    assert data["language_source"] == source
+    assert data["application_language_conflict"] is conflict
+    assert all(fragment in instruction for fragment in target["application_language_evidence"])
+    assert bool(target["application_language_evidence"]) is ("fluidez" not in instruction)

@@ -81,6 +81,64 @@ _LOCATION_HINT_RE = re.compile(
 )
 
 
+_APPLICATION_DOCUMENT = (
+    r"(?:application|cv|r[eé]sum[eé]|cover letter|candidatura|curr[ií]culum|candidature|"
+    r"bewerbung|lebenslauf|candidatura|curr[ií]culo)"
+)
+_LANGUAGE_NAME = (
+    r"english|ingl[eé]s|ingl[eê]s|anglais|englisch|inglese|spanish|espa(?:ñ|n)ol|"
+    r"german|deutsch|alem[aá]n|french|fran[cç][eé]s|fran[cç]ais|portuguese|portugu[eê]s|italian|italiano"
+)
+_APPLICATION_INSTRUCTION = re.compile(
+    rf"\b{_APPLICATION_DOCUMENT}(?:[ \t]+(?:must be|should be|debe estar|deber[aá] estar))?"
+    rf"[ \t]+(?:in|en|em|auf)[ \t]+(?P<languages>(?:{_LANGUAGE_NAME})\b"
+    rf"(?:[ \t]{{0,5}}(?:,|/|\b(?:or|o|ou|oder|and|y|et|e|und)\b)[ \t]{{0,5}}"
+    rf"(?:{_LANGUAGE_NAME})\b){{0,5}})",
+    re.IGNORECASE,
+)
+_LANGUAGE_TOKEN = re.compile(rf"\b(?:{_LANGUAGE_NAME})\b", re.IGNORECASE)
+_LANGUAGE_CODES = {
+    "english": "en", "ingles": "en", "anglais": "en", "englisch": "en", "inglese": "en",
+    "spanish": "es", "espanol": "es", "german": "de", "deutsch": "de", "aleman": "de",
+    "french": "fr", "frances": "fr", "francais": "fr", "portuguese": "pt", "portugues": "pt",
+    "italian": "it", "italiano": "it",
+}
+
+
+_INSTRUCTION_BOUNDARY = re.compile(r"[.!?;,\r\n]")
+_NEGATED_INSTRUCTION = re.compile(
+    r"\b(?:no|do not|don.t|must not|should not|ne pas|nicht|nao)"
+    r"(?:[ \t]+(?:submit|send|write|accept|envies|enviar|mandes|envoie|schicken|envie))?"
+    r"(?:[ \t]+(?:your|an?|the|tu|su|una|la|votre|sua))?[ \t]*$"
+)
+_NEGATED_ACCEPTANCE = re.compile(r"^\s+(?:(?:is|are|will be)\s+)?not (?:accepted|allowed)\b")
+
+
+def _application_language(body: str) -> dict[str, Any]:
+    evidence = []
+    languages = set()
+    excluded = set()
+    for match in _APPLICATION_INSTRUCTION.finditer(body):
+        prefix = _INSTRUCTION_BOUNDARY.split(body[max(0, match.start() - 100):match.start()])[-1]
+        suffix = body[match.end():match.end() + 40]
+        negated = _NEGATED_INSTRUCTION.search(normalize_text(prefix)) or _NEGATED_ACCEPTANCE.match(suffix.casefold())
+        codes = {_LANGUAGE_CODES[normalize_text(name)] for name in _LANGUAGE_TOKEN.findall(match["languages"])}
+        if negated:
+            excluded.update(codes)
+        else:
+            languages.update(codes)
+        if len(evidence) < 4:
+            evidence.append(str(redact((prefix + match[0] + (suffix if negated else "")).strip())))
+    conflicting = bool(languages & excluded)
+    languages -= excluded
+    return {
+        "requested_application_language": next(iter(languages)) if len(languages) == 1 else None,
+        "application_language_evidence": evidence,
+        "application_language_ambiguous": conflicting or len(languages) > 1,
+        "excluded_application_languages": sorted(excluded),
+    }
+
+
 def detect_language(text: str) -> str:
     """Detect natural language of a job posting among ``SUPPORTED_LANGS`` (defaults to ``en``)."""
     tokens = _LANG_WORD_RE.findall((text or "").lower())
@@ -238,6 +296,7 @@ def resolve_job_target(
             "posting_id": "",
             "terms": terms,
             "detected_language": detect_language(f"{title}\n{raw}"),
+            **_application_language(raw),
             "description_excerpt": str(redact(raw[:1600])),
             "path": str(src),
         }
@@ -269,6 +328,7 @@ def resolve_job_target(
             "posting_id": str(job_data.get("identity_key") or ""),
             "terms": terms,
             "detected_language": detect_language(f"{title}\n{body}"),
+            **_application_language(body),
             "description_excerpt": str(redact(body[:1600])),
         }
 
@@ -343,7 +403,9 @@ def prepare_cover_letter_brief(
     matched_terms = [term for term in target_terms if contains_term(extracted.text, term)]
     missing_terms = [term for term in target_terms if term not in matched_terms]
 
-    resolved_lang = lang.lower() if lang else str(target.get("detected_language") or "en")
+    requested_lang = target.get("requested_application_language")
+    resolved_lang = lang.lower() if lang else str(requested_lang or target.get("detected_language") or "en")
+    language_source = "application_instruction" if requested_lang else "auto_detected"
     header = extract_candidate_header(extracted.text)
     evidence = extract_cv_evidence_bullets(extracted.text, target_terms=target_terms)
 
@@ -352,7 +414,11 @@ def prepare_cover_letter_brief(
         "source_cv": str(resolved_cv.resolve()),
         "profile": profile_slug,
         "language": resolved_lang,
-        "language_source": "override" if lang else "auto_detected",
+        "language_source": "override" if lang else language_source,
+        "application_language_conflict": (
+            resolved_lang in target.get("excluded_application_languages", [])
+            or bool(lang and requested_lang and resolved_lang != requested_lang)
+        ),
         "tone": tone,
         "tone_guide": TONE_GUIDES[tone],
         "candidate": header,

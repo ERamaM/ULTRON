@@ -52,7 +52,8 @@ def _rows(conn, sql: str, params: tuple = ()) -> list[dict]:
 
 
 _SELECT = (
-    "SELECT j.*, f.relevance AS feedback_relevance, f.reason_code AS feedback_reason"
+    "SELECT j.*, f.relevance AS feedback_relevance, f.reason_code AS feedback_reason,"
+    " CASE WHEN f.relevance IS NOT NULL THEN 'unscoped' END AS feedback_scope"
     " FROM jobs j LEFT JOIN job_feedback f ON f.identity_key = j.identity_key"
 )
 
@@ -64,6 +65,99 @@ def _run_created_at(conn, run_id: str) -> str:
     return row[0]
 
 
+def _resolve_scope(conn, profile: str | None, saved_search: str | None, baseline: str | None):
+    if not saved_search:
+        return "profile_slug", profile, {"kind": "profile", "profile": profile}
+    row = conn.execute(
+        "SELECT profile_slug, created_at FROM saved_searches WHERE name = ?", (saved_search,),
+    ).fetchone()
+    if row is None:
+        raise LookupError(f"saved search not found: {saved_search}")
+    slug, created = row
+    search_id = ledger.saved_search_identity(saved_search, created)
+    scope = {"kind": "saved_search", "saved_search": saved_search, "profile": slug}
+    if baseline:
+        provenance = conn.execute(
+            "SELECT profile_slug, saved_search_id FROM run_scopes WHERE run_id = ?", (baseline,),
+        ).fetchone()
+        if provenance == (slug, None):
+            return "profile_slug", slug, {"kind": "profile", "profile": slug, "requested_search": saved_search}
+    return "saved_search_id", search_id, scope
+
+
+def _scoped_rows(
+    conn, *, profile: str | None, saved_search: str | None, since_run: str | None,
+    new_only: bool, state: str | None, limit: int | None,
+) -> tuple[list[dict], dict]:
+    column, value, scope = _resolve_scope(conn, profile, saved_search, since_run)
+    field = "first_run" if new_only else "last_run"
+    condition = ""
+    params = [value, scope["profile"]]
+    if since_run:
+        baseline = conn.execute(
+            f"SELECT created_at FROM run_scopes WHERE run_id = ? AND {column} = ?", (since_run, value),
+        ).fetchone()
+        if baseline is None or baseline[0] is None:
+            raise ValueError("baseline run is unavailable in the selected search scope")
+        comparator = ">" if new_only else ">="
+        condition += f" AND {field} {comparator} ?"
+        params.append(f"{baseline[0]}|{since_run}")
+    elif new_only:
+        condition += " AND first_run = (SELECT MAX(run_order) FROM scoped_runs)"
+    if state:
+        condition += " AND j.review_state = ?"
+        params.append(state)
+    sql = (
+        "WITH scoped_runs AS (SELECT run_id, created_at || '|' || run_id AS run_order"
+        f" FROM run_scopes WHERE {column} = ? AND created_at IS NOT NULL),"
+        " sightings AS (SELECT o.identity_key, MIN(r.run_order) AS first_run, MAX(r.run_order) AS last_run"
+        " FROM scoped_runs r JOIN job_occurrences o USING (run_id) GROUP BY o.identity_key)"
+        " SELECT j.*, scoped.details_json AS scoped_details, s.first_run AS scoped_first_seen,"
+        " s.last_run AS scoped_last_seen,"
+        " COALESCE(p.relevance, f.relevance) AS feedback_relevance,"
+        " COALESCE(p.reason_code, f.reason_code) AS feedback_reason,"
+        " CASE WHEN p.relevance IS NOT NULL THEN 'profile' WHEN f.relevance IS NOT NULL THEN 'unscoped' END"
+        " AS feedback_scope, f.relevance AS unscoped_feedback_relevance"
+        " FROM sightings s JOIN jobs j USING (identity_key)"
+        " JOIN scoped_runs latest ON latest.run_order = s.last_run"
+        " JOIN job_occurrences scoped ON scoped.run_id = latest.run_id AND scoped.identity_key = j.identity_key"
+        " LEFT JOIN profile_job_feedback p ON p.identity_key = j.identity_key AND p.profile_slug = ?"
+        " LEFT JOIN job_feedback f ON f.identity_key = j.identity_key WHERE 1 = 1"
+        f"{condition} ORDER BY s.last_run DESC, j.identity_key"
+    )
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(max(0, limit))
+    found = _rows(conn, sql, tuple(params))
+    for row in found:
+        detail = ledger.occurrence_details(row.pop("scoped_details"))
+        for field in ("title", "company", "location", "canonical_url", "source_type", "source_key"):
+            if field in detail:
+                row[field] = detail[field]
+        row["match_score"] = detail.get("match_score")
+        row["match_band"] = detail.get("match_band")
+        row["profile_slug"] = detail.get("profile_slug", scope["profile"])
+        row["first_seen"], row["first_seen_run_id"] = row.pop("scoped_first_seen").split("|", 1)
+        row["last_seen"], row["last_seen_run_id"] = row.pop("scoped_last_seen").split("|", 1)
+    return found, scope
+
+
+def list_scoped_jobs(
+    *, profile: str | None = None, saved_search: str | None = None, since_run: str | None = None,
+    new_only: bool = False, state: str | None = None, limit: int | None = None,
+) -> tuple[list[dict], dict]:
+    """Return vacancies and the actual occurrence scope used for the comparison."""
+    if state is not None and state not in STATES:
+        raise ValueError(f"invalid state {state!r}")
+    if bool(profile) == bool(saved_search):
+        raise ValueError("select one profile or saved search")
+    with closing(ledger.connect()) as conn:
+        return _scoped_rows(
+            conn, profile=profile, saved_search=saved_search, since_run=since_run, new_only=new_only,
+            state=state, limit=limit,
+        )
+
+
 def list_jobs(
     *, state: str | None = None, profile: str | None = None, since_run: str | None = None,
     new_only: bool = False, limit: int = 50,
@@ -72,6 +166,11 @@ def list_jobs(
 
     ``since_run``: last seen in a run created at/after it; ``new_only``: seen in exactly one run.
     """
+    if profile is not None:
+        jobs, _scope = list_scoped_jobs(
+            profile=profile, state=state, since_run=since_run, new_only=new_only, limit=limit,
+        )
+        return jobs
     if state is not None and state not in STATES:
         raise ValueError(f"invalid state {state!r}; expected one of {', '.join(STATES)}")
     where: list[str] = []
@@ -80,9 +179,7 @@ def list_jobs(
         if state is not None:
             where.append("j.review_state = ?")
             params.append(state)
-        if profile is not None:
-            where.append("j.profile_slug = ?")
-            params.append(profile)
+
         if since_run is not None:
             where.append("(SELECT r.created_at FROM runs r WHERE r.run_id = j.last_seen_run_id) >= ?")
             params.append(_run_created_at(conn, since_run))
@@ -120,7 +217,9 @@ def add_note(identity_key: str, text: str) -> str:
     return key
 
 
-def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note: str = "") -> str:
+def set_feedback(
+    identity_key: str, relevance: str, reason_code: str = "", note: str = "", *, profile: str | None = None,
+) -> str:
     """Record relevance feedback and optional reason code/note on a job."""
     if relevance not in RELEVANCE:
         raise ValueError(f"invalid relevance {relevance!r}; expected one of {', '.join(RELEVANCE)}")
@@ -130,6 +229,15 @@ def set_feedback(identity_key: str, relevance: str, reason_code: str = "", note:
     with closing(ledger.connect()) as conn, conn:
         key = resolve_key(identity_key, conn)
         _require(conn, key)
+        if profile:
+            conn.execute(
+                "INSERT INTO profile_job_feedback (identity_key, profile_slug, relevance, reason_code, note, labeled_at)"
+                " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(identity_key, profile_slug) DO UPDATE SET"
+                " relevance = excluded.relevance, reason_code = excluded.reason_code,"
+                " note = excluded.note, labeled_at = excluded.labeled_at",
+                (key, profile, relevance, reason_code, note, _now()),
+            )
+            return key
         conn.execute(
             "INSERT INTO job_feedback (identity_key, relevance, reason_code, note, labeled_at) VALUES (?, ?, ?, ?, ?)"
             " ON CONFLICT(identity_key) DO UPDATE SET relevance = excluded.relevance,"

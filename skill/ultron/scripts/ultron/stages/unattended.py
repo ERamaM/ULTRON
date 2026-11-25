@@ -53,9 +53,11 @@ def verify_feed_companies(run_id: str) -> dict:
     return {"tried": tried, "verified": len(verified), "unconfirmed": len(unconfirmed_seeds), "seeds_added": added}
 
 
-def run_unattended(profile_slug: str, preset: str, overrides: dict | None = None) -> dict:
+def run_unattended(
+    profile_slug: str, preset: str, overrides: dict | None = None, *, saved_search_id: str | None = None,
+) -> dict:
     """new -> discover_feeds -> discover_ats -> fetch -> filter -> finalize; ambiguous postings stay ``unsure``."""
-    run_id = runs.new_run(profile_slug, preset, overrides)
+    run_id = runs.new_run(profile_slug, preset, overrides, saved_search_id=saved_search_id)
     runs.mark_stage(run_id, "new")
     stages = {"discover_feeds": discover_feeds(run_id)}
     stages["feed_companies"] = verify_feed_companies(run_id)

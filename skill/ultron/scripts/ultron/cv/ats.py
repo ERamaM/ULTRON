@@ -231,6 +231,14 @@ def render_audit_markdown(audit: dict[str, Any]) -> str:
             f"- Matched: {', '.join(align['matched']) or '(none)'}",
             f"- Missing (ask user before adding; never fabricate): {', '.join(align['missing']) or '(none)'}",
         ])
+    criteria = align.get("criteria") or []
+    if criteria:
+        lines.extend(["", "## Evidence from the vacancy", ""])
+        for row in criteria:
+            options = " / ".join(row["alternatives"])
+            state = "matched" if row["matched"] else "missing"
+            lines.append(f"- **{row['category'].capitalize()} · {state}**. {options}. {row['evidence']}")
+
     return "\n".join(lines) + "\n"
 
 
@@ -271,7 +279,7 @@ def audit_cv(
     )
     content_findings = struct_findings + c_findings
     content_stats = {**struct_stats, **c_stats}
-    align_score, alignment = audit_target_alignment(text, target_terms)
+    align_score, alignment = audit_target_alignment(text, target_terms, target_meta.pop("requirements", None))
 
     if align_score is None:
         total_score = min(100, round((format_score + struct_score + content_score) * 100 / 80))

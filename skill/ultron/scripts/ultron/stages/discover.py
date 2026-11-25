@@ -30,7 +30,6 @@ from ultron.core.vocabulary import active_pack
 from ultron.infra import home
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.seeds import load_inventory
-from ultron.stages import scout
 from ultron.stages.candidates import candidate_identity as _identity
 from ultron.stages.http_factory import DISCOVER_VENDOR_SHARE, HOST_BLOCK_THRESHOLD, VERIFY_VENDOR_SHARE, client_for_run
 from ultron.storage import ledger, runs
@@ -452,16 +451,11 @@ def discover_ats(run_id: str) -> dict:
         run, out_dir, timeout=timeout,
     )
     client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD, vendor_share=DISCOVER_VENDOR_SHARE)
-    scout_run = runs.run_mode(run) == "scout"
-    if scout_run:  # found employers and the watchlist, never a sweep of the inventory
-        seeds, groups = scout.expansion_seeds(run, out_dir, _seed_request_host)
-        yield_stats = {"deprioritized": 0, "exploration_reserved": 0}
-    else:
-        seeds, groups, yield_stats = _select_seeds(
-            run["profile_slug"], criteria.get("sectors"),
-            settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
-            yields=load_seed_yields(run["profile_slug"]), profile=profile,
-        )
+    seeds, groups, yield_stats = _select_seeds(
+        run["profile_slug"], criteria.get("sectors"),
+        settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
+        yields=load_seed_yields(run["profile_slug"]), profile=profile,
+    )
     board_report: list[dict] = []
 
     candidates: list[CandidateUrl] = []
@@ -550,7 +544,7 @@ def discover_ats(run_id: str) -> dict:
         board_report.append({"seed_key": seed_key(seed), "company": seed.company, "group": _group,
                              "listed": len(postings), "matched": len(kept), "cut": max(0, len(kept) - per_seed)})
         for posting in kept[:per_seed]:
-            candidate = posting_candidate(seed, posting, search_pass=scout.EXPANSION_PASS if scout_run else "")
+            candidate = posting_candidate(seed, posting)
             if candidate is None or candidate.normalized_url in seen_urls:
                 continue
             seen_urls.add(candidate.normalized_url)
@@ -559,20 +553,13 @@ def discover_ats(run_id: str) -> dict:
     # Keep candidates added by other stages (web search, feeds); ATS rows are rebuilt on every run.
     # A feed row for a posting this run also found through its ATS board yields to the ATS row.
     previous = runs.read_jsonl(out_dir / "candidates.jsonl")
-    if scout_run:
-        # Agent finds and watched postings keep their place and provenance; expansion only adds postings the
-        # run does not have yet (an earlier expansion is rebuilt).
-        kept_rows = [r for r in previous if r.get("search_pass") != scout.EXPANSION_PASS]
-        known = {_identity(r) for r in kept_rows}
-        merged = [*kept_rows, *(c for c in candidates if _identity(c.model_dump()) not in known)]
-    else:
-        ats_identities = {_identity(c.model_dump()) for c in candidates}
-        kept_rows = [
-            r for r in previous
-            if r.get("source_type") != "ats_api"
-            and not (str(r.get("source_type") or "").startswith("feed:") and _identity(r) in ats_identities)
-        ]
-        merged = [*candidates, *kept_rows]
+    ats_identities = {_identity(c.model_dump()) for c in candidates}
+    kept_rows = [
+        r for r in previous
+        if r.get("source_type") != "ats_api"
+        and not (str(r.get("source_type") or "").startswith("feed:") and _identity(r) in ats_identities)
+    ]
+    merged = [*candidates, *kept_rows]
     runs.write_jsonl(out_dir / "candidates.jsonl", merged)
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
     runs.write_jsonl(out_dir / BOARD_REPORT_FILE, board_report)
@@ -595,7 +582,6 @@ def discover_ats(run_id: str) -> dict:
         else:
             group["failed"] += 1
     return {
-        "mode": "scout" if scout_run else "sweep",
         "seeds_queried": queried,
         "board_postings": {"listed": sum(b["listed"] for b in board_report),
                            "matched": sum(b["matched"] for b in board_report),

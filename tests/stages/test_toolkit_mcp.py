@@ -7,7 +7,7 @@ import json
 
 import httpx
 import pytest
-from test_scout_flow import EMPLOYER, POSTING, _handler
+from toolkit_helpers import EMPLOYER, POSTING, handler
 
 from ultron import seeds
 from ultron.profiles import store as profiles
@@ -23,7 +23,7 @@ def _offline(tmp_path, monkeypatch):
     empty.mkdir()
     monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
     http_factory.set_test_overrides(
-        transport=httpx.MockTransport(_handler), resolver=lambda h, p: ["93.184.216.34"],
+        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
         sleep=lambda s: None, min_interval_per_host=0.0,
     )
     profiles.install_example()

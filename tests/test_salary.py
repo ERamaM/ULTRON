@@ -317,3 +317,121 @@ def test_extract_salaries_resolves_period_within_amount_clause():
         ("GBP", "annual", 60000, 60000),
         ("GBP", "monthly", 60000, 60000),
     ]
+
+
+def _salary_capture(body, date, *, run_id=None, location="Spain, Germany"):
+    profiles.install_example()
+    rid = run_id or runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+    folder = runs.run_dir(rid)
+    run = runs.load_run(rid)
+    run["created_at"] = date
+    (folder / "run.json").write_text(json.dumps(run), encoding="utf-8")
+    job = ExtractedJob(
+        title="Senior Engineer", company="Acme", location=location,
+        apply_url="https://boards.greenhouse.io/acme/jobs/123", domain="boards.greenhouse.io", body_text=body,
+    )
+    runs.write_jsonl(folder / "postings.jsonl", [
+        {"identity_key": "greenhouse:acme:123", "job": job.model_dump(mode="json")},
+    ])
+    runs.mark_stage(rid, "fetch")
+    return rid
+
+
+def test_market_comparables_keep_country_basis_and_period_when_band_order_changes():
+    annual_es = "Spain gross base salary: EUR 60,000 - 80,000 per year."
+    annual_de = "Germany gross base salary: EUR 90,000 - 110,000 per year."
+    hourly = "Spain salary: EUR 45 - 65 per hour."
+    unnamed = "Total compensation: EUR 130,000 - 160,000 per year."
+    date = "2026-11-01T12:00:00+00:00"
+    rid = _salary_capture(f"{annual_es}\n{annual_de}\n{hourly}\n{unnamed}", date)
+    first = salary.mine_run_salaries(rid, target_markets=("Spain",))
+    _salary_capture(f"{unnamed}\n{hourly}\n{annual_de}\n{annual_es}", date, run_id=rid)
+    second = salary.mine_run_salaries(rid, target_markets=("España",))
+
+    assert first["comparable_groups"] == second["comparable_groups"]
+    assert first["target_comparable_groups"] == second["target_comparable_groups"]
+    wanted = {row["period"]: row for row in first["target_comparable_groups"]}
+    assert set(wanted) == {"annual", "hourly"}
+    assert wanted["annual"]["count"] == 1
+    assert wanted["annual"]["median"] == 70_000
+    assert wanted["annual"]["gross_or_net"] == "gross"
+    assert wanted["annual"]["compensation_type"] == "base"
+    assert wanted["hourly"]["median"] == 55
+    assert any(row["market"] is None and row["compensation_type"] == "total" for row in first["comparable_groups"])
+
+
+def test_salary_uses_latest_usable_observation_and_excludes_withdrawn_band(monkeypatch):
+    from ultron.salary import observations
+
+    earlier = _salary_capture(
+        "Spain base salary: EUR 60,000 - 80,000 per year.",
+        "2026-11-01T12:00:00+00:00", location="Spain",
+    )
+    later = _salary_capture("Company introduction only.", "2026-11-05T12:00:00+00:00", location="Spain")
+    for order in ([earlier, later], [later, earlier]):
+        monkeypatch.setattr(observations, "_select_runs_for_mining", lambda *args, order=order: order)
+        evidence = salary.mine_run_salaries(target_markets=("Spain",))
+        assert evidence["disclosed_count"] == 1
+        assert evidence["samples"][0]["observed_at"] == "2026-11-01T12:00:00+00:00"
+        assert evidence["samples"][0]["historical"] is True
+
+    _salary_capture(
+        "Spain base salary: EUR 80,000 - 100,000 per year.",
+        "2026-11-05T12:00:00+00:00", run_id=later, location="Spain",
+    )
+    evidence = salary.mine_run_salaries(target_markets=("Spain",))
+    assert evidence["target_comparable_groups"][0]["median"] == 90_000
+    assert evidence["samples"][0]["historical"] is False
+
+    _salary_capture("Salary range has been withdrawn.", "2026-11-05T12:00:00+00:00", run_id=later, location="Spain")
+    evidence = salary.mine_run_salaries(target_markets=("Spain",))
+    assert evidence["disclosed_count"] == 0
+    assert evidence["target_comparable_groups"] == []
+    assert evidence["withdrawals"][0]["market"] == "spain"
+
+
+def test_salary_prefers_disclosure_market_and_scopes_withdrawals_to_their_clause():
+    date = "2026-11-10T12:00:00+00:00"
+    rid = _salary_capture(
+        "Base salary for US locations: $150k - $190k/year. "
+        "Spain .NET developer gross base salary: EUR 60,000 - 80,000 per year. "
+        "Germany salary range has been withdrawn.",
+        date,
+        location="Spain",
+    )
+    comps = salary.mine_run_salaries(rid, target_markets=("Spain",))
+    (spanish,) = comps["target_comparable_groups"]
+    assert (spanish["currency"], spanish["median"], spanish["gross_or_net"]) == ("EUR", 70_000, "gross")
+    assert [withdrawal["market"] for withdrawal in comps["withdrawals"]] == ["germany"]
+    us_comps = salary.mine_run_salaries(rid, target_markets=("Remote US",))
+    (us,) = us_comps["target_comparable_groups"]
+    assert (us["market"], us["currency"], us["median"]) == ("united states", "USD", 170_000)
+    hits = salary.extract_salaries_from_text("Spain .NET developer base salary: EUR 60,000 - 80,000 per year.")
+    assert hits[0]["gross_or_net"] is None
+
+
+def test_pay_basis_and_shared_country_lists_are_order_independent():
+    date = "2026-11-10T12:00:00+00:00"
+    for locations in ("Spain and Germany", "Germany, Spain"):
+        rid = _salary_capture(f"{locations} base salary: EUR 60,000 - 80,000 per year.", date)
+        comps = salary.mine_run_salaries(rid, target_markets=("Spain",))
+        assert comps["target_comparable_groups"] == []
+        assert comps["comparable_groups"][0]["market"] is None
+        assert comps["samples"][0]["markets"] == ["germany", "spain"]
+    german = salary.extract_salaries_from_text(
+        "Germany Gehalt: EUR 60.000 - 80.000 brutto pro Jahr.\n"
+        "Germany Gehalt: EUR 40.000 - 50.000 netto pro Jahr."
+    )
+    assert [(band["gross_or_net"], band["annual_low"]) for band in german] == [
+        ("gross", 60_000), ("net", 40_000),
+    ]
+
+
+def test_a_parenthetical_pay_basis_stays_with_its_amount():
+    from ultron.salary.disclosure import extract_salaries_from_text
+    gross = extract_salaries_from_text("Spain base salary: EUR 60,000 - 80,000 per year (gross).")
+    net = extract_salaries_from_text("Spain base salary: EUR 40,000 - 50,000 per year (net).")
+    assert [hit["gross_or_net"] for hit in gross] == ["gross"]
+    assert [hit["gross_or_net"] for hit in net] == ["net"]
+    bonus = extract_salaries_from_text("Spain base salary: EUR 60,000 - 80,000 per year plus 10,000 bonus (gross).")
+    assert bonus[0]["gross_or_net"] is None  # the qualifier belongs to the bonus, after another figure

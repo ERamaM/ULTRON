@@ -8,14 +8,25 @@ from pathlib import Path
 
 import httpx
 import pytest
-from test_scout_flow import EMPLOYER, POSTING, _cli, _handler, _new_scout, _verdict, _write
+from test_scout_flow import (
+    AGGREGATOR,
+    DEAD_AGGREGATOR,
+    EMPLOYER,
+    POSTING,
+    _cli,
+    _handler,
+    _new_scout,
+    _verdict,
+    _write,
+)
 
 from ultron import seeds
 from ultron.cli import main
+from ultron.core.ranker.final_rows import dedupe_final_rows, rank_scout_rows
 from ultron.infra.net import HttpError
 from ultron.profiles import store as profiles
 from ultron.stages import http_factory, scout, scout_verified, verified_check
-from ultron.storage import ledger, runs
+from ultron.storage import ledger, runs, scout_memory
 
 GONE = "https://careers.example.org/jobs/closed-role"
 KEEP = {"url": POSTING, "verdict": "keep", "title": "Senior Data Scientist", "company": "Acme",
@@ -241,3 +252,79 @@ def test_fetch_outcome_branches(monkeypatch, page, expected):
 
     monkeypatch.setattr(verified_check, "get_posting_page", fake)
     assert verified_check.fetch_outcome(None, "https://x.example/j") == expected
+
+
+def test_a_kept_verified_find_puts_its_board_on_the_watchlist(capsys):
+    run_id = _new_scout(capsys)["run_id"]
+    _add(capsys, run_id, [KEEP])
+    _cli(capsys, "discover", "ats", "--run", run_id)
+    _pipeline(capsys, run_id)
+    _cli(capsys, "finalize", "--run", run_id)
+    listed = _cli(capsys, "watchlist", "list", "--profile", profiles.EXAMPLE_SLUG)
+    assert [w["seed_key"] for w in listed["watched"]] == ["greenhouse:acme"]
+
+
+def test_verified_aggregator_finds_keep_only_the_employer_url(capsys):
+    run_id = _new_scout(capsys)["run_id"]
+    out = _add(capsys, run_id, [{**KEEP, "url": AGGREGATOR}, {**UNSURE, "url": DEAD_AGGREGATOR}])
+    assert [row["outcome"] for row in out["rows"]] == ["verified", "unresolved_aggregator"]
+    stored = scout_verified.load_verified(runs.run_dir(run_id))
+    assert [row["apply_url"] for row in stored.values()] == [POSTING]
+    unresolved = runs.read_jsonl(runs.run_dir(run_id) / "unresolved_finds.jsonl")
+    assert [row["url"] for row in unresolved] == [DEAD_AGGREGATOR]
+
+
+def test_a_run_with_only_verified_finds_has_nothing_to_fetch(capsys):
+    run_id = _new_scout(capsys)["run_id"]
+    _add(capsys, run_id, [KEEP, UNSURE])
+    fetched, routed, pending = _pipeline(capsys, run_id)
+    assert fetched["fetched"] == 0 and fetched["verified_skipped"] == 2
+    assert routed["queued"] == 0 and pending["items"] == []
+    out = _cli(capsys, "finalize", "--run", run_id)
+    assert out["verified_finds"] == 2 and out["extras"] == 0 and out["agent_evaluated"] == 0
+
+
+def test_a_carried_posting_verified_later_is_exported_once(capsys):
+    first = _new_scout(capsys)["run_id"]
+    _add(capsys, first, [KEEP])
+    _pipeline(capsys, first)
+    _cli(capsys, "finalize", "--run", first)
+
+    second = _new_scout(capsys)["run_id"]
+    _add(capsys, second, [{"url": POSTING, "company": "Acme"}])
+    assert _pipeline(capsys, second)[1]["carried_from_memory"] == 1
+    _add(capsys, second, [{**KEEP, "priority": 1}], "late.jsonl")  # verified after the filter carried it
+    out = _cli(capsys, "finalize", "--run", second)
+    rows = _rows(out)
+    assert len(rows) == 1 and rows[0]["found_by"] == "agent_verified" and rows[0]["priority"] == 1
+    assert out["carried_from_memory"] == 0 and "duplicate_role" not in json.dumps(out)
+
+
+def test_a_verified_find_wins_its_duplicate_group_whatever_the_score():
+    verified = scout_verified.final_row({**scout_verified.judgment({**UNSURE}), "identity_key": "k1",
+                                         "apply_url": EMPLOYER, "source_type": "employer_page"})
+    extra = verified.model_copy(update={"found_by": "expansion", "evaluation_verdict": "keep", "match_score": 99.0,
+                                        "apply_url": EMPLOYER + "?ref=board"})
+    kept, dropped = dedupe_final_rows([extra, verified])
+    assert kept[0].found_by == "agent_verified" and dropped[0].found_by == "expansion"
+    ranked = rank_scout_rows([extra.model_copy(update={"apply_url": "https://x.example/other",
+                                                       "title": "Other"}), verified])
+    assert [row.found_by for row in ranked] == ["agent_verified", "expansion"]
+
+
+def test_memory_of_an_unfetched_verified_find():
+    judged = {**scout_verified.judgment(KEEP), "identity_key": "greenhouse:acme:1", "apply_url": POSTING,
+              "source_type": "web_search"}
+    row = scout_verified.final_row(judged)
+    with closing(ledger.connect()) as conn:
+        scout_memory.record_verdicts(conn, "p", "run-1", [scout_verified.memory_item(judged, row)], "crit")
+        assert scout_memory.flags(conn, "p", ["greenhouse:acme:1"]) == {"greenhouse:acme:1": "seen"}
+        assert scout_memory.carried_row(conn, "p", "greenhouse:acme:1", "digest", "crit") is None
+        assert scout_memory.carried_unfetched(conn, "p", "greenhouse:acme:1", "crit")[1] == 3
+        assert scout_memory.carried_unfetched(conn, "p", "greenhouse:acme:1", "edited") is None  # profile changed
+        scout_memory.record_verdicts(conn, "p", "run-2", [{"identity_key": "greenhouse:acme:1", "verdict": "keep",
+                                                           "priority": 3, "content_hash": "digest", "row": row}],
+                                     "crit")
+        assert scout_memory.carried_unfetched(conn, "p", "greenhouse:acme:1", "crit") is None
+        assert scout_memory.carried_row(conn, "p", "greenhouse:acme:1", "digest", "crit") is not None
+        assert scout_memory.carried_row(conn, "p", "greenhouse:acme:1", "changed", "crit") is None

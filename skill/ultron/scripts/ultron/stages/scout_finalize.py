@@ -18,7 +18,7 @@ from ultron.core.decision.heuristics import HeuristicConfig
 from ultron.core.final_row import assemble_final_row, fallback_fit_signals, prepare_geography
 from ultron.core.models import DiscardRecord, ExtractedJob, FinalRow, JobEvaluation, RunSummary
 from ultron.core.ranker import dedupe_final_rows
-from ultron.core.ranker.final_rows import rank_scout_rows
+from ultron.core.ranker.final_rows import VERIFIED_FOUND_BY, rank_scout_rows
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope
@@ -92,8 +92,8 @@ def _unjudged(out_dir: Path, queue: list[dict], agent: dict, out: _Collector, ve
             out.unjudged_watch.append(entry["identity_key"])
 
 
-def _carry(out_dir: Path, out: _Collector) -> int:
-    carried = runs.read_jsonl(out_dir / CARRIED_FILE)
+def _carry(out_dir: Path, out: _Collector, verified: dict) -> int:
+    carried = [item for item in runs.read_jsonl(out_dir / CARRIED_FILE) if item["identity_key"] not in verified]
     for item in carried:
         row = FinalRow.model_validate(item["row"])
         row.priority, row.found_by = item.get("priority"), "memory"
@@ -140,7 +140,7 @@ def finalize_scout(run_id: str, run: dict) -> dict:
         if entry["identity_key"] in agent:
             _judge(entry, agent[entry["identity_key"]], out, context)
     _unjudged(out_dir, queue, agent, out, verified)
-    carried = _carry(out_dir, out)
+    carried = _carry(out_dir, out, verified)
     verified_count = _verified(verified, out)
 
     deduped, duplicates = dedupe_final_rows(out.rows, merge_locations=is_remote_required(criteria))
@@ -201,7 +201,7 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
         "not_evaluated": not_evaluated,
         "carried_from_memory": stats["carried_from_memory"],
         "verified_finds": stats["verified_finds"],
-        "extras": sum(1 for r in ranked if r.found_by != scout_verified.VERIFIED_FOUND_BY),
+        "extras": sum(1 for r in ranked if r.found_by != VERIFIED_FOUND_BY),
         "outputs": {"results_md": md, "results_json": js, "run_summary_md": sm,
                     "finalize_discards_jsonl": str(finalize_discards)},
         "top": [{"title": r.title, "company": r.company, "priority": r.priority, "is_new": is_new[row_identity(r)]}

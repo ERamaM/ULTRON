@@ -159,8 +159,9 @@ def _store(item: dict, batch: _Batch) -> None:
         item["outcome"] = BLOCKED_FLAGS[flag]
         return
     batch.add_candidate(candidate, identity, judged=True)
+    board = candidate.source_key if candidate.source_type == "ats_api" else ""  # only ever set from trusted records
     batch.verified.append({**judgment, "identity_key": identity, "apply_url": candidate.normalized_url,
-                           "source_type": candidate.source_type, "memory": flag})
+                           "source_type": candidate.source_type, "source_key": board, "memory": flag})
     item.update(outcome="verified", judged=True)
 
 

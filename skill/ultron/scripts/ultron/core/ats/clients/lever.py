@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 
 
@@ -53,6 +55,20 @@ def fetch_lever_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
                 remote_hint=str(job.get("workplaceType") or "").strip(),
                 posted_at=posted_at,
                 raw_payload=job,
+                description=_lever_text(job),
             )
         )
     return output
+
+
+def _lever_text(job: dict) -> str:
+    """The plain text of a Lever posting: its description and its lists (requirements, responsibilities)."""
+    parts = [str(job.get("descriptionPlain") or "")]
+    for item in job.get("lists") or []:
+        if isinstance(item, dict):
+            parts.append(str(item.get("text") or ""))
+            parts.append(re.sub(r"<[^<>]{0,200}>", "\n", str(item.get("content") or "")))
+    parts.append(str(job.get("additionalPlain") or ""))
+    # One line per paragraph: geography excerpts pick lines, so a restriction late in the text stays visible.
+    lines = (" ".join(line.split()) for part in parts for line in part.splitlines())
+    return "\n".join(line for line in lines if line)

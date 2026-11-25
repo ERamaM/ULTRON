@@ -39,6 +39,21 @@ def query_terms(profile: dict, query: str = "") -> list[str]:
     return list(dict.fromkeys(titles or focus))[:MAX_TERMS]
 
 
+# Seniority and filler words: role APIs match a query literally, so they are left out of what is sent.
+_SENIORITY = frozenset({"senior", "sr", "junior", "jr", "lead", "staff", "principal", "mid", "head", "of", "the",
+                        "and", "level", "ii", "iii", "iv"})
+
+
+def api_terms(terms: list[str]) -> list[str]:
+    """The role words of each term without seniority or filler ("Senior AI Engineer" -> "AI Engineer"), unique."""
+    out = []
+    for term in terms:
+        words = [w for w in str(term).split() if w.casefold().strip(".,") not in _SENIORITY]
+        if words:
+            out.append(" ".join(words))
+    return list(dict.fromkeys(out)) or list(terms)
+
+
 def _words(text: str) -> set[str]:
     return set(_WORD_RE.findall(str(text or "").casefold()))
 
@@ -92,7 +107,7 @@ def role_source_rows(source: RoleSource, terms: list[str], client, timeout: int)
 
     A term that fails does not cost the others: their rows are kept and the source reports ``partial``.
     """
-    requests = [(term, req) for term in terms if (req := source.build(term, "")) is not None]
+    requests = [(term, req) for term in api_terms(terms) if (req := source.build(term, "")) is not None]
     if not requests:
         return {"status": "not_configured" if source.keyed else "no_query"}, []
     rows, statuses, errors = [], set(), []
@@ -119,8 +134,9 @@ def local_feed_rows(source: dict, client, timeout: int) -> tuple[dict, list]:
     """One keyless feed with no role query, read whole: ``(status, rows)``; the caller filters the rows."""
     def fetch() -> list[dict]:
         rows, errors = COLLECTORS[source["parser"]](client, source, timeout)
-        clean = [{"title": r.get("title", ""), "company_name": r.get("company_name", ""), "url": r.get("url", ""),
-                  "location": r.get("location", ""), "posted": "", "source": source["id"]}
+        clean = [{"title": r.get("headline") or r.get("title", ""), "company_name": r.get("company_name", ""),
+                  "url": r.get("url", ""), "location": r.get("location") or r.get("headline", ""), "posted": "",
+                  "description": str(r.get("description") or "")[:2000], "source": source["id"]}
                  for r in rows if r.get("url")]
         if errors:  # the collectors report failed pages instead of raising
             raise IncompleteFetch(clean, len(errors))

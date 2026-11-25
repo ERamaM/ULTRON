@@ -1,0 +1,216 @@
+"""Check that measurable draft claims preserve the source role and outcome."""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
+from datetime import date
+
+from ultron.core.privacy import redact
+from ultron.core.rules.term_matching import contains_term, normalize_text
+from ultron.cv import experience
+from ultron.cv.ats_target import KNOWN_SKILL_TERMS
+
+_ROLE_SEPARATOR = re.compile(r"\s(?:at|en)\s|[|·]", re.IGNORECASE)
+_SENTENCE = re.compile(r"(?<=[.!?])[ \t]+(?=[A-Z])|\r?\n")
+_CAUSAL = re.compile(r"\b(?:using|with|through|via|mediante|usando|con)\b")
+_METHOD_PREFIX = re.compile(
+    r"\b(?:used|utilized|leveraged|emplee|use|utilice)[ \t]+(?P<method>[^.,;\r\n]{1,80}?)"
+    r"[ \t]+(?:to|para)\b"
+)
+_EMPLOYER_INTRO = re.compile(
+    r"^(?:[-*][ \t]+)?(?:at|en|while working at|during my time at)[ \t]+"
+    r"|\b(?:while employed at|while working at|durante mi etapa en)[ \t]+"
+)
+_OUTCOMES = {
+    "cost": re.compile(r"\b(?:costs?|expenses?|spend|costes?|costos?|gastos?)\b"),
+    "latency": re.compile(r"\b(?:latency|response times?|latencia|tiempos? de respuesta)\b"),
+    "revenue": re.compile(r"\b(?:revenue|sales|ingresos|ventas)\b"),
+    "throughput": re.compile(r"\b(?:throughput|rendimiento|requests per second)\b"),
+    "users": re.compile(r"\b(?:users?|customers?|usuarios?|clientes?)\b"),
+}
+_DIRECTIONS = {
+    "decrease": re.compile(r"\b(?:reduc\w{0,8}|cut|lower\w{0,5}|decreas\w{0,5}|ahorr\w{0,5}|disminu\w{0,5})\b"),
+    "increase": re.compile(r"\b(?:increas\w{0,5}|grew|grow\w{0,5}|rais\w{0,5}|aument\w{0,5}|creci\w{0,5})\b"),
+}
+SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
+    ("ml", "machine learning"),
+    ("ai", "artificial intelligence"),
+    ("nlp", "natural language processing"),
+    ("llm", "large language model"),
+    ("llms", "large language models"),
+    ("rag", "retrieval augmented generation"),
+    ("rag", "retrieval-augmented generation"),
+    ("k8s", "kubernetes"),
+    ("ci/cd", "continuous integration"),
+    ("js", "javascript"),
+    ("ts", "typescript"),
+    ("sql", "structured query language"),
+    ("etl", "extract transform load"),
+    ("elt", "extract load transform"),
+    ("aws", "amazon web services"),
+    ("gcp", "google cloud platform"),
+    ("api", "application programming interface"),
+    ("rest", "representational state transfer"),
+    ("oop", "object oriented programming"),
+    ("oop", "object-oriented programming"),
+    ("tdd", "test driven development"),
+    ("tdd", "test-driven development"),
+    ("bi", "business intelligence"),
+    ("qa", "quality assurance"),
+    ("ui", "user interface"),
+    ("ux", "user experience"),
+    ("db", "database"),
+    ("dl", "deep learning"),
+)
+
+_CANONICAL_METHODS = {
+    **{normalize_text(term): normalize_text(term) for term in KNOWN_SKILL_TERMS},
+    **{term: short for short, full in SAFE_EXPANSION_PAIRS for term in (short, full)},
+}
+_METRIC_CLAUSE_BREAK = re.compile(
+    r"[,;][ \t]+|(?<![ \t])[ \t]+(?:and|y|e)[ \t]+"
+    r"(?=(?:reduc\w{0,8}|cut|increas\w{0,5}|rais\w{0,5}|aument\w{0,5}|disminu\w{0,5})\b)",
+    re.IGNORECASE,
+)
+Metrics = Callable[[str], Iterable[str]]
+
+
+@dataclass(frozen=True)
+class ClaimScope:
+    """The identified employer and role of a statement, if present."""
+
+    employer: str = ""
+    role: str = ""
+
+
+@dataclass(frozen=True)
+class Claim:
+    """An original sentence carrying a recognized metric and its attributed evidence."""
+
+    text: str
+    scope: ClaimScope
+    outcomes: set[str]
+    directions: set[str]
+    methods: set[str]
+
+
+def _blocks(text: str, ref: date) -> list[tuple[ClaimScope, str]]:
+    sections, _ = experience.split_sections(text)
+    work = sections.get("experience", [])
+    entries = experience.parse_date_ranges_from_lines(work, as_of=ref)
+    if not entries:
+        return [(ClaimScope(), text)]
+    out = [(ClaimScope(), "\n".join(
+        line for name, lines in sections.items() if name != "experience" for line in lines
+    ))]
+    for index, entry in enumerate(entries):
+        parts = [normalize_text(part.strip()) for part in _ROLE_SEPARATOR.split(entry.title_hint) if part.strip()]
+        scope = ClaimScope(parts[1], parts[0]) if len(parts) >= 2 else ClaimScope()
+        end = entries[index + 1].heading_line_index if index + 1 < len(entries) else len(work)
+        out.append((scope, "\n".join(work[entry.line_index + 1:end])))
+    return out
+
+
+def _named_scope(fragment: str, default: ClaimScope, employers: set[str]) -> ClaimScope:
+    attribution = _EMPLOYER_INTRO.search(fragment.strip())
+    if not attribution:
+        return default
+    tail = fragment.strip()[attribution.end():]
+    matches = {employer for employer in employers
+               if tail.startswith(employer) and contains_term(tail[:len(employer) + 1], employer)}
+    if len(matches) == 1:
+        employer = next(iter(matches))
+        return default if employer == default.employer else ClaimScope(employer)
+    return default
+
+
+def _metric_clauses(body: str, metrics: Metrics) -> Iterable[tuple[str, str, set[str]]]:
+    for sentence in _SENTENCE.split(body):
+        pieces = _METRIC_CLAUSE_BREAK.split(sentence)
+        measured = [(piece, set(metrics(piece))) for piece in pieces]
+        if sum(bool(keys) for _, keys in measured) > 1:
+            yield from ((sentence, piece, keys) for piece, keys in measured if keys)
+        else:
+            keys = set(metrics(sentence))
+            if keys:
+                yield sentence, sentence, keys
+
+
+def _technologies_used(text: str) -> set[str]:
+    methods = [match["method"] for match in _METHOD_PREFIX.finditer(text)]
+    if causal := _CAUSAL.search(text):
+        methods.append(text[causal.end():])
+    return {
+        canonical for term, canonical in _CANONICAL_METHODS.items()
+        if any(contains_term(method, term) for method in methods)
+    }
+
+
+def _claims(blocks: list[tuple[ClaimScope, str]], employers: set[str], metrics: Metrics) -> dict[str, list[Claim]]:
+    found: dict[str, list[Claim]] = {}
+    for default, body in blocks:
+        for sentence, clause, metric_keys in _metric_clauses(body, metrics):
+            text = normalize_text(clause)
+            scope = _named_scope(text, _named_scope(normalize_text(sentence), default, employers), employers)
+            claim = Claim(
+                sentence.strip(), scope,
+                {name for name, pattern in _OUTCOMES.items() if pattern.search(text)},
+                {name for name, pattern in _DIRECTIONS.items() if pattern.search(text)},
+                _technologies_used(text),
+            )
+            for key in metric_keys:
+                found.setdefault(key, []).append(claim)
+    return found
+
+
+def _supports(source: Claim, draft: Claim) -> bool:
+    old, new = source.scope, draft.scope
+    if new.employer and new.employer != old.employer:
+        return False
+    if new.role and old.role and not (contains_term(new.role, old.role) or contains_term(old.role, new.role)):
+        return False
+    return _supports_content(source, draft)
+
+
+def _supports_content(source: Claim, draft: Claim) -> bool:
+    if not draft.outcomes <= source.outcomes:
+        return False
+    if source.directions and not draft.directions <= source.directions:
+        return False
+    return draft.methods <= source.methods
+
+
+def verify_claim_attribution(
+    source: str, draft: str, confirmed: list[str], *, as_of: date, metrics: Metrics,
+) -> tuple[list[dict], list[dict]]:
+    """Return unsupported claims and statements whose source role cannot be determined."""
+    source_blocks = _blocks(source, as_of)
+    draft_blocks = _blocks(draft, as_of)
+    employers = {scope.employer for scope, _body in (*source_blocks, *draft_blocks) if len(scope.employer) > 2}
+    authorized = _claims(source_blocks + [(ClaimScope(), fact) for fact in confirmed], employers, metrics)
+    proposed = _claims(draft_blocks, employers, metrics)
+    flagged = {}
+    ambiguous = {}
+    for key, candidates in proposed.items():
+        matching = authorized.get(key, [])
+        for claim in candidates:
+            if not matching:
+                continue
+            if any(_supports(record, claim) for record in matching):
+                if not claim.scope.employer and len({record.scope.employer for record in matching} - {""}) > 1:
+                    ambiguous[claim.text] = "Several source roles contain this metric. Confirm which role supports the statement."
+                continue
+            if claim.scope.employer and any(
+                not record.scope.employer and _supports_content(record, claim) for record in matching
+            ):
+                ambiguous[claim.text] = "The source contains the metric without an identifiable employer."
+                continue
+            flagged[claim.text] = "The source does not link this metric to the stated role, outcome or method."
+    return (
+        [{"type": "unsupported_claim_attribution", "severity": "high", "token": str(redact(text[:300])),
+          "message": message} for text, message in flagged.items()],
+        [{"type": "ambiguous_claim_attribution", "severity": "medium", "token": str(redact(text[:300])),
+          "message": message} for text, message in ambiguous.items() if text not in flagged],
+    )

@@ -28,6 +28,7 @@ from ultron.profiles import store as profiles
 from ultron.stages import http_factory, scout, scout_verified, verified_check
 from ultron.storage import ledger, runs, scout_memory
 
+OCCUPOP_REF = "staff-nurse-ab12c"
 GONE = "https://careers.example.org/jobs/closed-role"
 KEEP = {"url": POSTING, "verdict": "keep", "title": "Senior Data Scientist", "company": "Acme",
         "location": "Remote - Spain", "priority": 3, "remote_policy": "remote_spain",
@@ -89,12 +90,14 @@ def test_invalid_verified_rows_name_the_field(capsys):
         {**KEEP, "remote_policy": "sometimes"},
         {**KEEP, "eligibility": "certain"},
         {**KEEP, "fit_signals": "Python"},
+        {**KEEP, "remote_policy": ["remote_eu"]},
+        {**KEEP, "eligibility": {"level": "high"}},
     ]
     out = _add(capsys, run_id, bad)
     reasons = [row["reason"] for row in out["rows"]]
     assert all(row["outcome"] == "invalid" for row in out["rows"])
     for field, row in zip(("title", "company", "priority", "priority", "verdict", "remote_policy", "eligibility",
-                           "fit_signals"), reasons, strict=True):
+                           "fit_signals", "remote_policy", "eligibility"), reasons, strict=True):
         assert row.startswith(field)
     assert out["added"] == 0 and out["verified"] == {"keep": 0, "unsure": 0, "discard": 0}
 
@@ -328,3 +331,35 @@ def test_memory_of_an_unfetched_verified_find():
         assert scout_memory.carried_unfetched(conn, "p", "greenhouse:acme:1", "crit") is None
         assert scout_memory.carried_row(conn, "p", "greenhouse:acme:1", "digest", "crit") is not None
         assert scout_memory.carried_row(conn, "p", "greenhouse:acme:1", "changed", "crit") is None
+
+
+@pytest.mark.parametrize(("body", "expected"), [('{"job": null}', "closed"), ("not json", "unusable")])
+def test_fetch_outcome_reads_occupop_job_json(monkeypatch, body, expected):
+    url = "https://api.occupop.com/shared/job/" + OCCUPOP_REF
+    monkeypatch.setattr(verified_check, "get_posting_page", lambda _client, _url: (200, url, body))
+    assert verified_check.fetch_outcome(None, url) == expected
+
+
+def test_pending_skips_postings_verified_after_the_filter(capsys):
+    run_id = _new_scout(capsys)["run_id"]
+    _add(capsys, run_id, [{"url": POSTING}, {"url": EMPLOYER}])
+    _cli(capsys, "fetch", "--run", run_id)
+    _cli(capsys, "filter", "--run", run_id)
+    before = _cli(capsys, "evaluate", "pending", "--run", run_id, "--limit", "50")
+    assert any(item["identity_key"] == "greenhouse:acme:4012345" for item in before["items"])
+    _add(capsys, run_id, [KEEP], "late.jsonl")
+    after = _cli(capsys, "evaluate", "pending", "--run", run_id, "--limit", "50")
+    assert all(item["identity_key"] != "greenhouse:acme:4012345" for item in after["items"])
+    assert after["pending"] == before["pending"] - 1 and after["verified_finds"] == 1
+
+
+def test_a_late_verified_discard_drops_the_carried_row(capsys):
+    first = _new_scout(capsys)["run_id"]
+    _add(capsys, first, [KEEP])
+    _pipeline(capsys, first)
+    _cli(capsys, "finalize", "--run", first)
+    second = _new_scout(capsys)["run_id"]
+    _add(capsys, second, [{"url": POSTING, "company": "Acme"}])
+    assert _pipeline(capsys, second)[1]["carried_from_memory"] == 1
+    _add(capsys, second, [{**KEEP, "verdict": "discard"}], "late.jsonl")
+    assert _cli(capsys, "finalize", "--run", second)["roles"] == 0

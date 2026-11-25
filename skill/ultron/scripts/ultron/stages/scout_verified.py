@@ -50,7 +50,7 @@ def _priority(row: dict) -> int:
 
 def _choice(row: dict, field: str, allowed: frozenset[str], default: str) -> str:
     value = row.get(field, default)
-    if value not in allowed:
+    if not isinstance(value, str) or value not in allowed:
         raise InvalidFind(f"{field} must be one of {', '.join(sorted(allowed))}")
     return value
 

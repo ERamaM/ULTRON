@@ -15,7 +15,7 @@ enforces the rules below on every import.
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`, `ats_target`, `ats_requirements`), experience timeline, truthfulness check and the `.docx` writer. |
 | `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
-| `salary/` | Expected-salary analysis from run postings. |
+| `salary/` | Salary estimation (estimator), disclosure extraction (disclosure), and run-local market observations (observations). |
 | `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, saved searches, review states, maintenance (purge, export), the memory of agent verdicts (`scout_memory`) and the watchlist with its pending postings (`watchlist`). |
 | `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |
 | `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize, with `final_helpers` shared by both finalize paths), the unattended run, the per-run HTTP client factory, and what the agent toolkit builds on: find resolution (`scout_resolve`), recording judged postings (`scout_finds`, `scout_verified`) and finalizing a saved shortlist (`scout_finalize`), the role-searchable job APIs and keyless feeds with their cache (`role_feeds`), the watched boards (`watch_boards`) and the agent-free day-2 watch (`watch`). |

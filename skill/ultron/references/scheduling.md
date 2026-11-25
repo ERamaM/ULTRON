@@ -13,8 +13,8 @@ Each call prints one JSON object. Read the new jobs afterwards with `ultron jobs
 
 `ultron watch --profile <slug> [--preset <name>]` re-queries only the profile's watchlist (boards the user added
 and boards with past keeps) and records postings the profile has not seen; it gives no verdict and uses no tokens.
-For a saved search use `ultron saved-search run <name> --watch`. The next scout search serves the watched postings
-first (`references/scout.md`). Schedule it like the unattended run below.
+For a saved search use `ultron saved-search run <name> --watch`. The next `ultron search` serves the watched
+postings first (`references/toolkit.md`). Schedule it like the unattended run below.
 
 ## Scheduling
 

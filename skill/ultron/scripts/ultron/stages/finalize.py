@@ -22,7 +22,7 @@ from ultron.storage import ledger, runs
 
 
 def finalize(run_id: str) -> dict:
-    """Rank, deduplicate, export reports, and update ledger history for ``run_id`` (scout runs too)."""
+    """Rank, deduplicate, export reports, and update ledger history for ``run_id`` (saved shortlists too)."""
     runs.require_stage(run_id, "finalize")
     run = runs.load_run(run_id)
     if runs.run_mode(run) == "scout":

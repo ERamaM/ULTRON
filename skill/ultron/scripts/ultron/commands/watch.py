@@ -10,8 +10,8 @@ from ultron.core import presets
 from ultron.core.ats.identity import seed_identity
 from ultron.core.ats.registry import extract_seed_from_url, get_vendor_spec
 from ultron.profiles import store as profile_store
-from ultron.stages.scout import siblings
 from ultron.stages.watch import watch
+from ultron.stages.watch_boards import siblings
 from ultron.storage import ledger, watchlist
 
 

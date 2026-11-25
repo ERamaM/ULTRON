@@ -67,6 +67,8 @@ def _lever_text(job: dict) -> str:
     for item in job.get("lists") or []:
         if isinstance(item, dict):
             parts.append(str(item.get("text") or ""))
-            parts.append(re.sub(r"<[^>]{0,200}>", " ", str(item.get("content") or "")))
+            parts.append(re.sub(r"<[^<>]{0,200}>", "\n", str(item.get("content") or "")))
     parts.append(str(job.get("additionalPlain") or ""))
-    return " ".join(" ".join(parts).split())
+    # One line per paragraph: geography excerpts pick lines, so a restriction late in the text stays visible.
+    lines = (" ".join(line.split()) for part in parts for line in part.splitlines())
+    return "\n".join(line for line in lines if line)

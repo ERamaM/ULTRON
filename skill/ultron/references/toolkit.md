@@ -12,7 +12,7 @@ agent's ranked shortlist with history, exports and a watchlist for later days. T
 | 2 | you | Search the web for more postings that fit the profile. Collect candidate URLs and company names in batches of 30 to 50, with the `listed` URLs of step 1 worth reading |
 | 3 | CLI | `ultron inspect --profile <slug> --from <file>`: one dossier per posting, board or company |
 | 4 | you | Judge the open dossiers. Open a page yourself only when its dossier is not enough |
-| 5 | you | Repeat 2 to 4 until you have the shortlist size the user asked for (25 by default) |
+| 5 | you | Repeat 2 to 4 until you have the keeps the user asked for (25 by default), then stop: more searching costs tokens without improving the list |
 | 6 | CLI | `ultron shortlist save --profile <slug> --from <file>` with your judged rows, best first |
 | 7 | you | Summarize the shortlist in your priority order and say where `results.md` is |
 

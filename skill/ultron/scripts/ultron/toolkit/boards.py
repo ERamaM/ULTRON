@@ -18,6 +18,7 @@ from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLR
 from ultron.seeds import load_inventory
 from ultron.seeds.inventory import is_unconfirmed, make_seed_id
 from ultron.seeds.naming import company_key, slug_candidates
+from ultron.seeds.store import SeedFileError, add_seeds
 from ultron.seeds.verify import Proposal, guessed_board_ownership
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.discover import clean_posting, posting_candidate, seed_key
@@ -56,7 +57,7 @@ def list_board(seed: AtsBoardSeed, client, timeout: int) -> list[AtsPosting]:
 
 def board_dossiers(seed: AtsBoardSeed, postings: list[AtsPosting], context: ProfileContext, *,
                    detail: bool = False, skip: set[str] = frozenset(),
-                   keep_all: bool = False) -> tuple[list[dict], list[dict]]:
+                   keep_all: bool = False, limit: int | None = MAX_LISTED_PER_BOARD) -> tuple[list[dict], list[dict]]:
     """``(dossiers, cache rows)`` of a board's postings that match the profile, leaving out ``skip`` identities.
 
     With ``keep_all`` every posting of the board comes back (so a requested posting is found even when its title
@@ -64,7 +65,7 @@ def board_dossiers(seed: AtsBoardSeed, postings: list[AtsPosting], context: Prof
     """
     dossiers, cache = [], []
     matching = profile_matches(postings, context.profile)
-    chosen = postings if keep_all else matching[:MAX_LISTED_PER_BOARD]
+    chosen = postings if keep_all else matching[:limit]
     matched = {id(posting) for posting in matching}
     for posting in chosen:
         candidate = posting_candidate(seed, posting)
@@ -87,6 +88,15 @@ def board_dossiers(seed: AtsBoardSeed, postings: list[AtsPosting], context: Prof
             dossier["matches"] = False
         dossiers.append(dossier)
     return dossiers, cache
+
+
+def remember_board(seed: AtsBoardSeed, profile_slug: str) -> None:
+    """Add a board proven to be the company's to the profile's seed inventory (best effort)."""
+    try:
+        add_seeds([seed.model_copy(update={"profiles": [profile_slug], "source_type": "toolkit_company_lookup"})],
+                  profile_slug=profile_slug)
+    except (OSError, ValueError, SeedFileError):
+        return
 
 
 def inventory_board(name: str) -> AtsBoardSeed | None:
@@ -139,6 +149,8 @@ def company_dossiers(name: str, client, timeout: int, context: ProfileContext, *
         seed, postings, confirmed = probe_board(name, client, timeout)
     if seed is None:
         return [], [], {"company": name, "status": "no_board"}
+    if confirmed and context.profile_slug:
+        remember_board(seed, context.profile_slug)
     dossiers, cache = board_dossiers(seed, postings, context, detail=detail)
     if not dossiers:
         return [], [], {"company": name, "status": "no_match", "board": seed_key(seed), "listed": len(postings)}

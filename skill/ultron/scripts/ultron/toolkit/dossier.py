@@ -34,8 +34,8 @@ _SLUG_SPLIT = re.compile(r"[-_]+")
 class ProfileContext:
     """The profile pieces every dossier hint needs, computed once per call."""
 
-    def __init__(self, profile: dict) -> None:
-        self.profile = profile
+    def __init__(self, profile: dict, profile_slug: str = "") -> None:
+        self.profile, self.profile_slug = profile, profile_slug
         self.criteria = dict(profile.get("criteria") or {})
         self.pack, self.geo = active_pack(profile), geo_scope(profile)
         self.negatives = role_negatives_for(profile)

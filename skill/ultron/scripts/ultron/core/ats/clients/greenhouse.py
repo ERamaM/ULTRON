@@ -111,4 +111,6 @@ def _content_text(content: object) -> str:
     """The plain text of a Greenhouse posting's ``content`` (escaped HTML), or ``""``."""
     if not isinstance(content, str) or not content:
         return ""
-    return " ".join(BeautifulSoup(html.unescape(content), "html.parser").get_text(" ").split())
+    text = BeautifulSoup(html.unescape(content), "html.parser").get_text("\n")
+    # One line per paragraph: geography excerpts pick lines, so a restriction late in the text stays visible.
+    return "\n".join(line for line in (" ".join(raw.split()) for raw in text.splitlines()) if line)

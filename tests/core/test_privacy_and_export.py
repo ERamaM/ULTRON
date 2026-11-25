@@ -4,21 +4,21 @@ import pytest
 
 from ultron.core.models import FinalRow
 from ultron.core.privacy import REDACTED, environment_secret_values, redact
-from ultron.core.reporting.export import _escape_cell, render_results_markdown
+from ultron.core.reporting.export import escape_markdown_cell, render_results_markdown
 
 
 def test_escape_cell_strips_cr_control_and_zero_width_chars():
     raw = "Senior\r\nEngineer\r\x00\x07\x7f\u200b\u200d\u202e\ufeff"
-    assert _escape_cell(raw) == "Senior Engineer"
+    assert escape_markdown_cell(raw) == "Senior Engineer"
 
 
 def test_escape_cell_neutralises_markdown_links_images_and_html():
-    assert _escape_cell("[click](https://evil.example)") == r"\[click\](https://evil.example)"
-    assert _escape_cell("![img](https://evil.example/x.png)") == r"!\[img\](https://evil.example/x.png)"
-    assert _escape_cell(r"\[bypass](https://evil.example)") == r"\\\[bypass\](https://evil.example)"
-    assert _escape_cell('<a href="https://evil.example">x</a>') == '&lt;a href="https://evil.example"&gt;x&lt;/a&gt;'
-    assert _escape_cell("<https://evil.example>") == "&lt;https://evil.example&gt;"
-    assert _escape_cell("a | b") == r"a \| b"
+    assert escape_markdown_cell("[click](https://evil.example)") == r"\[click\](https://evil.example)"
+    assert escape_markdown_cell("![img](https://evil.example/x.png)") == r"!\[img\](https://evil.example/x.png)"
+    assert escape_markdown_cell(r"\[bypass](https://evil.example)") == r"\\\[bypass\](https://evil.example)"
+    assert escape_markdown_cell('<a href="https://evil.example">x</a>') == '&lt;a href="https://evil.example"&gt;x&lt;/a&gt;'
+    assert escape_markdown_cell("<https://evil.example>") == "&lt;https://evil.example&gt;"
+    assert escape_markdown_cell("a | b") == r"a \| b"
 
 
 def test_render_results_markdown_prevents_injected_links_and_keeps_plain_url():
@@ -164,7 +164,7 @@ def test_privacy_does_not_mangle_normal_text():
         "Bearer responsibilities",
     ):
         assert redact(phrase) == phrase
-        assert _escape_cell(phrase) == phrase
+        assert escape_markdown_cell(phrase) == phrase
 
 
 def test_privacy_redacts_real_looking_keys_and_auth_headers():
@@ -201,10 +201,8 @@ def test_redact_is_linear_on_hostile_long_text(text):
 
 
 def test_markdown_cell_redacts_tokens_split_by_invisible_characters():
-    from ultron.core.reporting.export import _escape_cell
-
     token = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
     split = token[:2] + "\u200b" + token[2:]
-    cell = _escape_cell(f"apply with {split} today")
+    cell = escape_markdown_cell(f"apply with {split} today")
     assert token not in cell
     assert "\u200b" not in cell

@@ -18,6 +18,7 @@ from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.discovery.prefilter import is_clearly_ineligible_at_discovery, passes_coarse_prefilter
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.remote_requirement import is_remote_required
+from ultron.core.reporting.export import escape_markdown_cell
 from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.vocabulary import active_pack
 from ultron.infra import home
@@ -63,8 +64,9 @@ def _write_digest(profile_slug: str, found: list[dict], stamp: str) -> str:
         by_company.setdefault(item["ats_company"] or "unknown", []).append(item)
     lines = [f"# Watch digest: {profile_slug}", "", f"{len(found)} new postings, {stamp}", ""]
     for company, items in sorted(by_company.items()):
-        lines.append(f"## {company}")
-        lines += [f"- {i['ats_title']} ({i['ats_location'] or 'location not stated'}): {i['normalized_url']}" for i in items]
+        lines.append(f"## {escape_markdown_cell(company)}")
+        lines += [f"- {escape_markdown_cell(i['ats_title'])} ({escape_markdown_cell(i['ats_location'] or 'location not stated')}):"
+                  f" {escape_markdown_cell(i['normalized_url'])}" for i in items]
         lines.append("")
     path = folder / f"{profile_slug}-{stamp}.md"
     path.write_text("\n".join(lines), encoding="utf-8")

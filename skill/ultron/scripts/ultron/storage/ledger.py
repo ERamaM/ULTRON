@@ -12,7 +12,7 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 from ultron.infra import home
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -104,6 +104,43 @@ _SEED_YIELD_RUNS = """CREATE TABLE IF NOT EXISTS seed_yield_runs (
     PRIMARY KEY (profile_slug, seed_key, run_id)
 )"""
 
+# Scout mode (v6): the watchlist of boards per profile, postings found by ``ultron watch`` and waiting for an
+# agent, and the agent's last verdict per profile and posting (the memory a later scout run starts from).
+_SCOUT_TABLES = (
+    """CREATE TABLE IF NOT EXISTS watchlist (
+    profile_slug TEXT NOT NULL,
+    seed_key TEXT NOT NULL,
+    company TEXT NOT NULL DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'watch' CHECK (state IN ('watch', 'blocked')),
+    added_by TEXT NOT NULL DEFAULT 'user',
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (profile_slug, seed_key)
+)""",
+    """CREATE TABLE IF NOT EXISTS watch_pending (
+    profile_slug TEXT NOT NULL,
+    identity_key TEXT NOT NULL,
+    candidate_json TEXT NOT NULL,
+    found_at TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'queued')),
+    run_id TEXT,
+    PRIMARY KEY (profile_slug, identity_key)
+)""",
+    """CREATE TABLE IF NOT EXISTS scout_verdicts (
+    profile_slug TEXT NOT NULL,
+    identity_key TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    discard_category TEXT NOT NULL DEFAULT '',
+    priority INTEGER,
+    content_hash TEXT NOT NULL DEFAULT '',
+    profile_hash TEXT NOT NULL DEFAULT '',
+    company TEXT NOT NULL DEFAULT '',
+    row_json TEXT,
+    run_id TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (profile_slug, identity_key)
+)""",
+)
+
 _V1_COLUMNS = "identity_key, canonical_url, title, company, first_seen, last_seen, times_seen, review_state"
 
 
@@ -188,6 +225,11 @@ def _apply_v4(conn: sqlite3.Connection) -> None:
 _IDENTITY_TABLES = ("jobs", "job_occurrences", "job_feedback", "diagnostics")
 
 
+def _apply_v6(conn: sqlite3.Connection) -> None:
+    for statement in _SCOUT_TABLES:
+        conn.execute(statement)
+
+
 def _apply_v5(conn: sqlite3.Connection) -> None:
     """Re-key jobs stored under a URL identity that now has a vendor identity (e.g. SmartRecruiters, Teamtailor).
 
@@ -269,8 +311,11 @@ def migrate(conn: sqlite3.Connection) -> int:
                 _apply_v5(conn)
                 version = 5
             if version == 5:
-                _apply_search_scope(conn)
+                _apply_v6(conn)
                 version = 6
+            if version == 6:
+                _apply_search_scope(conn)
+                version = 7
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:

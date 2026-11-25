@@ -12,7 +12,8 @@ TABLE_HEADER = "| title | company | apply_url | location | remote_policy | eligi
 TABLE_SEP = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
 
 
-def _escape_cell(value: str) -> str:
+def escape_markdown_cell(value: str) -> str:
+    """``value`` redacted and escaped for one Markdown table cell or list item (no links, HTML or control chars)."""
     from ultron.core.privacy import redact
 
     # Clean before redacting: an invisible character can split a token so the redaction misses it.
@@ -32,20 +33,20 @@ def render_results_markdown(rows: list[FinalRow]) -> str:
             "| "
             + " | ".join(
                 [
-                    _escape_cell(row.title),
-                    _escape_cell(row.company),
-                    _escape_cell(row.apply_url),
-                    _escape_cell(row.location),
-                    _escape_cell(row.remote_policy),
-                    _escape_cell(row.eligibility),
-                    _escape_cell(row.eligibility_evidence),
-                    _escape_cell(fit),
-                    _escape_cell(row.freshness),
-                    _escape_cell("" if row.match_score is None else str(row.match_score)),
-                    _escape_cell(row.match_band or "unknown"),
-                    _escape_cell(", ".join(row.matched_requirements)),
-                    _escape_cell(", ".join(row.missing_requirements)),
-                    _escape_cell(", ".join(row.uncertain_requirements)),
+                    escape_markdown_cell(row.title),
+                    escape_markdown_cell(row.company),
+                    escape_markdown_cell(row.apply_url),
+                    escape_markdown_cell(row.location),
+                    escape_markdown_cell(row.remote_policy),
+                    escape_markdown_cell(row.eligibility),
+                    escape_markdown_cell(row.eligibility_evidence),
+                    escape_markdown_cell(fit),
+                    escape_markdown_cell(row.freshness),
+                    escape_markdown_cell("" if row.match_score is None else str(row.match_score)),
+                    escape_markdown_cell(row.match_band or "unknown"),
+                    escape_markdown_cell(", ".join(row.matched_requirements)),
+                    escape_markdown_cell(", ".join(row.missing_requirements)),
+                    escape_markdown_cell(", ".join(row.uncertain_requirements)),
                 ]
             )
             + " |"
@@ -135,7 +136,7 @@ def render_summary_markdown(summary: RunSummary, discards: list[DiscardRecord]) 
     lines.append("3. Full query log:")
     for row in summary.full_query_log:
         lines.append(
-            f"- {_escape_cell(str(row.get('query_id', '')))}: {_escape_cell(str(row.get('query', '')))} "
+            f"- {escape_markdown_cell(str(row.get('query_id', '')))}: {escape_markdown_cell(str(row.get('query', '')))} "
             f"(hits={row.get('hits', 0)})"
         )
 
@@ -143,7 +144,7 @@ def render_summary_markdown(summary: RunSummary, discards: list[DiscardRecord]) 
         lines.append("")
         lines.append("## Discard Samples")
         for discard in discards[:30]:
-            lines.append(f"- {_escape_cell(discard.reason)}: {_escape_cell(discard.apply_url)}")
+            lines.append(f"- {escape_markdown_cell(discard.reason)}: {escape_markdown_cell(discard.apply_url)}")
     return "\n".join(lines) + "\n"
 
 

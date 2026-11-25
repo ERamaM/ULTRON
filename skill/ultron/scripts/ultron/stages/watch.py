@@ -153,9 +153,12 @@ def recheck_closed(profile_slug: str, client) -> list[dict]:
     return closed
 
 
-def _write_digest(profile_slug: str, found: list[dict], stamp: str, closed: list[dict] | None = None) -> str:
+def _write_digest(profile_slug: str, found: list[dict], stamp: str, closed: list[dict] | None = None) -> str | None:
     folder = home.ultron_home() / WATCH_DIR
     folder.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(folder / f"{profile_slug}-{stamp}.closed.json", json.dumps(closed or [], ensure_ascii=False))
+    if not found and not closed:
+        return None
     by_company: dict[str, list[dict]] = {}
     for item in found:
         by_company.setdefault(item["ats_company"] or "unknown", []).append(item)
@@ -174,7 +177,6 @@ def _write_digest(profile_slug: str, found: list[dict], stamp: str, closed: list
     path.write_text("\n".join(lines), encoding="utf-8")
     (folder / f"{profile_slug}-{stamp}.json").write_text(json.dumps(found, ensure_ascii=False, indent=2),
                                                          encoding="utf-8")
-    atomic_write_text(folder / f"{profile_slug}-{stamp}.closed.json", json.dumps(closed or [], ensure_ascii=False))
     return str(path)
 
 
@@ -223,7 +225,7 @@ def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET, overrides: di
         "matched": len(matched),
         "new_postings": len(found),
         "closed": closed,
-        "digest": _write_digest(profile_slug, found, stamp, closed) if found or closed else None,
+        "digest": _write_digest(profile_slug, found, stamp, closed),
         "requests": client.requests_made,
         "requests_by_domain": top_hosts(client.requests_by_host()),
     }

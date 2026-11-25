@@ -331,12 +331,13 @@ def pool(session: str) -> dict[str, Any]:
     state = load_state(session)
     existing = load_labels(session)
     pooled = assign_ids(state)
-    for group in pooled["merged"]:  # one label now covers several former jobs: judge it again
-        existing.pop(group[0], None)
+    for group in pooled["relabel"]:  # jobs merged or split since the labels were set: judge them again
+        for job in group:
+            existing.pop(job, None)
     path = _write_text(_artifact(session, "labels.yaml"), labels_yaml(session, pooled["jobs"], existing))
     save_state(state)
     return {"labels": str(path), "jobs": len(pooled["jobs"]),
-            "pending": len(pending_jobs(existing, pooled["jobs"])), "merged_ids_relabel": pooled["merged"]}
+            "pending": len(pending_jobs(existing, pooled["jobs"])), "relabel_ids": pooled["relabel"]}
 
 
 def spotcheck(session: str, size: int) -> dict[str, Any]:
@@ -349,15 +350,26 @@ def spotcheck(session: str, size: int) -> dict[str, Any]:
         jobs = assign_ids(load_state(session))["jobs"]
         return {"spotcheck": str(_write_text(name, spotcheck_yaml(session, jobs, size))),
                 "jobs": min(size, len(jobs))}
+    return current_spotcheck(session, load_labels(session), assign_ids(load_state(session))["jobs"]) or {}
+
+
+def current_spotcheck(
+    session: str, labels: dict[str, dict[str, Any]], jobs: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Agreement between the user's filled-in sample and the current labels (``None`` without a sample).
+
+    It is recomputed every time, so a later relabelling or a changed pool is always reflected.
+    """
+    name = _artifact(session, "spotcheck.yaml")
+    text = _read_text(name, missing_ok=True)
+    if text is None:
+        return None
     try:
         spot = parse_labels(text, session, fields=("relevant",))
     except LabelError as exc:
         raise ComparisonError(f"{name}: {exc}") from exc
-    result = agreement(load_labels(session), spot, RELABEL_THRESHOLD)
-    state = load_state(session)
-    state["spotcheck"] = {**result, "size": len(spot), "checked_at": datetime.now(UTC).isoformat(timespec="seconds")}
-    save_state(state)
-    return result
+    result = agreement(labels, spot, RELABEL_THRESHOLD)
+    return {**result, "size": len(spot), "stale": sorted(job for job in spot if job not in jobs)}
 
 
 def _check_complete(state: dict[str, Any]) -> list[str]:
@@ -372,14 +384,19 @@ def _check_complete(state: dict[str, Any]) -> list[str]:
     problems += [f"{arm} repetition {rep} has no {field} recorded"
                  for arm, reps in sorted(state["arms"].items()) for rep, entry in sorted(reps.items())
                  for field in COST_FIELDS if entry.get("cost", {}).get(field) is None]
-    return problems + _spotcheck_problems(state.get("spotcheck"))
+    return problems
 
 
 def _spotcheck_problems(spot: dict[str, Any] | None) -> list[str]:
     if not spot:
         return ["no spot check recorded: run spotcheck"]
+    if spot["stale"]:
+        return [(f"the spot check sample has {len(spot['stale'])} jobs no longer in the pool: "
+                "delete the spot check file and run spotcheck again")]
     if spot["pending"]:
         return [f"the spot check has {spot['pending']} pending jobs"]
+    if not spot["compared"]:
+        return ["the spot check has no true/false judgments to compare: judge more jobs or draw a new sample"]
     if spot["relabel"]:
         return ["spot check disagreement is above the threshold: relabel, then run spotcheck again"]
     return []
@@ -388,15 +405,16 @@ def _spotcheck_problems(spot: dict[str, Any] | None) -> list[str]:
 def build_report(session: str, *, allow_partial: bool = False) -> dict[str, Any]:
     """Metrics for every arm and repetition, cut to the session's top N."""
     state = load_state(session)
-    problems = _check_complete(state)
-    if problems and not allow_partial:
-        raise ComparisonError("; ".join(problems) + " (pass --allow-partial to score anyway)")
     labels = load_labels(session)
     pooled = assign_ids(state)
-    pending = pending_jobs(labels, pooled["jobs"])
     missing = [job for job in pooled["jobs"] if job not in labels]
-    if missing:
+    if state["arms"] and missing:
         raise ComparisonError(f"{len(missing)} scored jobs are not in the labels file: run pool again")
+    spot = current_spotcheck(session, labels, pooled["jobs"])
+    problems = _check_complete(state) + _spotcheck_problems(spot)
+    if problems and not allow_partial:
+        raise ComparisonError("; ".join(problems) + " (pass --allow-partial to score anyway)")
+    pending = pending_jobs(labels, pooled["jobs"])
     if pending and not allow_partial:
         raise ComparisonError(f"{len(pending)} jobs still have pending labels (pass --allow-partial to score anyway)")
     arms: dict[str, dict[str, list[str]]] = {}
@@ -413,7 +431,7 @@ def build_report(session: str, *, allow_partial: bool = False) -> dict[str, Any]
         "problems": problems,
         "pending_jobs": len(pending),
         "profile_sha256": state["profile_sha256"],
-        "spotcheck": state.get("spotcheck"),
+        "spotcheck": spot,
         "ultron_version": state["ultron_version"],
         "top_n": state["top_n"],
         "pipeline_seconds": {rep: entry.get("pipeline_seconds")

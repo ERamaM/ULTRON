@@ -130,7 +130,7 @@ def read_report(raw_name: str | os.PathLike[str]) -> str:
 def remove_report(raw_name: str | os.PathLike[str]) -> bool:
     """Delete ``REPORTS_DIR/<name>`` when it is a regular file there; return whether it existed."""
     name = _report_name(raw_name)
-    path = os.path.join(REPORTS_DIR, name)
+    path = os.path.join(_private_reports_dir(), name)  # refuses a linked or foreign folder first
     if not os.path.lexists(path):
         return False
     _check_target(path)

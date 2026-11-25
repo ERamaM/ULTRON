@@ -34,6 +34,11 @@ def test_precision_at_skips_unlabelled_positions():
     labels = _labels(relevant="a", unknown="u")
     assert am.precision_at(["u", "a"], labels, 2) == 1.0
     assert am.precision_at(["u"], labels, 1) is None
+    assert am.precision_at(["u"], labels, 2) == 0.0  # the empty position is still a miss
+
+
+def test_precision_at_scores_an_empty_shortlist_as_zero():
+    assert am.precision_at([], {}, 5) == 0.0
 
 
 def test_rep_metrics_with_known_values():

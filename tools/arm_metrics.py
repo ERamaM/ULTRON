@@ -49,20 +49,19 @@ def precision_at(ids: list[str], labels: dict[str, dict[str, Any]], k: int) -> f
 
     A position counts as a hit only for the first occurrence of a relevant job. Repeated jobs and
     empty positions (a list shorter than ``k``) are misses. Positions whose job is unlabelled are
-    left out of the denominator; ``None`` when no position in the first ``k`` is labelled.
+    left out of the denominator; ``None`` only when every position is filled and unlabelled.
     """
     top = ids[:k]
     seen: set[str] = set()
-    hits, judged, labelled_any = 0, k - len(top), False
+    hits, judged = 0, k - len(top)
     for job in top:
         value = _label(labels, job, "relevant")
         if value is None:
             continue
-        labelled_any = True
         judged += 1
         hits += value is True and job not in seen
         seen.add(job)
-    return ratio(hits, judged) if labelled_any else None
+    return ratio(hits, judged)
 
 
 def relevant_ids(ids: list[str] | set[str], labels: dict[str, dict[str, Any]]) -> set[str]:

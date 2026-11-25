@@ -29,11 +29,13 @@ def test_alias_merges_same_posting_on_two_urls():
     _row(2, title="ML Engineer 1", company="Not found"),  # placeholder company
     _row(2, title="(Remote)", company="Acme"),  # nothing left after normalizing
     _row(2, title="ML Engineer 1", location=""),  # no location to compare
+    _row(2, title="ML Engineer 1", company="company_not_found"),  # ULTRON's missing-company sentinel
+    _row(2, title="title_not_found"),  # ULTRON's missing-title sentinel
 ])
 def test_distinct_requisitions_stay_apart(other):
-    first = _row(1, title="(Remote)") if other["title"] == "(Remote)" else _row(1)
-    if other["company"] == "Not found":
-        first = {**first, "company": "Not found"}
+    first = {**_row(1), "title": other["title"], "company": other["company"]}
+    if other["title"] == "ML Engineer 1" and other["company"] == "Acme":
+        first = _row(1)  # differs from ``other`` only by location
     pooled = ap.assign_ids(_state({"baseline": {"1": [first, other]}}))
     assert len(pooled["jobs"]) == 2
 
@@ -52,14 +54,30 @@ def test_ids_are_stable_whatever_the_ingestion_order():
     job = next(iter(first["jobs"]))
     state["arms"]["baseline"] = {"1": {"rows": [_row(1)]}}  # alias of the same job, sorts first
     second = ap.assign_ids(state)
-    assert list(second["jobs"]) == [job] and second["merged"] == []
+    assert list(second["jobs"]) == [job] and second["relabel"] == []
 
 
 def test_merged_ids_are_reported():
     state = _state({"baseline": {"1": [_row(1)]}, "ultron": {"1": [_row(2)]}})
     ap.assign_ids(state)
     state["arms"]["ultron"]["2"] = {"rows": [{**_row(1), "apply_url": _row(2)["apply_url"]}]}
-    assert len(ap.assign_ids(state)["merged"]) == 1
+    assert len(ap.assign_ids(state)["relabel"]) == 1
+
+
+def test_split_cluster_gets_distinct_ids_and_relabel():
+    state = _state({"baseline": {"1": [_row(1)]}, "ultron": {"1": [_row(2)]}})
+    state["arms"]["ultron"]["2"] = {"rows": [{**_row(1), "apply_url": _row(2)["apply_url"]}]}  # bridge
+    merged = ap.assign_ids(state)
+    assert len(merged["jobs"]) == 1
+    del state["arms"]["ultron"]["2"]  # the bridge repetition is discarded
+    split = ap.assign_ids(state)
+    assert len(split["jobs"]) == 2 and len(set(split["rows"].values())) == 2
+    assert split["relabel"] and set(split["relabel"][0]) == set(split["jobs"])
+
+
+def test_unused_id_skips_taken_ids():
+    taken = {ap._job_id("id:a")}
+    assert ap._unused_id(["id:a"], taken) not in taken
 
 
 def test_only_top_n_rows_are_pooled():

@@ -174,7 +174,7 @@ def test_ledger_v6_upgrade_from_v5(tmp_path):
         conn.execute("PRAGMA user_version = 5")
         conn.commit()
     with closing(ledger.connect()) as conn:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == 6
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == ledger.SCHEMA_VERSION
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {"watchlist", "watch_pending", "scout_verdicts"} <= tables
         with pytest.raises(sqlite3.IntegrityError):

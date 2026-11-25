@@ -129,16 +129,20 @@ def dedupe_final_rows(
     kept: list[FinalRow] = []
     duplicates: list[FinalRow] = []
     identities = RoleIdentityIndex()
+    positions: list[int] = []  # index group -> position in ``kept``
     for row in rows:
         group = identities.group_key(row)
         if group is None:
             identities.add(row)
+            positions.append(len(kept))
             kept.append(row)
-        elif _both_verified_apart(row, kept[int(group)]):
+            continue
+        at = positions[int(group)]
+        if _both_verified_apart(row, kept[at]):
             kept.append(row)  # the agent opened both postings and judged each: two vacancies, not one
-        elif _duplicate_quality(row) < _duplicate_quality(kept[int(group)]):
-            duplicates.append(kept[int(group)])
-            kept[int(group)] = row
+        elif _duplicate_quality(row) < _duplicate_quality(kept[at]):
+            duplicates.append(kept[at])
+            kept[at] = row
         else:
             duplicates.append(row)
     if merge_locations:

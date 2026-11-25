@@ -136,3 +136,43 @@ def test_cli_save_errors(tmp_path, capsys):
     assert main(["shortlist", "save", "--profile", SLUG, "--from", str(tmp_path / "none.jsonl")]) != 0
 
 
+
+
+def test_board_homes_are_told_from_slug_only_postings():
+    assert inspect.is_board_url("https://acme.homerun.co/") and inspect.is_board_url("https://acme.homerun.co")
+    assert not inspect.is_board_url("https://acme.homerun.co/senior-engineer")
+    assert inspect.is_board_url("https://jobs.lever.co/acme") and inspect.is_board_url("https://boards.greenhouse.io/acme/")
+
+
+def test_redirected_postings_use_the_identity_saving_records():
+    moved = "https://careers.example.org/jobs/moved"
+
+    def redirecting(request):
+        if str(request.url) == moved:
+            return httpx.Response(302, headers={"Location": POSTING})
+        return _handler(request)
+    http_factory.set_test_overrides(transport=httpx.MockTransport(redirecting), resolver=lambda h, p: ["93.184.216.34"],
+                                    sleep=lambda s: None, min_interval_per_host=0.0)
+    (found,) = inspect.inspect_jobs(SLUG, [moved])["dossiers"]
+    assert found["id"] == "greenhouse:acme:4012345" and found["found_at"] == moved
+    shortlist.save_shortlist(SLUG, [{"id": found["id"], "verdict": "discard"}])
+    (again,) = inspect.inspect_jobs(SLUG, [moved])["dossiers"]
+    assert again["memory"] == "rejected"
+
+
+def test_cache_survives_unicode_line_separators():
+    folder = inspect.home.ultron_home() / inspect.CACHE_DIR / SLUG
+    folder.mkdir(parents=True)
+    row = {"identity_key": "k", "status": "open", "job": {"title": "A B\u0085C", "apply_url": EMPLOYER}}
+    (folder / inspect.CACHE_FILE).write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    assert inspect.cached_postings(SLUG)["k"]["job"]["title"] == "A B\u0085C"
+
+
+def test_rows_over_the_cap_are_reported(monkeypatch):
+    monkeypatch.setattr(shortlist, "MAX_ROWS", 1)
+    out = shortlist.save_shortlist(SLUG, [
+        {"url": EMPLOYER, "verdict": "keep", "title": "ML", "company": "Example Org"},
+        {"url": POSTING, "verdict": "keep", "title": "DS", "company": "Acme"},
+    ])
+    assert out["saved"]["keep"] == 1 and out["not_saved"] == [
+        {"row": 2, "outcome": "over_limit", "reason": "only the first 1 rows are saved per call"}]

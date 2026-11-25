@@ -92,7 +92,8 @@ def _source_vendor(source_type: str, source_key: str) -> tuple[str, str]:
 
 def _fallback(raw: str, reason: str) -> CanonicalJobIdentity:
     value = raw.strip().casefold()
-    logger.warning("job_identity_fallback reason=%s url=%r", reason, raw[:240])
+    # The URL itself is never logged: it can carry tokens or keys in its query.
+    logger.warning("job_identity_fallback reason=%s length=%d", reason, len(raw))
     return CanonicalJobIdentity(identity_key=f"raw:{value}", canonical_url=value, fallback_reason=reason)
 
 

@@ -62,7 +62,10 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     """
     if not rows:
         raise EmptyShortlist("the shortlist has no rows")
-    rows = _with_cache(list(rows)[:MAX_ROWS], cached_postings(profile_slug))
+    rows = list(rows)
+    over = [{"row": number, "outcome": "over_limit", "reason": f"only the first {MAX_ROWS} rows are saved per call"}
+            for number in range(MAX_ROWS + 1, len(rows) + 1)]
+    rows = _with_cache(rows[:MAX_ROWS], cached_postings(profile_slug))
     run_id = runs.new_run(profile_slug, preset, mode="scout")
     run = runs.load_run(run_id)
     added = add_scout_finds(run_id, run, rows)
@@ -70,5 +73,5 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     for stage in ("fetch", "filter"):
         runs.mark_stage(run_id, stage)
     result = finalize_scout(run_id, runs.load_run(run_id))
-    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"]
+    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"] + over
     return {"run_id": run_id, "saved": added["verified"], "not_saved": not_saved, **result}

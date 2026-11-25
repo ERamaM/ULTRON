@@ -373,3 +373,15 @@ def test_two_verified_postings_with_the_same_title_stay_apart():
     extra = first.model_copy(update={"found_by": "expansion", "apply_url": EMPLOYER + "?ref=x"})
     kept, dropped = dedupe_final_rows([first, second, extra])
     assert [row.apply_url for row in kept] == [EMPLOYER, EMPLOYER + "-2"] and dropped == [extra]
+
+
+def test_dedupe_groups_stay_aligned_after_verified_postings_kept_apart():
+    base = scout_verified.final_row({**scout_verified.judgment(UNSURE), "identity_key": "a", "apply_url": EMPLOYER,
+                                     "source_type": "employer_page"})
+    a2 = base.model_copy(update={"apply_url": EMPLOYER + "-2"})
+    b1 = base.model_copy(update={"title": "Data Platform Lead", "apply_url": "https://x.example/b1",
+                                 "found_by": "expansion"})
+    b2 = b1.model_copy(update={"apply_url": "https://x.example/b2", "found_by": "agent_verified"})
+    kept, dropped = dedupe_final_rows([base, a2, b1, b2])
+    assert [row.apply_url for row in kept] == [EMPLOYER, EMPLOYER + "-2", "https://x.example/b2"]
+    assert dropped == [b1]

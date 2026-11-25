@@ -13,6 +13,7 @@ import json
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
+from urllib.parse import urlsplit
 
 from ultron.core import presets
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
@@ -34,6 +35,7 @@ from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.stages.scout_finds import memory_flags, web_candidate
 from ultron.stages.scout_resolve import classify_find, resolve_aggregator
 from ultron.stages.watch import profile_matches
+from ultron.storage import runs
 from ultron.toolkit.dossier import ProfileContext, failed_dossier, listed_dossier, posting_dossier
 
 MAX_URLS = 100
@@ -51,11 +53,23 @@ def _run_context(profile_slug: str, preset: str) -> dict:
             "settings": presets.resolve(preset)}
 
 
+# Path words of a board's home page, never a posting's own slug.
+BOARD_PATH_WORDS = frozenset({"jobs", "careers", "career", "embed", "job-board", "openings", "positions", "vacancies",
+                              "en", "en-us", "en-gb", "es", "de", "fr", "it", "nl", "pt"})
+
+
 def is_board_url(url: str) -> bool:
-    """Whether ``url`` is a supported ATS board (careers home) rather than one posting on it."""
-    if extract_seed_from_url(url, "") is None:
+    """Whether ``url`` is a supported ATS board's home rather than one posting on it.
+
+    A board home's path holds only the board identifier and generic words (``/jobs``, a locale); anything else,
+    such as a slug-only posting on a vendor without job IDs, is a posting.
+    """
+    seed = extract_seed_from_url(url, "")
+    if seed is None or not canonical_job_identity(url).identity_key.startswith("url:"):
         return False
-    return canonical_job_identity(url).identity_key.startswith("url:")
+    board_words = {part for part in str(seed.board_identifier).casefold().split("/") if part}
+    segments = [part for part in urlsplit(url).path.casefold().split("/") if part]
+    return all(part in board_words or part in BOARD_PATH_WORDS for part in segments)
 
 
 class _Work:
@@ -66,21 +80,29 @@ class _Work:
 
 
 def _plan(urls: Iterable[str], companies: Iterable[str]) -> tuple[list[_Work], list[dict]]:
-    """Group the inputs into units of work; URLs ULTRON may not fetch become dossiers at once."""
+    """Group the inputs into units of work; URLs ULTRON may not fetch become dossiers at once.
+
+    Everything that can reach a shared ATS or aggregator host (ATS postings, boards, company probes, aggregator
+    pages) runs in one serial unit with one client, so a vendor never sees parallel requests and its budget and
+    blocks hold for the whole call. Postings on employers' own sites run in parallel, one unit per host.
+    """
     by_host: dict[str, list[str]] = {}
-    work: list[_Work] = []
+    shared = _Work("shared", [])
     early: list[dict] = []
     for url in list(dict.fromkeys(u.strip() for u in urls if str(u or "").strip()))[:MAX_URLS]:
         found = classify_find(url)
         if found.outcome == "rejected":
             early.append(failed_dossier(url, "rejected", found.reason))
         elif found.outcome == "ats_posting" and is_board_url(url):
-            work.append(_Work("board", [url]))
+            shared.items.append(("board", url))
+        elif found.outcome in {"ats_posting", "aggregator"}:
+            shared.items.append(("posting", url))
         else:
             by_host.setdefault(domain_of(normalize_url(url)), []).append(url)
-    work.extend(_Work("postings", items) for items in by_host.values())
     names = list(dict.fromkeys(clean_text(c) for c in companies if clean_text(c)))[:MAX_COMPANIES]
-    work.extend(_Work("company", [name]) for name in names)
+    shared.items.extend(("company", name) for name in names)
+    work = [shared] if shared.items else []
+    work.extend(_Work("postings", items) for items in by_host.values())
     return work, early
 
 
@@ -98,9 +120,21 @@ class _Inspector:
     def run_unit(self, unit: _Work) -> tuple[list[dict], list[dict], int]:
         """``(dossiers, cache rows, requests)`` for one unit of work."""
         client = self._client()
-        handler: dict[str, Callable] = {"postings": self._postings, "board": self._board, "company": self._company}
-        dossiers, cache = handler[unit.kind](unit.items, client)
+        if unit.kind == "postings":
+            dossiers, cache = self._postings(unit.items, client)
+        else:
+            dossiers, cache = self._shared(unit.items, client)
         return dossiers, cache, client.requests_made
+
+    def _shared(self, items: list[tuple[str, str]], client) -> tuple[list[dict], list[dict]]:
+        """ATS postings, boards, company probes and aggregator pages, serially with one client."""
+        handler: dict[str, Callable] = {"posting": self._postings, "board": self._board, "company": self._company}
+        dossiers, cache = [], []
+        for kind, item in items:
+            got, rows = handler[kind]([item], client)
+            dossiers.extend(got)
+            cache.extend(rows)
+        return dossiers, cache
 
     def _postings(self, urls: list[str], client) -> tuple[list[dict], list[dict]]:
         dossiers, cache = [], []
@@ -126,8 +160,11 @@ class _Inspector:
         status = posting_status(result)
         if result.job is None:
             return failed_dossier(found.url, status, (result.error or {}).get("error", ""), identity), None
+        # The identity of the posting as read (after redirects or a canonical link) is the one ``save`` records.
+        resolved = web_candidate(result.job.apply_url, {}, "inspect", candidate.source_type)
+        identity = candidate_identity(resolved.model_dump())
         dossier = posting_dossier(result.job, identity, status, self.context, detail=self.detail)
-        if url != found.url:
+        if url != result.job.apply_url:
             dossier["found_at"] = url
         row = {"identity_key": identity, "status": status, "source_type": candidate.source_type,
                "job": result.job.model_dump(mode="json")}
@@ -183,14 +220,8 @@ def _cache(profile_slug: str, rows: list[dict]) -> None:
 def cached_postings(profile_slug: str) -> dict[str, dict]:
     """The postings ``inspect`` read for ``profile_slug``, by identity key, the latest read winning."""
     path = home.ultron_home() / CACHE_DIR / profile_slug / CACHE_FILE
-    if not path.is_file():
-        return {}
-    out: dict[str, dict] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
-            row = json.loads(line)
-            out[row["identity_key"]] = row
-    return out
+    # read_jsonl splits on newlines only: posting text may hold U+2028 and other line separators.
+    return {row["identity_key"]: row for row in runs.read_jsonl(path)}
 
 
 def _flag(dossiers: list[dict], profile_slug: str) -> None:

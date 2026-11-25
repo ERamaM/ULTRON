@@ -9,6 +9,7 @@ from ultron.commands.output import emit, fail, fail_stage_order
 from ultron.core import presets
 from ultron.core.discovery.query_plan import build_query_plan
 from ultron.seeds import rounds as seed_rounds
+from ultron.stages import scout
 from ultron.stages.discover import COLD_START_SEEDS, eligible_seed_count
 from ultron.stages.unattended import run_unattended
 from ultron.storage import runs
@@ -32,17 +33,27 @@ def _new_payload(run_id: str) -> dict:
     }
 
 
+def _scout_payload(run_id: str) -> dict:
+    """The ``run new --mode scout`` output: a brief instead of a query plan and seed targets."""
+    data = runs.load_run(run_id)
+    queued = scout.queue_pending_watch(run_id, data)
+    return {"run_id": run_id, "preset": data["preset"], "profile": data["profile_slug"], "mode": "scout",
+            "brief": scout.brief(data, queued)}
+
+
 def _run_new(args: argparse.Namespace) -> int:
     try:
         presets.resolve(args.preset)
     except KeyError as exc:
         return fail("unknown_preset", str(exc.args[0]))
+    if args.mode not in runs.MODES:
+        return fail("usage", f"unknown mode: {args.mode!r} (choose from {', '.join(runs.MODES)})")
     try:
-        run_id = runs.new_run(args.profile, args.preset)
+        run_id = runs.new_run(args.profile, args.preset, mode=args.mode)
     except FileNotFoundError as exc:
         return fail("profile_not_found", str(exc))
     runs.mark_stage(run_id, "new")
-    emit(_new_payload(run_id))
+    emit(_scout_payload(run_id) if args.mode == "scout" else _new_payload(run_id))
     return 0
 
 
@@ -90,6 +101,8 @@ def register(subparsers) -> None:
     new = run_sub.add_parser("new", help="create a run directory")
     new.add_argument("--profile", required=True)
     new.add_argument("--preset", default=presets.DEFAULT_PRESET)
+    new.add_argument("--mode", default=runs.DEFAULT_MODE,
+                     help="sweep (planned search over stored boards) or scout (you find, ULTRON resolves)")
     new.set_defaults(func=_run_new)
     runs_p = subparsers.add_parser("runs", help="inspect runs")
     runs_sub = runs_p.add_subparsers(dest="runs_command", required=True, parser_class=type(runs_p))

@@ -7,12 +7,14 @@ from collections.abc import Iterable
 
 from ultron.core.decision.ambiguity import AmbiguityScorer
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.models import DiscardRecord, ExtractedJob
 from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.rules.hard_filters import location_excluded
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
-from ultron.stages.feeds import is_aggregator_host
+from ultron.stages import scout
+from ultron.stages.scout_verified import exported_count, load_verified
 from ultron.storage import runs
 
 # Evaluator-stage discards whose ambiguity score reaches the preset threshold go to the agent instead of
@@ -57,10 +59,39 @@ def _rescuable(result: dict, job: ExtractedJob, excluded_locations: tuple[str, .
     )
 
 
+def _scout_filter(run_id: str, run: dict) -> dict:
+    """Scout routing: drop only closed, unusable, aggregator and already rejected postings; queue the rest."""
+    out_dir = runs.run_dir(run_id)
+    verified = load_verified(out_dir)
+    routed = scout.route_postings(runs.read_jsonl(out_dir / "postings.jsonl"), run, set(verified))
+    runs.write_jsonl(out_dir / "discarded.jsonl", routed["discarded"])
+    runs.write_jsonl(out_dir / "kept.jsonl", [])
+    runs.write_jsonl(out_dir / "ambiguous.jsonl", routed["queue"])
+    runs.write_jsonl(out_dir / scout.NOT_EVALUATED_FILE, routed["not_evaluated"])
+    runs.write_jsonl(out_dir / scout.CARRIED_FILE, routed["carried"])
+    runs.mark_stage(run_id, "filter")
+    by_source: dict[str, int] = {}
+    for entry in routed["queue"]:
+        by_source[entry["found_by"]] = by_source.get(entry["found_by"], 0) + 1
+    return {
+        "mode": "scout",
+        "queued": len(routed["queue"]),
+        "queued_by_source": by_source,
+        "not_evaluated": len(routed["not_evaluated"]),
+        "carried_from_memory": len(routed["carried"]),
+        "already_verified": routed["already_verified"],
+        "verified_finds": exported_count(verified),
+        "discarded": len(routed["discarded"]),
+        "discard_reasons": dict(sorted(routed["reasons"].items(), key=lambda item: -item[1])),
+    }
+
+
 def filter_run(run_id: str) -> dict:
-    """Apply deterministic filters and ambiguity scoring to fetched postings."""
+    """Apply deterministic filters and ambiguity scoring to fetched postings (scout runs: route to the agent)."""
     runs.require_stage(run_id, "filter")
     run = runs.load_run(run_id)
+    if runs.run_mode(run) == "scout":
+        return _scout_filter(run_id, run)
     profile = run.get("profile_snapshot") or {}
     threshold = run["settings"]["llm_ambiguity_threshold"]
     out_dir = runs.run_dir(run_id)

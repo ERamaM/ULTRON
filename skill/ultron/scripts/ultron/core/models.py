@@ -215,6 +215,8 @@ class JobEvaluation(BaseModel):
     remote_evidence: str = ""
     role_evidence: str = ""
     open_status_evidence: str = ""
+    # Scout runs: 1 = apply first, 3 = apply last. ``None`` reads as 2, so verdicts without it still record.
+    priority: int | None = Field(default=None, ge=1, le=3)
     raw_provider_payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -244,6 +246,10 @@ class FinalRow(BaseModel):
     matched_requirements: list[str] = Field(default_factory=list)
     missing_requirements: list[str] = Field(default_factory=list)
     uncertain_requirements: list[str] = Field(default_factory=list)
+    # Scout runs: the agent's priority (1 apply first, 3 apply last) and who brought the posting in
+    # (``agent``, ``watch`` or ``expansion``).
+    priority: int | None = None
+    found_by: str = ""
 
 
 class DiscardRecord(BaseModel):

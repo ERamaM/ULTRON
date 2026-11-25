@@ -42,9 +42,9 @@ from ultron.stages.role_feeds import (
     remember_resolutions,
     role_source_rows,
 )
-from ultron.stages.scout import WATCH_PASS, watch_seeds
 from ultron.stages.scout_finds import web_candidate
 from ultron.stages.scout_resolve import resolve_aggregator
+from ultron.stages.watch_boards import WATCH_PASS, watch_seeds
 from ultron.storage import ledger, runs, scout_memory, watchlist
 
 WATCH_DIR = "watch"

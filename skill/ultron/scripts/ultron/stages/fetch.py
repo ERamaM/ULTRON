@@ -36,7 +36,6 @@ from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLR
 from ultron.infra.urlpolicy import admit_url
 from ultron.stages import http_factory
 from ultron.stages.http_factory import client_for_run
-from ultron.stages.scout_verified import JUDGED_PASS
 from ultron.storage import runs
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -655,13 +654,8 @@ def fetch(run_id: str) -> dict:
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
-    scout_run = runs.run_mode(run) == "scout"
-    verified_skipped = 0
     for row in runs.read_jsonl(out_dir / "candidates.jsonl"):
         candidate = CandidateUrl.model_validate(row)
-        if scout_run and candidate.search_pass == JUDGED_PASS:  # the agent opened and judged it already
-            verified_skipped += 1
-            continue
         identity = canonical_job_identity(
             candidate.source_url, source_type=candidate.source_type, source_key=candidate.source_key
         ).identity_key
@@ -749,6 +743,4 @@ def fetch(run_id: str) -> dict:
                "vendors_blocked": client.vendors_blocked()}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
-    if scout_run:
-        summary["verified_skipped"] = verified_skipped
     return summary

@@ -223,7 +223,7 @@ repository for this reason.
 
 ```sh
 uv run python tools/arm_comparison.py prepare --profile <slug> --session <name> [--top-n 25] [--force] \
-    [--arms baseline,ultron,scout=balanced/scout]
+    [--arms baseline,ultron,toolkit=balanced/scout]
 uv run python tools/arm_comparison.py ingest-ultron --session <name> --rep <k> --run <run-id> [--arm <arm>] [--phase 2]
 uv run python tools/arm_comparison.py ingest-agent --session <name> --rep <k> --from <file>.jsonl [--arm <arm>] [--phase 2]
 uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k> [--phase 2] \
@@ -239,7 +239,7 @@ uv run python tools/arm_comparison.py trace --session <name> --arm <ultron-arm> 
 `baseline,ultron`.
 - A bare name such as `baseline` is an agent arm, imported with `ingest-agent`.
 - `name=preset/mode` is an ULTRON arm, imported with `ingest-ultron --arm name`. The mode is `sweep`
-  or `scout`.
+  (a planned run) or `scout` (a shortlist the agent saved with `ultron shortlist save`).
 - A bare `ultron` means `ultron=balanced/sweep`.
 
 `ingest-ultron` refuses a run whose preset or mode differs from its arm, and it records the

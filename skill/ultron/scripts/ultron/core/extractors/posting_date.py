@@ -30,12 +30,14 @@ def _same_line_prefix(text: str, start: int, limit: int) -> str:
     return prefix[-limit:]
 
 
-def posting_date_from_text(text: str) -> str | None:
+def posting_date_from_text(text: str, *, require_label: bool = False) -> str | None:
     """Return the publication date found in ``text``, or None."""
     matches = list(DATE_RE.finditer(text))
     for match in matches:
         if _POSTING_DATE_LABEL_RE.search(_same_line_prefix(text, match.start(), 40)):
             return match.group(1)
+    if require_label:
+        return None
     for match in matches:
         if _NON_POSTING_DATE_LABEL_RE.search(_same_line_prefix(text, match.start(), 30)):
             continue

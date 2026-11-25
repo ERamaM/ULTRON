@@ -495,9 +495,8 @@ def _parse_generic_with_provenance(
 
     closed = has_closed_status_phrase(text)  # same phrase list as the hard filters
 
-    posting_date = structured.get("posting_date", "") or None
-    if not posting_date:
-        posting_date = posting_date_from_text(text)
+    explicitly_published = structured.get("posting_date") or posting_date_from_text(text, require_label=True)
+    posting_date = explicitly_published or posting_date_from_text(text)
 
     body_text = text
     if use_jsonld_description and (not text or "you need to enable javascript to run this app" in text_low):
@@ -514,6 +513,8 @@ def _parse_generic_with_provenance(
         body_text=body_text[:30000],
         apply_available=apply_available,
         posting_date=posting_date,
+        posting_date_verified=bool(explicitly_published),
+        updated_at=structured.get("updated_at") or None,
         is_open_hint=not closed,
         valid_through_expired=valid_through_expired(structured.get("valid_through", "")),
     )

@@ -76,6 +76,17 @@ def resolve_geo_defaults(
     return remote_policy, eligibility
 
 
+def vacancy_date_label(job: ExtractedJob) -> str:
+    """Summarize source date evidence without treating updates as publications."""
+    if job.posting_date and job.posting_date_verified:
+        return f"Published {job.posting_date}"
+    if job.updated_at:
+        return f"Updated {job.updated_at}"
+    if job.posting_date:
+        return f"Unverified date {job.posting_date}"
+    return "Publication date unknown"
+
+
 def _assemble_final_row(
     extracted: ExtractedJob,
     evaluation: Any,
@@ -143,7 +154,10 @@ def _assemble_final_row(
         eligibility=eligibility,
         eligibility_evidence=eligibility_evidence,
         fit_signals=(evaluation.fit_signals or fallback_fit_signals or [])[:3],
-        freshness=extracted.posting_date or "date_not_shown (open verified)",
+        freshness=vacancy_date_label(extracted),
+        published_at=extracted.posting_date if extracted.posting_date_verified else None,
+        updated_at=extracted.updated_at,
+        unverified_date=extracted.posting_date if not extracted.posting_date_verified else None,
         evaluation_verdict=evaluation.verdict,
         source_type=candidate.source_type or "unknown",
         source_key=candidate.source_key or candidate.query_id,

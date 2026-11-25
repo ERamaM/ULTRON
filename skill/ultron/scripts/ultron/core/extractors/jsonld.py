@@ -107,7 +107,8 @@ def _structured_fields_from_node(job: dict) -> dict[str, str]:
     # datePosted is the publication date; validThrough is the application
     # deadline and must NOT be used as the posting date. It is kept separately
     # and only used to detect expired postings (see valid_through_expired).
-    posting_date = clean_text(str(job.get("datePosted") or job.get("dateModified") or ""))
+    posting_date = clean_text(str(job.get("datePosted") or ""))
+    updated_at = clean_text(str(job.get("dateModified") or ""))
     valid_through = job.get("validThrough")
     description = job.get("description")
     return {
@@ -116,6 +117,7 @@ def _structured_fields_from_node(job: dict) -> dict[str, str]:
         "location": location,
         "remote_text": remote_text,
         "posting_date": posting_date,
+        "updated_at": updated_at,
         "valid_through": valid_through.strip() if isinstance(valid_through, str) else "",
         "description": description if isinstance(description, str) else "",
     }

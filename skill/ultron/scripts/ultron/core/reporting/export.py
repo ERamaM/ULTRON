@@ -8,8 +8,8 @@ from pathlib import Path
 
 from ultron.core.models import DiscardRecord, FinalRow, RunSummary
 
-TABLE_HEADER = "| title | company | apply_url | location | remote_policy | eligibility | eligibility_evidence | fit_signals | freshness | match_score | match_band | matched | missing | uncertain |"
-TABLE_SEP = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+TABLE_HEADER = "| title | company | apply_url | location | remote_policy | eligibility | eligibility_evidence | fit_signals | freshness | match_score | match_band | matched | missing | uncertain | published | updated | first seen |"
+TABLE_SEP = "|" + "---|" * 17
 
 
 def escape_markdown_cell(value: str) -> str:
@@ -47,6 +47,9 @@ def render_results_markdown(rows: list[FinalRow]) -> str:
                     escape_markdown_cell(", ".join(row.matched_requirements)),
                     escape_markdown_cell(", ".join(row.missing_requirements)),
                     escape_markdown_cell(", ".join(row.uncertain_requirements)),
+                    escape_markdown_cell(row.published_at or ""),
+                    escape_markdown_cell(row.updated_at or ""),
+                    escape_markdown_cell(row.first_seen or ""),
                 ]
             )
             + " |"

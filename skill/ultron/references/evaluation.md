@@ -118,6 +118,9 @@ Brazil, Argentina and Mexico; UTC-3 to UTC-5 overlap." keeps with `eligibility: 
 {"identity_key": "lever:usco:7a8b9c0d-1111-2222-3333-444455556666", "evaluation": {"verdict": "discard", "keep": false, "discard_category": "eligibility_scope", "discard_reason": "requires US work authorization", "confidence": "high", "is_senior": true, "is_allowed_family": true, "is_full_remote": true, "eligibility": null, "eligibility_evidence": "must be authorized to work in the United States", "fit_signals": [], "open_status_ok": true, "seniority_evidence": "Senior in title", "remote_evidence": "remote", "role_evidence": "backend engineer", "open_status_evidence": "no closure notice"}}
 ```
 
+In a scout run, add `"priority": 1`, `2` or `3` to each `keep` or `unsure` evaluation (1 = apply first); see
+`references/scout.md`. A verdict without it reads as priority 2.
+
 An `unsure` line looks the same with `"verdict": "unsure", "keep": false, "discard_category": null`
 and the missing fact named in the matching evidence field (e.g. `"remote_evidence": "no remote
 information"`).

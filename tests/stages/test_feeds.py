@@ -8,6 +8,7 @@ import pytest
 
 from ultron import seeds
 from ultron.cli import main
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.models import AtsBoardSeed
 from ultron.profiles import store as profiles
 from ultron.stages import feeds as feeds_stage
@@ -87,7 +88,7 @@ def test_discover_feeds_cli_writes_candidates_seeds_and_hints(capsys):
     rows = runs.read_jsonl(d / "candidates.jsonl")
     assert rows and all(r["source_type"].startswith("feed:") for r in rows)
     # Rows whose only URL is the aggregator's own page give no candidate (MARK III harvest semantics).
-    assert not any(feeds_stage.is_aggregator_host(r["domain"]) for r in rows)
+    assert not any(is_aggregator_host(r["domain"]) for r in rows)
     assert not any("Sales Director" in r["ats_title"] for r in rows)  # prefilter drops irrelevant titles
     props = runs.read_jsonl(d / "seed_proposals_from_feeds.jsonl")
     assert {"Nimbus", "Widgets Inc"} <= {p["company"] for p in props}

@@ -13,6 +13,7 @@ Status: accepted direction. The user owns the code and accepts breaking changes.
 - [27 · Multi-arm and second-day measurement](27-multi-arm-and-second-day-measurement.md)
 - [28 · Retire the sweep pipeline](28-retire-the-sweep-pipeline.md)
 - [29 · Improvement loop](29-improvement-loop.md)
+- [30 · Verified finds first](30-verified-finds-first.md)
 
 ## Why the current design loses
 
@@ -102,6 +103,10 @@ Still open:
   - an aggregator page with a single unrelated job link resolves to that job;
   - an ATS board root URL is queued as a posting;
   - the `live` count includes postings that `filter` later finds closed.
+
+## Correction after the loop
+
+The scout mode merged in #99 did not implement the split above faithfully. The agent stopped verifying postings itself and judged a queue ULTRON built, so it did less than the same agent searching alone. [Specification 30](30-verified-finds-first.md) corrects this: the agent searches and verifies as it would alone, ULTRON takes those verified finds as they are, and board expansion only adds extras below them. Implement it before any further measurement or loop iteration.
 
 ## Constraints
 

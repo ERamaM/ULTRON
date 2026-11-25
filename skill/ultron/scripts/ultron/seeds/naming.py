@@ -7,6 +7,7 @@ import unicodedata
 from urllib.parse import urlparse
 
 from ultron.core.ats.registry import GENERIC_BOARD_IDENTIFIERS
+from ultron.core.feeds.urls import COUNTRY_SLDS
 
 LEGAL_COMPANY_SUFFIXES = frozenset({
     "inc",
@@ -55,7 +56,6 @@ def core_company_words(company: str) -> list[str]:
 
 
 # Second-level labels of country domains (acme.co.uk, acme.com.au): the registrable name sits one label left.
-COUNTRY_SLDS = frozenset({"co", "com", "org", "net"})
 # Shared hosting and third-party platforms: a subdomain there (acme.github.io) names the platform's
 # customer, and its registrable label (github) names the platform, never the company.
 THIRD_PARTY_DOMAINS = frozenset({

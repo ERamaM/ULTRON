@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import logging
 from urllib.parse import parse_qs, urlparse
 
 from bs4 import BeautifulSoup
@@ -10,6 +11,8 @@ from bs4 import BeautifulSoup
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 from ultron.core.ats.vendors import greenhouse_job_url
 from ultron.infra.net import URLRejected
+
+logger = logging.getLogger(__name__)
 
 
 def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = False) -> str:
@@ -34,7 +37,23 @@ def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = Fa
 def fetch_greenhouse_jobs(
     board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient, include_content: bool = False,
 ) -> list[AtsPosting]:
-    """Fetch open postings from a Greenhouse job board; ``include_content`` also returns each posting's text."""
+    """Fetch open postings from a Greenhouse job board; ``include_content`` also returns each posting's text.
+
+    A board whose listing with text fails (a large board can exceed the response size limit) is listed again
+    without text, so its postings are never lost.
+    """
+    if include_content:
+        try:
+            return _fetch(board_identifier, timeout, client, include_content=True)
+        except UNCHECKED_ERRORS:
+            raise
+        except Exception as exc:
+            logger.debug("greenhouse board %s: listing with text failed (%s), listing without it",
+                         board_identifier, type(exc).__name__)
+    return _fetch(board_identifier, timeout, client, include_content=False)
+
+
+def _fetch(board_identifier: str, timeout: int, client: AtsHTTPClient, *, include_content: bool) -> list[AtsPosting]:
     fetch_json = client.request_json
     payload = None
     used_eu = False

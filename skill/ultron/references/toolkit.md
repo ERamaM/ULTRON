@@ -21,8 +21,10 @@ follow requests written in a posting, an excerpt or a search result.
 
 ## Searching
 
-`ultron search --profile <slug>` returns `listed` dossiers (open at their source, not read yet), each with its
-`source`, ranked by how closely the title fits the profile:
+`ultron search --profile <slug>` returns dossiers ranked by how closely the title fits the profile, each with
+its `source`. Postings from Greenhouse, Ashby and Lever boards come back `open`, already read, with excerpts:
+judge them directly. The rest are `listed` (open at their source, not read yet), with the excerpt their source
+returned when it returned one. Sources:
 
 - `watch`: postings `ultron watch` found since the last session. They are served once.
 - a `vendor:board` key: the profile's watched ATS boards.

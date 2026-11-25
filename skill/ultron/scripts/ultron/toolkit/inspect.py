@@ -153,7 +153,10 @@ class _Inspector:
 
     def run_unit(self, unit: _Work) -> tuple[list[dict], list[dict], list[dict], int]:
         """``(dossiers, cache rows, misses, requests)`` for one unit of work."""
-        client = self._client()
+        with self._client() as client:
+            return self._run(unit, client)
+
+    def _run(self, unit: _Work, client) -> tuple[list[dict], list[dict], list[dict], int]:
         misses: list[dict] = []
         if unit.kind == "company":
             dossiers, cache, miss = company_dossiers(unit.items[0], client, self.timeout, self.context,
@@ -191,11 +194,14 @@ class _Inspector:
             postings = []
         on_board, board_cache = board_dossiers(seed, postings, self.context, detail=self.detail,
                                                keep_all=seed.ats in TEXT_VENDORS)
-        by_url = {normalize_url(d["url"]): (d, row) for d, row in zip(on_board, board_cache, strict=True)}
+        # Matched by posting identity, which is the same for boards., job-boards. and .eu. Greenhouse URLs.
+        by_id = {d["id"]: (d, row) for d, row in zip(on_board, board_cache, strict=True)}
+        url_ids = {normalize_url(d["url"]): d["id"] for d in on_board}
         dossiers, cache = [], []
         unread = []
         for url, company in unit.items:
-            hit = by_url.pop(normalize_url(url), None)
+            key = url_ids.get(normalize_url(url)) or canonical_job_identity(url).identity_key
+            hit = by_id.pop(key, None)
             if hit is not None and hit[0]["status"] == "open":
                 dossiers.append(hit[0])
                 cache.append(hit[1])
@@ -204,7 +210,7 @@ class _Inspector:
         read, read_cache = self._postings(unread, client)
         dossiers, cache = dossiers + read, cache + read_cache
         wanted = {d["id"] for d in dossiers if "id" in d}
-        extra = [(d, row) for d, row in by_url.values() if d["id"] not in wanted and d.get("matches", True)]
+        extra = [(d, row) for d, row in by_id.values() if d["id"] not in wanted and d.get("matches", True)]
         for dossier, _row in extra[:MAX_SAME_BOARD]:
             dossier["via"] = "same_board"
         for dossier in [*dossiers, *(d for d, _r in extra)]:

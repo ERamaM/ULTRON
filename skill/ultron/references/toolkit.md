@@ -101,6 +101,13 @@ unsures and discards), `not_saved` (rows that were `invalid`, `already_rejected`
 reason) and the finalize summary with `results.md` and `results.json`. The boards of kept postings join the
 profile's watchlist.
 
+## As an MCP server
+
+`ultron mcp` serves the same three tools over stdio to any MCP client: `search_jobs`, `inspect_jobs` (with
+`urls` and `companies` lists) and `save_shortlist` (with `rows`). Tools take their data inline, never file
+paths, and return the same JSON as the CLI. Register the command `ultron mcp`, using the executable path from
+`RUNTIME.md`, in the platform's MCP settings only when the user asks for it.
+
 ## Later days
 
 `ultron watch --profile <slug>` needs no agent and no tokens. It re-queries the watched boards and the keyless

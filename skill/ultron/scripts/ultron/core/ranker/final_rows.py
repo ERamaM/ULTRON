@@ -95,9 +95,11 @@ class RoleIdentityIndex:
         return self._count
 
 
-def _duplicate_quality(row: FinalRow) -> tuple[int, int, float, bool]:
+def _duplicate_quality(row: FinalRow) -> tuple[int, int, int, float, bool]:
+    # The agent's scout priority comes before the heuristic signals; rows without one (sweep runs) tie at 2.
     return (
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
+        row.priority if row.priority is not None else 2,
         _ELIGIBILITY_RANK.get(row.eligibility, 4),
         -row.match_score if row.match_score is not None else float("inf"),
         str(row.location or "").strip().lower() in {"", LOCATION_NOT_SHOWN},

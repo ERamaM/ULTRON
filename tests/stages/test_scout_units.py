@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import closing
 
@@ -285,3 +286,25 @@ def test_row_board_key_credits_agent_finds():
     page = _row()
     page.apply_url, page.source_type = "https://careers.example.org/jobs/1", "employer_page"
     assert row_board_key(page) == ""
+
+
+def test_duplicate_selection_honours_the_agent_priority():
+    from ultron.core.ranker import dedupe_final_rows
+
+    first, second = _row(), _row()
+    first.priority, first.match_score = 3, 95
+    second.priority, second.match_score = 1, 40
+    kept, duplicates = dedupe_final_rows([first, second])
+    assert kept == [second] and duplicates == [first]
+
+
+def test_watch_digest_escapes_board_text(tmp_path, monkeypatch):
+    from ultron.stages import watch as watch_stage
+
+    found = [{"ats_company": "Evil <b>Co</b>", "ats_title": "![x](https://evil.example/t.png) Engineer",
+              "ats_location": "[click](https://evil.example)", "normalized_url": "https://boards.greenhouse.io/x/jobs/1"}]
+    path = watch_stage._write_digest("p1", found, "20261125T000000")
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    assert "&lt;b&gt;" in text and "<b>" not in text
+    assert not re.search(r"(?<!\\)\]\(", text)  # every link bracket is escaped

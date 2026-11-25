@@ -1,6 +1,6 @@
 # 31 · Agent toolkit
 
-Status: accepted, being implemented. It replaces the scout run loop of [21](21-scout-run-mode.md) to [30](30-verified-finds-first.md) as the way an agent with web search uses ULTRON.
+Status: implemented (#104, #105, #106 and the scout loop retired). It replaces the scout run loop of [21](21-scout-run-mode.md) to [30](30-verified-finds-first.md) as the way an agent with web search uses ULTRON.
 
 ## Why
 

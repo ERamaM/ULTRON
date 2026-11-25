@@ -20,6 +20,7 @@ from ultron.cv import ats as cv_ats
 from ultron.cv import ats_target
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
+from ultron.cv.claim_attribution import SAFE_EXPANSION_PAIRS, verify_claim_attribution
 
 _YEAR_RE = re.compile(r"\b(19[6-9]\d|20[0-3]\d)\b")
 _PHONE_LINE_RE = re.compile(
@@ -100,36 +101,7 @@ _NON_TECH_ACRONYMS = frozenset({
     "USD", "EUR", "GBP", "CHF", "JPY", "INR", "CAD", "AUD",
 })
 
-_SAFE_EXPANSION_PAIRS: tuple[tuple[str, str], ...] = (
-    ("ml", "machine learning"),
-    ("ai", "artificial intelligence"),
-    ("nlp", "natural language processing"),
-    ("llm", "large language model"),
-    ("llms", "large language models"),
-    ("rag", "retrieval augmented generation"),
-    ("rag", "retrieval-augmented generation"),
-    ("k8s", "kubernetes"),
-    ("ci/cd", "continuous integration"),
-    ("js", "javascript"),
-    ("ts", "typescript"),
-    ("sql", "structured query language"),
-    ("etl", "extract transform load"),
-    ("elt", "extract load transform"),
-    ("aws", "amazon web services"),
-    ("gcp", "google cloud platform"),
-    ("api", "application programming interface"),
-    ("rest", "representational state transfer"),
-    ("oop", "object oriented programming"),
-    ("oop", "object-oriented programming"),
-    ("tdd", "test driven development"),
-    ("tdd", "test-driven development"),
-    ("bi", "business intelligence"),
-    ("qa", "quality assurance"),
-    ("ui", "user interface"),
-    ("ux", "user experience"),
-    ("db", "database"),
-    ("dl", "deep learning"),
-)
+
 
 _ACRONYM_RE = re.compile(r"\b[A-Z][A-Z0-9/+.#-]{1,6}\b")
 
@@ -330,7 +302,7 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
         elif contains_term(body, term):
             record(term)
 
-    for left, right in _SAFE_EXPANSION_PAIRS:
+    for left, right in SAFE_EXPANSION_PAIRS:
         for term in (left, right):
             if contains_term(body, term):
                 record(term)
@@ -347,7 +319,7 @@ def _extract_tech_tokens(text: str) -> dict[str, str]:
 
 def _safe_expansion_partner(token_key: str, authorized_text: str) -> str | None:
     norm_auth = normalize_text(authorized_text)
-    for left, right in _SAFE_EXPANSION_PAIRS:
+    for left, right in SAFE_EXPANSION_PAIRS:
         if token_key == left and contains_term(norm_auth, right):
             return right
         if token_key == right and contains_term(norm_auth, left):
@@ -363,6 +335,46 @@ def _work_lines_for_duration(text: str) -> list[str]:
     return [line for name, lines in sections.items() if name not in excluded for line in lines]
 
 
+def authorized_timeline(
+    source_text: str, confirmed: list[str], ref: date, source: dict,
+) -> tuple[tuple[int, int], int]:
+    """Combine source and confirmed timelines into conservative bounds and a month estimate."""
+    minimum, maximum = int(source["minimum_total_months"]), int(source["maximum_total_months"])
+    estimate = int(source["total_months"])
+    if not confirmed:
+        return (minimum, maximum), estimate
+    entries = cv_experience.parse_date_ranges_from_lines(
+        _work_lines_for_duration(source_text) + confirmed, as_of=ref,
+    )
+    work = [entry for entry in entries if not entry.is_internship]
+    combined_min, combined_max = cv_experience.experience_month_bounds(work, as_of=ref)
+    merged = cv_experience.merge_intervals([(entry.start_index, entry.end_index) for entry in work])
+    combined_estimate = sum(end - start + 1 for start, end in merged)
+    return (max(minimum, combined_min), max(maximum, combined_max)), max(estimate, combined_estimate)
+
+
+def check_duration_claim(
+    duration: int, *, bounds: tuple[int, int], approximate: bool,
+    estimate: int, violations: list[dict[str, Any]],
+) -> None:
+    """Flag precise duration claims beyond what the source can establish."""
+    minimum, maximum = bounds
+    if duration > maximum + 1:
+        violations.append({
+            "type": "inflated_experience_duration",
+            "severity": "high",
+            "token": f"{duration}m vs {maximum}m",
+            "message": f"The draft implies {duration} months of work, above the source maximum of {maximum}.",
+        })
+    elif minimum < maximum and duration > minimum and (not approximate or duration > estimate):
+        violations.append({
+            "type": "uncertain_experience_duration",
+            "severity": "medium",
+            "token": f"{duration}m",
+            "message": f"The source supports between {minimum} and {maximum} months. Confirm the months in the draft.",
+        })
+
+
 def _check_years_and_experience(
     source_text: str,
     confirmed: list[str],
@@ -371,7 +383,7 @@ def _check_years_and_experience(
     ref: date,
     violations: list[dict[str, Any]],
     warnings: list[dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any], int, int]:
+) -> tuple[dict[str, Any], dict[str, Any], int, tuple[int, int]]:
     auth_years = set(_YEAR_RE.findall(authorized_text))
     opt_years = set(_YEAR_RE.findall(optimized_text))
     for yr in sorted(opt_years - auth_years):
@@ -385,25 +397,14 @@ def _check_years_and_experience(
     src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
     opt_exp = cv_experience.analyze_experience(optimized_text, as_of=ref)
 
-    allowed_months = int(src_exp["total_months"])
-    if confirmed:
-        combined_entries = cv_experience.parse_date_ranges_from_lines(
-            _work_lines_for_duration(source_text) + confirmed, as_of=ref
-        )
-        merged = cv_experience.merge_intervals(
-            [(e.start_index, e.end_index) for e in combined_entries if not e.is_internship]
-        )
-        allowed_months = max(allowed_months, sum((end - start) + 1 for start, end in merged))
-
+    bounds, authorized_estimate = authorized_timeline(source_text, confirmed, ref, src_exp)
     opt_months = int(opt_exp["total_months"])
     delta = opt_months - int(src_exp["total_months"])
-    if opt_months > allowed_months + 1:
-        violations.append({
-            "type": "inflated_experience_duration",
-            "severity": "high",
-            "token": f"{opt_months}m vs {allowed_months}m",
-            "message": f"Optimized CV implies {opt_months} months of non-internship work vs {allowed_months} verified months.",
-        })
+    if bounds[0] < bounds[1] or opt_months > bounds[1] + 1:
+        check_duration_claim(
+            opt_months, bounds=bounds, approximate=opt_exp["experience_precision"] == "approximate",
+            estimate=authorized_estimate, violations=violations,
+        )
 
     src_work_years = {
         yr
@@ -418,16 +419,17 @@ def _check_years_and_experience(
             "message": f"Source work-history year {yr} is missing from the optimized CV.",
         })
 
-    return src_exp, opt_exp, delta, allowed_months
+    return src_exp, opt_exp, delta, bounds
 
 
 def _check_metrics(
     authorized_text: str,
     optimized_text: str,
-    verified_years: float,
+    month_bounds: tuple[int, int],
     violations: list[dict[str, Any]],
     info: list[dict[str, Any]],
 ) -> None:
+    verified_years = round(month_bounds[0] / 12.0, 1)
     auth_metrics, auth_years_claims = _extract_metrics(authorized_text)
     auth_metric_keys = set(auth_metrics) | _word_number_keys(authorized_text)
     auth_years_keys = {_metric_key("yrs", yrs_val) for _raw_claim, yrs_val in auth_years_claims}
@@ -444,7 +446,14 @@ def _check_metrics(
     for raw_claim, yrs_val in opt_years_claims:
         if _metric_key("yrs", yrs_val) in auth_years_keys:
             continue
-        if yrs_val <= verified_years + 0.5:
+        if month_bounds[0] < month_bounds[1] and month_bounds[0] < yrs_val * 12 <= month_bounds[1]:
+            violations.append({
+                "type": "uncertain_experience_duration",
+                "severity": "medium",
+                "token": raw_claim,
+                "message": "The CV dates are approximate. Confirm the months before stating this tenure as exact.",
+            })
+        elif yrs_val <= verified_years + (0.5 if month_bounds[0] == month_bounds[1] else 0):
             info.append({
                 "type": "derived_tenure_statement",
                 "token": raw_claim,
@@ -502,6 +511,20 @@ def _check_tech_tokens(
             })
 
 
+def check_claim_attribution(
+    source: str, draft: str, confirmed: list[str], ref: date,
+    violations: list[dict[str, Any]], warnings: list[dict[str, Any]],
+) -> None:
+    """Apply the same measurable-claim attribution checks to a CV and a cover letter."""
+    def metric_keys(sentence: str) -> set[str]:
+        metrics, _tenure = _extract_metrics(sentence)
+        return set(metrics) | _word_number_keys(sentence)
+
+    unsupported, ambiguous = verify_claim_attribution(source, draft, confirmed, as_of=ref, metrics=metric_keys)
+    violations.extend(unsupported)
+    warnings.extend(ambiguous)
+
+
 def verify_truth(
     source_path: Path,
     optimized_path: Path,
@@ -520,10 +543,11 @@ def verify_truth(
     warnings: list[dict[str, Any]] = []
     info: list[dict[str, Any]] = []
 
-    src_exp, opt_exp, delta_months, allowed_months = _check_years_and_experience(
+    src_exp, opt_exp, delta_months, bounds = _check_years_and_experience(
         source_text, confirmed, authorized_text, optimized_text, ref, violations, warnings
     )
-    _check_metrics(authorized_text, optimized_text, round(allowed_months / 12.0, 1), violations, info)
+    _check_metrics(authorized_text, optimized_text, bounds, violations, info)
+    check_claim_attribution(source_text, optimized_text, confirmed, ref, violations, warnings)
     _check_credentials(authorized_text, optimized_text, violations)
     _check_tech_tokens(authorized_text, optimized_text, violations, info)
 
@@ -548,6 +572,8 @@ def verify_truth(
         "user_confirmed_used": confirmed,
         "experience_delta_months": delta_months,
         "source_experience_months": src_exp["total_months"],
+        "experience_precision": src_exp["experience_precision"],
+        "authorized_experience_month_bounds": list(bounds),
         "optimized_experience_months": opt_exp["total_months"],
         "violations": violations,
         "warnings": warnings,

@@ -26,13 +26,13 @@ from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.url_filter import canonicalize_url_for_allowlist, domain_of, is_domain_allowed, normalize_url
 from ultron.core.extractors import parse_ats_page
 from ultron.core.extractors.base import ats_canonical_domain, detect_ats_fingerprint
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
 from ultron.core.text_clean import clean_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.infra.urlpolicy import admit_url
 from ultron.stages import http_factory
-from ultron.stages.feeds import is_aggregator_host
 from ultron.stages.http_factory import client_for_run
 from ultron.storage import runs
 

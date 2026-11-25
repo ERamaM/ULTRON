@@ -294,7 +294,7 @@ def test_seeds_dropped_by_feed_cap_do_not_take_host_slots(pack_dir, monkeypatch)
     ("remote.co", True),
 ])
 def test_is_aggregator_host_edges(host, expected):
-    from ultron.stages.feeds import is_aggregator_host
+    from ultron.core.feeds.urls import is_aggregator_host
 
     assert is_aggregator_host(host) is expected
 

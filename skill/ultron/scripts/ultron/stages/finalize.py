@@ -7,66 +7,26 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from pydantic import ValidationError
-
-from ultron.core.ats.identity import seed_identity
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
 from ultron.core.final_row import _assemble_final_row, fallback_fit_signals, prepare_geography
-from ultron.core.job_identity import canonical_job_identity
-from ultron.core.models import CandidateUrl, DiscardRecord, ExtractedJob, FinalRow, JobEvaluation, RunSummary
+from ultron.core.models import DiscardRecord, ExtractedJob, FinalRow, JobEvaluation, RunSummary
 from ultron.core.ranker import dedupe_final_rows, rank_final_rows
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope, other_country_restriction
 from ultron.core.rules.hard_filters import is_full_remote_only
-from ultron.stages.discover import SEED_ATTEMPTS_FILE
+from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept
+from ultron.stages.scout_finalize import finalize_scout
 from ultron.storage import ledger, runs
-
-TOP_N = 5
-
-
-def _candidate(raw: dict | None, job: ExtractedJob) -> CandidateUrl:
-    try:
-        return CandidateUrl.model_validate(raw or {})
-    except ValidationError:
-        return CandidateUrl(
-            query_id="", query="", source_url=job.apply_url, normalized_url=job.apply_url, domain=job.domain or ""
-        )
-
-
-def _discard(job: ExtractedJob, reason: str, detail: str = "") -> DiscardRecord:
-    return DiscardRecord(
-        apply_url=job.apply_url, reason=reason, detail=detail, title=job.title, company=job.company,
-        location=job.location, remote_text=job.remote_text,
-    )
-
-
-def _row_key(row: FinalRow) -> str:
-    return canonical_job_identity(row.apply_url, source_type=row.source_type, source_key=row.source_key).identity_key
-
-
-def _seed_kept(out_dir: Path, rows: list[FinalRow]) -> dict[str, int] | None:
-    """Kept postings per seed this run queried (``None`` when ``discover ats`` recorded no attempts)."""
-    path = out_dir / SEED_ATTEMPTS_FILE
-    if not path.exists():
-        return None
-    kept = {str(r.get("seed_key") or ""): 0 for r in runs.read_jsonl(path) if isinstance(r, dict)}
-    kept.pop("", None)
-    for row in rows:
-        vendor, sep, board = str(row.source_key or "").partition(":")
-        if row.source_type != "ats_api" or not sep:
-            continue
-        key = ":".join(seed_identity(vendor, board))
-        if key in kept:
-            kept[key] += 1
-    return kept
 
 
 def finalize(run_id: str) -> dict:
-    """Rank, deduplicate, export reports, and update ledger history for ``run_id``."""
+    """Rank, deduplicate, export reports, and update ledger history for ``run_id`` (scout runs too)."""
     runs.require_stage(run_id, "finalize")
     run = runs.load_run(run_id)
+    if runs.run_mode(run) == "scout":
+        return finalize_scout(run_id, run)
     out_dir = runs.run_dir(run_id)
     criteria = dict((run.get("profile_snapshot") or {}).get("criteria") or {})
     geo = geo_scope(run.get("profile_snapshot") or {})
@@ -86,7 +46,7 @@ def finalize(run_id: str) -> dict:
     fallback = fallback_fit_signals(criteria)
 
     raw_rows: list[FinalRow] = []
-    row_identity: dict[int, str] = {}
+    row_keys: dict[int, str] = {}
     stage_discards: list[dict] = []
 
     def record(rec: DiscardRecord, key: str, stage: str) -> None:
@@ -106,11 +66,11 @@ def finalize(run_id: str) -> dict:
         else:
             evaluation = finalizer.finalize(heuristic, from_llm=False)
         if not (evaluation.keep or evaluation.verdict == "unsure"):
-            record(_discard(job, evaluation.discard_reason or "llm_rejected"), key, "evaluator")
+            record(discard_record(job, evaluation.discard_reason or "llm_rejected"), key, "evaluator")
             continue
         geography, geo_risk_note, geo_discard = prepare_geography(job, criteria, geo=geo)
         if geo_discard:
-            record(_discard(job, geo_discard, "post_eval_geo_conflict"), key, "post_eval_geo")
+            record(discard_record(job, geo_discard, "post_eval_geo_conflict"), key, "post_eval_geo")
             continue
         # Heuristic keeps limited to a country outside the profile's home places need a check: "Remote across
         # Germany" is not open to someone in Spain. Agent verdicts already answered the eligibility question.
@@ -127,14 +87,14 @@ def finalize(run_id: str) -> dict:
             heur_eligibility=geography.eligibility,
             geo_red_flags=geography.red_flags,
             geo_risk_note=geo_risk_note,
-            candidate=_candidate(candidates.get(key), job),
+            candidate=candidate_of(candidates.get(key), job),
             fallback_fit_signals=fallback,
             profile_criteria=criteria,
             geo=geo,
         )
         if limited_to:
             row.eligibility = "unknown"
-        row_identity[id(row)] = key
+        row_keys[id(row)] = key
         raw_rows.append(row)
 
     # A remote-only profile can work any listed city, so one posting listed once per city is one row.
@@ -144,7 +104,7 @@ def finalize(run_id: str) -> dict:
             apply_url=row.apply_url, reason="duplicate_role",
             detail=f"duplicate of earlier role company={row.company} title={row.title}",
             title=row.title, company=row.company, location=row.location,
-        ), row_identity[id(row)], "dedup")
+        ), row_keys[id(row)], "dedup")
     ranked = rank_final_rows(deduped, use_match_score=True)
     capped: list[FinalRow] = []
     if max_roles and len(ranked) > max_roles:
@@ -154,7 +114,7 @@ def finalize(run_id: str) -> dict:
         record(DiscardRecord(
             apply_url=row.apply_url, reason="final_cap", detail=f"ranked below max_roles={max_roles}",
             title=row.title, company=row.company, location=row.location,
-        ), row_identity[id(row)], "final_cap")
+        ), row_keys[id(row)], "final_cap")
 
     # A fixed end timestamp keeps repeated finalizes byte-identical.
     started_at = datetime.fromisoformat(run["created_at"])
@@ -187,14 +147,14 @@ def finalize(run_id: str) -> dict:
     with closing(ledger.connect()) as conn:
         is_new = ledger.record_finalized_run(
             conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"],
-            seed_kept=_seed_kept(out_dir, ranked),
+            seed_kept=seed_kept(out_dir, ranked),
         )
 
     md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
     # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.
     payload = json.loads(Path(js).read_text(encoding="utf-8"))
     for row, data in zip(ranked, payload["rows"], strict=True):
-        data["is_new"] = is_new[_row_key(row)]
+        data["is_new"] = is_new[row_identity(row)]
     Path(js).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     finalize_discards = out_dir / "finalize_discards.jsonl"
@@ -203,7 +163,7 @@ def finalize(run_id: str) -> dict:
     runs.mark_stage(run_id, "finalize")
     return {
         "roles": len(ranked),
-        "new_roles": sum(1 for r in ranked if is_new[_row_key(r)]),
+        "new_roles": sum(1 for r in ranked if is_new[row_identity(r)]),
         "unsure": sum(1 for r in ranked if r.evaluation_verdict == "unsure"),
         "discarded": len(discards),
         "final_cap": len(capped),
@@ -212,7 +172,7 @@ def finalize(run_id: str) -> dict:
         "outputs": {"results_md": md, "results_json": js, "run_summary_md": sm,
                     "finalize_discards_jsonl": str(finalize_discards)},
         "top": [
-            {"title": r.title, "company": r.company, "match_score": r.match_score, "is_new": is_new[_row_key(r)]}
+            {"title": r.title, "company": r.company, "match_score": r.match_score, "is_new": is_new[row_identity(r)]}
             for r in ranked[:TOP_N]
         ],
     }

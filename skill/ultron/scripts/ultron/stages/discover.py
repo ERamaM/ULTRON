@@ -30,6 +30,7 @@ from ultron.core.vocabulary import active_pack
 from ultron.infra import home
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.seeds import load_inventory
+from ultron.stages import scout
 from ultron.stages.candidates import candidate_identity as _identity
 from ultron.stages.http_factory import DISCOVER_VENDOR_SHARE, HOST_BLOCK_THRESHOLD, VERIFY_VENDOR_SHARE, client_for_run
 from ultron.storage import ledger, runs
@@ -43,6 +44,8 @@ NON_FEED_RESERVE = 0.5
 EXPLORATION_RESERVE = 0.1
 # Seeds this run requested (failures included, budget skips excluded); finalize turns them into yield rows.
 SEED_ATTEMPTS_FILE = "seed_attempts.jsonl"
+# Per queried board: postings the vendor listed, those that matched the profile, and those the per-board cap cut.
+BOARD_REPORT_FILE = "board_report.jsonl"
 # MARK III ``_seed_request_host``: the host group protected by ``max_requests_per_host``.
 _VENDOR_HOSTS = {
     "greenhouse": "boards.greenhouse.io",
@@ -333,11 +336,13 @@ def _select_seeds(
     return selected, counts, stats
 
 
-def _clean_posting(posting):
+def clean_posting(posting):
+    """``posting`` with its title and location cleaned of markup and stray whitespace."""
     return replace(posting, title=clean_text(posting.title), location=clean_text(posting.location))
 
 
-def _candidate(seed, posting) -> CandidateUrl | None:
+def posting_candidate(seed, posting, *, search_pass: str = "") -> CandidateUrl | None:
+    """The candidate row of a board posting (``None`` without an apply URL); ``search_pass`` tags its origin."""
     url = str(posting.apply_url or "").strip()
     if not url:
         return None
@@ -360,6 +365,7 @@ def _candidate(seed, posting) -> CandidateUrl | None:
         hit_title=posting.title,
         snippet=snippet,
         matched_vendor=seed.ats,
+        search_pass=search_pass,
     )
 
 
@@ -402,7 +408,7 @@ def _verify_search_proposals(
             # Workday verification only samples two pages. Query the board with the
             # discovery budget and location preferences, just like an existing seed.
             if result.seed.ats != "workday":
-                prefetched[result.seed.seed_id] = [_clean_posting(p) for p in result.jobs]
+                prefetched[result.seed.seed_id] = [clean_posting(p) for p in result.jobs]
         elif (unconfirmed := seed_store.stored_seed(result)) is not None:
             # A guessed board not proven to be the proposal's: stored tagged at low priority (seed_yield decides).
             known.add(seed_identity(unconfirmed.ats, unconfirmed.board_identifier))
@@ -446,11 +452,17 @@ def discover_ats(run_id: str) -> dict:
         run, out_dir, timeout=timeout,
     )
     client = client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD, vendor_share=DISCOVER_VENDOR_SHARE)
-    seeds, groups, yield_stats = _select_seeds(
-        run["profile_slug"], criteria.get("sectors"),
-        settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
-        yields=load_seed_yields(run["profile_slug"]), profile=profile,
-    )
+    scout_run = runs.run_mode(run) == "scout"
+    if scout_run:  # found employers and the watchlist, never a sweep of the inventory
+        seeds, groups = scout.expansion_seeds(run, out_dir, _seed_request_host)
+        yield_stats = {"deprioritized": 0, "exploration_reserved": 0}
+    else:
+        seeds, groups, yield_stats = _select_seeds(
+            run["profile_slug"], criteria.get("sectors"),
+            settings["max_seeds_per_run"], settings["max_requests_per_host"], geo=geo,
+            yields=load_seed_yields(run["profile_slug"]), profile=profile,
+        )
+    board_report: list[dict] = []
 
     candidates: list[CandidateUrl] = []
     seen_urls: set[str] = set()
@@ -477,7 +489,7 @@ def discover_ats(run_id: str) -> dict:
                     if allowance is not None:
                         options["max_pages"] = max(1, allowance // max(1, workday_left))
                     workday_left -= 1
-                postings = [_clean_posting(p) for p in fetch_vendor_jobs(
+                postings = [clean_posting(p) for p in fetch_vendor_jobs(
                     seed.ats, seed.board_identifier, client=client, timeout=timeout, **options)]
             except RequestBudgetExceeded as exc:
                 if exc.scope == "host":
@@ -535,8 +547,10 @@ def discover_ats(run_id: str) -> dict:
             ),
             reverse=True,
         )
+        board_report.append({"seed_key": seed_key(seed), "company": seed.company, "group": _group,
+                             "listed": len(postings), "matched": len(kept), "cut": max(0, len(kept) - per_seed)})
         for posting in kept[:per_seed]:
-            candidate = _candidate(seed, posting)
+            candidate = posting_candidate(seed, posting, search_pass=scout.EXPANSION_PASS if scout_run else "")
             if candidate is None or candidate.normalized_url in seen_urls:
                 continue
             seen_urls.add(candidate.normalized_url)
@@ -552,6 +566,7 @@ def discover_ats(run_id: str) -> dict:
     ]
     runs.write_jsonl(out_dir / "candidates.jsonl", [*candidates, *kept_rows])
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
+    runs.write_jsonl(out_dir / BOARD_REPORT_FILE, board_report)
     skipped_ids = {e["seed_id"] for e in errors if e.get("skipped")}
     runs.write_jsonl(
         out_dir / SEED_ATTEMPTS_FILE,
@@ -571,7 +586,11 @@ def discover_ats(run_id: str) -> dict:
         else:
             group["failed"] += 1
     return {
+        "mode": "scout" if scout_run else "sweep",
         "seeds_queried": queried,
+        "board_postings": {"listed": sum(b["listed"] for b in board_report),
+                           "matched": sum(b["matched"] for b in board_report),
+                           "cut_by_cap": sum(b["cut"] for b in board_report)},
         "seeds_failed": len(errors) - skipped,
         "seeds_skipped": skipped,
         "candidates": len(candidates),

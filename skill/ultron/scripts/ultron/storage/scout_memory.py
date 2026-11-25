@@ -98,6 +98,24 @@ def carried_row(
     return FinalRow.model_validate(json.loads(found[2])), found[3]
 
 
+def carried_unfetched(
+    conn: sqlite3.Connection, profile_slug: str, key: str, criteria_digest: str,
+) -> tuple[FinalRow, int | None] | None:
+    """The stored row and priority of a verified find seen before without any fetched posting text.
+
+    A verified find is stored with an empty content digest. The first time a later run fetches the posting, its
+    verdict is carried as it is (and the caller stores the digest), unless the profile's criteria changed.
+    """
+    found = conn.execute(
+        "SELECT verdict, content_hash, row_json, priority, profile_hash FROM scout_verdicts"
+        " WHERE profile_slug = ? AND identity_key = ?",
+        (profile_slug, key),
+    ).fetchone()
+    if not found or found[0] not in {"keep", "unsure"} or found[1] or not found[2] or found[4] != criteria_digest:
+        return None
+    return FinalRow.model_validate(json.loads(found[2])), found[3]
+
+
 def record_verdicts(
     conn: sqlite3.Connection, profile_slug: str, run_id: str, verdicts: Iterable[dict], criteria_digest: str = "",
 ) -> int:

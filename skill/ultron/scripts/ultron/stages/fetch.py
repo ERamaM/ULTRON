@@ -34,6 +34,7 @@ from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLR
 from ultron.infra.urlpolicy import admit_url
 from ultron.stages import http_factory
 from ultron.stages.http_factory import client_for_run
+from ultron.stages.scout_verified import JUDGED_PASS
 from ultron.storage import runs
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -195,6 +196,11 @@ def _workable_closed_redirect(url: str, final_url: str) -> bool:
         and bool(_WORKABLE_BOARD_JOB_RE.match(original.path) or _WORKABLE_SHORT_JOB_RE.match(original.path))
         and parse_qs(final.query).get("not_found") == ["true"]
     )
+
+
+def is_closed_redirect(url: str, final_url: str) -> bool:
+    """Whether a posting request was redirected to the vendor's closed-posting page (Workable, Greenhouse)."""
+    return _workable_closed_redirect(url, final_url) or _greenhouse_closed_redirect(url, final_url)
 
 
 def _greenhouse_closed_redirect(url: str, final_url: str) -> bool:
@@ -531,8 +537,13 @@ def fetch(run_id: str) -> dict:
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
+    scout_run = runs.run_mode(run) == "scout"
+    verified_skipped = 0
     for row in runs.read_jsonl(out_dir / "candidates.jsonl"):
         candidate = CandidateUrl.model_validate(row)
+        if scout_run and candidate.search_pass == JUDGED_PASS:  # the agent opened and judged it already
+            verified_skipped += 1
+            continue
         identity = canonical_job_identity(
             candidate.source_url, source_type=candidate.source_type, source_key=candidate.source_key
         ).identity_key
@@ -704,4 +715,6 @@ def fetch(run_id: str) -> dict:
                "vendors_blocked": client.vendors_blocked()}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
+    if scout_run:
+        summary["verified_skipped"] = verified_skipped
     return summary

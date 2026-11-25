@@ -14,6 +14,7 @@ from ultron.core.rules.hard_filters import location_excluded
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
 from ultron.stages import scout
+from ultron.stages.scout_verified import exported_count, load_verified
 from ultron.storage import runs
 
 # Evaluator-stage discards whose ambiguity score reaches the preset threshold go to the agent instead of
@@ -61,7 +62,8 @@ def _rescuable(result: dict, job: ExtractedJob, excluded_locations: tuple[str, .
 def _scout_filter(run_id: str, run: dict) -> dict:
     """Scout routing: drop only closed, unusable, aggregator and already rejected postings; queue the rest."""
     out_dir = runs.run_dir(run_id)
-    routed = scout.route_postings(runs.read_jsonl(out_dir / "postings.jsonl"), run)
+    verified = load_verified(out_dir)
+    routed = scout.route_postings(runs.read_jsonl(out_dir / "postings.jsonl"), run, set(verified))
     runs.write_jsonl(out_dir / "discarded.jsonl", routed["discarded"])
     runs.write_jsonl(out_dir / "kept.jsonl", [])
     runs.write_jsonl(out_dir / "ambiguous.jsonl", routed["queue"])
@@ -77,6 +79,8 @@ def _scout_filter(run_id: str, run: dict) -> dict:
         "queued_by_source": by_source,
         "not_evaluated": len(routed["not_evaluated"]),
         "carried_from_memory": len(routed["carried"]),
+        "already_verified": routed["already_verified"],
+        "verified_finds": exported_count(verified),
         "discarded": len(routed["discarded"]),
         "discard_reasons": dict(sorted(routed["reasons"].items(), key=lambda item: -item[1])),
     }

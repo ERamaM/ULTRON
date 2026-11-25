@@ -108,8 +108,12 @@ class _Batch:
         return True
 
 
-def _first_pass(rows: list, run: dict, batch: _Batch) -> list[dict]:
-    """Validate, resolve and identify every row; nothing is written yet."""
+def _first_pass(rows: list, run: dict, batch: _Batch, boards: dict[str, str]) -> list[dict]:
+    """Validate, resolve and identify every row; nothing is written yet.
+
+    ``boards`` maps posting URLs to the ``vendor:board`` that listed them (trusted, from ULTRON's own records), so
+    a posting on an employer's domain keeps its board identity.
+    """
     client_box: list = []
     items = []
     for number, raw in enumerate(rows, start=1):
@@ -135,6 +139,8 @@ def _first_pass(rows: list, run: dict, batch: _Batch) -> list[dict]:
                 result.url, row, f"scout:{len(batch.candidates) + number:03d}", result.source_type,
                 scout_verified.JUDGED_PASS if judged else "",
             )
+            if board := boards.get(item["_candidate"].normalized_url):
+                item["_candidate"].source_type, item["_candidate"].source_key = "ats_api", board
             item["identity_key"] = candidate_identity(item["_candidate"].model_dump())
             item["canonical_url"] = item["_candidate"].normalized_url
         items.append(item)
@@ -170,16 +176,17 @@ def _summary(items: list[dict], batch: _Batch, verified: dict[str, dict]) -> dic
             "verified": scout_verified.verdict_counts(verified), "rows": report}
 
 
-def add_scout_finds(run_id: str, run: dict, rows: list) -> dict:
+def add_scout_finds(run_id: str, run: dict, rows: list, *, boards: dict[str, str] | None = None) -> dict:
     """Resolve the agent's finds in a scout run and report the outcome and memory flag of every row.
 
     Verified finds (rows with a ``verdict``) are stored in ``judged_finds.jsonl`` and never fetched or queued; a
     verified find the user rejected or applied to is reported and left out. Unverified finds become candidates
     as before. Aggregator finds that do not resolve go to ``unresolved_finds.jsonl`` and are never exported.
     Every new supported board is proposed as a seed (never one of a staffing agency) for ``discover ats``.
+    ``boards`` (trusted posting URL -> ``vendor:board``) keeps the board identity of postings ULTRON listed.
     """
     batch = _Batch(run_id, run)
-    items = _first_pass(rows, run, batch)
+    items = _first_pass(rows, run, batch, boards or {})
     flags = memory_flags(run["profile_slug"], [item["identity_key"] for item in items if "identity_key" in item])
     for item in items:
         if "identity_key" in item:

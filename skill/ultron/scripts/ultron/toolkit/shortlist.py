@@ -18,7 +18,7 @@ from ultron.stages.scout_finalize import finalize_scout
 from ultron.stages.scout_finds import add_scout_finds
 from ultron.stages.scout_verified import EXPORTED_VERDICTS, final_row, load_verified
 from ultron.storage import runs
-from ultron.toolkit.inspect import cached_postings
+from ultron.toolkit.inspect import board_aliases, cached_postings
 
 MAX_ROWS = 200
 FILLED_FIELDS = ("title", "company", "location")
@@ -40,7 +40,8 @@ def _with_cache(rows: list, cache: dict[str, dict]) -> list:
             filled.append(row)
             continue
         job = cached["job"]
-        defaults = {"url": job.get("apply_url", ""), **{field: job.get(field, "") for field in FILLED_FIELDS}}
+        defaults = {"url": cached.get("url") or job.get("apply_url", ""),
+                    **{field: job.get(field, "") for field in FILLED_FIELDS}}
         filled.append({**defaults, **{k: v for k, v in row.items() if v not in (None, "")}})
     return filled
 
@@ -65,10 +66,12 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     rows = list(rows)
     over = [{"row": number, "outcome": "over_limit", "reason": f"only the first {MAX_ROWS} rows are saved per call"}
             for number in range(MAX_ROWS + 1, len(rows) + 1)]
-    rows = _with_cache(rows[:MAX_ROWS], cached_postings(profile_slug))
+    cache = cached_postings(profile_slug)
+    rows = _with_cache(rows[:MAX_ROWS], cache)
     run_id = runs.new_run(profile_slug, preset, mode="scout")
     run = runs.load_run(run_id)
-    added = add_scout_finds(run_id, run, rows)
+    # Board context comes only from ULTRON's own cache, never from the rows, so a row cannot claim an identity.
+    added = add_scout_finds(run_id, run, rows, boards=board_aliases(cache))
     _credit_boards(run_id)
     for stage in ("fetch", "filter"):
         runs.mark_stage(run_id, stage)

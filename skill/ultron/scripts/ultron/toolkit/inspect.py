@@ -56,6 +56,11 @@ def _run_context(profile_slug: str, preset: str) -> dict:
 # Path words of a board's home page, never a posting's own slug.
 BOARD_PATH_WORDS = frozenset({"jobs", "careers", "career", "embed", "job-board", "openings", "positions", "vacancies",
                               "en", "en-us", "en-gb", "es", "de", "fr", "it", "nl", "pt"})
+# Board-home path words of vendors whose board pages have their own shape.
+VENDOR_BOARD_WORDS = {
+    "occupop": frozenset({"api", "jobs-frame"}),
+    "taleo": frozenset({"careersection", "jobsearch.ftl", "moresearch.ftl", "joblist.ftl"}),
+}
 
 
 def is_board_url(url: str) -> bool:
@@ -68,8 +73,9 @@ def is_board_url(url: str) -> bool:
     if seed is None or not canonical_job_identity(url).identity_key.startswith("url:"):
         return False
     board_words = {part for part in str(seed.board_identifier).casefold().split("/") if part}
+    board_words |= BOARD_PATH_WORDS | VENDOR_BOARD_WORDS.get(seed.ats, frozenset())
     segments = [part for part in urlsplit(url).path.casefold().split("/") if part]
-    return all(part in board_words or part in BOARD_PATH_WORDS for part in segments)
+    return all(part in board_words for part in segments)
 
 
 class _Work:
@@ -109,10 +115,11 @@ def _plan(urls: Iterable[str], companies: Iterable[str]) -> tuple[list[_Work], l
 class _Inspector:
     """Runs units of work, each with its own HTTP client (clients are not shared across threads)."""
 
-    def __init__(self, run: dict, context: ProfileContext, detail: bool) -> None:
+    def __init__(self, run: dict, context: ProfileContext, detail: bool, boards: dict[str, str]) -> None:
         self.run, self.context, self.detail = run, context, detail
         self.timeout = run["settings"]["ats_api_timeout"]
         self.allowed = load_allowed_domains()
+        self.boards = boards  # normalized posting URL -> the "vendor:board" a board listed it on
 
     def _client(self):
         return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD)
@@ -151,7 +158,7 @@ class _Inspector:
             found = resolve_aggregator(url, client, self.timeout, "")
             if found.outcome != "resolved_aggregator":
                 return failed_dossier(url, "unresolved_aggregator", found.reason or "no employer posting link"), None
-        candidate = web_candidate(found.url, {}, "inspect", found.source_type or "web_search")
+        candidate = self._candidate(found.url, found.source_type or "web_search")
         identity = candidate_identity(candidate.model_dump())
         try:
             result = fetch_posting(candidate, client, self.allowed)
@@ -160,15 +167,27 @@ class _Inspector:
         status = posting_status(result)
         if result.job is None:
             return failed_dossier(found.url, status, (result.error or {}).get("error", ""), identity), None
-        # The identity of the posting as read (after redirects or a canonical link) is the one ``save`` records.
-        resolved = web_candidate(result.job.apply_url, {}, "inspect", candidate.source_type)
-        identity = candidate_identity(resolved.model_dump())
+        # The posting's identity is the URL actually read after HTTP redirects, the one ``save`` records. A page's
+        # own canonical link is page-controlled, so it never decides which posting's memory this is.
+        read_url = result.final_url or found.url
+        if read_url != candidate.normalized_url:
+            candidate = self._candidate(read_url, candidate.source_type)
+            identity = candidate_identity(candidate.model_dump())
         dossier = posting_dossier(result.job, identity, status, self.context, detail=self.detail)
-        if url != result.job.apply_url:
+        dossier["url"] = read_url
+        if result.job.apply_url != read_url:
+            dossier["apply_url"] = result.job.apply_url
+        if url != read_url:
             dossier["found_at"] = url
-        row = {"identity_key": identity, "status": status, "source_type": candidate.source_type,
-               "job": result.job.model_dump(mode="json")}
-        return dossier, row
+        return dossier, _cache_row(identity, status, candidate, result.job.model_dump(mode="json"), read_url)
+
+    def _candidate(self, url: str, source_type: str):
+        """The candidate of ``url``, with its board when a board listed it (so it keeps the board identity)."""
+        candidate = web_candidate(url, {}, "inspect", source_type)
+        board = self.boards.get(candidate.normalized_url)
+        if board:
+            candidate.source_type, candidate.source_key = "ats_api", board
+        return candidate
 
     def _listed(self, seed: AtsBoardSeed, client) -> tuple[list[dict], list[dict]]:
         try:
@@ -178,16 +197,20 @@ class _Inspector:
             return [failed_dossier(seed_key(seed), "failed", type(exc).__name__)], []
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             return [failed_dossier(seed_key(seed), "failed", f"unexpected_payload: {exc!r}")], []
-        dossiers = []
+        dossiers, cache = [], []
         for posting in profile_matches(postings, self.context.profile)[:MAX_LISTED_PER_BOARD]:
             candidate = posting_candidate(seed, posting)
-            if candidate is not None:
-                dossiers.append(listed_dossier(posting, candidate_identity(candidate.model_dump()),
-                                               seed.company, seed_key(seed)))
+            if candidate is None:
+                continue
+            identity = candidate_identity(candidate.model_dump())
+            dossiers.append(listed_dossier(posting, identity, seed.company, seed_key(seed)))
+            job = {"apply_url": candidate.normalized_url, "title": posting.title, "company": seed.company,
+                   "location": posting.location}
+            cache.append(_cache_row(identity, "listed", candidate, job, candidate.normalized_url))
         if not dossiers:
             dossiers.append({"board": seed_key(seed), "company": seed.company, "status": "board",
                              "listed": len(postings), "matched": 0})
-        return dossiers, []
+        return dossiers, cache
 
     def _board(self, urls: list[str], client) -> tuple[list[dict], list[dict]]:
         seed = extract_seed_from_url(urls[0], "")
@@ -206,6 +229,17 @@ class _Inspector:
             for dossier in dossiers:
                 dossier["board_confirmed"] = False
         return dossiers, cache
+
+
+def _cache_row(identity: str, status: str, candidate, job: dict, url: str) -> dict:
+    """One inspect cache row: the posting's identity, the URL it was read at, its board and its facts."""
+    return {"identity_key": identity, "status": status, "url": url, "source_type": candidate.source_type,
+            "source_key": candidate.source_key if candidate.source_type == "ats_api" else "", "job": job}
+
+
+def board_aliases(cache: dict[str, dict]) -> dict[str, str]:
+    """Posting URLs a board listed, mapped to that board's ``vendor:board`` key (from the inspect cache)."""
+    return {row["url"]: row["source_key"] for row in cache.values() if row.get("source_key") and row.get("url")}
 
 
 def _cache(profile_slug: str, rows: list[dict]) -> None:
@@ -249,7 +283,7 @@ def inspect_jobs(profile_slug: str, urls: Iterable[str] = (), companies: Iterabl
     run = _run_context(profile_slug, preset)
     context = ProfileContext(run["profile_snapshot"])
     work, dossiers = _plan(urls, companies)
-    inspector = _Inspector(run, context, detail)
+    inspector = _Inspector(run, context, detail, board_aliases(cached_postings(profile_slug)))
     requests = 0
     cache: list[dict] = []
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:

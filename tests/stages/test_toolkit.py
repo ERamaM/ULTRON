@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 import pytest
 from test_scout_flow import AGGREGATOR, DEAD_AGGREGATOR, EMPLOYER, POSTING, _handler
+from test_scout_flow import EMPLOYER_PAGE as EMPLOYER_PAGE_HTML
 
 from ultron import seeds
 from ultron.cli import main
@@ -176,3 +177,44 @@ def test_rows_over_the_cap_are_reported(monkeypatch):
     ])
     assert out["saved"]["keep"] == 1 and out["not_saved"] == [
         {"row": 2, "outcome": "over_limit", "reason": "only the first 1 rows are saved per call"}]
+
+
+def test_vendor_board_homes_are_boards():
+    assert inspect.is_board_url("https://api.occupop.com/api/jobs-frame/abc123token")
+    assert inspect.is_board_url("https://acme.taleo.net/careersection/2/jobsearch.ftl")
+
+
+def _serve(pages: dict[str, str]):
+    def handler(request):
+        if str(request.url) in pages:
+            return httpx.Response(200, text=pages[str(request.url)])
+        return _handler(request)
+    http_factory.set_test_overrides(transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+                                    sleep=lambda s: None, min_interval_per_host=0.0)
+
+
+def test_a_page_canonical_never_claims_another_postings_identity():
+    spoof = "https://careers.example.org/jobs/spoof"
+    page = EMPLOYER_PAGE_HTML.replace("<head>", f'<head><link rel="canonical" href="{POSTING}">')
+    _serve({spoof: page})
+    (found,) = inspect.inspect_jobs(SLUG, [spoof])["dossiers"]
+    assert found["id"] == "url://careers.example.org/jobs/spoof" and found["url"] == spoof
+    shortlist.save_shortlist(SLUG, [{"id": found["id"], "verdict": "discard"}])
+    legit = inspect.inspect_jobs(SLUG, [POSTING])["dossiers"][0]
+    assert legit["id"] == "greenhouse:acme:4012345" and legit["memory"] == "new"
+
+
+def test_a_board_posting_on_a_custom_domain_keeps_its_board_identity():
+    custom = "https://jobs.example.org/o/senior-ml-engineer"
+    folder = inspect.home.ultron_home() / inspect.CACHE_DIR / SLUG
+    folder.mkdir(parents=True)
+    listed = {"identity_key": "recruitee:exampleorg:senior-ml-engineer", "status": "listed", "url": custom,
+              "source_type": "ats_api", "source_key": "recruitee:exampleorg",
+              "job": {"apply_url": custom, "title": "Senior ML Engineer", "company": "Example Org", "location": ""}}
+    (folder / inspect.CACHE_FILE).write_text(json.dumps(listed) + "\n", encoding="utf-8")
+    _serve({custom: EMPLOYER_PAGE_HTML})
+    (found,) = inspect.inspect_jobs(SLUG, [custom])["dossiers"]
+    assert found["id"] == listed["identity_key"]
+    out = shortlist.save_shortlist(SLUG, [{"id": found["id"], "verdict": "discard"}])
+    assert out["saved"]["discard"] == 1
+    assert inspect.inspect_jobs(SLUG, [custom])["dossiers"][0]["memory"] == "rejected"

@@ -540,6 +540,8 @@ class PostingFetch:
     ats_fingerprint: bool = False
     sent: bool = True
     navigation_failure: bool = False
+    # The URL read after HTTP redirects; a page's own canonical link never changes it.
+    final_url: str = ""
 
 
 FAILED_PREFIXES = ("http_error", "url_rejected", "host_blocked", "inaccessible", "vendor_blocked")
@@ -598,8 +600,10 @@ def fetch_posting(candidate: CandidateUrl, client, allowed_domains: list[str]) -
         job, reason = occupop_posting_job(url, html, company_hint=candidate.ats_company)
         if job is None:
             return PostingFetch(error={"url": url, "error": reason, "status": status})
-        return PostingFetch(job=job, ats_fingerprint=True)
-    return _extract_page(candidate, client, allowed_domains, (status, final_url, html))
+        return PostingFetch(job=job, ats_fingerprint=True, final_url=normalize_url(final_url))
+    result = _extract_page(candidate, client, allowed_domains, (status, final_url, html))
+    result.final_url = normalize_url(final_url)
+    return result
 
 
 def _extract_page(candidate: CandidateUrl, client, allowed_domains: list[str], page_data: tuple) -> PostingFetch:

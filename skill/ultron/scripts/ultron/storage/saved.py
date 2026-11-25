@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from ultron.core import presets
 from ultron.profiles import store as profiles
 from ultron.stages.unattended import run_unattended
+from ultron.stages.watch import watch as watch_profile
 from ultron.storage import ledger, runs
 
 
@@ -78,11 +79,13 @@ def write_digest(run_id: str, name: str) -> tuple[str, int]:
     return str(out), len(new)
 
 
-def run(name: str, *, unattended: bool) -> dict:
-    """Start a new run (or unattended run) preconfigured from saved search ``name``."""
+def run(name: str, *, unattended: bool, watch: bool = False) -> dict:
+    """Start a new run (or unattended run, or a watch of the profile's watchlist) from saved search ``name``."""
     from ultron.core.discovery.query_plan import build_query_plan
 
     s = get(name)
+    if watch:
+        return {"saved_search": name, **watch_profile(s["profile_slug"], s["preset"])}
     overrides = s["overrides"] or None
     if unattended:
         result = run_unattended(s["profile_slug"], s["preset"], overrides)

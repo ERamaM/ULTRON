@@ -86,6 +86,11 @@ least all the unsure ones, then as many keeps as the preset's budget allows (see
 reference); unevaluated postings keep the heuristic verdict at finalize. Say how many were left to
 the heuristic.
 
+For a scout search (`search scout`, or the user wants you to search freely and ULTRON to resolve, expand
+and remember), create the run with `ultron run new --profile <slug> --preset <p> --mode scout` and follow
+`references/scout.md` instead of steps 1 to 9. To re-check the boards a profile watches with no agent, run
+`ultron watch --profile <slug>`.
+
 No agent available or the user wants a zero-token/scheduled run: `ultron run --unattended --profile
 <slug> [--preset <p>]` runs new → discover feeds → verify feed companies → discover ats → fetch →
 filter → finalize with heuristics only (no web search, no evaluation).
@@ -97,6 +102,7 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | a new search | the search loop above |
 | review, mark, add notes or feedback on found jobs | `references/jobs-ledger.md` |
 | what is new since the last run | `ultron jobs new-since <run_id>`; `references/jobs-ledger.md` |
+| a scout search, the watchlist, or new postings on watched boards | `ultron run new --mode scout`, `ultron watch`, `ultron watchlist list`; `references/scout.md` |
 | to know why a job did not show up | `ultron diagnose <url>`; `references/diagnose.md` |
 | to start from a CV, or create or edit a profile | `ultron cv extract`; `references/profile.md` |
 | expected salary range from a CV or profile | `ultron salary analyze`, `ultron salary save`; `references/salary.md` |

@@ -19,6 +19,7 @@ from ultron.core.models import JobRawPage
 from ultron.core.privacy import redact
 from ultron.core.rules.term_matching import contains_term, normalize_text
 from ultron.cv import extract as cv
+from ultron.cv.ats_requirements import classify_requirements
 from ultron.infra import home
 from ultron.infra.net import HttpError, RequestBudgetExceeded, URLRejected
 from ultron.stages.fetch import get_posting_page, occupop_posting_job
@@ -146,18 +147,17 @@ def _find_local_job(job_arg: str, *, run_id: str | None = None) -> dict[str, Any
         db_path = home.ultron_home() / "ultron.sqlite3"
         if db_path.is_file():
             with closing(ledger.connect()) as conn:
-                row = conn.execute(
-                    "SELECT last_seen_run_id FROM jobs WHERE identity_key = ? OR canonical_url = ? LIMIT 1",
-                    (ident_key, norm_arg or job_arg),
-                ).fetchone()
-                if row and row[0]:
-                    candidate_runs.append(str(row[0]))
-        for item in runs.list_runs():
-            rid = str(item.get("run_id") or "")
-            if rid and rid not in candidate_runs and "fetch" in (item.get("stages_done") or []):
-                candidate_runs.append(rid)
-                if len(candidate_runs) >= 6:
-                    break
+                snapshot_key, snapshot_runs = ledger.vacancy_snapshot_runs(conn, ident_key, norm_arg)
+            ident_key = snapshot_key
+            candidate_runs.extend(snapshot_runs)
+        available = sorted(
+            runs.list_runs(), key=lambda item: (item.get("created_at") or "", item.get("run_id") or ""),
+            reverse=True,
+        )
+        recent = [item["run_id"] for item in available if item.get("run_id") and "fetch" in (item.get("stages_done") or [])][:6]
+        known = set(candidate_runs) | set(recent)
+        creation = {item["run_id"]: item.get("created_at") or "" for item in available if item.get("run_id")}
+        candidate_runs = sorted(known, key=lambda rid: (rid[:15], creation.get(rid, ""), rid), reverse=True)
 
     for rid in candidate_runs:
         folder = runs.run_dir(rid)
@@ -243,16 +243,19 @@ def resolve_target(
         raw = cv._clean_text(cv._decode_text_bytes(job_file.read_bytes()), cv.MAX_CV_CHARS)
         first_line = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
         terms = extract_job_keywords(first_line, raw, profile=profile)
-        return "job", terms, {"source": "job_file", "title": str(redact(first_line)), "path": str(job_file)}
+        return "job", terms, {
+            "source": "job_file", "title": str(redact(first_line)), "path": str(job_file),
+            "requirements": classify_requirements(raw, terms),
+        }
 
     if job_arg:
         job_data = _find_local_job(job_arg, run_id=run_id)
         source = "local_run"
         if job_data is None:
             if not job_arg.startswith(("http://", "https://")):
-                raise ValueError(f"job {job_arg!r} not found in local runs")
+                raise ValueError(f"job {job_arg!r} has no surviving local posting snapshot")
             if not fetch:
-                raise ValueError("job not found in local runs and --no-fetch was set")
+                raise ValueError("job has no surviving local posting snapshot and --no-fetch was set")
             job_data = _fetch_job_url(job_arg, profile_slug=profile_slug)
             source = "fetched_url"
         title = str(job_data.get("title") or "")
@@ -261,6 +264,8 @@ def resolve_target(
         return "job", terms, {
             "source": source,
             "identity_key": job_data.get("identity_key"),
+            "run_id": job_data.get("run_id"),
+            "requirements": classify_requirements(body, terms),
             "title": str(redact(title)),
             "company": str(redact(str(job_data.get("company") or ""))),
             "apply_url": job_data.get("apply_url"),
@@ -282,7 +287,9 @@ def resolve_target(
     return "general", [], {}
 
 
-def audit_target_alignment(text: str, target_terms: list[str]) -> tuple[int | None, dict[str, Any]]:
+def audit_target_alignment(
+    text: str, target_terms: list[str], requirements: list[dict] | None = None,
+) -> tuple[int | None, dict[str, Any]]:
     """Score how well CV text covers ``target_terms`` and report missing terms."""
     if not target_terms:
         return None, {"terms_checked": 0, "matched": [], "missing": [], "coverage_pct": None}
@@ -290,7 +297,18 @@ def audit_target_alignment(text: str, target_terms: list[str]) -> tuple[int | No
     missing = [term for term in target_terms if term not in matched]
     pct = round(100.0 * len(matched) / len(target_terms), 1)
     score = round(20.0 * len(matched) / len(target_terms))
+    criteria = [
+        {**row, "matched": [term for term in row["alternatives"] if term in matched]}
+        for row in requirements or []
+    ]
+    stated = [row for row in criteria if row["category"] != "unspecified"]
+    if stated:
+        weights = {"required": 3, "preferred": 1}
+        total = sum(weights[row["category"]] for row in stated)
+        fulfilled = sum(weights[row["category"]] for row in stated if row["matched"])
+        score = round(20.0 * fulfilled / total)
     return score, {
+        "criteria": criteria,
         "terms_checked": len(target_terms),
         "matched": matched,
         "missing": missing,

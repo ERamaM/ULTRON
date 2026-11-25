@@ -35,9 +35,9 @@ from ultron.stages.role_feeds import (
     relevance,
     role_source_rows,
 )
-from ultron.stages.scout import watch_seeds
 from ultron.stages.scout_finds import memory_flags, web_candidate
 from ultron.stages.watch import as_postings, profile_matches
+from ultron.stages.watch_boards import watch_seeds
 from ultron.storage import ledger, watchlist
 from ultron.toolkit.inspect import cache_postings, run_context
 

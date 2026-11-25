@@ -13,7 +13,6 @@ from pydantic import ValidationError
 
 from ultron.core.models import JobEvaluation
 from ultron.core.rules.geography import build_geo_body_excerpt
-from ultron.stages.scout_verified import exported_count, load_verified
 from ultron.storage import runs
 
 EXCERPT_CHARS = 1500
@@ -84,21 +83,14 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
     out_dir = runs.run_dir(run_id)
     done = {r["identity_key"] for r in runs.read_jsonl(out_dir / "evaluations.jsonl")}
     rows = runs.read_jsonl(out_dir / "ambiguous.jsonl") + runs.read_jsonl(out_dir / "kept.jsonl")
-    scout_run = runs.run_mode(runs.load_run(run_id)) == "scout"
-    verified = load_verified(out_dir) if scout_run else {}
-    # A posting the agent verified after the queue was built is settled: it is never served again.
-    todo = [r for r in rows if r["identity_key"] not in done and r["identity_key"] not in verified]
-    if not scout_run:
-        # R15: heuristic "unsure" rows first, then rescued heuristic discards (they stay discarded unless
-        # evaluated), then the keeps (stable sort keeps file order within each group). A scout queue is
-        # already in evaluation order.
-        todo.sort(key=lambda r: ((r.get("heuristic") or {}).get("verdict") != "unsure", "rescued_discard" not in r))
+    todo = [r for r in rows if r["identity_key"] not in done]
+    # R15: heuristic "unsure" rows first, then rescued heuristic discards (they stay discarded unless evaluated),
+    # then the keeps (stable sort keeps file order within each group).
+    todo.sort(key=lambda r: ((r.get("heuristic") or {}).get("verdict") != "unsure", "rescued_discard" not in r))
     items = []
     for row in todo[: max(limit, 0)]:
         job, heuristic = row["job"], row["heuristic"]
-        extra = {"found_by": row.get("found_by"), "memory": row.get("memory"), "hint": row.get("hint"),
-                 "posting_date": job.get("posting_date")} if scout_run else {}
-        items.append({**extra,
+        items.append({
             "identity_key": row["identity_key"],
             "title": job.get("title", ""),
             "company": job.get("company", ""),
@@ -108,7 +100,4 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
             "body_excerpt": (job.get("body_text") or "")[:EXCERPT_CHARS],
             "geo_excerpt": build_geo_body_excerpt(job.get("body_text") or "", max_chars=GEO_EXCERPT_CHARS),
         })
-    result = {"pending": len(todo), "returned": len(items), "items": items}
-    if scout_run:
-        result["verified_finds"] = exported_count(verified)
-    return result
+    return {"pending": len(todo), "returned": len(items), "items": items}

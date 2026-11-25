@@ -111,14 +111,20 @@ def _ledger_ready() -> bool:
     return (home.ultron_home() / "ultron.sqlite3").exists()
 
 
-def _pending(profile_slug: str) -> list[dict]:
-    """Postings the watch recorded since the last session; a board posting keeps its board."""
+def _pending(profile_slug: str, profile: dict) -> list[dict]:
+    """Postings the watch recorded that match ``profile`` (the query's role when one is asked).
+
+    A board posting keeps its board. Postings that do not match stay pending for a later, relevant search.
+    """
     if not _ledger_ready():
         return []
     with closing(ledger.connect()) as conn:
         rows = watchlist.pending(conn, profile_slug)
+    by_url = {row.get("normalized_url", ""): row for row in rows}
+    postings = as_postings([{"title": row.get("ats_title", ""), "url": url, "location": row.get("ats_location", "")}
+                            for url, row in by_url.items() if url])
     out = []
-    for row in rows:
+    for row in (by_url[posting.apply_url] for posting in profile_matches(postings, profile)):
         dossier = {"id": row.get("identity_key") or candidate_identity(row), "url": row.get("normalized_url", ""),
                    "status": "listed", "title": row.get("ats_title", ""), "company": row.get("ats_company", ""),
                    "location": row.get("ats_location", ""), "source": "watch"}
@@ -140,7 +146,9 @@ def profile_for_query(profile: dict, terms: list[str]) -> dict:
     """``profile`` with its role titles and focus terms replaced by an explicit role query."""
     criteria = dict(profile.get("criteria") or {})
     criteria.update(target_titles=list(terms), role_focus_terms=list(terms), role_family_label=terms[0])
-    criteria.pop("must_have_terms", None)
+    # The profile's role vocabulary (packs, specialties, role signals) would match its usual role again.
+    for key in ("must_have_terms", "vocabulary_packs", "specialties", "role_signal_terms"):
+        criteria.pop(key, None)
     return {**profile, "criteria": criteria}
 
 
@@ -178,7 +186,7 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     jobs = [lambda: searcher.boards(seeds)]
     jobs += [(lambda source=source: [searcher.role_source(source)]) for source in SOURCES]
     jobs += [(lambda source=source: [searcher.local_feed(source)]) for source in local_feeds()]
-    dossiers = _pending(profile_slug)
+    dossiers = _pending(profile_slug, run["profile_snapshot"])
     sources: dict[str, dict] = {"watch": {"status": "ok", "results": len(dossiers)}}
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         for results in pool.map(lambda job: job(), jobs):

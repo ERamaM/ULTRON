@@ -223,7 +223,8 @@ def collect_hn_who_is_hiring(
                     "source": "hn_who_is_hiring",
                     # The whole first line names the role and the place ("Acme | ML Engineer | Remote EU").
                     "headline": " | ".join(part for part in parts if part),
-                    "description": " ".join(re.sub(r"<[^>]+>", " ", text).split())[:2000],
+                    # Truncated before stripping, with a bounded tag pattern: feed text is untrusted.
+                    "description": " ".join(re.sub(r"<[^<>]{0,300}>", " ", text[:8000]).split())[:2000],
                 }
             )
     return rows, []

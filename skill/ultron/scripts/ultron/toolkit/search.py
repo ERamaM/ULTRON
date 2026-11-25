@@ -112,7 +112,7 @@ class _Searcher:
             return seed_key(seed), {"status": "failed", "error": type(exc).__name__}, []
         except PAYLOAD_ERRORS as exc:
             return seed_key(seed), {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, []
-        dossiers, _cache = board_dossiers(seed, postings, self.context)
+        dossiers, _cache = board_dossiers(seed, postings, self.context, limit=None)  # ranked globally later
         for dossier in dossiers:
             dossier["source"] = seed_key(seed)
         return seed_key(seed), {"status": "ok", "results": len(dossiers)}, dossiers
@@ -235,11 +235,12 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
             dossiers.extend(found)
     sources["boards"] = {"queried": len(boards), "failed": sum(1 for s in boards.values() if s["status"] == "failed"),
                          "results": sum(s.get("results", 0) for s in boards.values())}
+    # Memory first: with new_only, a seen posting must not hide a new opening of the same role.
+    _flag(profile_slug, dossiers)
+    if new_only:
+        dossiers = [d for d in dossiers if d["memory"] == "new"]
     ranked = _rank(dossiers, terms)
     cache_postings(profile_slug, [_cache_row(d, {seed_key(s) for s in seeds}) for d in ranked if d.get("url")])
-    _flag(profile_slug, ranked)
-    if new_only:
-        ranked = [d for d in ranked if d["memory"] == "new"]
     returned = ranked[:max(1, limit)]
     _mark_served(profile_slug, returned)
     return {"profile": profile_slug, "queries": terms, "sources": sources, "results": len(ranked),

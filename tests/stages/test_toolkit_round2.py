@@ -193,7 +193,7 @@ def test_requested_postings_match_their_board_whatever_the_greenhouse_host():
     def extra(request):
         if "greenhouse" in request.url.host and request.url.path.startswith("/v1/boards/acme"):
             return httpx.Response(200, json=BOARD_WITH_TEXT)
-        if "greenhouse.io" in request.url.host and "/jobs/" in request.url.path:
+        if request.url.host in {"boards.greenhouse.io", "job-boards.greenhouse.io"} and "/jobs/" in request.url.path:
             page_hits.append(str(request.url))
         return None
     _serve(extra)
@@ -236,3 +236,46 @@ def test_a_stored_guessed_board_stays_unconfirmed(monkeypatch):
     monkeypatch.setattr(boards, "inventory_board", lambda name: guessed)
     dossiers = inspect.inspect_jobs(SLUG, [], ["Acme"])["dossiers"]
     assert dossiers and all(d.get("board_confirmed") is False for d in dossiers)
+
+
+def test_board_texts_keep_one_line_per_paragraph():
+    from ultron.core.ats.clients.greenhouse import _content_text
+    from ultron.core.ats.clients.lever import _lever_text
+    text = _content_text(html.escape("<p>Intro paragraph.</p><p>Remote within Spain only.</p>"))
+    assert text.splitlines() == ["Intro paragraph.", "Remote within Spain only."]
+    lever = _lever_text({"descriptionPlain": "About us.", "lists": [{"text": "Where", "content": "<li>EU only</li>"}]})
+    assert "EU only" in lever.splitlines()
+
+
+def test_co_uk_employer_links_are_not_the_aggregator():
+    page = _Page(["https://acme.co.uk/careers/ml-engineer"])
+    found = scout_resolve.resolve_aggregator("https://www.reed.co.uk/jobs/77", page, 5, "Acme")
+    assert found.outcome == "resolved_aggregator" and found.url == "https://acme.co.uk/careers/ml-engineer"
+
+
+def test_an_unresolved_listing_falls_back_to_its_company_board():
+    assert inspect.aggregator_company("https://himalayas.app/companies/acme/jobs/ml-lead") == "Acme"
+    dead = "https://remoteok.com/remote-jobs/999-unknown"
+    result = inspect.inspect_jobs(SLUG, [{"url": dead, "company": "Acme"}])
+    via = [d for d in result["dossiers"] if d.get("via") == "company_of_listing"]
+    assert via and via[0]["found_at"] == dead and via[0]["board"] == "greenhouse:acme"
+
+
+def test_new_only_keeps_a_new_opening_behind_a_seen_one():
+    from ultron.toolkit import search
+    seen = {"id": "a", "url": "https://x.example/a", "status": "listed", "title": "ML Lead", "company": "Acme",
+            "location": "", "source": "s"}
+    new = {**seen, "id": "b", "url": "https://x.example/b"}
+    ranked = search._rank([seen, new], ["ML Lead"])
+    assert [d["id"] for d in ranked] == ["a"]  # one per role when both are kept
+    flags = {"a": "rejected", "b": "new"}
+    kept = [d for d in [seen, new] if flags[d["id"]] == "new"]
+    assert [d["id"] for d in search._rank(kept, ["ML Lead"])] == ["b"]
+
+
+def test_a_confirmed_company_board_joins_the_profile_inventory(monkeypatch):
+    from ultron import seeds
+    from ultron.toolkit import boards
+    monkeypatch.setattr(boards, "guessed_board_ownership", lambda *_a: "owned")
+    inspect.inspect_jobs(SLUG, [], ["Acme"])
+    assert any(s.board_identifier == "acme" for s in seeds.load_inventory(SLUG))

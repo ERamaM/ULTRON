@@ -17,6 +17,7 @@ from ultron.core.feeds.urls import fetch_page_links, is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.infra.net import HostBlocked, RequestBudgetExceeded, VendorBlocked
 from ultron.infra.urlpolicy import URLRejected, admit_url
+from ultron.seeds.naming import registrable_domain
 
 EMPLOYER_PAGE = "employer_page"
 # Words that mark a staffing agency posting for an unnamed client; such a listing never becomes a seed.
@@ -91,22 +92,17 @@ _NOT_EMPLOYERS = frozenset({"linkedin.com", "facebook.com", "twitter.com", "x.co
                             "google.com", "apple.com", "github.com", "medium.com", "t.me", "wa.me"})
 
 
-def _registrable(host: str) -> str:
-    labels = host.removeprefix("www.").split(".")
-    return ".".join(labels[-2:]) if len(labels) >= 2 else host
-
-
 def employer_links(links: list[str], page_url: str, company: str) -> list[str]:
     """Links to one opening on an employer's own site (not the aggregator, another aggregator or a social site).
 
     With a ``company``, only links on a host that names it count, so related jobs of other employers never win.
     """
-    page_domain = _registrable(domain_of(normalize_url(page_url)))
+    page_domain = registrable_domain(domain_of(normalize_url(page_url)))
     wanted = _company_key(company)
     out = []
     for link in links:
         host = domain_of(normalize_url(link))
-        domain = _registrable(host)
+        domain = registrable_domain(host) or host
         if domain == page_domain or domain in _NOT_EMPLOYERS or is_aggregator_host(host):
             continue
         if not _EMPLOYER_JOB_PATH.search(link.split("?", 1)[0]):

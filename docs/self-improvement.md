@@ -219,6 +219,109 @@ Replay reports name a run's postings by identity key and reason only. They are s
 artifacts: keep them out of the repository, PRs and issues. The reports folder is outside the
 repository for this reason.
 
+### Baseline comparison: ULTRON against an agent without it
+
+```sh
+uv run python tools/arm_comparison.py prepare --profile <slug> --session <name> [--top-n 25] [--force]
+uv run python tools/arm_comparison.py ingest-ultron --session <name> --rep <k> --run <run-id>
+uv run python tools/arm_comparison.py ingest-agent --session <name> --rep <k> --from <file>.jsonl
+uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k> \
+    --tokens <n> --tool-calls <n> --seconds <n>
+uv run python tools/arm_comparison.py discard --session <name> --arm <arm> --rep <k>
+uv run python tools/arm_comparison.py pool --session <name>
+uv run python tools/arm_comparison.py spotcheck --session <name> [--size 20]
+uv run python tools/arm_comparison.py score --session <name> --output report.json [--allow-partial]
+```
+
+This live measurement asks whether ULTRON finds better postings than the same agent using plain
+web search. The tool launches no agents and uses no network. It freezes a common brief, imports
+both shortlists in one format, writes blind labelling files and computes the metrics.
+
+`prepare` reads the profile from `ULTRON_HOME`. On a fresh home, loading the profile can create
+ULTRON's empty folders. `ingest-ultron` reads a run's `run.json` and `results.json` the same way
+`replay_run.py` does, rejecting symlinks. Nothing is written to `ULTRON_HOME`.
+
+Session state, the brief, labels, spot check and reports live in the reports folder, because they
+hold the profile and real postings. Session files are `<session>.state.json`, `.brief.md`,
+`.labels.yaml` and `.spotcheck.yaml`; `score --output` refuses those names.
+
+Protocol:
+
+1. **Prepare.** `prepare` writes `<session>.brief.md`, the task both arms receive. It contains:
+   - only the profile's `name`, `description`, `prompt` and `criteria`. `source_cv`, the slug and
+     ULTRON's vocabulary packs stay out.
+   - the shortlist size N (`--top-n`, default 25).
+   - the JSONL output format: `title`, `company`, `apply_url` and `location`, in rank order.
+
+   Only the top N rows of each repetition are pooled, labelled and scored, since `balanced` can
+   keep up to 250 roles. `prepare` refuses an existing session unless `--force` is given.
+2. **Run 3 repetitions per arm on the same day, alternating which arm goes first**:
+   U1 B1, B2 U2, U3 B3.
+   - Every repetition is a fresh subagent with no shared context, on the same model.
+   - Both arms get the same stopping rule: deliver N ranked postings, then stop.
+   - **ULTRON arm**: give each repetition its own copy of the starting `ULTRON_HOME` (see
+     experiment hygiene). The subagent follows `SKILL.md` with `--preset balanced` through
+     `finalize`. Then run `ingest-ultron` with the same `ULTRON_HOME`. It refuses a run that is
+     not finalized, a run that did not use `balanced`, a run of another profile, a run of a changed
+     profile (the whole profile is hashed, `source_cv` included), and a run already used for
+     another repetition. It stores the run's own create-to-finalize time as `pipeline_seconds`.
+   - **Baseline arm**: the subagent receives only the brief and is told not to use ULTRON. It may
+     use web search and page fetches, and returns the JSONL. Save the JSONL in the reports folder
+     and run `ingest-agent`. A file already used for another repetition is refused. Check the
+     transcript for ULTRON commands, and `discard` the repetition if it used any.
+   - Only the top N rows are validated and kept. A bad row below the cut does not block the
+     import.
+   - After every repetition, run `record-cost` with the subagent's reported tokens, tool calls
+     and wall-clock seconds. Use the same source for both arms. ULTRON's cost covers its whole
+     run, including the postings it processed beyond the top N: that is the price of its
+     shortlist.
+3. **Label blind.** `pool` clusters the scored rows into jobs. Two rows are the same job when
+   their canonical posting identity matches, or when company, normalized title and location are
+   all equal and none is empty or a placeholder such as `Confidential` or ULTRON's
+   `company_not_found` and `title_not_found`.
+   - Job ids are stored in the session, so labels survive later ingestions in any order. When a
+     new row merges jobs, or a discarded repetition splits one, every cluster still gets its own
+     id. `pool` resets the labels of the jobs involved and lists them under `relabel_ids`.
+   - `<session>.labels.yaml` is shuffled and shows no arm. Each entry lists every URL and location
+     variant of its job. The URL hosts can still hint at the source, ATS board or aggregator,
+     so the blinding is imperfect. The report says so.
+   - Replace each `pending` with `true`, `false` or `null` (cannot tell), opening each posting.
+     `relevant: true` requires `open`, `eligible` and `role_fit` not to be `false`.
+4. **Spot check.** `spotcheck` writes a reproducible blind sample (`--size`, default 20) for the
+   user to label `relevant` without looking at the labels file. Run it again once the sample is
+   filled in to get the disagreement rate on `relevant`. A sampled job stays pending until both
+   the user and the main labels have judged it. `score` recomputes the agreement from the current
+   labels, so a later relabelling is always reflected. If the pool changed and the sample now
+   holds jobs that are gone, delete the spot-check file and draw a new one. A sample with no
+   `true`/`false` judgments does not count. Above 15% disagreement, relabel everything and run
+   `spotcheck` again.
+5. **Score.** `score` refuses to run when the experiment is incomplete:
+   - a label is pending;
+   - an arm is missing, or has fewer than 3 repetitions;
+   - the two arms have different repetition numbers;
+   - a repetition has no tokens, tool calls or seconds recorded;
+   - the spot check is missing, stale, unfinished, has nothing to compare, or is above the
+     disagreement threshold.
+
+   `--allow-partial` scores anyway, marks the report partial and lists the reasons. The report
+   gives each repetition, then the mean ± sample std with its `n`:
+   - quality: precision, P@5 and P@10, closed, ineligible and role-mismatch rates, and duplicate
+     rows.
+     - P@k slices the ranked positions first.
+     - Repeats and empty positions count as misses.
+     - Unlabelled positions are left out.
+   - coverage: relevant jobs found, pool recall, the relevant jobs only one arm found, and the
+     Jaccard overlap between arms.
+   - cost: tokens, tool calls and seconds. Cost per relevant job is pooled: total cost divided by
+     total relevant jobs, so a repetition that found nothing still counts.
+   - reproducibility: mean pairwise Jaccard between the repetitions of one arm, over all jobs
+     and over relevant jobs.
+
+   `null` labels are left out of every denominator.
+
+Pool recall counts the relevant jobs either arm found, not the whole market. These live numbers
+are never mixed with replay or benchmark numbers. The 6 runs count against the live budgets above.
+
 ### Current baseline
 
 Relabelled baseline of 2026-11-20 (`balanced` preset, no agent), before that day's quality fixes:

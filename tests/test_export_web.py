@@ -322,3 +322,124 @@ def test_cli_export_web_json_and_errors(tmp_path: Path, monkeypatch: pytest.Monk
     assert code_bad == 2
     err = json.loads(capsys.readouterr().out)
     assert err["error"] == "export_failed"
+
+
+
+def test_snapshot_projects_toolkit_feedback_and_watch(tmp_path, monkeypatch):
+    from ultron.stages.watch import _write_digest
+
+    path = _seed_full_ledger(tmp_path, monkeypatch)
+    slug = profiles.EXAMPLE_SLUG
+    with closing(sqlite3.connect(path)) as conn, conn:
+        key, url = conn.execute("SELECT identity_key, canonical_url FROM jobs WHERE company = 'Beta Labs'").fetchone()
+        conn.execute("UPDATE jobs SET match_score = NULL, match_band = NULL WHERE identity_key = ?", (key,))
+        judgment = json.dumps({
+            "remote_policy": "remote_eu",
+            "eligibility": "confirmed",
+            "eligibility_evidence": f"EU {_SYNTHETIC_GH_ZWS}",
+            "fit_signals": ["Python", " K8s", "python"],
+            "found_by": "agent_verified",
+            "published_at": "2026-11-19",
+            "salary": "EUR 90,000 / year",
+        })
+        conn.executemany(
+            "INSERT INTO scout_verdicts (profile_slug, identity_key, verdict, priority, row_json, run_id, recorded_at)"
+            " VALUES (?, ?, ?, ?, ?, 'run', ?)",
+            [(slug, key, "keep", 1, judgment, "2026-11-21"),
+             ("other", key, "discard", None, "{invalid", "2026-11-22")],
+        )
+        conn.execute(
+            "INSERT INTO profile_job_feedback VALUES (?, ?, 'not_relevant', 'other', ?, '2026-11-22')",
+            (key, slug, f"Reason {_SYNTHETIC_GH_TOKEN}"),
+        )
+        conn.execute(
+            "INSERT INTO watchlist VALUES (?, 'lever:beta', 'Beta Labs', 'blocked', 'user', '2026-11-22')", (slug,),
+        )
+        conn.executemany("INSERT INTO watch_pending (profile_slug, identity_key, candidate_json, found_at, state)"
+                         " VALUES (?, ?, ?, '2026-11-22', ?)", [
+            (slug, "pending", json.dumps({"ats_title": "Data engineer", "normalized_url": "file:///test"}), "pending"),
+            (slug, "queued", "{}", "queued"),
+        ])
+    _write_digest(slug, [], "20261122T204010", [
+        {"apply_url": url, "title": f"Closed {_SYNTHETIC_GH_TOKEN}", "company": "Beta Labs"},
+        {"apply_url": "javascript:alert(1)", "title": "unsafe", "company": ""},
+    ])
+    before = path.stat().st_mtime_ns
+    snapshot = web_data.build_ledger_snapshot(path)
+    assert path.stat().st_mtime_ns == before
+    job = next(row for row in snapshot["jobs"] if row["identity_key"] == key)
+    assert job["priority"] == 1 and job["verdict"] == "keep"
+    assert job["eligibility"] == "confirmed" and job["remote_policy"] == "remote_eu"
+    assert job["fit_signals"] == ["Python", "K8s"]
+    assert job["best_date"]["kind"] == "published"
+    assert job["profile_feedback"][slug]["relevance"] == job["feedback_relevance"] == "not_relevant"
+    assert job["is_closed_watch"]
+    assert snapshot["closed_watch"][0]["identity_key"] == key and len(snapshot["closed_watch"]) == 1
+    assert snapshot["watch_pending"][0]["url"] is None and len(snapshot["watch_pending"]) == 1
+    assert {row["seed_key"]: row["state"] for row in snapshot["watchlist"]} == {
+        "greenhouse:acme": "watch", "lever:beta": "blocked",
+    }
+    summary = snapshot["summary"]
+    assert summary["display_mode"] == "mixed"
+    assert summary["priority_counts"]["p1"] == summary["watchlist_count"] == summary["closed_watch_count"] == 1
+    assert summary["salary_summary"]["by_currency"]["EUR"]["median"] == 90_000
+    assert _SYNTHETIC_SUFFIX not in json.dumps(snapshot)
+
+
+
+@pytest.mark.parametrize("version", [1, 5, 6, 7, 8])
+def test_snapshot_reads_each_ledger_layout_without_migrating(tmp_path, version):
+    path = tmp_path / "ledger.sqlite3"
+    migrations = (
+        ledger._create_v1, ledger._apply_v2, ledger._apply_v3, ledger._apply_v4, ledger._apply_v5,
+        ledger._apply_v6, ledger._apply_search_scope, ledger._apply_v8,
+    )
+    with closing(sqlite3.connect(path)) as conn, conn:
+        for migrate in migrations[:version]:
+            migrate(conn)
+        conn.execute(f"PRAGMA user_version = {version}")
+        conn.execute(
+            "INSERT INTO jobs (identity_key, canonical_url, title, company, first_seen, last_seen)"
+            " VALUES ('posting', 'https://example.com/posting', 'Engineer', 'Acme', '2026-11-01', '2026-11-01')"
+        )
+    before = path.stat().st_mtime_ns
+    snapshot = web_data.build_ledger_snapshot(path)
+    assert path.stat().st_mtime_ns == before
+    assert snapshot["meta"]["schema_version"] == version
+    [job] = snapshot["jobs"]
+    assert job["best_date"] == {"iso": "2026-11-01", "kind": "first_seen", "label": "First seen 2026-11-01"}
+    assert job["priority"] is None and job["profile_feedback"] == {}
+
+
+def test_closed_watch_rejects_invalid_and_uses_latest_digest(tmp_path):
+    from ultron.exports.web_watch import read_closed_watch
+
+    watch = tmp_path / "watch"
+    watch.mkdir()
+    url = "https://example.com/closed"
+    rows = json.dumps([{"apply_url": url, "title": "Closed"}])
+    (watch / "profile-20261101T120000.closed.json").write_text(rows, encoding="utf-8")
+    (watch / "profile-20261102T120000.closed.json").write_text("[]", encoding="utf-8")
+    (watch / "profile-20261103T120000.closed.json").write_bytes(b"x" * (256 * 1024 + 1))
+    (watch / "other-20261103T120000.closed.json").write_text("not json", encoding="utf-8")
+    (watch / "ignore-20260230T120000.closed.json").write_text(rows, encoding="utf-8")
+    (watch / "unknown.json").write_text(rows, encoding="utf-8")
+    job = {"canonical_url": url, "identity_key": "key"}
+    assert read_closed_watch(watch, [job]) == []
+    assert job["is_closed_watch"] is False
+
+
+def test_closed_watch_rejects_symlinks(tmp_path):
+    from ultron.exports.web_watch import read_closed_watch
+
+    watch = tmp_path / "watch"
+    watch.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text('[{"apply_url":"https://example.com/closed"}]', encoding="utf-8")
+    try:
+        (watch / "profile-20261101T120000.closed.json").symlink_to(outside)
+        (tmp_path / "linked").symlink_to(watch, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"symlink creation unavailable: {exc}")
+    assert read_closed_watch(watch, []) == []
+    assert read_closed_watch(tmp_path / "linked", []) == []

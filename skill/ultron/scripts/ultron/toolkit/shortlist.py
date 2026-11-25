@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from ultron.core import presets
+from ultron.salary.display import format_salary_disclosure
 from ultron.stages.discover import SEED_ATTEMPTS_FILE
 from ultron.stages.final_helpers import row_board_key
 from ultron.stages.scout_finalize import finalize_scout
@@ -42,7 +43,12 @@ def _with_cache(rows: list, cache: dict[str, dict]) -> list:
         job = cached["job"]
         defaults = {"url": cached.get("url") or job.get("apply_url", ""),
                     **{field: job.get(field, "") for field in FILLED_FIELDS}}
-        filled.append({**defaults, **{k: v for k, v in row.items() if v not in (None, "")}})
+        merged = {**defaults, **{key: value for key, value in row.items() if value not in (None, "")}}
+        if "published_at" not in row:
+            merged["published_at"] = job.get("posting_date")
+        if "salary" not in row:
+            merged["salary"] = job.get("salary") or format_salary_disclosure(job.get("body_text", ""))
+        filled.append(merged)
     return filled
 
 

@@ -27,6 +27,7 @@ from ultron.core.reporting.export import escape_markdown_cell
 from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.vocabulary import active_pack
 from ultron.infra import home
+from ultron.infra.fs import atomic_write_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, top_hosts
 from ultron.profiles import store as profile_store
 from ultron.stages.candidates import candidate_identity
@@ -173,6 +174,7 @@ def _write_digest(profile_slug: str, found: list[dict], stamp: str, closed: list
     path.write_text("\n".join(lines), encoding="utf-8")
     (folder / f"{profile_slug}-{stamp}.json").write_text(json.dumps(found, ensure_ascii=False, indent=2),
                                                          encoding="utf-8")
+    atomic_write_text(folder / f"{profile_slug}-{stamp}.closed.json", json.dumps(closed or [], ensure_ascii=False))
     return str(path)
 
 

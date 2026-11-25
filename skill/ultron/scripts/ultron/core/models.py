@@ -235,6 +235,7 @@ class FinalRow(BaseModel):
     updated_at: str | None = None
     unverified_date: str | None = None
     first_seen: str | None = None
+    salary: str = ""
     evaluation_verdict: EvaluationVerdict = "keep"
     source_type: str = "unknown"
     source_key: str = ""

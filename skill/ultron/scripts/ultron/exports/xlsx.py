@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from ultron.exports.view_model import MATCH_BANDS
 from ultron.storage import runs
 
 _HEADER_FILL = "1F3A5F"
@@ -364,8 +365,8 @@ def _build_shortlist_block(ws, rows: list, styles: dict) -> None:
     fields: list[tuple[str, int, str | None]] = [
         ("New since last run", sum(1 for r in records if r.get("is_new") is True), None),
     ]
-    for band, (fill, _font) in _BAND_PILLS.items():
-        fields.append((band.capitalize(), bands.count(band), fill))
+    for band in MATCH_BANDS:
+        fields.append((band.capitalize(), bands.count(band), _BAND_PILLS[band][0]))
     fields.append(("Unscored", sum(1 for b in bands if b not in _BAND_PILLS), None))
 
     for col, text in ((4, "Shortlist"), (5, "Count")):

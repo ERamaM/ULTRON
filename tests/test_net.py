@@ -436,3 +436,19 @@ def test_unicode_host_resolves_the_ascii_name_httpx_connects_to():
     assert client.get_text("https://faß.de/")[0] == 200
     assert asked == ["xn--fa-hia.de"]
     assert client._validated["faß.de"] == ("93.184.216.34",)
+
+
+def test_request_headers_never_follow_a_redirect_to_another_host():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.headers.get("authorization")))
+        if request.url.host == "api.example.com" and request.url.path == "/jobs":
+            return httpx.Response(302, headers={"Location": "https://other.example.org/jobs"})
+        if request.url.host == "api.example.com":
+            return httpx.Response(302, headers={"Location": "/jobs"})
+        return httpx.Response(200, json={"ok": True})
+
+    client = make_client(handler)
+    assert client.request_json("https://api.example.com/start", headers={"Authorization": "Basic abc"}) == {"ok": True}
+    assert seen == [("api.example.com", "Basic abc"), ("api.example.com", "Basic abc"), ("other.example.org", None)]

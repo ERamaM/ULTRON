@@ -55,16 +55,32 @@ def _cache_path(name: str, key: str):
     return home.ultron_home().joinpath(*CACHE_DIR, f"{name}-{digest}.json")
 
 
+class IncompleteFetch(Exception):
+    """A source answered with errors: its rows (maybe partial) are used but never cached as a complete answer."""
+
+    def __init__(self, rows: list[dict], errors: int) -> None:
+        super().__init__(f"{errors} errors")
+        self.rows, self.errors = rows, errors
+
+
+def _fresh(path, ttl_hours: float) -> list[dict] | None:
+    """The cached rows at ``path`` while younger than ``ttl_hours``; ``None`` when missing, stale or corrupt."""
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if time.time() - float(data["fetched_at"]) < ttl_hours * 3600:
+            return list(data["rows"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None  # a corrupt entry is fetched again
+    return None
+
+
 def cached_rows(name: str, key: str, ttl_hours: float, fetch: Callable[[], list[dict]]) -> tuple[list[dict], str]:
     """Rows from the cache while fresh (``cached``), else from ``fetch()`` (``ok``), which is then cached."""
     path = _cache_path(name, key)
-    if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if time.time() - float(data["fetched_at"]) < ttl_hours * 3600:
-                return list(data["rows"]), "cached"
-        except (OSError, ValueError, KeyError, TypeError):
-            pass
+    if (rows := _fresh(path, ttl_hours)) is not None:
+        return rows, "cached"
     rows = fetch()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"fetched_at": time.time(), "rows": rows}, ensure_ascii=False), encoding="utf-8")
@@ -95,12 +111,17 @@ def role_source_rows(source: RoleSource, terms: list[str], client, timeout: int)
 def local_feed_rows(source: dict, client, timeout: int) -> tuple[dict, list]:
     """One keyless feed with no role query, read whole: ``(status, rows)``; the caller filters the rows."""
     def fetch() -> list[dict]:
-        rows = COLLECTORS[source["parser"]](client, source, timeout)[0]
-        return [{"title": r.get("title", ""), "company_name": r.get("company_name", ""), "url": r.get("url", ""),
-                 "location": r.get("location", ""), "posted": "", "source": source["id"]}
-                for r in rows if r.get("url")]
+        rows, errors = COLLECTORS[source["parser"]](client, source, timeout)
+        clean = [{"title": r.get("title", ""), "company_name": r.get("company_name", ""), "url": r.get("url", ""),
+                  "location": r.get("location", ""), "posted": "", "source": source["id"]}
+                 for r in rows if r.get("url")]
+        if errors:  # the collectors report failed pages instead of raising
+            raise IncompleteFetch(clean, len(errors))
+        return clean
     try:
         rows, status = cached_rows(source["id"], source["url"], FEED_TTL_HOURS, fetch)
+    except IncompleteFetch as exc:
+        return {"status": "partial" if exc.rows else "failed", "error": "feed_errors"}, exc.rows
     except NETWORK_ERRORS as exc:
         return {"status": "failed", "error": type(exc).__name__}, []
     except PAYLOAD_ERRORS as exc:

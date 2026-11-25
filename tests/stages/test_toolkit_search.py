@@ -24,6 +24,8 @@ REMOTIVE = {"jobs": [
      "candidate_required_location": "Europe", "publication_date": "2026-11-20T10:00:00"},
     {"title": "Office Manager", "company_name": "Remco", "url": "https://remotive.com/remote-jobs/2",
      "candidate_required_location": "Europe"},
+    {"title": "Senior Frontend Engineer", "company_name": "Remco", "url": "https://remotive.com/remote-jobs/3",
+     "candidate_required_location": "Europe"},
 ]}
 HIMALAYAS = {"jobs": [{"title": "ML Engineer", "companyName": "Hico", "applicationLink": "https://hico.example/jobs/9",
                        "locationRestrictions": [], "pubDate": 1795000000}]}
@@ -172,3 +174,40 @@ def test_search_results_can_be_saved_by_id(capsys):
     assert out["saved"] == {"keep": 1, "unsure": 0, "discard": 1} and not out["not_saved"]
     again = {d["id"]: d["memory"] for d in search.search_jobs(SLUG)["dossiers"]}
     assert again[board_row["id"]] == "seen" and again[api_row["id"]] == "rejected"
+
+
+def test_an_explicit_query_matches_its_own_role():
+    default = [d["title"] for d in search.search_jobs(SLUG)["dossiers"]]
+    asked = [d["title"] for d in search.search_jobs(SLUG, "frontend engineer")["dossiers"]]
+    assert "Senior Frontend Engineer" not in default and "Senior Frontend Engineer" in asked
+
+
+def test_only_returned_watch_postings_are_marked_served(capsys):
+    assert main(["watch", "--profile", SLUG]) == 0
+    pending = json.loads(capsys.readouterr().out)["new_postings"]
+    assert pending >= 2
+    first = search.search_jobs(SLUG, limit=1)["dossiers"]
+    assert [d["source"] for d in first] == ["watch"]
+    rest = [d for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"]
+    assert len(rest) == pending - 1
+
+
+def test_watch_board_postings_keep_their_board(capsys):
+    assert main(["watchlist", "add", "--profile", SLUG, "--board", "greenhouse:acme"]) == 0
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    served = [d for d in search.search_jobs(SLUG)["dossiers"] if d.get("board") == "greenhouse:acme"]
+    assert served and served[0]["source"] == "watch"
+    from ultron.toolkit.inspect import cached_postings
+    assert cached_postings(SLUG)[served[0]["id"]]["source_key"] == "greenhouse:acme"
+
+
+def test_a_failing_local_feed_is_reported_and_not_cached(monkeypatch):
+    calls = []
+
+    def failing(client, source, timeout):
+        calls.append(1)
+        return [], [{"url": source["url"], "reason": "boom"}]
+    monkeypatch.setitem(role_feeds.COLLECTORS, "arbeitnow", failing)
+    assert search.search_jobs(SLUG)["sources"]["arbeitnow"]["status"] == "failed"
+    assert search.search_jobs(SLUG)["sources"]["arbeitnow"]["status"] == "failed" and len(calls) == 2

@@ -107,22 +107,46 @@ class _Searcher:
         return seed_key(seed), {"status": "ok", "results": len(out)}, out
 
 
+def _ledger_ready() -> bool:
+    return (home.ultron_home() / "ultron.sqlite3").exists()
+
+
 def _pending(profile_slug: str) -> list[dict]:
-    """Postings the watch recorded since the last session, marked queued so they are served once."""
-    if not (home.ultron_home() / "ultron.sqlite3").exists():
+    """Postings the watch recorded since the last session; a board posting keeps its board."""
+    if not _ledger_ready():
         return []
     with closing(ledger.connect()) as conn:
         rows = watchlist.pending(conn, profile_slug)
-        out = [{"id": row.get("identity_key") or candidate_identity(row), "url": row.get("normalized_url", ""),
-                "status": "listed", "title": row.get("ats_title", ""), "company": row.get("ats_company", ""),
-                "location": row.get("ats_location", ""), "source": "watch"} for row in rows]
-        watchlist.mark_queued(conn, profile_slug, [d["id"] for d in out], "search")
+    out = []
+    for row in rows:
+        dossier = {"id": row.get("identity_key") or candidate_identity(row), "url": row.get("normalized_url", ""),
+                   "status": "listed", "title": row.get("ats_title", ""), "company": row.get("ats_company", ""),
+                   "location": row.get("ats_location", ""), "source": "watch"}
+        if row.get("source_type") == "ats_api" and row.get("source_key"):
+            dossier["board"] = row["source_key"]
+        out.append(dossier)
     return out
+
+
+def _mark_served(profile_slug: str, dossiers: list[dict]) -> None:
+    """Mark as queued only the watch postings this answer returns; the rest stay pending."""
+    keys = [d["id"] for d in dossiers if d["source"] == "watch"]
+    if keys and _ledger_ready():
+        with closing(ledger.connect()) as conn:
+            watchlist.mark_queued(conn, profile_slug, keys, "search")
+
+
+def profile_for_query(profile: dict, terms: list[str]) -> dict:
+    """``profile`` with its role titles and focus terms replaced by an explicit role query."""
+    criteria = dict(profile.get("criteria") or {})
+    criteria.update(target_titles=list(terms), role_focus_terms=list(terms), role_family_label=terms[0])
+    criteria.pop("must_have_terms", None)
+    return {**profile, "criteria": criteria}
 
 
 def _cache_row(dossier: dict, boards: set[str]) -> dict:
     """The inspect-cache row of a listed posting, so ``shortlist save`` can name it by ``id`` alone."""
-    board = dossier["source"] if dossier["source"] in boards else ""
+    board = dossier.get("board") or (dossier["source"] if dossier["source"] in boards else "")
     job = {"apply_url": dossier["url"], "title": dossier["title"], "company": dossier["company"],
            "location": dossier["location"]}
     return {"identity_key": dossier["id"], "status": "listed", "url": normalize_url(dossier["url"]),
@@ -146,6 +170,8 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     """
     run = run_context(profile_slug, preset)
     terms = query_terms(run["profile_snapshot"], query)
+    if query.strip():  # match titles against the asked role; location and eligibility rules stay the profile's
+        run = {**run, "profile_snapshot": profile_for_query(run["profile_snapshot"], terms)}
     searcher = _Searcher(run, terms)
     # Each role source has its own host, so they run in parallel; all ATS boards run in one serial job.
     seeds = watch_seeds(run)
@@ -166,5 +192,7 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
         dossier["memory"] = flags[dossier["id"]]
     if new_only:
         ranked = [d for d in ranked if d["memory"] == "new"]
+    returned = ranked[:max(1, limit)]
+    _mark_served(profile_slug, returned)
     return {"profile": profile_slug, "queries": terms, "sources": sources, "results": len(ranked),
-            "dossiers": ranked[:max(1, limit)]}
+            "dossiers": returned}

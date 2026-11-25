@@ -414,7 +414,7 @@ class HttpClient:
         effective_timeout = self.timeout if timeout is None else timeout
         byte_limit = self.max_bytes if max_bytes is None else max_bytes
         current = url
-        first_host = ""
+        first_origin: tuple[str, str, int | None] | None = None
         for _hop in range(MAX_REDIRECTS + 1):
             admitted = admit_url(current, allowed_domains=allowed_domains)
             # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
@@ -428,9 +428,11 @@ class HttpClient:
                 connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
-            first_host = first_host or admitted.hostname
-            # Request headers (credentials) go only to the host they were meant for, never to a redirect target.
-            hop_headers = headers if admitted.hostname == first_host else None
+            origin = (urlsplit(admitted.url).scheme, admitted.hostname, admitted.port)
+            first_origin = first_origin or origin
+            # Request headers (credentials) go only to the origin they were meant for (scheme, host and port), never
+            # to a redirect target on another host or downgraded to plain HTTP.
+            hop_headers = headers if origin == first_origin else None
             vendor = self.vendor_for(admitted.hostname)
             rate_limited = False
             try:

@@ -452,3 +452,16 @@ def test_request_headers_never_follow_a_redirect_to_another_host():
     client = make_client(handler)
     assert client.request_json("https://api.example.com/start", headers={"Authorization": "Basic abc"}) == {"ok": True}
     assert seen == [("api.example.com", "Basic abc"), ("api.example.com", "Basic abc"), ("other.example.org", None)]
+
+
+def test_request_headers_are_never_sent_over_a_downgrade_to_http():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.scheme, request.headers.get("authorization")))
+        if request.url.scheme == "https":
+            return httpx.Response(302, headers={"Location": "http://api.example.com/jobs"})
+        return httpx.Response(200, json={"ok": True})
+
+    make_client(handler).request_json("https://api.example.com/start", headers={"Authorization": "Basic abc"})
+    assert seen == [("https", "Basic abc"), ("http", None)]

@@ -230,6 +230,15 @@ def eligible_seed_count(profile_slug: str, profile: dict) -> int:
     )
 
 
+def profile_seeds(profile_slug: str, profile: dict, limit: int, per_host: int) -> list:
+    """Up to ``limit`` inventory boards that fit the profile's sectors and region, as ``discover ats`` picks them."""
+    criteria = profile.get("criteria") or {}
+    seeds, _groups, _stats = _select_seeds(profile_slug, criteria.get("sectors"), limit, per_host,
+                                           geo=geo_scope(profile), yields=load_seed_yields(profile_slug),
+                                           profile=profile)
+    return [seed for seed, _group in seeds]
+
+
 def _select_seeds(
     profile_slug: str, profile_sectors, limit: int, per_host: int, *, geo: GeoScope = "eu",
     yields: dict[str, tuple[int, int]] | None = None, profile: dict | None = None,

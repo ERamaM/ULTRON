@@ -21,7 +21,7 @@ from ultron.toolkit import search, shortlist
 
 SLUG = profiles.EXAMPLE_SLUG
 REMOTIVE = {"jobs": [
-    {"title": "Senior Machine Learning Engineer", "company_name": "Remco", "url": "https://remotive.com/remote-jobs/1",
+    {"title": "Senior Machine Learning Engineer", "company_name": "Acme", "url": "https://remotive.com/remote-jobs/1",
      "candidate_required_location": "Europe", "publication_date": "2026-11-20T10:00:00"},
     {"title": "Office Manager", "company_name": "Remco", "url": "https://remotive.com/remote-jobs/2",
      "candidate_required_location": "Europe"},
@@ -30,7 +30,7 @@ REMOTIVE = {"jobs": [
 ]}
 HIMALAYAS = {"jobs": [{"title": "ML Engineer", "companyName": "Hico", "applicationLink": "https://hico.example/jobs/9",
                        "locationRestrictions": [], "pubDate": 1795000000}]}
-JOBICY = {"jobs": [{"jobTitle": "Machine Learning Engineer", "companyName": "Jico", "url": "https://jobicy.com/jobs/7",
+JOBICY = {"jobs": [{"jobTitle": "Machine Learning Engineer", "companyName": "Acme", "url": "https://jobicy.com/jobs/7",
                     "jobGeo": "EMEA", "pubDate": "2026-11-21"}]}
 ADZUNA = {"results": [{"title": "Senior Machine Learning Engineer", "company": {"display_name": "Adco"},
                        "location": {"display_name": "Madrid"}, "redirect_url": "https://www.adzuna.es/details/5",

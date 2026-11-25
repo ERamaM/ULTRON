@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import html
+import logging
 from urllib.parse import parse_qs, urlparse
+
+from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 from ultron.core.ats.vendors import greenhouse_job_url
 from ultron.infra.net import URLRejected
+
+logger = logging.getLogger(__name__)
 
 
 def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = False) -> str:
@@ -28,14 +34,32 @@ def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = Fa
     return absolute_url
 
 
-def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
-    """Fetch open postings from a Greenhouse job board."""
+def fetch_greenhouse_jobs(
+    board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient, include_content: bool = False,
+) -> list[AtsPosting]:
+    """Fetch open postings from a Greenhouse job board; ``include_content`` also returns each posting's text.
+
+    A board whose listing with text fails (a large board can exceed the response size limit) is listed again
+    without text, so its postings are never lost.
+    """
+    if include_content:
+        try:
+            return _fetch(board_identifier, timeout, client, include_content=True)
+        except UNCHECKED_ERRORS:
+            raise
+        except Exception as exc:
+            logger.debug("greenhouse board %s: listing with text failed (%s), listing without it",
+                         board_identifier, type(exc).__name__)
+    return _fetch(board_identifier, timeout, client, include_content=False)
+
+
+def _fetch(board_identifier: str, timeout: int, client: AtsHTTPClient, *, include_content: bool) -> list[AtsPosting]:
     fetch_json = client.request_json
     payload = None
     used_eu = False
     last_exc: Exception | None = None
     for host, is_eu in (("boards-api.greenhouse.io", False), ("boards-api.eu.greenhouse.io", True)):
-        url = f"https://{host}/v1/boards/{board_identifier}/jobs?content=false"
+        url = f"https://{host}/v1/boards/{board_identifier}/jobs?content={'true' if include_content else 'false'}"
         try:
             payload = fetch_json(url, timeout=timeout)
             used_eu = is_eu
@@ -76,7 +100,17 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
                 apply_url=apply_url,
                 location=location,
                 posted_at=posted_at,
-                raw_payload=job,
+                raw_payload={key: value for key, value in job.items() if key != "content"},
+                description=_content_text(job.get("content")),
             )
         )
     return output
+
+
+def _content_text(content: object) -> str:
+    """The plain text of a Greenhouse posting's ``content`` (escaped HTML), or ``""``."""
+    if not isinstance(content, str) or not content:
+        return ""
+    text = BeautifulSoup(html.unescape(content), "html.parser").get_text("\n")
+    # One line per paragraph: geography excerpts pick lines, so a restriction late in the text stays visible.
+    return "\n".join(line for line in (" ".join(raw.split()) for raw in text.splitlines()) if line)

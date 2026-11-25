@@ -30,8 +30,9 @@ def _check(profile: str, preset: str) -> int | None:
     return None
 
 
-def read_inputs(path: str) -> tuple[list[str], list[str]]:
-    """URLs and company names from a file: one URL per line, or JSONL rows with ``url`` or ``company``."""
+def read_inputs(path: str) -> tuple[list[str | dict], list[str]]:
+    """URLs and company names from a file: one URL per line, or JSONL rows with ``url`` (and its ``company``) or
+    ``company`` alone."""
     urls, companies = [], []
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         text = line.strip()
@@ -39,9 +40,9 @@ def read_inputs(path: str) -> tuple[list[str], list[str]]:
             continue
         if text.startswith("{"):
             row = json.loads(text)
-            if row.get("url"):
-                urls.append(str(row["url"]))
-            if row.get("company") and not row.get("url"):
+            if row.get("url"):  # the company, when given, helps follow an aggregator page to its employer
+                urls.append({"url": str(row["url"]), "company": str(row.get("company") or "")})
+            elif row.get("company"):
                 companies.append(str(row["company"]))
         else:
             urls.append(text)
@@ -60,7 +61,7 @@ def _inspect(args: argparse.Namespace) -> int:
         urls, companies = urls + more_urls, companies + more_companies
     if not urls and not companies:
         return fail("usage", "give --url, --company or --from")
-    emit(inspect_jobs(args.profile, urls, companies, detail=args.detail, preset=args.preset))
+    emit(inspect_jobs(args.profile, urls, companies, detail=args.detail, show_all=args.all, preset=args.preset))
     return 0
 
 
@@ -111,7 +112,8 @@ def register(subparsers) -> None:
     inspect.add_argument("--url", action="append", help="a posting, aggregator or ATS board URL (repeatable)")
     inspect.add_argument("--company", action="append", help="a company name whose ATS board to list (repeatable)")
     inspect.add_argument("--from", dest="source", help="file with one URL per line, or JSONL with url/company")
-    inspect.add_argument("--detail", action="store_true", help="longer posting excerpts")
+    inspect.add_argument("--detail", action="store_true", help="longer role excerpts")
+    inspect.add_argument("--all", action="store_true", help="also return closed, failed and unresolved results")
     inspect.add_argument("--preset", default=presets.DEFAULT_PRESET)
     inspect.set_defaults(func=_inspect)
 

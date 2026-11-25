@@ -36,5 +36,6 @@ def fetch_ashby_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTT
             remote_hint=str(job.get("workplaceType") or "").strip(),
             posted_at=str(job.get("publishedAt") or "").strip() or None,
             raw_payload={key: value for key, value in job.items() if key not in {"descriptionHtml", "descriptionPlain"}},
+            description=str(job.get("descriptionPlain") or "").strip(),
         ))
     return output

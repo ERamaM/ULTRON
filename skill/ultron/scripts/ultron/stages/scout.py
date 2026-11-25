@@ -13,12 +13,12 @@ from contextlib import closing
 from typing import Any
 
 from ultron.core.ats.identity import seed_identity
-from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_host
+from ultron.core.ats.registry import extract_seed_from_url, get_vendor_spec, infer_vendor_from_host
 from ultron.core.decision.ambiguity import AmbiguityScorer
 from ultron.core.decision.unit import characterize_job
 from ultron.core.discovery.url_filter import domain_of
 from ultron.core.feeds.urls import is_aggregator_host
-from ultron.core.models import CandidateUrl, ExtractedJob
+from ultron.core.models import AtsBoardSeed, CandidateUrl, ExtractedJob
 from ultron.core.rules.geography import geo_scope, location_scope
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
@@ -171,7 +171,24 @@ def watch_seeds(run: dict) -> list:
     except sqlite3.Error:
         return []
     inventory = {":".join(seed_identity(s.ats, s.board_identifier)): s for s in load_inventory(None)}
-    return [inventory[item["seed_key"]] for item in watched if item["seed_key"] in inventory]
+    out = []
+    for item in watched:
+        seed = inventory.get(item["seed_key"]) or board_seed(item["seed_key"], item["company"])
+        if seed is not None:
+            out.append(seed)
+    return out
+
+
+def board_seed(key: str, company: str = ""):
+    """A board seed for a ``vendor:board`` key outside the inventory, or ``None`` for an unknown vendor."""
+    vendor, _, board = key.partition(":")
+    if get_vendor_spec(vendor) is None or not board:
+        return None
+    try:
+        return AtsBoardSeed(seed_id=f"api_{vendor}_{board}", company=company or board, ats=vendor,
+                            board_identifier=board, enabled=True, priority=200, tags=["watchlist"])
+    except ValueError:
+        return None
 
 
 def expansion_seeds(run: dict, out_dir, request_host) -> tuple[list[tuple[Any, str]], dict[str, dict[str, int]]]:
@@ -270,7 +287,7 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
             if flag in {"rejected", "applied"}:
                 drop(job, key, f"already_{flag}")
                 continue
-            digest = scout_memory.content_hash(job.title, job.location)
+            digest = scout_memory.content_hash(job.title, job.location, job.remote_text, job.body_text)
             if flag == "seen" and conn is not None:
                 previous = scout_memory.carried_row(conn, run["profile_slug"], key, digest)
                 if previous is not None:

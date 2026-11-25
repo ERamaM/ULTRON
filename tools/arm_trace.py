@@ -19,7 +19,8 @@ from replay_run import ReplayError, read_run_files
 from ultron.core.job_identity import canonical_job_identity
 from ultron.storage.runs import jsonl_lines
 
-TRACE_FILES = ("candidates.jsonl", "not_evaluated.jsonl", "fetch_errors.jsonl", "seed_attempts.jsonl")
+TRACE_FILES = ("candidates.jsonl", "not_evaluated.jsonl", "fetch_errors.jsonl", "seed_attempts.jsonl",
+               "board_report.jsonl")
 
 
 def _identity(url: str) -> str:
@@ -78,7 +79,10 @@ class RunView:
         self.postings = _keys(_jsonl(texts.get("postings.jsonl")))
         candidates = _jsonl(texts.get("candidates.jsonl"))
         self.candidates = _keys(candidates)
-        self.companies = {_fold(c.get("ats_company") or c.get("company_hint")) for c in candidates} - {""}
+        # Employers whose board ``discover ats`` actually queried: the board report, else the ATS candidates.
+        boards = _jsonl(texts.get("board_report.jsonl"))
+        queried = boards or [c for c in candidates if c.get("source_type") == "ats_api"]
+        self.companies = {_fold(r.get("company") or r.get("ats_company")) for r in queried} - {""}
 
     def outcome(self, keys: set[str], company: str, top_n: int) -> str:
         """The furthest stage the job reached in this run."""

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
-from ultron.core.final_row import _assemble_final_row, fallback_fit_signals, prepare_geography
+from ultron.core.final_row import assemble_final_row, fallback_fit_signals, prepare_geography
 from ultron.core.models import DiscardRecord, ExtractedJob, FinalRow, JobEvaluation, RunSummary
 from ultron.core.ranker import dedupe_final_rows
 from ultron.core.ranker.final_rows import rank_scout_rows
@@ -56,7 +56,8 @@ def _judge(entry: dict, agent: JobEvaluation, out: _Collector, context: dict) ->
     evaluation = context["finalizer"].finalize(agent, from_llm=True, heuristic_baseline=heuristic)
     memory = {"identity_key": key, "verdict": evaluation.verdict if (evaluation.keep or evaluation.verdict == "unsure")
               else "discard", "discard_category": evaluation.discard_category or "", "priority": agent.priority,
-              "content_hash": entry.get("content_hash") or scout_memory.content_hash(job.title, job.location),
+              "content_hash": entry.get("content_hash")
+              or scout_memory.content_hash(job.title, job.location, job.remote_text, job.body_text),
               "company": job.company, "row": None}
     out.verdicts.append(memory)
     if memory["verdict"] == "discard":
@@ -67,7 +68,7 @@ def _judge(entry: dict, agent: JobEvaluation, out: _Collector, context: dict) ->
         memory["verdict"], memory["discard_category"] = "discard", "geo_conflict"
         out.discard(discard_record(job, geo_discard, "post_eval_geo_conflict"), key, "post_eval_geo")
         return
-    row = _assemble_final_row(
+    row = assemble_final_row(
         job, evaluation, heur_remote_policy=geography.remote_policy, heur_eligibility=geography.eligibility,
         geo_red_flags=geography.red_flags, geo_risk_note=geo_risk_note,
         candidate=candidate_of(context["candidates"].get(key), job),

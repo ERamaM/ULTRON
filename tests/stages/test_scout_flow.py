@@ -163,6 +163,7 @@ def test_scout_run_end_to_end(capsys):
     assert items[0]["found_by"] == "agent" and items[0]["memory"] == "new" and "hint" in items[0]
     assert any(item["found_by"] == "expansion" for item in items)
     agent_items = [i for i in items if i["found_by"] == "agent"]
+    assert any(i["identity_key"] == "greenhouse:acme:4012345" for i in agent_items)  # expansion keeps the origin
     first, second = agent_items[0]["identity_key"], agent_items[1]["identity_key"]
     expansion = next(i["identity_key"] for i in items if i["found_by"] == "expansion")
     verdicts = [_verdict(first, "keep", 3), _verdict(second, "keep", 1), _verdict(expansion, "discard")]
@@ -238,3 +239,28 @@ def test_saved_search_runs_the_watch(capsys):
     _cli(capsys, "saved-search", "create", "daily", "--profile", profiles.EXAMPLE_SLUG)
     out = _cli(capsys, "saved-search", "run", "daily", "--watch")
     assert out["saved_search"] == "daily" and out["boards"] == 0
+
+
+def test_watch_queries_a_board_outside_the_inventory(capsys):
+    _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "https://boards.greenhouse.io/acme")
+    out = _cli(capsys, "watch", "--profile", profiles.EXAMPLE_SLUG)
+    assert out["boards"] == 1 and out["new_postings"] >= 1
+
+
+def test_expansion_keeps_watch_candidates(capsys):
+    _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
+    _cli(capsys, "watch", "--profile", profiles.EXAMPLE_SLUG)
+    run_id = _new_scout(capsys)["run_id"]
+    before = {c["normalized_url"] for c in runs.read_jsonl(runs.run_dir(run_id) / "candidates.jsonl")}
+    _cli(capsys, "discover", "ats", "--run", run_id)
+    after = runs.read_jsonl(runs.run_dir(run_id) / "candidates.jsonl")
+    watched = {c["normalized_url"] for c in after if c["search_pass"] == "watch"}
+    assert before and before <= watched
+
+
+def test_saved_search_watch_applies_overrides(capsys):
+    _cli(capsys, "saved-search", "create", "tight", "--profile", profiles.EXAMPLE_SLUG,
+         "--override", "max_requests_per_host=1")
+    _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
+    out = _cli(capsys, "saved-search", "run", "tight", "--watch")
+    assert out["requests"] <= 1

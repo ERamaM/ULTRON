@@ -73,10 +73,17 @@ def _write_digest(profile_slug: str, found: list[dict], stamp: str) -> str:
     return str(path)
 
 
-def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET) -> dict[str, Any]:
-    """Query the watchlist of ``profile_slug`` and record the postings it has not seen yet."""
+def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET, overrides: dict | None = None) -> dict[str, Any]:
+    """Query the watchlist of ``profile_slug`` and record the postings it has not seen yet.
+
+    ``overrides`` (a saved search's settings) are validated and merged into the preset, so its request limits
+    and timeouts apply to the watch too.
+    """
     profile = profile_store.load_profile(profile_slug)
-    run = {"profile_slug": profile_slug, "profile_snapshot": profile, "settings": presets.resolve(preset)}
+    settings = presets.resolve(preset)
+    if overrides:
+        settings.update(presets.validate_overrides(overrides, settings))
+    run = {"profile_slug": profile_slug, "profile_snapshot": profile, "settings": settings}
     seeds = watch_seeds(run)
     if not seeds:
         return {"profile": profile_slug, "boards": 0, "new_postings": 0, "digest": None,

@@ -65,21 +65,49 @@ def classify_find(url: str) -> Resolution:
     return Resolution(EMPLOYER_PAGE, url=url, source_type=EMPLOYER_PAGE)
 
 
-def resolve_aggregator(url: str, client, timeout: int) -> Resolution:
+def _company_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(text or "").casefold())
+
+
+def _pick_link(links: list[str], company: str) -> str | None:
+    """The one posting link of the page; with several, the one on the board of ``company``; else ``None``."""
+    by_identity: dict[str, str] = {}
+    for link in links:
+        by_identity.setdefault(canonical_job_identity(link).identity_key, link)
+    if len(by_identity) == 1:
+        return next(iter(by_identity.values()))
+    wanted = _company_key(company)
+    if not wanted:
+        return None
+    matching = [link for link in by_identity.values()
+                if (seed := extract_seed_from_url(link, "")) is not None
+                and (wanted in _company_key(seed.board_identifier) or _company_key(seed.board_identifier) in wanted)]
+    return matching[0] if len(matching) == 1 else None
+
+
+def resolve_aggregator(url: str, client, timeout: int, company: str = "") -> Resolution:
     """The employer posting an aggregator page links to, or ``unresolved_aggregator``.
 
     Only links to a single posting on a supported ATS board count: an aggregator's own pages and links to other
-    aggregators are ignored. A blocked host or an exhausted budget leaves the find unresolved with that reason.
+    aggregators are ignored. When the page links to several postings (related jobs), only the one on the board
+    of ``company`` is taken; if that does not single one out, the find stays unresolved rather than risk another
+    employer's job. A blocked host or an exhausted budget leaves the find unresolved with that reason.
     """
     try:
         links = fetch_page_links(url, timeout, client=client)[:MAX_AGGREGATOR_LINKS]
     except (RequestBudgetExceeded, HostBlocked, VendorBlocked) as exc:
         return Resolution("unresolved_aggregator", reason=type(exc).__name__)
+    postings = []
     for link in links:
         try:
             admit_url(link)
         except URLRejected:
             continue
         if is_job_link(link):
-            return Resolution("resolved_aggregator", url=link, source_type="web_search")
-    return Resolution("unresolved_aggregator", reason="no_employer_posting_link")
+            postings.append(link)
+    if not postings:
+        return Resolution("unresolved_aggregator", reason="no_employer_posting_link")
+    chosen = _pick_link(postings, company)
+    if chosen is None:
+        return Resolution("unresolved_aggregator", reason="ambiguous_posting_links")
+    return Resolution("resolved_aggregator", url=chosen, source_type="web_search")

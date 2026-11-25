@@ -63,7 +63,7 @@ def _resolve(row: dict, run: dict, client_box: list) -> Resolution:
         return found
     if not client_box:
         client_box.append(client_for_run(run, block_threshold=HOST_BLOCK_THRESHOLD))
-    return resolve_aggregator(url, client_box[0], run["settings"]["ats_api_timeout"])
+    return resolve_aggregator(url, client_box[0], run["settings"]["ats_api_timeout"], clean_text(row.get("company")))
 
 
 def _memory_flags(profile_slug: str, keys: list[str]) -> dict[str, str]:

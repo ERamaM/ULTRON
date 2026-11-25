@@ -1,9 +1,10 @@
-"""The agent toolkit commands: ``ultron search``, ``ultron inspect`` and ``ultron shortlist save``."""
+"""The agent toolkit commands: ``ultron search``, ``inspect``, ``shortlist save`` and the ``mcp`` server."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from ultron.commands.output import emit, fail
@@ -11,6 +12,7 @@ from ultron.core import presets
 from ultron.profiles import store as profile_store
 from ultron.storage import runs
 from ultron.toolkit.inspect import inspect_jobs
+from ultron.toolkit.mcp_server import serve
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import EmptyShortlist, save_shortlist
 
@@ -83,8 +85,19 @@ def _save(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mcp(_args: argparse.Namespace) -> int:
+    # The protocol needs UTF-8 on both streams, whatever the console code page (Windows).
+    for stream in (sys.stdin, sys.stdout):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
+    return serve()
+
+
 def register(subparsers) -> None:
-    """Register ``search``, ``inspect`` and ``shortlist save``."""
+    """Register ``search``, ``inspect``, ``shortlist save`` and ``mcp``."""
+    mcp = subparsers.add_parser("mcp", help="serve search, inspect and save as MCP tools over stdio")
+    mcp.set_defaults(func=_mcp)
+
     search = subparsers.add_parser("search", help="postings from the watch, watched boards and role job APIs")
     search.add_argument("--profile", required=True)
     search.add_argument("--query", help="a role query instead of the profile's target titles")

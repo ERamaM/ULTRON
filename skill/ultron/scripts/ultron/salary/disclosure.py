@@ -365,14 +365,28 @@ def _markets_in_disclosure(clause: str, window: str) -> set[str]:
     return named
 
 
-def _disclosure_context(clause: str, window: str) -> dict[str, Any]:
+# A pay-basis qualifier attached to the amount after a comma or in parentheses, before any other figure:
+# "EUR 60,000 - 80,000 per year (gross)". Bounded and linear (no nested quantifiers).
+_ATTACHED_BASIS = re.compile(r"^[^\d.;|\n()]{0,25}[(,][ \t]{0,3}(gross|brut[oa]|brutto|net|net[oa]|netto)\b")
+
+
+def attached_basis(text_after: str) -> str | None:
+    """``gross`` or ``net`` when the text right after an amount qualifies it, else ``None``."""
+    match = _ATTACHED_BASIS.match(normalize_text(text_after[:60]))
+    if not match:
+        return None
+    return "gross" if _GROSS.fullmatch(match.group(1)) else "net"
+
+
+def _disclosure_context(clause: str, window: str, attached: str | None = None) -> dict[str, Any]:
     countries = _markets_in_disclosure(clause, window)
     base, total = bool(_BASE_PAY.search(clause)), bool(_TOTAL_PAY.search(clause))
     gross, net = bool(_GROSS.search(clause)), bool(_NET.search(clause))
+    basis = ("gross" if gross else "net") if gross != net else None
     return {
         "markets": sorted(countries),
         "compensation_type": ("base" if base else "total") if base != total else None,
-        "gross_or_net": ("gross" if gross else "net") if gross != net else None,
+        "gross_or_net": basis or attached,
     }
 
 
@@ -429,7 +443,7 @@ def _build_salary_hit(
         "annual_mid": round((annual_low + annual_high) / 2),
         "geo_hint": detect_geo_hint(window),
         "clause_geo_hint": detect_geo_hint(clause),
-        **_disclosure_context(folded_clause, window),
+        **_disclosure_context(folded_clause, window, attached_basis(text[match.end():])),
         "snippet": str(redact(snippet)),
         "span": (match.start(), match.end()),
     }

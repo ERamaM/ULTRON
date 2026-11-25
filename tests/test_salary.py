@@ -425,3 +425,13 @@ def test_pay_basis_and_shared_country_lists_are_order_independent():
     assert [(band["gross_or_net"], band["annual_low"]) for band in german] == [
         ("gross", 60_000), ("net", 40_000),
     ]
+
+
+def test_a_parenthetical_pay_basis_stays_with_its_amount():
+    from ultron.salary.disclosure import extract_salaries_from_text
+    gross = extract_salaries_from_text("Spain base salary: EUR 60,000 - 80,000 per year (gross).")
+    net = extract_salaries_from_text("Spain base salary: EUR 40,000 - 50,000 per year (net).")
+    assert [hit["gross_or_net"] for hit in gross] == ["gross"]
+    assert [hit["gross_or_net"] for hit in net] == ["net"]
+    bonus = extract_salaries_from_text("Spain base salary: EUR 60,000 - 80,000 per year plus 10,000 bonus (gross).")
+    assert bonus[0]["gross_or_net"] is None  # the qualifier belongs to the bonus, after another figure

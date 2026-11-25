@@ -37,6 +37,20 @@ Four outputs, each usable on its own from the CLI and through an MCP server.
 - Results are ranked lexically against the profile's titles and focus terms, flagged against memory and returned as `listed` dossiers. Pending watch postings are served first and marked queued.
 - Option 1 (a published index of thousands of boards) needs infrastructure outside the repository and is out of scope.
 
+Feasibility of option 2, from the sources' own documentation (read 2026-11-25):
+
+| Source | Role query | Key | Result |
+|---|---|---|---|
+| Remotive | `search` | none | implemented; terms ask for a link back, a source mention and at most a few requests a day (6 h cache) |
+| Himalayas | `q` on `/jobs/api/search` | optional | implemented keyless; terms ask for attribution and the `applicationLink` |
+| Jobicy | `tag` (title) on `/api/jobs` | none | implemented; at most one automated pass an hour (1 h cache) |
+| Arbeitnow, Hacker News | not documented | none | existing collectors, filtered locally (6 h cache) |
+| Adzuna | `what` | `app_id`/`app_key` in the query | implemented, opt-in; personal job search is a permitted use; the country comes from `ADZUNA_COUNTRY` |
+| Reed | `keywords` | Basic auth | implemented, opt-in; UK postings |
+| Jooble | not documented publicly | key | not implemented: the API page shows no endpoint or parameters |
+
+Verdict: partly feasible. Three keyless role-searchable APIs and two keyed ones cover remote and some national markets; national coverage elsewhere depends on keys the user provides.
+
 ### C. Three tools, no state machine
 
 - `ultron shortlist save --profile <slug> --from FILE`: the agent's judged rows (by `id`, or `url` with `title` and `company`) become a finalized shortlist. It reuses the verified finds of specification 30: a scout run is created and finalized, so the shortlist gets `results.json`, history, new-since-last-run flags, memory and watchlist credit for the boards of kept postings.

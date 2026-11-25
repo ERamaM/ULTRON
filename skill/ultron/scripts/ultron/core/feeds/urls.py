@@ -38,6 +38,11 @@ AGGREGATOR_DOMAINS = {
     "www.workingnomads.com",
     "remotifyeurope.com",
     "www.remotifyeurope.com",
+    # Keyed role sources of ``ultron search``: their links are listing pages (adzuna.es, adzuna.co.uk, ...).
+    "adzuna.com",
+    "www.adzuna.com",
+    "reed.co.uk",
+    "www.reed.co.uk",
 }
 SHORTENER_DOMAINS = {
     "amz.run",

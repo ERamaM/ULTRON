@@ -263,7 +263,7 @@ def test_saved_search_watch_applies_overrides(capsys):
          "--override", "max_requests_per_host=1")
     _cli(capsys, "watchlist", "add", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
     out = _cli(capsys, "saved-search", "run", "tight", "--watch")
-    assert out["requests"] <= 1
+    assert all(item["requests"] <= 1 for item in out["requests_by_domain"])
 
 
 def test_unevaluated_watch_postings_return_to_pending(capsys):

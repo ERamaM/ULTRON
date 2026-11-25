@@ -81,12 +81,22 @@ The scout arm fails the pass criteria on both profiles. On the AI profile it cle
 - *Result.* Relevant jobs per run moved from 11.0 to 11.3 (AI) and from 8.7 to 10.3 (finance). Both moves are within the spread between repetitions, about 3. P@5 and P@10 improved: AI from 0.67 / 0.63 to 0.87 / 0.79, finance P@10 from 0.86 to 0.93.
 - *Decision.* The target metric did not beat the spread, so the change was reverted (branch `fix/scout-live-finds`, commit a949d4a, not merged). The finds were also not like for like: two agents reached the live target by querying public board APIs with their own scripts.
 
-**Why the loop stopped.** The session's shared web-search quota ran out during iteration 1. Without web search, a live scout repetition is not comparable. The loop stopped with 24 of the 30 live runs used. Specification [28](28-retire-the-sweep-pipeline.md) is not applied.
+**Iterations 2 and 3.** The web-search quota turned out to be shared and partly refilling, not exhausted for good, so the loop resumed with the remaining 6 runs. The scout subagents still got only 6 to 14 searches per run, against about 15 in pass 0. That confounds both iterations.
+- *Iteration 2*, AI profile only (the finance queue never reached the cap):
+  - Change: raise `scout_queue_cap` from 60 to 150.
+  - Result: relevant jobs per run 10.7 against 11.0, P@5 and P@10 0.73 and 0.67, ineligible rate 0.16.
+  - Decision: reverted. The extra judged postings were mostly expansion rows outside the top 25, or unsure.
+- *Iteration 3*, finance profile only:
+  - Change: follow job boards and VC portfolio boards (wellfound, jobgether, builtin, remoterocketship and others) like aggregators.
+  - Result: relevant jobs per run 5.3 against 8.7, P@10 0.54, ineligible rate 0.35. Many more finds came back unresolved, and the agents had too few searches left to replace them.
+  - Decision: reverted.
+
+**Why the loop stopped.** Two stop conditions of [29](29-improvement-loop.md) hold: three iterations without a kept change, and the live budget spent (30 of 30). Specification [28](28-retire-the-sweep-pipeline.md) is not applied, and the sweep stays the default mode. Only the user can raise the budget. A fresh session with an unshared search quota would give cleaner iterations.
 
 Still open:
 - the user spot check of the four sessions;
 - the second-day measurement;
-- the ideas not tried: raise the scout queue cap so more expansion postings are judged (expansion keeps were 69% relevant on the AI profile, and 53 to 97 postings per run were left unevaluated), and export only `keep` rows;
+- the idea not tried: export only `keep` rows; the queue-cap idea was tried in iteration 2;
 - defects found in the runs:
   - several aggregators and job boards are classed as employer pages: wellfound, jobgether, 4dayweek, builtin, remoterocketship, remotefirstjobs, startup.jobs, flexa, arc.dev and VC portfolio boards;
   - an aggregator page with a single unrelated job link resolves to that job;

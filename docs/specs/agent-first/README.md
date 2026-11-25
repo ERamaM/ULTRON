@@ -14,6 +14,7 @@ Status: accepted direction. The user owns the code and accepts breaking changes.
 - [28 · Retire the sweep pipeline](28-retire-the-sweep-pipeline.md)
 - [29 · Improvement loop](29-improvement-loop.md)
 - [30 · Verified finds first](30-verified-finds-first.md)
+- [31 · Agent toolkit](31-agent-toolkit.md)
 
 ## Why the current design loses
 
@@ -107,6 +108,10 @@ Still open:
 ## Correction after the loop
 
 The scout mode merged in #99 did not implement the split above faithfully. The agent stopped verifying postings itself and judged a queue ULTRON built, so it did less than the same agent searching alone. [Specification 30](30-verified-finds-first.md) corrects this: the agent searches and verifies as it would alone, ULTRON takes those verified finds as they are, and board expansion only adds extras below them. Implement it before any further measurement or loop iteration.
+
+## Pass 0 of specification 30 stopped
+
+The measurement of specification 30 was stopped by the user after 3 of 6 repetitions, and no loop iteration ran. The scout agent did the baseline's work plus ULTRON's protocol, so it could at best match the baseline's relevant jobs while always spending more tokens (190k to 275k per run against 134k to 220k). The agents scripted the ATS APIs themselves (300 to 525 requests per run) because the protocol gave them no way to use ULTRON's clients. [31](31-agent-toolkit.md) replaces the scout loop with tools the agent calls.
 
 ## Constraints
 

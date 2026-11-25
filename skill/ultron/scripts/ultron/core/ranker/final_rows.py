@@ -121,26 +121,40 @@ def dedupe_final_rows(
 ) -> tuple[list[FinalRow], list[FinalRow]]:
     """Keep each group's best row in its first arrival's position.
 
+    Two verified finds of the agent at different posting URLs are never merged: it opened and judged each.
+
     With ``merge_locations`` (remote-only profiles), the location variants of one posting (same company,
     title and board, one listing per city) also collapse into one row that lists every location.
     """
     kept: list[FinalRow] = []
     duplicates: list[FinalRow] = []
     identities = RoleIdentityIndex()
+    positions: list[int] = []  # index group -> position in ``kept``
     for row in rows:
         group = identities.group_key(row)
         if group is None:
             identities.add(row)
+            positions.append(len(kept))
             kept.append(row)
-        elif _duplicate_quality(row) < _duplicate_quality(kept[int(group)]):
-            duplicates.append(kept[int(group)])
-            kept[int(group)] = row
+            continue
+        at = positions[int(group)]
+        if _both_verified_apart(row, kept[at]):
+            kept.append(row)  # the agent opened both postings and judged each: two vacancies, not one
+        elif _duplicate_quality(row) < _duplicate_quality(kept[at]):
+            duplicates.append(kept[at])
+            kept[at] = row
         else:
             duplicates.append(row)
     if merge_locations:
         kept, merged = _merge_location_variants(kept)
         duplicates.extend(merged)
     return kept, duplicates
+
+
+def _both_verified_apart(row: FinalRow, other: FinalRow) -> bool:
+    """Two verified finds at different posting URLs (same title and company, such as two openings)."""
+    return (row.found_by == VERIFIED_FOUND_BY and other.found_by == VERIFIED_FOUND_BY
+            and row.apply_url != other.apply_url)
 
 
 _MAX_LISTED_LOCATIONS = 10

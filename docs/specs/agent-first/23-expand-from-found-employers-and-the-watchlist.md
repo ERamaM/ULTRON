@@ -1,6 +1,6 @@
 # 23 · Expand from found employers and the watchlist
 
-Status: proposed. Delivery 2.
+Status: proposed.
 
 ## Current behavior
 
@@ -30,4 +30,4 @@ The watchlist is visible and editable: `ultron watchlist list|add|remove --profi
 
 ## Verification
 
-Replay recorded board inventories with a fake client. Check the selected set, the per-board report and the budgets. Live, delivery 2 must beat the free agent on relevant jobs per run. Apply the [shared verification](README.md#verification).
+Replay recorded board inventories with a fake client. Check the selected set, the per-board report and the budgets. Live, the scout arm must beat the free agent on relevant jobs per run. Apply the [shared verification](README.md#verification).

@@ -729,6 +729,156 @@ def test_cover_letter_edge_cases_and_cli_error_paths(tmp_path: Path, monkeypatch
 
 
 
+def test_strict_verifiers_preserve_employer_and_outcome_attribution(tmp_path, capsys):
+    source = tmp_path / "source.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2021 - Jan 2022\n"
+        "- Reduced costs by 20%.\nPlatform Engineer | Boreal Labs | Feb 2022 - Feb 2023\n"
+        "- Ran Kubernetes clusters.\n",
+        encoding="utf-8",
+    )
+    for command in ("cv", "cover-letter"):
+        draft = tmp_path / "draft.md"
+        prefix = (
+            "Experience\nPlatform Engineer | Boreal Labs | Feb 2022 - Feb 2023\n"
+            if command == "cv" else ""
+        )
+        bad_claim = "At Boreal Labs, I reduced costs by 20% with Kubernetes."
+        draft.write_text(prefix + bad_claim, encoding="utf-8")
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == 1
+        failed = json.loads(capsys.readouterr().out)
+        issue = next(row for row in failed["violations"] if row["type"] == "unsupported_claim_attribution")
+        assert issue["token"] == bad_claim
+
+        facts = tmp_path / "confirmed.txt"
+        facts.write_text(bad_claim, encoding="utf-8")
+        assert cli.main([*args, "--confirmed", str(facts)]) == 0
+        capsys.readouterr()
+
+        good = "At Atlas Systems, I cut operating expenses by 20%."
+        draft.write_text(good, encoding="utf-8")
+        assert cli.main(args) == 0
+        capsys.readouterr()
+
+
+def test_approximate_years_are_not_certified_as_exact_tenure(tmp_path, capsys):
+    source = tmp_path / "approximate.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | 2022 - 2024\n"
+        "- Built production systems.\nConsultant | Boreal Labs | 2022 - 2024\n",
+        encoding="utf-8",
+    )
+    precise = tmp_path / "precise.txt"
+    precise.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2022 - Dec 2023\n",
+        encoding="utf-8",
+    )
+    ref = "2026-11-24"
+    assert cli.main(["salary", "analyze", "--cv", str(source), "--no-runs", "--as-of", ref]) == 0
+    experience = json.loads(capsys.readouterr().out)["experience"]
+    assert experience["experience_precision"] == "approximate"
+    assert experience["total_months"] == 24
+    assert (experience["minimum_total_months"], experience["maximum_total_months"]) == (14, 36)
+    assert experience["roles"][0]["start_precision"] == "year"
+    assert cli.main(["salary", "analyze", "--cv", str(precise), "--no-runs", "--as-of", ref]) == 0
+    exact = json.loads(capsys.readouterr().out)["experience"]
+    assert exact["experience_precision"] == "month"
+    assert exact["minimum_total_months"] == exact["maximum_total_months"] == 24
+
+    draft = tmp_path / "draft.md"
+    draft.write_text("I have 2 years of engineering experience.", encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict", "--as-of", ref]
+        assert cli.main(args) == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["authorized_experience_month_bounds"] == [14, 36]
+        assert any(row["type"] == "uncertain_experience_duration" for row in result["violations"])
+
+
+def test_strict_verifiers_accept_aliases_heading_formats_and_unchanged_current_year(tmp_path, capsys):
+    source = tmp_path / "source.txt"
+    source.write_text(
+        "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Nov 2025 - 2026\n"
+        "- Reduced costs by 20% using k8s.\n",
+        encoding="utf-8",
+    )
+    draft = tmp_path / "draft.txt"
+    draft.write_text(
+        "Ada Lovelace\nExperience\nEngineer at Atlas Systems | Nov 2025 - 2026\n"
+        "- Reduced costs by 20% using Kubernetes.\n",
+        encoding="utf-8",
+    )
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict", "--as-of", "2026-01-01"]
+        assert cli.main(args) == 0
+        result = json.loads(capsys.readouterr().out)
+        assert result["authorized_experience_month_bounds"] == [3, 3]
+        assert result["source_experience_months"] == 3
+
+
+def test_strict_rewrites_keep_separate_metrics_and_authorized_approximate_roles(tmp_path, capsys):
+    head = "Ada Lovelace\nExperience\nEngineer | Atlas Systems"
+    first_role = " | Jan 2020 - Jan 2021\n"
+    second_role = "Consultant | Boreal Labs | 2022 - 2024\n"
+    source = tmp_path / "source.txt"
+    source.write_text(
+        head + " | London" + first_role
+        + "- Reduced costs by 20% using Python.\n- Reduced latency by 30% using SQL.\n",
+        encoding="utf-8",
+    )
+    draft = tmp_path / "draft.txt"
+    draft.write_text(
+        head + first_role + "- Reduced costs by 20% using Python and reduced latency by 30% using SQL.\n"
+        + second_role,
+        encoding="utf-8",
+    )
+    facts = tmp_path / "confirmed.txt"
+    facts.write_text(second_role, encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict",
+                "--as-of", "2026-11-24", "--confirmed", str(facts)]
+        assert cli.main(args) == 0
+        capsys.readouterr()
+
+    source.write_text("Ada Lovelace\nExperience\nEngineer\nJan 2020 - Jan 2021\n- Reduced costs by 20%.\n",
+                      encoding="utf-8")
+    draft.write_text(head + first_role + "- Increased costs by 20%.\n", encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == 1
+        assert any(item["type"] == "unsupported_claim_attribution"
+                   for item in json.loads(capsys.readouterr().out)["violations"])
+
+
+@pytest.mark.parametrize(("original", "revision", "passed"), [
+    ("Reduced costs by 20% using Python.", "Reduced costs and latency by 20% using Python.", False),
+    ("Used Python to reduce costs by 20%.", "Reduced costs by 20% using Python.", True),
+    ("Reduced costs by 20% by integrating an API from Boreal Labs.", "Reduced costs by 20%.", True),
+])
+def test_strict_attribution_checks_each_outcome_and_preserves_employment_scope(tmp_path, capsys,
+                                                                              original, revision, passed):
+    atlas = "Ada Lovelace\nExperience\nEngineer | Atlas Systems | Jan 2020 - Jan 2021\n- "
+    boreal = "\nEngineer | Boreal Labs | Feb 2021 - Feb 2022\n- Maintained systems.\n"
+    source = tmp_path / "source.txt"
+    source.write_text(atlas + original + boreal, encoding="utf-8")
+    draft = tmp_path / "draft.txt"
+    draft.write_text(atlas + revision + boreal, encoding="utf-8")
+    for command in ("cv", "cover-letter"):
+        args = [command, "verify-truth", "--source", str(source),
+                "--optimized" if command == "cv" else "--draft", str(draft), "--strict"]
+        assert cli.main(args) == (0 if passed else 1)
+        result = json.loads(capsys.readouterr().out)
+        assert result["passed"] is passed
+        if not passed:
+            assert any(row["type"] == "unsupported_claim_attribution" for row in result["violations"])
+
+
 @pytest.mark.parametrize(("instruction", "override", "language", "source", "conflict", "ambiguous"), [
     ("Envía tu candidatura en inglés.", None, "en", "application_instruction", False, False),
     ("Envía tu candidatura en inglés.", "es", "es", "override", True, False),

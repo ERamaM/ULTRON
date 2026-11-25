@@ -91,20 +91,23 @@ class _Searcher:
 
     def role_source(self, source: RoleSource) -> tuple[str, dict, list[dict]]:
         """One role API; ``(name, status, dossiers)``."""
-        status, rows = role_source_rows(source, self.terms, self._client(), self.timeout)
+        with self._client() as client:
+            status, rows = role_source_rows(source, self.terms, client, self.timeout)
         found = matching_rows(rows, self.profile, source.label)
         return source.name, {**status, "results": len(found)} if rows else status, found
 
     def local_feed(self, source: dict) -> tuple[str, dict, list[dict]]:
         """One keyless feed, filtered by the profile and the role terms; ``(name, status, dossiers)``."""
-        status, rows = local_feed_rows(source, self._client(), self.timeout)
+        with self._client() as client:
+            status, rows = local_feed_rows(source, client, self.timeout)
         found = [d for d in matching_rows(rows, self.profile, source["id"]) if relevance(d["title"], self.terms) > 0]
         return source["id"], {**status, "results": len(found)}, found
 
     def board(self, seed) -> tuple[str, dict, list[dict]]:
         """One ATS board's postings that match the profile; ``(seed key, status, dossiers)``."""
         try:
-            postings = list_board(seed, self._client(), self.timeout)
+            with self._client() as client:
+                postings = list_board(seed, client, self.timeout)
         except NETWORK_ERRORS as exc:
             return seed_key(seed), {"status": "failed", "error": type(exc).__name__}, []
         except PAYLOAD_ERRORS as exc:

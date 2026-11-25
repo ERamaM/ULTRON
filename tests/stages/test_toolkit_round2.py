@@ -170,3 +170,33 @@ def test_hn_rows_use_the_headline_as_title(monkeypatch):
                                                "parser": "hn_who_is_hiring"}, None, 5)
     assert status["status"] == "ok" and rows[0]["title"] == "Acme | Senior ML Engineer | Remote EU"
     assert rows[0]["description"] == "We build LLM systems."
+
+
+def test_a_greenhouse_board_too_large_with_text_is_listed_without_it():
+    asked = []
+
+    def extra(request):
+        if "greenhouse" in request.url.host and request.url.path.startswith("/v1/boards/acme"):
+            asked.append(request.url.params.get("content"))
+            if request.url.params.get("content") == "true":
+                return httpx.Response(200, text="{truncated")  # what a cut-off oversized reply parses as
+        return None
+    _serve(extra)
+    result = inspect.inspect_jobs(SLUG, ["https://boards.greenhouse.io/acme"])
+    assert "true" in asked and "false" in asked
+    assert [d["status"] for d in result["dossiers"]] and all(d["status"] == "listed" for d in result["dossiers"])
+
+
+def test_requested_postings_match_their_board_whatever_the_greenhouse_host():
+    page_hits = []
+
+    def extra(request):
+        if "greenhouse" in request.url.host and request.url.path.startswith("/v1/boards/acme"):
+            return httpx.Response(200, json=BOARD_WITH_TEXT)
+        if "greenhouse.io" in request.url.host and "/jobs/" in request.url.path:
+            page_hits.append(str(request.url))
+        return None
+    _serve(extra)
+    result = inspect.inspect_jobs(SLUG, ["https://job-boards.greenhouse.io/acme/jobs/4012345"])
+    read = {d["id"]: d for d in result["dossiers"]}["greenhouse:acme:4012345"]
+    assert read["status"] == "open" and "via" not in read and page_hits == []

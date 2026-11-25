@@ -20,6 +20,8 @@ from ultron.core.ats.clients.base import AtsPosting
 from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.prefilter import is_clearly_ineligible_at_discovery, passes_coarse_prefilter
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
+from ultron.core.discovery.url_filter import domain_of, normalize_url
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import escape_markdown_cell
 from ultron.core.rules.geography import geo_scope, location_scope
@@ -34,10 +36,12 @@ from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.stages.role_feeds import keyless_sources, local_feed_rows, local_feeds, query_terms, role_source_rows
 from ultron.stages.scout import WATCH_PASS, watch_seeds
 from ultron.stages.scout_finds import web_candidate
+from ultron.stages.scout_resolve import resolve_aggregator
 from ultron.storage import ledger, runs, scout_memory, watchlist
 
 WATCH_DIR = "watch"
 RECHECK_MAX = 25
+MAX_RESOLVED = 20  # aggregator pages followed to the employer posting per watch
 
 
 def profile_matches(postings: list, profile: dict) -> list:
@@ -84,10 +88,20 @@ def _role_candidates(run: dict, client, timeout: int) -> tuple[list[dict], dict[
         rows.extend(got)
     company = {r["url"]: r.get("company_name", "") for r in rows}
     source = {r["url"]: r.get("source", "") for r in rows}
-    candidates = []
+    candidates, resolved = [], 0
     for posting in profile_matches(as_postings(rows), profile):
-        candidate = web_candidate(posting.apply_url, {"title": posting.title, "company": company[posting.apply_url],
-                                                      "location": posting.location}, f"watch:{source[posting.apply_url]}")
+        url = posting.apply_url
+        if is_aggregator_host(domain_of(normalize_url(url))):
+            # A scout run drops aggregator pages, so only the employer posting they link to is recorded.
+            if resolved >= MAX_RESOLVED:
+                continue
+            resolved += 1
+            found = resolve_aggregator(url, client, timeout, company[url])
+            if found.outcome != "resolved_aggregator":
+                continue
+            url = found.url
+        candidate = web_candidate(url, {"title": posting.title, "company": company[posting.apply_url],
+                                        "location": posting.location}, f"watch:{source[posting.apply_url]}")
         candidate.search_pass = WATCH_PASS
         candidates.append(candidate.model_dump(mode="json"))
     return candidates, statuses

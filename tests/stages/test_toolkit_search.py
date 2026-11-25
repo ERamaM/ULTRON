@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from test_scout_flow import GH_BOARD, GH_PAGE, POSTING
+from test_scout_flow import GH_BOARD, GH_PAGE, OTHER_POSTING, POSTING
 
 from ultron import seeds
 from ultron.cli import main
@@ -31,7 +31,7 @@ HIMALAYAS = {"jobs": [{"title": "ML Engineer", "companyName": "Hico", "applicati
                        "locationRestrictions": [], "pubDate": 1795000000}]}
 JOBICY = {"jobs": [{"jobTitle": "Machine Learning Engineer", "companyName": "Jico", "url": "https://jobicy.com/jobs/7",
                     "jobGeo": "EMEA", "pubDate": "2026-11-21"}]}
-ADZUNA = {"results": [{"title": "Senior ML Engineer", "company": {"display_name": "Adco"},
+ADZUNA = {"results": [{"title": "Senior Machine Learning Engineer", "company": {"display_name": "Adco"},
                        "location": {"display_name": "Madrid"}, "redirect_url": "https://www.adzuna.es/details/5",
                        "created": "2026-11-22T00:00:00Z"}]}
 REED = {"results": [{"jobId": 77, "jobTitle": "Machine Learning Engineer", "employerName": "Reedco",
@@ -42,8 +42,12 @@ SEEN: list[httpx.Request] = []
 def _handler(request: httpx.Request) -> httpx.Response:
     SEEN.append(request)
     host, path = request.url.host, request.url.path
-    if host == "remotive.com":
+    if host == "remotive.com" and path.startswith("/api"):
         return httpx.Response(200, json=REMOTIVE)
+    if host == "remotive.com":  # a listing page links to the employer's posting
+        return httpx.Response(200, text=f'<html><body><a href="{POSTING}">Apply</a></body></html>')
+    if host == "jobicy.com" and path.startswith("/jobs/"):
+        return httpx.Response(200, text=f'<html><body><a href="{OTHER_POSTING}">Apply</a></body></html>')
     if host == "himalayas.app" and path == "/jobs/api/search":
         return httpx.Response(200, json=HIMALAYAS)
     if host == "jobicy.com" and path == "/api/jobs":
@@ -211,3 +215,23 @@ def test_a_failing_local_feed_is_reported_and_not_cached(monkeypatch):
     monkeypatch.setitem(role_feeds.COLLECTORS, "arbeitnow", failing)
     assert search.search_jobs(SLUG)["sources"]["arbeitnow"]["status"] == "failed"
     assert search.search_jobs(SLUG)["sources"]["arbeitnow"]["status"] == "failed" and len(calls) == 2
+
+
+def test_watch_records_the_employer_posting_behind_an_aggregator(capsys):
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    served = {d["url"] for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"}
+    assert POSTING in served and not any("remotive.com" in url or "jobicy.com" in url for url in served)
+
+
+def test_pending_postings_follow_an_explicit_query(capsys):
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    asked = search.search_jobs(SLUG, "frontend engineer")["dossiers"]
+    assert not [d for d in asked if d["source"] == "watch"]  # no pending posting is a frontend role
+    assert [d for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"]  # still pending
+
+
+def test_keyed_sources_are_aggregators():
+    from ultron.core.feeds.urls import is_aggregator_host
+    assert is_aggregator_host("www.adzuna.es") and is_aggregator_host("www.reed.co.uk")

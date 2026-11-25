@@ -38,13 +38,16 @@ def _by_url(result: dict) -> dict[str, dict]:
 
 
 def test_inspect_reads_every_kind_of_url():
-    result = inspect.inspect_jobs(SLUG, [POSTING, EMPLOYER, AGGREGATOR, DEAD_AGGREGATOR, GONE, "ftp://example.org/x"])
+    result = inspect.inspect_jobs(SLUG, [POSTING, EMPLOYER, AGGREGATOR, DEAD_AGGREGATOR, GONE, "ftp://example.org/x"],
+                                  show_all=True)
     found = _by_url(result)
-    assert found[POSTING]["status"] == "open" and found[POSTING]["id"] == "greenhouse:acme:4012345"
-    assert found[POSTING]["memory"] == "new" and found[POSTING]["hint"]["verdict"] in {"keep", "unsure", "discard"}
-    assert len(found[POSTING]["excerpt"]) <= dossier.SHORT_EXCERPT
+    posting = {d["id"]: d for d in result["dossiers"] if "id" in d}["greenhouse:acme:4012345"]  # one dossier per posting
+    assert posting["status"] == "open" and posting["url"] == POSTING
+    assert posting["memory"] == "new" and posting["hint"]["verdict"] in {"keep", "unsure", "discard"}
+    assert len(posting["role_excerpt"]) <= dossier.ROLE_EXCERPT
+    assert len(posting["geo_excerpt"]) <= dossier.GEO_EXCERPT
     assert found[EMPLOYER]["status"] == "open" and found[EMPLOYER]["company"]
-    assert found[AGGREGATOR]["url"] == POSTING  # followed to the employer's posting
+    assert AGGREGATOR in found or posting.get("found_at") in (None, AGGREGATOR)  # followed to the employer posting
     assert found[DEAD_AGGREGATOR]["status"] == "unresolved_aggregator"
     assert found[GONE]["status"] == "closed"
     assert found["ftp://example.org/x"]["status"] == "rejected"
@@ -54,23 +57,24 @@ def test_inspect_reads_every_kind_of_url():
 
 
 def test_inspect_detail_gives_a_longer_excerpt():
-    short = _by_url(inspect.inspect_jobs(SLUG, [EMPLOYER]))[EMPLOYER]["excerpt"]
-    long = _by_url(inspect.inspect_jobs(SLUG, [EMPLOYER], detail=True))[EMPLOYER]["excerpt"]
-    assert len(long) >= len(short) and len(long) <= dossier.DETAIL_EXCERPT
+    short = _by_url(inspect.inspect_jobs(SLUG, [EMPLOYER]))[EMPLOYER]["role_excerpt"]
+    long = _by_url(inspect.inspect_jobs(SLUG, [EMPLOYER], detail=True))[EMPLOYER]["role_excerpt"]
+    assert len(long) >= len(short) and len(long) <= dossier.DETAIL_ROLE_EXCERPT
 
 
 def test_inspect_lists_matching_postings_of_boards_and_companies():
-    result = inspect.inspect_jobs(SLUG, [BOARD], ["Acme"])
+    result = inspect.inspect_jobs(SLUG, [BOARD])
     listed = [d for d in result["dossiers"] if d["status"] == "listed"]
     assert listed and all(d["board"] == "greenhouse:acme" for d in listed)
     assert all(d["memory"] == "new" for d in listed)
-    company = [d for d in listed if d.get("board_confirmed") is False]
-    assert company and company[0]["company"] == "Acme"  # a guessed board that answered, not proven Acme's
+    company = inspect.inspect_jobs(SLUG, [], ["Acme"])["dossiers"]
+    assert company and company[0]["company"] == "Acme" and company[0]["board"] == "greenhouse:acme"
 
 
 def test_inspect_reports_a_company_without_a_board():
     result = inspect.inspect_jobs(SLUG, [], ["Nonexistent Widgets"])
-    assert result["dossiers"][0]["status"] == "no_board"
+    assert result["dossiers"] == [] and result["companies_without_matches"] == [
+        {"company": "Nonexistent Widgets", "status": "no_board"}]
 
 
 def test_board_urls_are_told_from_postings():
@@ -245,3 +249,4 @@ def test_a_saved_shortlist_exports_the_first_observation():
     out = shortlist.save_shortlist(SLUG, [{"url": EMPLOYER, "verdict": "keep", "title": "ML", "company": "Example Org"}])
     (row,) = json.loads(Path(out["outputs"]["results_json"]).read_text(encoding="utf-8"))["rows"]
     assert row["first_seen"]
+

@@ -184,13 +184,15 @@ def test_ledger_v6_upgrade_from_v5(tmp_path):
 # --- routing and ranking --------------------------------------------------------------------------
 
 
-def test_rank_scout_rows():
+def test_rank_scout_rows_keeps_the_agents_order():
     rows = [_row("A"), _row("B"), _row("C"), _row("D")]
     rows[0].evaluation_verdict, rows[0].priority = "unsure", 1
     rows[1].priority, rows[2].priority = 3, None
     rows[3].priority, rows[3].match_score = 3, 99
-    ranked = rank_scout_rows(rows, {id(rows[1])})
-    assert [r.title for r in ranked] == ["C", "B", "D", "A"]
+    ranked = rank_scout_rows(rows)
+    assert [r.title for r in ranked] == ["C", "B", "D", "A"]  # keeps, priority, then the order sent
+    zebra, apple = _row("Z", company="Zebra"), _row("A", company="Apple")
+    assert [r.company for r in rank_scout_rows([zebra, apple])] == ["Zebra", "Apple"]  # never alphabetical
 
 
 def test_job_evaluation_priority_bounds():

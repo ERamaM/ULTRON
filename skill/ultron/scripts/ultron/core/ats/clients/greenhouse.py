@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import html
 from urllib.parse import parse_qs, urlparse
+
+from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import UNCHECKED_ERRORS, AtsHTTPClient, AtsPosting
 from ultron.core.ats.vendors import greenhouse_job_url
@@ -28,14 +31,16 @@ def _canonical_greenhouse_url(board_identifier: str, job: dict, *, eu: bool = Fa
     return absolute_url
 
 
-def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient) -> list[AtsPosting]:
-    """Fetch open postings from a Greenhouse job board."""
+def fetch_greenhouse_jobs(
+    board_identifier: str, timeout: int = 20, *, client: AtsHTTPClient, include_content: bool = False,
+) -> list[AtsPosting]:
+    """Fetch open postings from a Greenhouse job board; ``include_content`` also returns each posting's text."""
     fetch_json = client.request_json
     payload = None
     used_eu = False
     last_exc: Exception | None = None
     for host, is_eu in (("boards-api.greenhouse.io", False), ("boards-api.eu.greenhouse.io", True)):
-        url = f"https://{host}/v1/boards/{board_identifier}/jobs?content=false"
+        url = f"https://{host}/v1/boards/{board_identifier}/jobs?content={'true' if include_content else 'false'}"
         try:
             payload = fetch_json(url, timeout=timeout)
             used_eu = is_eu
@@ -76,7 +81,15 @@ def fetch_greenhouse_jobs(board_identifier: str, timeout: int = 20, *, client: A
                 apply_url=apply_url,
                 location=location,
                 posted_at=posted_at,
-                raw_payload=job,
+                raw_payload={key: value for key, value in job.items() if key != "content"},
+                description=_content_text(job.get("content")),
             )
         )
     return output
+
+
+def _content_text(content: object) -> str:
+    """The plain text of a Greenhouse posting's ``content`` (escaped HTML), or ``""``."""
+    if not isinstance(content, str) or not content:
+        return ""
+    return " ".join(BeautifulSoup(html.unescape(content), "html.parser").get_text(" ").split())

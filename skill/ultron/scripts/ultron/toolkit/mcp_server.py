@@ -42,14 +42,21 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "inspect_jobs",
         "description": f"Open up to {MAX_URLS} posting, aggregator or ATS board URLs and {MAX_COMPANIES} company "
-                       "names at once. Returns one compact dossier each: status (open, listed, closed, failed, "
-                       "unusable, unresolved_aggregator, rejected, no_board), id, title, company, location, remote, "
-                       "memory, the rules' hint and a short excerpt. " + UNTRUSTED,
+                       "names at once. Returns compact dossiers of the open (read) and listed postings: id, title, "
+                       "company, location, remote, memory, the rules' hint, a geography excerpt, a role excerpt and "
+                       "the pay disclosed; plus counts of every outcome, the aggregator pages with no employer link "
+                       "and the companies with no matching posting. Postings on one ATS board also bring its other "
+                       "matching postings. " + UNTRUSTED,
         "inputSchema": {"type": "object", "required": ["profile"], "additionalProperties": False, "properties": {
             "profile": PROFILE,
-            "urls": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_URLS},
+            "urls": {"type": "array", "maxItems": MAX_URLS, "items": {"anyOf": [
+                {"type": "string"},
+                {"type": "object", "required": ["url"], "properties": {
+                    "url": {"type": "string"}, "company": {"type": "string"}}}]},
+                "description": "posting, aggregator or board URLs; give the company when you know it"},
             "companies": {"type": "array", "items": {"type": "string"}, "maxItems": MAX_COMPANIES},
-            "detail": {"type": "boolean", "description": "longer excerpts"},
+            "detail": {"type": "boolean", "description": "longer role excerpts"},
+            "all": {"type": "boolean", "description": "also return closed, failed and unresolved results"},
         }},
     },
     {
@@ -81,6 +88,15 @@ class ToolInputError(ValueError):
     """A tool call with arguments of the wrong type."""
 
 
+def _targets(arguments: dict) -> list:
+    value = arguments.get("urls") or []
+    ok = isinstance(value, list) and all(
+        isinstance(item, str) or (isinstance(item, dict) and isinstance(item.get("url"), str)) for item in value)
+    if not ok:
+        raise ToolInputError("urls must be a list of URLs or {url, company} objects")
+    return value[:MAX_URLS]
+
+
 def _strings(arguments: dict, key: str, limit: int) -> list[str]:
     value = arguments.get(key) or []
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -107,10 +123,11 @@ def _search(arguments: dict) -> dict:
 
 
 def _inspect(arguments: dict) -> dict:
-    urls, companies = _strings(arguments, "urls", MAX_URLS), _strings(arguments, "companies", MAX_COMPANIES)
+    urls, companies = _targets(arguments), _strings(arguments, "companies", MAX_COMPANIES)
     if not urls and not companies:
         raise ToolInputError("give urls or companies")
-    return inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")))
+    return inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
+                        show_all=bool(arguments.get("all")))
 
 
 def _save(arguments: dict) -> dict:

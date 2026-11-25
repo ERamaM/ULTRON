@@ -95,9 +95,19 @@ class RoleIdentityIndex:
         return self._count
 
 
-def _duplicate_quality(row: FinalRow) -> tuple[int, int, int, float, bool]:
-    # The agent's scout priority comes before the heuristic signals; rows without one (sweep runs) tie at 2.
+# A posting the agent opened and judged itself (scout verified find) leads its duplicate group and the shortlist.
+VERIFIED_FOUND_BY = "agent_verified"
+
+
+def _tier(row: FinalRow) -> int:
+    return 0 if row.found_by == VERIFIED_FOUND_BY else 1
+
+
+def _duplicate_quality(row: FinalRow) -> tuple[int, int, int, int, float, bool]:
+    # A verified find wins its group; then the agent's scout priority comes before the heuristic signals. Sweep rows
+    # have no ``found_by`` and no priority, so they all tie on the first two keys and sweep results do not change.
     return (
+        _tier(row),
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
         row.priority if row.priority is not None else 2,
         _ELIGIBILITY_RANK.get(row.eligibility, 4),
@@ -224,14 +234,16 @@ def rank_final_rows(rows: list[FinalRow], *, use_match_score: bool = False) -> l
 
 
 def rank_scout_rows(rows: list[FinalRow], new_keys: set[int] | None = None) -> list[FinalRow]:
-    """Order a scout shortlist the way the agent judged it: verdict, then priority, then eligibility.
+    """Order a scout shortlist the way the agent judged it, in two tiers.
 
-    Every ``keep`` comes before every ``unsure``. A row without a priority reads as priority 2. Within the same
-    verdict, priority and eligibility, rows whose ``id`` is in ``new_keys`` come first; the match score only
-    breaks the remaining ties.
+    Tier 0 holds the agent's verified finds, tier 1 everything else (extras it kept from the queue, rows carried
+    from memory). Within a tier every ``keep`` comes before every ``unsure``, then priority (none reads as 2), then
+    eligibility; rows whose ``id`` is in ``new_keys`` come first among equals, and the match score breaks the
+    remaining ties.
     """
     new_keys = new_keys or set()
     return sorted(rows, key=lambda row: (
+        _tier(row),
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
         row.priority if row.priority is not None else 2,
         _ELIGIBILITY_RANK.get(row.eligibility, 4),

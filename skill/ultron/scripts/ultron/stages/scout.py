@@ -38,12 +38,15 @@ CLOSED_REASONS = frozenset({"expired_or_closed"})
 BRIEF_LIST_LIMIT = 30
 _FOUND_ORDER = {"agent": 0, WATCH_PASS: 1, EXPANSION_PASS: 2}
 _VERDICT_ORDER = {"keep": 0, "unsure": 1}
+SHORTLIST_TARGET = 25
 SEARCH_ADVICE = (
     "Search by role and region first (target titles plus remote or the regions in the profile).",
-    "Follow aggregator listings (remote job boards, job search engines) to the employer's own posting.",
-    "Add finds in batches with `ultron candidates add`; the reply says which are new, seen or rejected.",
+    "Open every posting before you add it: check it is open, eligible and a fit for the profile.",
+    "Add each posting you opened with your verdict and priority (a verified find); ULTRON takes it as you judged it.",
+    "Never give a verdict to a posting you did not open; add it without a verdict and ULTRON fetches it instead.",
+    "Use the employer's own posting URL; follow aggregator listings to it.",
     "Skip employers in rejected_employers, and postings flagged seen or rejected.",
-    "Stop when two searches in a row add no new employer, or when you have the shortlist size asked for.",
+    "Stop when you have shortlist_target keeps, or when two searches in a row add no new employer.",
 )
 
 
@@ -122,6 +125,7 @@ def brief(run: dict, queued_watch: int = 0) -> dict[str, Any]:
             "max_requests_per_vendor": settings["max_requests_per_vendor"],
             "boards_to_expand": settings["max_seeds_per_run"],
             "evaluation_queue": queue_cap(settings),
+            "shortlist_target": SHORTLIST_TARGET,
         },
         "advice": list(SEARCH_ADVICE),
     }
@@ -253,11 +257,26 @@ def _memory_lookup(profile_slug: str, keys: list[str]) -> tuple[dict[str, str], 
     return scout_memory.flags(conn, profile_slug, keys), conn
 
 
-def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
+def _carry(conn, run: dict, key: str, digest: str, criteria_digest: str) -> dict | None:
+    """The carried entry of a seen posting whose stored verdict still applies, else ``None``."""
+    previous = scout_memory.carried_row(conn, run["profile_slug"], key, digest, criteria_digest)
+    record_digest = False
+    if previous is None:  # a verified find stored before any posting text was fetched
+        previous = scout_memory.carried_unfetched(conn, run["profile_slug"], key, criteria_digest)
+        record_digest = previous is not None
+    if previous is None:
+        return None
+    return {"identity_key": key, "row": previous[0].model_dump(mode="json"), "priority": previous[1],
+            "content_hash": digest, "record_digest": record_digest}
+
+
+def route_postings(rows: list[dict], run: dict, verified: frozenset[str] | set[str] = frozenset()) -> dict[str, Any]:
     """Split fetched postings into the agent's queue, carried rows, postings beyond the cap and drops.
 
-    Returns ``queue`` (in evaluation order), ``not_evaluated``, ``carried`` (seen postings with unchanged
-    facts and their earlier row), ``discarded`` and ``reasons``.
+    ``verified`` holds the identities of this run's verified finds: they are already judged, so they are left out
+    of the queue (counted as ``already_verified``, never discarded). Returns ``queue`` (in evaluation order),
+    ``not_evaluated``, ``carried`` (seen postings whose stored verdict still applies), ``discarded``,
+    ``reasons`` and ``already_verified``.
     """
     profile = run.get("profile_snapshot") or {}
     pack, geo = active_pack(profile), geo_scope(profile)
@@ -270,6 +289,7 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
     carried: list[dict] = []
     discarded: list[dict] = []
     reasons: dict[str, int] = {}
+    already_verified = 0
 
     def drop(job: ExtractedJob, key: str, reason: str) -> None:
         discarded.append({"apply_url": job.apply_url, "reason": reason, "detail": "", "title": job.title,
@@ -280,6 +300,9 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
     try:
         for order, row in enumerate(rows):
             job, key = ExtractedJob(**row["job"]), row["identity_key"]
+            if key in verified:
+                already_verified += 1
+                continue
             result = characterize_job(job, profile, [], vocabulary=pack, geo=geo, role_negatives=negatives,
                                       allow_outside_ats_allowlist=True, target_regions=regions)
             if reason := _hard_drop(job, result):
@@ -290,12 +313,9 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
                 drop(job, key, f"already_{flag}")
                 continue
             digest = scout_memory.content_hash(job.title, job.location, job.remote_text, job.body_text)
-            if flag == "seen" and conn is not None:
-                previous = scout_memory.carried_row(conn, run["profile_slug"], key, digest, criteria_digest)
-                if previous is not None:
-                    carried.append({"identity_key": key, "row": previous[0].model_dump(mode="json"),
-                                    "priority": previous[1]})
-                    continue
+            if flag == "seen" and conn is not None and (entry := _carry(conn, run, key, digest, criteria_digest)):
+                carried.append(entry)
+                continue
             evaluation = result["_evaluation"]
             source = found_by(row.get("candidate"))
             hint = result["pipeline_characterization"]
@@ -315,4 +335,4 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
     ordered = [entry for _rank, entry in sorted(queue, key=lambda item: item[0])]
     cap = queue_cap(run["settings"])
     return {"queue": ordered[:cap], "not_evaluated": ordered[cap:], "carried": carried,
-            "discarded": discarded, "reasons": reasons}
+            "discarded": discarded, "reasons": reasons, "already_verified": already_verified}

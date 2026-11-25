@@ -32,6 +32,7 @@ from ultron.stages.candidates import candidate_identity
 from ultron.stages.discover import clean_posting, posting_candidate, seed_key
 from ultron.stages.fetch import fetch_posting, posting_status
 from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.stages.role_feeds import remember_resolutions
 from ultron.stages.scout_finds import memory_flags, web_candidate
 from ultron.stages.scout_resolve import classify_find, resolve_aggregator
 from ultron.stages.watch import profile_matches
@@ -157,6 +158,8 @@ class _Inspector:
         found = classify_find(url)
         if found.outcome == "aggregator":
             found = resolve_aggregator(url, client, self.timeout, "")
+            # Remembered so later searches flag the listing with its employer posting's memory.
+            remember_resolutions({url: found.url if found.outcome == "resolved_aggregator" else ""})
             if found.outcome != "resolved_aggregator":
                 return failed_dossier(url, "unresolved_aggregator", found.reason or "no employer posting link"), None
         candidate = self._candidate(found.url, found.source_type or "web_search")

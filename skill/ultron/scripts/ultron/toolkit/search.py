@@ -28,6 +28,7 @@ from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
 from ultron.stages.role_feeds import (
     NETWORK_ERRORS,
     PAYLOAD_ERRORS,
+    known_resolutions,
     local_feed_rows,
     local_feeds,
     query_terms,
@@ -121,8 +122,8 @@ def _pending(profile_slug: str, profile: dict) -> list[dict]:
     with closing(ledger.connect()) as conn:
         rows = watchlist.pending(conn, profile_slug)
     by_url = {row.get("normalized_url", ""): row for row in rows}
-    postings = as_postings([{"title": row.get("ats_title", ""), "url": url, "location": row.get("ats_location", "")}
-                            for url, row in by_url.items() if url])
+    postings = as_postings([{"title": row.get("ats_title", ""), "url": url, "location": row.get("ats_location", ""),
+                             "remote": row.get("ats_remote_hint", "")} for url, row in by_url.items() if url])
     out = []
     for row in (by_url[posting.apply_url] for posting in profile_matches(postings, profile)):
         dossier = {"id": row.get("identity_key") or candidate_identity(row), "url": row.get("normalized_url", ""),
@@ -161,6 +162,20 @@ def _cache_row(dossier: dict, boards: set[str]) -> dict:
             "source_type": "ats_api" if board else "web_search", "source_key": board, "job": job}
 
 
+def _flag(profile_slug: str, dossiers: list[dict]) -> None:
+    """Memory flags; an aggregator listing ULTRON already followed takes its employer posting's flag."""
+    links = known_resolutions()
+    resolved = {}
+    for dossier in dossiers:
+        if target := links.get(dossier["url"]):
+            resolved[dossier["id"]] = candidate_identity(web_candidate(target, {}, "search").model_dump())
+    flags = memory_flags(profile_slug, [*(d["id"] for d in dossiers), *resolved.values()])
+    for dossier in dossiers:
+        own = flags[dossier["id"]]
+        employer = flags.get(resolved.get(dossier["id"], ""), "new")
+        dossier["memory"] = own if own != "new" else employer
+
+
 def _rank(dossiers: list[dict], terms: list[str]) -> list[dict]:
     """Watch postings first, then by title relevance; one dossier per posting."""
     unique: dict[str, dict] = {}
@@ -195,9 +210,7 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
                 dossiers.extend(found)
     ranked = _rank(dossiers, terms)
     cache_postings(profile_slug, [_cache_row(d, {seed_key(s) for s in seeds}) for d in ranked if d.get("url")])
-    flags = memory_flags(profile_slug, [d["id"] for d in ranked])
-    for dossier in ranked:
-        dossier["memory"] = flags[dossier["id"]]
+    _flag(profile_slug, ranked)
     if new_only:
         ranked = [d for d in ranked if d["memory"] == "new"]
     returned = ranked[:max(1, limit)]

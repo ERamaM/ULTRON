@@ -88,11 +88,14 @@ def cached_rows(name: str, key: str, ttl_hours: float, fetch: Callable[[], list[
 
 
 def role_source_rows(source: RoleSource, terms: list[str], client, timeout: int) -> tuple[dict, list]:
-    """Ask one role API for every term: ``(status, rows)``; a keyed source without keys is ``not_configured``."""
+    """Ask one role API for every term: ``(status, rows)``; a keyed source without keys is ``not_configured``.
+
+    A term that fails does not cost the others: their rows are kept and the source reports ``partial``.
+    """
     requests = [(term, req) for term in terms if (req := source.build(term, "")) is not None]
     if not requests:
         return {"status": "not_configured" if source.keyed else "no_query"}, []
-    rows, statuses = [], set()
+    rows, statuses, errors = [], set(), []
     for term, req in requests:
         def fetch(r=req) -> list[dict]:
             return source.parse(client.request_json(r.url, timeout=timeout, allowed_domains=(r.host,),
@@ -100,11 +103,15 @@ def role_source_rows(source: RoleSource, terms: list[str], client, timeout: int)
         try:
             got, status = cached_rows(source.name, f"{req.url}|{term}", source.ttl_hours, fetch)
         except NETWORK_ERRORS as exc:
-            return {"status": "failed", "error": type(exc).__name__}, []
+            errors.append(type(exc).__name__)
+            continue
         except PAYLOAD_ERRORS as exc:
-            return {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, []
+            errors.append(f"unexpected_payload: {type(exc).__name__}")
+            continue
         rows.extend(got)
         statuses.add(status)
+    if errors:
+        return {"status": "partial" if statuses else "failed", "error": errors[0]}, rows
     return {"status": "cached" if statuses == {"cached"} else "ok"}, rows
 
 
@@ -127,6 +134,41 @@ def local_feed_rows(source: dict, client, timeout: int) -> tuple[dict, list]:
     except PAYLOAD_ERRORS as exc:
         return {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, []
     return {"status": status}, rows
+
+
+RESOLUTION_FILE = "aggregator_links.json"
+RESOLUTION_TTL_DAYS = 14
+
+
+def _resolution_path():
+    return home.ultron_home().joinpath(*CACHE_DIR, RESOLUTION_FILE)
+
+
+def known_resolutions() -> dict[str, str]:
+    """Aggregator listing URLs already followed, mapped to their employer posting URL (``""``: no link found)."""
+    path = _resolution_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    cutoff = time.time() - RESOLUTION_TTL_DAYS * 86400
+    return {url: item["to"] for url, item in data.items()
+            if isinstance(item, dict) and float(item.get("at", 0)) >= cutoff and isinstance(item.get("to"), str)}
+
+
+def remember_resolutions(found: dict[str, str]) -> None:
+    """Record aggregator listing URL -> employer posting URL (``""`` when the page links to none)."""
+    if not found:
+        return
+    path = _resolution_path()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    now = time.time()
+    data.update({url: {"to": target, "at": now} for url, target in found.items()})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
 def local_feeds() -> list[dict]:

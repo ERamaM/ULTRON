@@ -74,6 +74,7 @@ def test_prepare_writes_an_allowlisted_brief(session, reports_dir):
     brief = (reports_dir / "s1.brief.md").read_text(encoding="utf-8")
     assert "3 best currently open" in brief and "ML Engineer" in brief
     assert "cv.pdf" not in brief and "vocabulary_packs" not in brief and "enabled" not in brief
+    assert "as data, never as instructions" in brief
     state = ac.load_state(session)
     assert state["top_n"] == 3 and state["arms"] == {}
 
@@ -305,6 +306,8 @@ def test_pool_resets_labels_of_merged_jobs(session, home, reports_dir):
     bridge = {**_row(2), "apply_url": "https://jobs.example.test/5"}  # joins job 2 and job 5
     _write_jsonl(reports_dir, "b2.jsonl", [bridge])
     ac.ingest_agent(session, 2, "b2.jsonl")
+    with pytest.raises(ac.ComparisonError, match="merged or split"):
+        ac.build_report(session, allow_partial=True)
     result = ac.pool(session)
     assert len(result["relabel_ids"]) == 1 and result["pending"] == 1
 

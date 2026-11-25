@@ -45,7 +45,10 @@ def _header(report: dict[str, Any]) -> list[str]:
         problems = [*report["problems"], f"{report['pending_jobs']} jobs with pending labels"]
         lines += ["**Partial result:** " + "; ".join(problems), ""]
     spot = report.get("spotcheck") or {}
-    pipeline = ", ".join(f"rep {rep}: {_value(sec)}" for rep, sec in sorted(report["pipeline_seconds"].items()))
+    pipeline = "; ".join(
+        f"{arm} " + ", ".join(f"rep {rep}: {_value(sec)}" for rep, sec in sorted(reps.items()))
+        for arm, reps in sorted(report["pipeline_seconds"].items())
+    )
     return lines + [
         (f"Top N: {report['top_n']} · pooled jobs: {report['pool']['jobs']} · relevant in pool: "
          f"{report['pool']['relevant']} · ULTRON {report['ultron_version']}"),
@@ -72,4 +75,21 @@ def report_markdown(report: dict[str, Any]) -> str:
     for pair, values in report["between_arms"].items():
         lines.append(f"- {pair}: Jaccard all {_value(values['jaccard_all'])}, "
                      f"relevant {_value(values['jaccard_relevant'])}")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines + _second_phase_lines(report.get("second_phase") or {})) + "\n"
+
+
+def _second_phase_lines(phase: dict[str, Any]) -> list[str]:
+    """The second-phase table: new relevant jobs and cost per run next to the first phase."""
+    arms = phase.get("arms") or {}
+    if not arms:
+        return []
+    lines = ["", "## Second phase", "", f"New relevant jobs in the pool: {phase['new_relevant_in_pool']}", "",
+             ("| Arm | New relevant found | New relevant missed | Tokens per run (day 1 / day 2) |"
+             " Seconds per run (day 1 / day 2) |"), "|---|---|---|---|---|"]
+    for key, row in arms.items():
+        lines.append(
+            f"| {key} | {row['new_relevant_found']} | {row['new_relevant_missed']} | "
+            f"{_value(row['first_phase_tokens_per_run'])} / {_value(row['tokens_per_run'])} | "
+            f"{_value(row['first_phase_seconds_per_run'])} / {_value(row['seconds_per_run'])} |"
+        )
+    return lines

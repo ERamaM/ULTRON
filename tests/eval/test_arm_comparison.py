@@ -38,13 +38,17 @@ def home(tmp_path, monkeypatch):
 
 
 def _make_run(home, run_id, rows, *, profile=None, stages=("finalize",), slug="synthetic", results=True,
-              preset="balanced"):
+              preset="balanced", mode=None, extra=None):
     folder = home / "runs" / run_id
     folder.mkdir()
     stages = list(stages) if isinstance(stages, tuple) else stages
     run = {"run_id": run_id, "profile_slug": slug, "preset": preset, "stages_done": stages,
            "profile_snapshot": profile or dict(PROFILE)}
+    if mode:
+        run["mode"] = mode
     (folder / "run.json").write_text(json.dumps(run), encoding="utf-8")
+    for name, file_rows in (extra or {}).items():
+        (folder / name).write_text("".join(json.dumps(r) + "\n" for r in file_rows), encoding="utf-8")
     (folder / "postings.jsonl").write_text("", encoding="utf-8")
     if results:
         summary = {"started_at": "2026-11-25T10:00:00+00:00", "ended_at": "2026-11-25T10:15:00+00:00"}
@@ -157,6 +161,8 @@ def test_ingest_agent_and_validation(session, reports_dir):
         ac.ingest_agent(session, 1, "b1.jsonl", arm="Bad Arm")
     with pytest.raises(ac.ComparisonError, match="ingest-ultron"):
         ac.ingest_agent(session, 1, "b1.jsonl", arm="ultron")
+    with pytest.raises(ac.ComparisonError, match="not one of"):
+        ac.ingest_agent(session, 1, "b1.jsonl", arm="other")
     with pytest.raises(ac.ComparisonError, match="plain file name"):
         ac.ingest_agent(session, 1, "../b1.jsonl")
 
@@ -323,7 +329,7 @@ def test_score_end_to_end(session, home, reports_dir):
     assert ultron["repetitions"]["1"]["precision"] == pytest.approx(0.6667)
     assert ultron["only_this_arm_relevant"] == 1 and ultron["reproducibility_jaccard"] == 1.0
     assert report["arms"]["baseline"]["cost_per_relevant"]["tokens"] == 2000
-    assert report["pipeline_seconds"] == {"1": 900.0, "2": 900.0, "3": 900.0}
+    assert report["pipeline_seconds"] == {"ultron": {"1": 900.0, "2": 900.0, "3": 900.0}}
     assert ac.score(session, "report.json")["complete"] is True
     markdown = (reports_dir / "report.md").read_text(encoding="utf-8")
     assert "| Precision |" in markdown and "Partial" not in markdown and "(n=3)" in markdown
@@ -491,3 +497,117 @@ def test_cli_prepare(monkeypatch, capsys):
     monkeypatch.setattr(ac, "load_profile", lambda slug: dict(PROFILE))
     assert ac.main(["prepare", "--profile", "synthetic", "--session", "s2"]) == 0
     assert json.loads(capsys.readouterr().out)["top_n"] == ac.DEFAULT_TOP_N
+
+
+# --- several arms, second phase, trace ------------------------------------------------------------
+
+
+@pytest.fixture
+def three_arms(monkeypatch):
+    monkeypatch.setattr(ac, "load_profile", lambda slug: dict(PROFILE))
+    result = ac.prepare("synthetic", "s3", top_n=3, arms="baseline,ultron,scout=balanced/scout")
+    assert set(result["arms"]) == {"baseline", "ultron", "scout"}
+    return "s3"
+
+
+def test_ingest_ultron_checks_the_arm_mode(three_arms, home, reports_dir):
+    sweep = _make_run(home, RUN_IDS[0], [_row(1)])
+    with pytest.raises(ac.ComparisonError, match="mode 'sweep', not 'scout'"):
+        ac.ingest_ultron(three_arms, 1, sweep, arm="scout")
+    scout = _make_run(home, RUN_IDS[1], [_row(2)], mode="scout")
+    assert ac.ingest_ultron(three_arms, 1, scout, arm="scout")["rows"] == 1
+    entry = ac.load_state(three_arms)["arms"]["scout"]["1"]
+    assert entry["ultron_home"] == os.path.abspath(str(home))
+    with pytest.raises(ac.ComparisonError, match="agent arm"):
+        ac.ingest_ultron(three_arms, 1, scout, arm="baseline")
+    _write_jsonl(reports_dir, "s.jsonl", [_row(1)])
+    with pytest.raises(ac.ComparisonError, match="ULTRON arm"):
+        ac.ingest_agent(three_arms, 1, "s.jsonl", arm="scout")
+
+
+def test_prepare_rejects_bad_arms(monkeypatch):
+    monkeypatch.setattr(ac, "load_profile", lambda slug: dict(PROFILE))
+    with pytest.raises(ac.ComparisonError, match="at least two"):
+        ac.prepare("synthetic", "s4", top_n=3, arms="baseline")
+
+
+def _three_arm_experiment(session, home, reports_dir):
+    for rep in (1, 2, 3):
+        ac.ingest_ultron(session, rep, _make_run(home, f"20261125-10000{rep}-aaaaaa", [_row(1), _row(2)]))
+        ac.ingest_ultron(session, rep, _make_run(home, f"20261125-11000{rep}-bbbbbb", [_row(1), _row(4)],
+                                                 mode="scout"), arm="scout")
+        _write_jsonl(reports_dir, f"b{rep}.jsonl", [_row(3), _row(4)])
+        ac.ingest_agent(session, rep, f"b{rep}.jsonl")
+        for arm in ("baseline", "ultron", "scout"):
+            ac.record_cost(session, arm, rep, tokens=1000, tool_calls=10, seconds=100)
+    ac.ingest_ultron(session, 1, _make_run(home, "20261126-100000-cccccc", [_row(5), _row(1)], mode="scout"),
+                     arm="scout", phase=2)
+    ac.record_cost(session, "scout", 1, 2, tokens=200, tool_calls=2, seconds=20)
+    _write_jsonl(reports_dir, "b2d.jsonl", [_row(6)])
+    ac.ingest_agent(session, 1, "b2d.jsonl", phase=2)
+    ac.pool(session)
+    _label_all(reports_dir, session, {_row(n)["apply_url"] for n in (1, 3, 4, 5, 6)})
+    _fill_spotcheck(reports_dir, session, size=4)
+
+
+def test_three_arm_report_with_a_second_phase(three_arms, home, reports_dir):
+    _three_arm_experiment(three_arms, home, reports_dir)
+    report = ac.build_report(three_arms)
+    assert report["complete"] is True and set(report["arms"]) == {"baseline", "ultron", "scout"}
+    assert set(report["between_arms"]) == {"baseline|scout", "baseline|ultron", "scout|ultron"}
+    phase = report["second_phase"]
+    assert phase["new_relevant_in_pool"] == 2
+    assert phase["arms"]["scout@2"]["new_relevant_found"] == 1
+    assert phase["arms"]["scout@2"]["tokens_per_run"] == 200
+    assert phase["arms"]["scout@2"]["first_phase_tokens_per_run"] == 1000
+    assert set(report["pipeline_seconds"]) == {"ultron", "scout", "scout@2"}
+    ac.score(three_arms, "r3.json")
+    markdown = (reports_dir / "r3.md").read_text(encoding="utf-8")
+    assert "## Second phase" in markdown and "scout@2" in markdown
+
+
+def test_record_cost_and_discard_by_phase(three_arms, home, reports_dir):
+    _write_jsonl(reports_dir, "b1.jsonl", [_row(1)])
+    ac.ingest_agent(three_arms, 1, "b1.jsonl", phase=2)
+    ac.record_cost(three_arms, "baseline", 1, 2, tokens=5)
+    assert ac.load_state(three_arms)["arms"]["baseline@2"]["1"]["cost"] == {"tokens": 5}
+    with pytest.raises(ac.ComparisonError, match="not ingested"):
+        ac.record_cost(three_arms, "baseline", 1, tokens=5)
+    ac.discard(three_arms, "baseline", 1, 2)
+    assert "baseline@2" not in ac.load_state(three_arms)["arms"]
+
+
+def test_trace_explains_missed_jobs(three_arms, home, reports_dir):
+    def identity(n):
+        from ultron.core.job_identity import canonical_job_identity
+        return canonical_job_identity(_row(n)["apply_url"]).identity_key
+
+    discarded = [{"apply_url": _row(3)["apply_url"], "stage": "pre_filter", "reason": "non_eu_remote"}]
+    for rep in (1, 2, 3):
+        ac.ingest_ultron(three_arms, rep, _make_run(
+            home, f"20261125-11000{rep}-bbbbbb", [_row(1)], mode="scout",
+            extra={"discarded.jsonl": discarded, "candidates.jsonl": [{"normalized_url": _row(9)["apply_url"]}]},
+        ), arm="scout")
+    _write_jsonl(reports_dir, "b1.jsonl", [_row(3), _row(4)])
+    ac.ingest_agent(three_arms, 1, "b1.jsonl")
+    ac.pool(three_arms)
+    _label_all(reports_dir, three_arms, {_row(n)["apply_url"] for n in (1, 3, 4)})
+    result = ac.trace(three_arms, "scout")
+    assert result["relevant_missed"] == 2
+    assert result["outcome_counts"] == {"discarded:pre_filter:non_eu_remote": 3, "employer_never_queried": 3}
+    assert identity(1)
+    written = ac.trace(three_arms, "scout", "t3.json")
+    assert written["relevant_missed"] == 2 and (reports_dir / "t3.json").exists()
+    with pytest.raises(ac.ComparisonError, match="agent arm"):
+        ac.trace(three_arms, "baseline")
+    with pytest.raises(ac.ComparisonError, match="no repetitions"):
+        ac.trace(three_arms, "ultron")
+
+
+def test_cli_three_arms(three_arms, home, reports_dir, capsys):
+    run_id = _make_run(home, RUN_IDS[0], [_row(1)], mode="scout")
+    args = ["ingest-ultron", "--session", three_arms, "--rep", "1", "--run", run_id, "--arm", "scout", "--phase", "2"]
+    assert ac.main(args) == 0
+    capsys.readouterr()
+    assert ac.main(["trace", "--session", three_arms, "--arm", "scout"]) == 2
+    assert "no repetitions" in capsys.readouterr().out

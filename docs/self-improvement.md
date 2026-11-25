@@ -222,16 +222,55 @@ repository for this reason.
 ### Baseline comparison: ULTRON against an agent without it
 
 ```sh
-uv run python tools/arm_comparison.py prepare --profile <slug> --session <name> [--top-n 25] [--force]
-uv run python tools/arm_comparison.py ingest-ultron --session <name> --rep <k> --run <run-id>
-uv run python tools/arm_comparison.py ingest-agent --session <name> --rep <k> --from <file>.jsonl
-uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k> \
+uv run python tools/arm_comparison.py prepare --profile <slug> --session <name> [--top-n 25] [--force] \
+    [--arms baseline,ultron,scout=balanced/scout]
+uv run python tools/arm_comparison.py ingest-ultron --session <name> --rep <k> --run <run-id> [--arm <arm>] [--phase 2]
+uv run python tools/arm_comparison.py ingest-agent --session <name> --rep <k> --from <file>.jsonl [--arm <arm>] [--phase 2]
+uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k> [--phase 2] \
     --tokens <n> --tool-calls <n> --seconds <n>
-uv run python tools/arm_comparison.py discard --session <name> --arm <arm> --rep <k>
+uv run python tools/arm_comparison.py discard --session <name> --arm <arm> --rep <k> [--phase 2]
 uv run python tools/arm_comparison.py pool --session <name>
 uv run python tools/arm_comparison.py spotcheck --session <name> [--size 20]
 uv run python tools/arm_comparison.py score --session <name> --output report.json [--allow-partial]
+uv run python tools/arm_comparison.py trace --session <name> --arm <ultron-arm> [--output trace.json]
 ```
+
+**Arms.** `--arms` lists the arms a session expects, separated by commas. The default is
+`baseline,ultron`.
+- A bare name such as `baseline` is an agent arm, imported with `ingest-agent`.
+- `name=preset/mode` is an ULTRON arm, imported with `ingest-ultron --arm name`. The mode is `sweep`
+  or `scout`.
+- A bare `ultron` means `ultron=balanced/sweep`.
+
+`ingest-ultron` refuses a run whose preset or mode differs from its arm, and it records the
+`ULTRON_HOME` it read the run from. The report compares every pair of arms.
+
+**Miss trace.** `trace` reads the run folders of an ULTRON arm and reports, for each relevant job
+the arm did not export, the furthest stage the job reached in each repetition. The possible
+outcomes are:
+- exported below the cut;
+- discarded, with its stage and reason;
+- not evaluated;
+- rejected by the agent;
+- fetch failed;
+- a candidate never fetched;
+- an employer queried without listing the job;
+- an employer never queried.
+
+**Second phase.** `--phase 2` stores a repetition as `<arm>@2`. Run it on the `ULTRON_HOME` the
+first phase left behind, one day later or after the boards changed. Second-phase repetitions are
+pooled and labelled with the rest, but never mixed into the first-phase means. The report adds a
+second-phase section with three numbers per arm, each next to its first phase:
+- the new relevant jobs it found, meaning jobs no first-phase repetition had;
+- the new relevant jobs another second-phase arm found and it missed;
+- its tokens and seconds per run.
+
+**Subagents.** An ULTRON arm must run the code and the `SKILL.md` of the branch under test, not
+the installed copy:
+- Give the subagent the worktree path of the skill.
+- Have it run `uv run --project <worktree>/skill/ultron/scripts ultron ...`, with `ULTRON_HOME`
+  set to a fresh copy for each repetition.
+- Import the run with that same `ULTRON_HOME` set.
 
 This live measurement asks whether ULTRON finds better postings than the same agent using plain
 web search. The tool launches no agents and uses no network. It freezes a common brief, imports
@@ -321,6 +360,29 @@ Protocol:
 
 Pool recall counts the relevant jobs either arm found, not the whole market. These live numbers
 are never mixed with replay or benchmark numbers. The 6 runs count against the live budgets above.
+
+### Improvement loop for a live comparison
+
+When an ULTRON arm fails the pass criteria of a live comparison, improve it in measured iterations,
+as [specification 29](specs/agent-first/29-improvement-loop.md) sets out. This loop covers
+discovery, resolution, expansion, the evaluation queue and the agent instructions. Rule terms,
+thresholds and weights still go through the labelled benchmark.
+
+Each iteration has six steps:
+1. Run `trace` and group the misses and bad rows by cause.
+2. Write at least three ideas for the largest cause.
+3. Pick one and record the others as not tried.
+4. Implement it test first, keeping the suite and the benchmark green.
+5. Re-run only the affected arm and profile, three repetitions.
+6. Keep the change only if the target metric improves by more than the spread between
+   repetitions and no criterion gets worse. Otherwise revert it.
+
+Keep one log entry per iteration in the reports folder. Stop at the first of these:
+- the arm passes;
+- three iterations without a kept change;
+- two failed attempts on the same cause;
+- the live budget is spent;
+- an emergency stop.
 
 ### Current baseline
 

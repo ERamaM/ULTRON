@@ -127,6 +127,17 @@ def read_report(raw_name: str | os.PathLike[str]) -> str:
         return handle.read()
 
 
+def remove_report(raw_name: str | os.PathLike[str]) -> bool:
+    """Delete ``REPORTS_DIR/<name>`` when it is a regular file there; return whether it existed."""
+    name = _report_name(raw_name)
+    path = os.path.join(REPORTS_DIR, name)
+    if not os.path.lexists(path):
+        return False
+    _check_target(path)
+    os.remove(path)
+    return True
+
+
 def inside(path: str, folder: str) -> bool:
     """Whether ``path`` resolves (symlinks included) inside ``folder``."""
     resolved = os.path.normcase(os.path.realpath(path))

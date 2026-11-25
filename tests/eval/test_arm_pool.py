@@ -28,6 +28,7 @@ def test_alias_merges_same_posting_on_two_urls():
     _row(2, title="ML Engineer 1", location="New York"),  # same title, another country
     _row(2, title="ML Engineer 1", company="Not found"),  # placeholder company
     _row(2, title="(Remote)", company="Acme"),  # nothing left after normalizing
+    _row(2, title="ML Engineer 1", location=""),  # no location to compare
 ])
 def test_distinct_requisitions_stay_apart(other):
     first = _row(1, title="(Remote)") if other["title"] == "(Remote)" else _row(1)

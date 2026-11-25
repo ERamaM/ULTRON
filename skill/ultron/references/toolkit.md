@@ -40,29 +40,28 @@ saving, and `inspect` follows them to the employer's posting. Save a `listed` po
 ## Inspecting
 
 `ultron inspect` takes `--url` (repeatable), `--company` (repeatable) and `--from <file>`. The file has one URL
-per line, or JSONL rows with `url` or `company`. It takes up to 100 URLs and 20 companies per call. `--detail`
-returns longer excerpts.
+per line, or JSONL rows with `url` (and its `company` when you know it: it helps follow an aggregator page) or
+`company` alone. It takes up to 100 URLs and 20 companies per call and works on them in parallel.
 
-- A posting URL is read as the vendor publishes it (its API when there is one).
-- An aggregator page is followed to the employer's posting.
-- An ATS board URL, or a company name, lists the board's postings that match the profile. A company board that
-  answered but could not be proven the company's is marked `board_confirmed: false`.
+- A posting URL is read as the vendor publishes it. Postings on one ATS board are read from the board's API in
+  one request when it carries their text (Greenhouse, Ashby, Lever), and the board's other matching postings come
+  back too, marked `via: same_board`.
+- An aggregator page is followed to the employer's posting, on an ATS or on the employer's own site.
+- An ATS board URL, or a company name, returns the board's postings that match the profile. A company is looked up
+  in ULTRON's stored boards first, then on the ATS vendors with a public API. A board that answered but could not be
+  proven the company's is marked `board_confirmed: false`.
 
-Each dossier has `status`:
+The reply lists only `open` and `listed` postings; `--all` adds the rest. It also has:
 
-| status | Meaning |
-|---|---|
-| `open` | Read and open: has `hint` and `excerpt` |
-| `listed` | Open on its board, not read yet: inspect its URL to read it |
-| `closed` | Removed, expired or past its deadline |
-| `failed` | No usable response (network, blocked host) |
-| `unusable` | The page does not read as a posting: open it yourself |
-| `unresolved_aggregator` | An aggregator page with no employer posting link: find the employer's posting |
-| `rejected` | Not an `http(s)` URL ULTRON may fetch |
-| `no_board` | A company whose ATS board was not found |
+- `status`: how many results ended in each status (`open`, `listed`, `closed`, `failed`, `unusable`,
+  `unresolved_aggregator`, `rejected`, `no_board`, `no_match`).
+- `unresolved`: aggregator pages with no employer link, with the company you gave. Look the company up with
+  `--company`, or find its posting yourself.
+- `companies_without_matches`: companies with no board (`no_board`) or no posting that matches the profile
+  (`no_match`).
 
-An `open` or `listed` dossier also has `id` (the posting's identity), `title`, `company`, `location`, `remote`,
-`posted` when known, and `memory`:
+Each dossier has `id` (the posting's identity), `status`, `title`, `company`, `location`, `remote`, `posted` when
+known, and `memory`:
 
 | memory | Meaning |
 |---|---|
@@ -71,13 +70,16 @@ An `open` or `listed` dossier also has `id` (the posting's identity), `title`, `
 | `rejected` | The user rejected it, or you discarded it before: skip it |
 | `applied` | The user applied: skip it |
 
-`hint` is what ULTRON's rules would decide (`verdict`, with `reason` for a discard, plus `remote_policy` and
-`eligibility`). It is only a hint: you decide.
+An `open` dossier was read: it adds `hint`, `geo_excerpt` (the location, remote and eligibility lines),
+`role_excerpt` (the start of the role text; `--detail` returns more) and `salary` when the posting discloses pay.
+Judge from them; open the page yourself only when they are not enough. A `listed` dossier is open on its board
+but not read: inspect its URL to read it. `hint` is what ULTRON's rules would decide (`verdict`, with `reason` for
+a discard, plus `remote_policy` and `eligibility`). It is only a hint and it can be wrong: you decide.
 
 ## Saving the shortlist
 
-One JSON object per line, best first. A row names a posting by the `id` of its dossier, or by `url` with
-`title` and `company`:
+One JSON object per line, best first: the shortlist keeps your order (keeps first, then by your priority).
+A row names a posting by the `id` of its dossier, or by `url` with `title` and `company`:
 
 | Field | Rule |
 |---|---|
@@ -96,7 +98,9 @@ One JSON object per line, best first. A row names a posting by the `id` of its d
 {"id": "lever:otherco:0b1c2d3e-4f50-6789-abcd-ef0123456789", "verdict": "discard", "discard_reason": "On-site only"}
 ```
 
-Save your discards too: memory keeps them out of later searches. The reply has the `run_id`, `saved` (keeps,
+Keep searching until you have the keeps the user asked for; do not fill the list with `unsure` rows. A
+posting known only from an aggregator page cannot be saved: save its employer's posting. Save your discards too:
+memory keeps them out of later searches. The reply has the `run_id`, `saved` (keeps,
 unsures and discards), `not_saved` (rows that were `invalid`, `already_rejected` or `already_applied`, with the
 reason) and the finalize summary with `results.md` and `results.json`. The boards of kept postings join the
 profile's watchlist.
@@ -104,7 +108,8 @@ profile's watchlist.
 ## As an MCP server
 
 `ultron mcp` serves the same three tools over stdio to any MCP client: `search_jobs`, `inspect_jobs` (with
-`urls` and `companies` lists) and `save_shortlist` (with `rows`). Tools take their data inline, never file
+`urls`, as URLs or `{url, company}` objects, `companies`, `detail` and `all`) and `save_shortlist` (with `rows`).
+Each batch is one call, with no files to write. Tools take their data inline, never file
 paths, and return the same JSON as the CLI. Register the command `ultron mcp`, using the executable path from
 `RUNTIME.md`, in the platform's MCP settings only when the user asks for it.
 

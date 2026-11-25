@@ -1,22 +1,25 @@
 """``ultron inspect``: open many postings, boards and companies at once and return compact dossiers.
 
-The agent hands over the URLs its web searches found (postings, aggregator pages or ATS boards) and company names.
-ULTRON follows aggregators to the employer's posting, reads each posting the way ``fetch`` does (vendor APIs
-first), lists the boards that match the profile, finds the boards of named companies, and flags each posting
-against the profile's memory. Work runs in parallel across hosts and serially within one host, so no host sees
-more than one request at a time. Nothing here needs a run: the result is cached for ``ultron shortlist save``.
+The agent hands over the URLs its web searches found (postings, aggregator pages or ATS boards, each with the
+company when it knows it) and company names. ULTRON follows aggregators to the employer's posting, reads each
+posting the way ``fetch`` does, lists boards and companies against the profile, and flags every posting against
+the profile's memory. Postings on one ATS board are read together: when the board's API carries each posting's
+text (Ashby, Lever) one request reads them all, and the board's other matching postings come back too.
+
+Every unit of work runs in parallel with its own client; a shared host gate keeps any host to one request at a
+time, spaced across clients, and one vendor budget holds for the whole call. The reply lists only ``open`` and
+``listed`` postings by default, with counts and short lists of what else happened.
 """
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable, Iterable
+import threading
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import urlsplit
 
 from ultron.core import presets
-from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.registry import extract_seed_from_url
 from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.url_filter import domain_of, normalize_url
@@ -24,29 +27,35 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import AtsBoardSeed
 from ultron.core.text_clean import clean_text
 from ultron.infra import home
-from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked
+from ultron.infra.net import HostGate, RequestBudgetExceeded, VendorBlocked
 from ultron.profiles import store as profile_store
-from ultron.seeds.inventory import make_seed_id
-from ultron.seeds.verify import Proposal, verify_proposal
 from ultron.stages.candidates import candidate_identity
-from ultron.stages.discover import clean_posting, posting_candidate, seed_key
+from ultron.stages.discover import seed_key
 from ultron.stages.fetch import fetch_posting, posting_status
-from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run, load_vendor_budget
 from ultron.stages.role_feeds import remember_resolutions
 from ultron.stages.scout_finds import memory_flags, web_candidate
 from ultron.stages.scout_resolve import classify_find, resolve_aggregator
-from ultron.stages.watch import profile_matches
 from ultron.storage import runs
-from ultron.toolkit.dossier import ProfileContext, failed_dossier, listed_dossier, posting_dossier
+from ultron.toolkit.boards import (
+    NETWORK_ERRORS,
+    PAYLOAD_ERRORS,
+    TEXT_VENDORS,
+    board_dossiers,
+    cache_row,
+    company_dossiers,
+    list_board,
+)
+from ultron.toolkit.dossier import ProfileContext, failed_dossier, posting_dossier
 
 MAX_URLS = 100
+MAX_SAME_BOARD = 10
 MAX_COMPANIES = 20
-MAX_LISTED_PER_BOARD = 25
 WORKERS = 8
 CACHE_DIR = "toolkit"
 CACHE_FILE = "inspected.jsonl"
-NETWORK_ERRORS = (AtsClientError, HostBlocked, HttpError, URLRejected, RequestBudgetExceeded)
-STATUS_ORDER = {"open": 0, "listed": 1, "closed": 2}
+SHOWN = ("open", "listed")
+STATUS_ORDER = {"open": 0, "listed": 1}
 
 
 def run_context(profile_slug: str, preset: str) -> dict:
@@ -80,88 +89,149 @@ def is_board_url(url: str) -> bool:
     return all(part in board_words for part in segments)
 
 
+def as_targets(urls: Iterable[Any]) -> list[tuple[str, str]]:
+    """``(url, company)`` pairs from plain URLs or ``{"url", "company"}`` mappings, unique, at most ``MAX_URLS``."""
+    out: dict[str, str] = {}
+    for item in urls:
+        url, company = (item.get("url"), item.get("company")) if isinstance(item, dict) else (item, "")
+        url = str(url or "").strip()
+        if url:
+            out.setdefault(url, clean_text(company))
+    return list(out.items())[:MAX_URLS]
+
+
 class _Work:
-    """One unit of network work: all the postings of one host, one board, or one company."""
+    """One unit of network work: the postings of one host or one ATS board, one board home, one aggregator page,
+    or one company."""
 
-    def __init__(self, kind: str, items: list) -> None:
-        self.kind, self.items = kind, items
+    def __init__(self, kind: str, items: list, seed: AtsBoardSeed | None = None) -> None:
+        self.kind, self.items, self.seed = kind, items, seed
 
 
-def _plan(urls: Iterable[str], companies: Iterable[str]) -> tuple[list[_Work], list[dict]]:
-    """Group the inputs into units of work; URLs ULTRON may not fetch become dossiers at once.
-
-    Everything that can reach a shared ATS or aggregator host (ATS postings, boards, company probes, aggregator
-    pages) runs in one serial unit with one client, so a vendor never sees parallel requests and its budget and
-    blocks hold for the whole call. Postings on employers' own sites run in parallel, one unit per host.
-    """
-    by_host: dict[str, list[str]] = {}
-    shared = _Work("shared", [])
+def _plan(targets: list[tuple[str, str]], companies: Iterable[str]) -> tuple[list[_Work], list[dict]]:
+    """Group the inputs into units of work; URLs ULTRON may not fetch become dossiers at once."""
+    by_host: dict[str, list] = {}
+    by_board: dict[str, _Work] = {}
+    work: list[_Work] = []
     early: list[dict] = []
-    for url in list(dict.fromkeys(u.strip() for u in urls if str(u or "").strip()))[:MAX_URLS]:
+    for url, company in targets:
         found = classify_find(url)
+        seed = extract_seed_from_url(url, company) if found.outcome == "ats_posting" else None
         if found.outcome == "rejected":
             early.append(failed_dossier(url, "rejected", found.reason))
-        elif found.outcome == "ats_posting" and is_board_url(url):
-            shared.items.append(("board", url))
-        elif found.outcome in {"ats_posting", "aggregator"}:
-            shared.items.append(("posting", url))
+        elif found.outcome == "aggregator":
+            work.append(_Work("aggregator", [(url, company)]))
+        elif seed is not None and is_board_url(url):
+            work.append(_Work("board", [url], seed))
+        elif seed is not None:
+            by_board.setdefault(seed_key(seed), _Work("board_postings", [], seed)).items.append((url, company))
         else:
             by_host.setdefault(domain_of(normalize_url(url)), []).append(url)
-    names = list(dict.fromkeys(clean_text(c) for c in companies if clean_text(c)))[:MAX_COMPANIES]
-    shared.items.extend(("company", name) for name in names)
-    work = [shared] if shared.items else []
+    work.extend(by_board.values())
     work.extend(_Work("postings", items) for items in by_host.values())
+    names = list(dict.fromkeys(clean_text(c) for c in companies if clean_text(c)))[:MAX_COMPANIES]
+    work.extend(_Work("company", [name]) for name in names)
     return work, early
 
 
 class _Inspector:
-    """Runs units of work, each with its own HTTP client (clients are not shared across threads)."""
+    """Runs units of work in parallel; each has its own client, all share one host gate and one vendor budget."""
 
     def __init__(self, run: dict, context: ProfileContext, detail: bool, boards: dict[str, str]) -> None:
         self.run, self.context, self.detail = run, context, detail
         self.timeout = run["settings"]["ats_api_timeout"]
         self.allowed = load_allowed_domains()
         self.boards = boards  # normalized posting URL -> the "vendor:board" a board listed it on
+        self.gate, self.vendor_budget = HostGate(), load_vendor_budget(run)
+        # Aggregator pages followed, written to disk once at the end of the call (never from parallel threads).
+        self.resolutions: dict[str, str] = {}
+        self._lock = threading.Lock()
 
     def _client(self):
-        return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD)
+        return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD, gate=self.gate,
+                              vendor_budget=self.vendor_budget)
 
-    def run_unit(self, unit: _Work) -> tuple[list[dict], list[dict], int]:
-        """``(dossiers, cache rows, requests)`` for one unit of work."""
+    def run_unit(self, unit: _Work) -> tuple[list[dict], list[dict], list[dict], int]:
+        """``(dossiers, cache rows, misses, requests)`` for one unit of work."""
         client = self._client()
-        if unit.kind == "postings":
+        misses: list[dict] = []
+        if unit.kind == "company":
+            dossiers, cache, miss = company_dossiers(unit.items[0], client, self.timeout, self.context,
+                                                     detail=self.detail)
+            misses = [miss] if miss else []
+        elif unit.kind == "board":
+            dossiers, cache = self._board(unit.seed, client, set())
+        elif unit.kind == "board_postings":
+            dossiers, cache = self._board_postings(unit, client)
+        elif unit.kind == "aggregator":
             dossiers, cache = self._postings(unit.items, client)
-        else:
-            dossiers, cache = self._shared(unit.items, client)
-        return dossiers, cache, client.requests_made
+        else:  # postings on employers' own sites, one host per unit
+            dossiers, cache = self._postings([(url, "") for url in unit.items], client)
+        return dossiers, cache, misses, client.requests_made
 
-    def _shared(self, items: list[tuple[str, str]], client) -> tuple[list[dict], list[dict]]:
-        """ATS postings, boards, company probes and aggregator pages, serially with one client."""
-        handler: dict[str, Callable] = {"posting": self._postings, "board": self._board, "company": self._company}
-        dossiers, cache = [], []
-        for kind, item in items:
-            got, rows = handler[kind]([item], client)
-            dossiers.extend(got)
-            cache.extend(rows)
-        return dossiers, cache
+    def _board(self, seed: AtsBoardSeed, client, skip: set[str]) -> tuple[list[dict], list[dict]]:
+        try:
+            postings = list_board(seed, client, self.timeout)
+        except NETWORK_ERRORS + PAYLOAD_ERRORS as exc:
+            return [failed_dossier(seed_key(seed), "failed", type(exc).__name__)], []
+        return board_dossiers(seed, postings, self.context, detail=self.detail, skip=skip)
 
-    def _postings(self, urls: list[str], client) -> tuple[list[dict], list[dict]]:
+    def _board_postings(self, unit: _Work, client) -> tuple[list[dict], list[dict]]:
+        """Postings of one ATS board, with up to ``MAX_SAME_BOARD`` of its other postings that match the profile.
+
+        When the board's API carries each posting's text, one board request reads every requested posting that is
+        still listed; the rest (closed, or not on the board) are read one by one. Other boards read the requested
+        postings first and list the board once for its other matching postings.
+        """
+        seed = unit.seed
+        postings: list = []
+        try:
+            postings = list_board(seed, client, self.timeout)
+        except NETWORK_ERRORS + PAYLOAD_ERRORS:
+            postings = []
+        on_board, board_cache = board_dossiers(seed, postings, self.context, detail=self.detail,
+                                               keep_all=seed.ats in TEXT_VENDORS)
+        by_url = {normalize_url(d["url"]): (d, row) for d, row in zip(on_board, board_cache, strict=True)}
         dossiers, cache = [], []
-        for url in urls:
-            dossier, row = self._posting(url, client)
+        unread = []
+        for url, company in unit.items:
+            hit = by_url.pop(normalize_url(url), None)
+            if hit is not None and hit[0]["status"] == "open":
+                dossiers.append(hit[0])
+                cache.append(hit[1])
+            else:
+                unread.append((url, company))
+        read, read_cache = self._postings(unread, client)
+        dossiers, cache = dossiers + read, cache + read_cache
+        wanted = {d["id"] for d in dossiers if "id" in d}
+        extra = [(d, row) for d, row in by_url.values() if d["id"] not in wanted and d.get("matches", True)]
+        for dossier, _row in extra[:MAX_SAME_BOARD]:
+            dossier["via"] = "same_board"
+        for dossier in [*dossiers, *(d for d, _r in extra)]:
+            dossier.pop("matches", None)
+        return dossiers + [d for d, _r in extra[:MAX_SAME_BOARD]], cache + [r for _d, r in extra[:MAX_SAME_BOARD]]
+
+    def _postings(self, items: list[tuple[str, str]], client) -> tuple[list[dict], list[dict]]:
+        dossiers, cache = [], []
+        for url, company in items:
+            dossier, row = self._posting(url, company, client)
             dossiers.append(dossier)
             if row:
                 cache.append(row)
         return dossiers, cache
 
-    def _posting(self, url: str, client) -> tuple[dict, dict | None]:
+    def _posting(self, url: str, company: str, client) -> tuple[dict, dict | None]:
         found = classify_find(url)
         if found.outcome == "aggregator":
-            found = resolve_aggregator(url, client, self.timeout, "")
+            found = resolve_aggregator(url, client, self.timeout, company)
             # Remembered so later searches flag the listing with its employer posting's memory.
-            remember_resolutions({url: found.url if found.outcome == "resolved_aggregator" else ""})
+            with self._lock:
+                self.resolutions[url] = found.url if found.outcome == "resolved_aggregator" else ""
             if found.outcome != "resolved_aggregator":
-                return failed_dossier(url, "unresolved_aggregator", found.reason or "no employer posting link"), None
+                dossier = failed_dossier(url, "unresolved_aggregator", found.reason or "no employer posting link")
+                if company:
+                    dossier["company"] = company
+                return dossier, None
         candidate = self._candidate(found.url, found.source_type or "web_search")
         identity = candidate_identity(candidate.model_dump())
         try:
@@ -177,13 +247,16 @@ class _Inspector:
         if read_url != candidate.normalized_url:
             candidate = self._candidate(read_url, candidate.source_type)
             identity = candidate_identity(candidate.model_dump())
+        if company and not result.job.company:
+            result.job.company = company
         dossier = posting_dossier(result.job, identity, status, self.context, detail=self.detail)
+        result.job.company = dossier["company"]
         dossier["url"] = read_url
         if result.job.apply_url != read_url:
             dossier["apply_url"] = result.job.apply_url
         if url != read_url:
             dossier["found_at"] = url
-        return dossier, _cache_row(identity, status, candidate, result.job.model_dump(mode="json"), read_url)
+        return dossier, cache_row(identity, status, candidate, result.job.model_dump(mode="json"), read_url)
 
     def _candidate(self, url: str, source_type: str):
         """The candidate of ``url``, with its board when a board listed it (so it keeps the board identity)."""
@@ -192,53 +265,6 @@ class _Inspector:
         if board:
             candidate.source_type, candidate.source_key = "ats_api", board
         return candidate
-
-    def _listed(self, seed: AtsBoardSeed, client) -> tuple[list[dict], list[dict]]:
-        try:
-            postings = [clean_posting(p) for p in fetch_vendor_jobs(seed.ats, seed.board_identifier, client=client,
-                                                                    timeout=self.timeout)]
-        except NETWORK_ERRORS as exc:
-            return [failed_dossier(seed_key(seed), "failed", type(exc).__name__)], []
-        except (ValueError, KeyError, TypeError, AttributeError) as exc:
-            return [failed_dossier(seed_key(seed), "failed", f"unexpected_payload: {exc!r}")], []
-        dossiers, cache = [], []
-        for posting in profile_matches(postings, self.context.profile)[:MAX_LISTED_PER_BOARD]:
-            candidate = posting_candidate(seed, posting)
-            if candidate is None:
-                continue
-            identity = candidate_identity(candidate.model_dump())
-            dossiers.append(listed_dossier(posting, identity, seed.company, seed_key(seed)))
-            job = {"apply_url": candidate.normalized_url, "title": posting.title, "company": seed.company,
-                   "location": posting.location}
-            cache.append(_cache_row(identity, "listed", candidate, job, candidate.normalized_url))
-        if not dossiers:
-            dossiers.append({"board": seed_key(seed), "company": seed.company, "status": "board",
-                             "listed": len(postings), "matched": 0})
-        return dossiers, cache
-
-    def _board(self, urls: list[str], client) -> tuple[list[dict], list[dict]]:
-        seed = extract_seed_from_url(urls[0], "")
-        return self._listed(seed, client) if seed else ([failed_dossier(urls[0], "unusable", "not a board")], [])
-
-    def _company(self, names: list[str], client) -> tuple[list[dict], list[dict]]:
-        result = verify_proposal(Proposal(company=names[0]), client=client, timeout=self.timeout)
-        seed = result.seed
-        if seed is None and result.candidate:  # a guessed board answered but is not proven the company's
-            ats, board = result.candidate["ats"], result.candidate["board"]
-            seed = AtsBoardSeed(seed_id=make_seed_id(ats, board), company=names[0], ats=ats, board_identifier=board)
-        if seed is None:
-            return [{"company": names[0], "status": "no_board", "reason": result.reason}], []
-        dossiers, cache = self._listed(seed, client)
-        if result.status != "verified":
-            for dossier in dossiers:
-                dossier["board_confirmed"] = False
-        return dossiers, cache
-
-
-def _cache_row(identity: str, status: str, candidate, job: dict, url: str) -> dict:
-    """One inspect cache row: the posting's identity, the URL it was read at, its board and its facts."""
-    return {"identity_key": identity, "status": status, "url": url, "source_type": candidate.source_type,
-            "source_key": candidate.source_key if candidate.source_type == "ats_api" else "", "job": job}
 
 
 def board_aliases(cache: dict[str, dict]) -> dict[str, str]:
@@ -252,8 +278,7 @@ def cache_postings(profile_slug: str, rows: list[dict]) -> None:
         return
     folder = home.ultron_home() / CACHE_DIR / profile_slug
     folder.mkdir(parents=True, exist_ok=True)
-    with (folder / CACHE_FILE).open("a", encoding="utf-8") as handle:
-        handle.writelines(json.dumps(row, ensure_ascii=False) + "\n" for row in rows)
+    runs.append_jsonl(folder / CACHE_FILE, rows)
 
 
 def cached_postings(profile_slug: str) -> dict[str, dict]:
@@ -271,35 +296,65 @@ def _flag(dossiers: list[dict], profile_slug: str) -> None:
             dossier["memory"] = flags[dossier["id"]]
 
 
-def _order(dossiers: list[dict]) -> list[dict]:
+def _unique(dossiers: list[dict]) -> list[dict]:
+    """One dossier per posting (a posting read directly wins over the same one seen on its board)."""
+    seen: dict[str, dict] = {}
+    rest = []
+    for dossier in dossiers:
+        key = dossier.get("id")
+        if key is None:
+            rest.append(dossier)
+        elif key not in seen or (seen[key].get("via") and not dossier.get("via")):
+            seen[key] = dossier
+    return [*seen.values(), *rest]
+
+
+def _summary(dossiers: list[dict], misses: list[dict], show_all: bool) -> dict[str, Any]:
     hint_rank = {"keep": 0, "unsure": 1, "discard": 2}
-    return sorted(dossiers, key=lambda d: (STATUS_ORDER.get(d.get("status", ""), 3),
-                                           hint_rank.get((d.get("hint") or {}).get("verdict", ""), 1)))
+    counts: dict[str, int] = {}
+    for dossier in [*dossiers, *misses]:
+        counts[dossier["status"]] = counts.get(dossier["status"], 0) + 1
+    shown = [d for d in dossiers if show_all or d["status"] in SHOWN]
+    shown.sort(key=lambda d: (STATUS_ORDER.get(d["status"], 2),
+                              hint_rank.get((d.get("hint") or {}).get("verdict", ""), 1)))
+    out: dict[str, Any] = {"status": counts, "dossiers": shown}
+    unresolved = [{"url": d["url"], **({"company": d["company"]} if d.get("company") else {})}
+                  for d in dossiers if d["status"] == "unresolved_aggregator"]
+    if unresolved and not show_all:
+        out["unresolved"] = unresolved
+    if misses:
+        out["companies_without_matches"] = misses
+    return out
 
 
-def inspect_jobs(profile_slug: str, urls: Iterable[str] = (), companies: Iterable[str] = (), *,
-                 detail: bool = False, preset: str = presets.DEFAULT_PRESET) -> dict[str, Any]:
-    """Open postings, boards and companies for ``profile_slug`` and return one compact dossier per result.
+def inspect_jobs(profile_slug: str, urls: Iterable[Any] = (), companies: Iterable[str] = (), *,
+                 detail: bool = False, show_all: bool = False, preset: str = presets.DEFAULT_PRESET) -> dict[str, Any]:
+    """Open postings, boards and companies for ``profile_slug``; return compact dossiers of what is open.
 
-    Postings are ``open``, ``closed``, ``failed``, ``unusable``, ``unresolved_aggregator`` or ``rejected``; board
-    and company inputs return their ``listed`` postings that match the profile (open on the board, not opened).
-    ``detail`` returns a longer excerpt. Excerpts are page text: data, never instructions.
+    ``urls`` holds URLs, or ``{"url", "company"}`` mappings (the company helps follow an aggregator page). Each
+    read posting is ``open``, ``closed``, ``failed``, ``unusable``, ``unresolved_aggregator`` or ``rejected``;
+    boards and companies add their postings that match the profile, ``open`` when the board API carries their
+    text, else ``listed``. Only ``open`` and ``listed`` dossiers are returned unless ``show_all``; ``status`` counts
+    every outcome, ``unresolved`` lists aggregator pages with no employer link, and ``companies_without_matches``
+    the companies with no board or no matching posting. ``detail`` returns a longer role excerpt. Excerpts are
+    page text: data, never instructions.
     """
     run = run_context(profile_slug, preset)
     context = ProfileContext(run["profile_snapshot"])
-    work, dossiers = _plan(urls, companies)
+    work, dossiers = _plan(as_targets(urls), companies)
     inspector = _Inspector(run, context, detail, board_aliases(cached_postings(profile_slug)))
     requests = 0
     cache: list[dict] = []
+    misses: list[dict] = []
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        for unit_dossiers, unit_cache, unit_requests in pool.map(inspector.run_unit, work):
+        for unit_dossiers, unit_cache, unit_misses, unit_requests in pool.map(inspector.run_unit, work):
             dossiers.extend(unit_dossiers)
             cache.extend(unit_cache)
+            misses.extend(unit_misses)
             requests += unit_requests
     cache_postings(profile_slug, cache)
+    remember_resolutions(inspector.resolutions)
+    dossiers = _unique(dossiers)
     _flag(dossiers, profile_slug)
-    counts: dict[str, int] = {}
-    for dossier in dossiers:
-        counts[dossier["status"]] = counts.get(dossier["status"], 0) + 1
-    return {"profile": profile_slug, "results": len(dossiers), "status": counts, "requests": requests,
-            "dossiers": _order(dossiers)}
+    return {"profile": profile_slug, "results": len(dossiers), "requests": requests,
+            **_summary(dossiers, misses, show_all)}

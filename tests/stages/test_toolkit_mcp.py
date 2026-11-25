@@ -68,7 +68,8 @@ def test_inspect_then_save_through_the_tools():
             {"id": "greenhouse:acme:4012345", "verdict": "keep", "priority": 1}]}, 2),
     )
     dossiers = _payload(inspected)["dossiers"]
-    assert {d["status"] for d in dossiers} == {"open"} and not inspected["result"]["isError"]
+    assert {d["url"] for d in dossiers if d["status"] == "open"} >= {POSTING, EMPLOYER}
+    assert not inspected["result"]["isError"]
     result = _payload(saved)
     assert result["saved"]["keep"] == 1 and result["roles"] == 1
 

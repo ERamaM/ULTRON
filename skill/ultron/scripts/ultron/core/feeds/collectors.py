@@ -221,6 +221,9 @@ def collect_hn_who_is_hiring(
                     "company_name": company_name,
                     "url": url,
                     "source": "hn_who_is_hiring",
+                    # The whole first line names the role and the place ("Acme | ML Engineer | Remote EU").
+                    "headline": " | ".join(part for part in parts if part),
+                    "description": " ".join(re.sub(r"<[^>]+>", " ", text).split())[:2000],
                 }
             )
     return rows, []

@@ -18,6 +18,7 @@ from ultron.stages.scout_finalize import finalize_scout
 from ultron.stages.scout_finds import add_scout_finds
 from ultron.stages.scout_verified import EXPORTED_VERDICTS, final_row, load_verified
 from ultron.storage import runs
+from ultron.toolkit.dossier import employer_name
 from ultron.toolkit.inspect import board_aliases, cached_postings
 
 MAX_ROWS = 200
@@ -40,8 +41,9 @@ def _with_cache(rows: list, cache: dict[str, dict]) -> list:
             filled.append(row)
             continue
         job = cached["job"]
-        defaults = {"url": cached.get("url") or job.get("apply_url", ""),
-                    **{field: job.get(field, "") for field in FILLED_FIELDS}}
+        url = cached.get("url") or job.get("apply_url", "")
+        defaults = {"url": url, **{field: job.get(field, "") for field in FILLED_FIELDS}}
+        defaults["company"] = employer_name(defaults["company"], url)  # never empty or the platform's name
         filled.append({**defaults, **{k: v for k, v in row.items() if v not in (None, "")}})
     return filled
 

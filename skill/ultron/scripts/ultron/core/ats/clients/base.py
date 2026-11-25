@@ -24,6 +24,8 @@ class AtsPosting:
     remote_hint: str = ""
     posted_at: str | None = None
     raw_payload: dict | None = None
+    # The posting's text when the board API already returns it (Ashby, Lever), else "".
+    description: str = ""
 
 
 class AtsClientError(RuntimeError):

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from collections.abc import Callable, Mapping
+from contextlib import nullcontext
 from datetime import UTC
 from email.utils import parsedate_to_datetime
 from types import TracebackType
@@ -92,6 +94,8 @@ class VendorBudget:
         self.forbidden_streak: dict[str, int] = _int_map(state.get("forbidden_streak"))
         blocked = state.get("blocked")
         self.blocked: set[str] = {v for v in blocked if isinstance(v, str)} if isinstance(blocked, list) else set()
+        # Clients in parallel threads may share one budget: its counters change under this lock.
+        self._lock = threading.RLock()
 
     def to_dict(self) -> dict[str, Any]:
         """Export request, rate-limit, and block counters as a sorted dictionary."""
@@ -118,11 +122,16 @@ class VendorBudget:
 
     def charge(self, vendor: str) -> None:
         """Increment request count for ``vendor`` and notify any observer."""
-        self.requests[vendor] = self.requests.get(vendor, 0) + 1
-        self._changed()
+        with self._lock:
+            self.requests[vendor] = self.requests.get(vendor, 0) + 1
+            self._changed()
 
     def record(self, vendor: str, status: int, *, rate_limited: bool = False) -> None:
         """Count one request's outcome: its final ``status``, and ``rate_limited`` if any attempt got a 429."""
+        with self._lock:
+            self._record(vendor, status, rate_limited)
+
+    def _record(self, vendor: str, status: int, rate_limited: bool) -> None:
         changed = False
         if rate_limited or status == 429:
             self.rate_limited[vendor] = self.rate_limited.get(vendor, 0) + 1
@@ -210,6 +219,33 @@ def top_hosts(*counts: Mapping[str, int], limit: int = TOP_HOSTS_REPORTED) -> li
     return [{"host": host, "requests": requests} for host, requests in ranked[:limit]]
 
 
+class HostGate:
+    """Shared by clients running in parallel threads: one request at a time per host, spaced across all of them.
+
+    Each client keeps its own budgets; the gate only makes sure two threads never hit the same host at once and
+    that the host's spacing holds across clients.
+    """
+
+    def __init__(self) -> None:
+        self._guard = threading.Lock()
+        self._locks: dict[str, threading.Lock] = {}
+        self._last: dict[str, float] = {}
+
+    def lock_for(self, host: str) -> threading.Lock:
+        """The lock of ``host`` (created on first use)."""
+        with self._guard:
+            return self._locks.setdefault(host, threading.Lock())
+
+    def space(self, host: str, interval: float, clock: Callable[[], float], sleep: Callable[[float], None]) -> None:
+        """Wait until ``interval`` seconds have passed since the last request to ``host`` by any client."""
+        last = self._last.get(host)
+        if last is not None and interval > 0:
+            wait = interval - (clock() - last)
+            if wait > 0:
+                sleep(wait)
+        self._last[host] = clock()
+
+
 class HttpClient:
     """SSRF-guarded, budget-limited HTTP client wrapping a pinned transport."""
     def __init__(
@@ -220,6 +256,7 @@ class HttpClient:
         max_bytes: int = 5_000_000,
         timeout: float = 20.0,
         min_interval_per_host: float = 0.5,
+        gate: HostGate | None = None,
         transport: httpx.BaseTransport | None = None,
         resolver: Resolver | None = None,
         sleep: Callable[[float], None] = time.sleep,
@@ -240,6 +277,7 @@ class HttpClient:
         self.max_bytes = max_bytes
         self.timeout = timeout
         self.min_interval_per_host = min_interval_per_host
+        self._gate = gate
         self.requests_made = 0
         self._resolver = resolver
         self._sleep = sleep
@@ -360,6 +398,16 @@ class HttpClient:
             self._last_request[key] = sent
 
     def _send_once(
+        self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
+        headers: Mapping[str, str] | None = None,
+    ) -> tuple[int, httpx.Headers, str]:
+        """Send one request; with a shared gate, never in parallel with another client's request to ``host``."""
+        with self._gate.lock_for(host) if self._gate is not None else nullcontext():
+            if self._gate is not None:
+                self._gate.space(host, self.host_delay(host), self._clock, self._sleep)
+            return self._send_unlocked(method, url, host, timeout, json_body, max_bytes, headers)
+
+    def _send_unlocked(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
         headers: Mapping[str, str] | None = None,
     ) -> tuple[int, httpx.Headers, str]:
@@ -510,4 +558,4 @@ class HttpClient:
             raise HttpError("response was not valid JSON", status_code=status) from exc
 
 
-__all__ = ["HttpClient", "HttpError", "RequestBudgetExceeded", "URLRejected", "VendorBlocked", "VendorBudget"]
+__all__ = ["HostGate", "HttpClient", "HttpError", "RequestBudgetExceeded", "URLRejected", "VendorBlocked", "VendorBudget"]

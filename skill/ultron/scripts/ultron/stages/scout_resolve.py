@@ -74,9 +74,9 @@ def _pick_link(links: list[str], company: str) -> str | None:
     by_identity: dict[str, str] = {}
     for link in links:
         by_identity.setdefault(canonical_job_identity(link).identity_key, link)
-    if len(by_identity) == 1:
-        return next(iter(by_identity.values()))
     wanted = _company_key(company)
+    if len(by_identity) == 1 and not wanted:
+        return next(iter(by_identity.values()))
     if not wanted:
         return None
     matching = [link for link in by_identity.values()
@@ -85,13 +85,46 @@ def _pick_link(links: list[str], company: str) -> str | None:
     return matching[0] if len(matching) == 1 else None
 
 
+# A link to one opening on an employer's own site: a jobs or careers path with something after it.
+_EMPLOYER_JOB_PATH = re.compile(r"/(?:jobs?|careers?|positions?|vacanc(?:y|ies)|openings?|apply|join-us)/[^/?#]{3,}")
+_NOT_EMPLOYERS = frozenset({"linkedin.com", "facebook.com", "twitter.com", "x.com", "instagram.com", "youtube.com",
+                            "google.com", "apple.com", "github.com", "medium.com", "t.me", "wa.me"})
+
+
+def _registrable(host: str) -> str:
+    labels = host.removeprefix("www.").split(".")
+    return ".".join(labels[-2:]) if len(labels) >= 2 else host
+
+
+def employer_links(links: list[str], page_url: str, company: str) -> list[str]:
+    """Links to one opening on an employer's own site (not the aggregator, another aggregator or a social site).
+
+    With a ``company``, only links on a host that names it count, so related jobs of other employers never win.
+    """
+    page_domain = _registrable(domain_of(normalize_url(page_url)))
+    wanted = _company_key(company)
+    out = []
+    for link in links:
+        host = domain_of(normalize_url(link))
+        domain = _registrable(host)
+        if domain == page_domain or domain in _NOT_EMPLOYERS or is_aggregator_host(host):
+            continue
+        if not _EMPLOYER_JOB_PATH.search(link.split("?", 1)[0]):
+            continue
+        if wanted and wanted not in _company_key(host):
+            continue
+        out.append(link)
+    return list(dict.fromkeys(out))
+
+
 def resolve_aggregator(url: str, client, timeout: int, company: str = "") -> Resolution:
     """The employer posting an aggregator page links to, or ``unresolved_aggregator``.
 
-    Only links to a single posting on a supported ATS board count: an aggregator's own pages and links to other
+    Links to a single posting on a supported ATS board count first: an aggregator's own pages and links to other
     aggregators are ignored. When the page links to several postings (related jobs), only the one on the board
     of ``company`` is taken; if that does not single one out, the find stays unresolved rather than risk another
-    employer's job. A blocked host or an exhausted budget leaves the find unresolved with that reason.
+    employer's job. With no ATS link, one link to an opening on the employer's own site is followed (an employer
+    page). A blocked host or an exhausted budget leaves the find unresolved with that reason.
     """
     try:
         links = fetch_page_links(url, timeout, client=client)[:MAX_AGGREGATOR_LINKS]
@@ -106,6 +139,9 @@ def resolve_aggregator(url: str, client, timeout: int, company: str = "") -> Res
         if is_job_link(link):
             postings.append(link)
     if not postings:
+        direct = employer_links(links, url, company)
+        if len(direct) == 1:
+            return Resolution("resolved_aggregator", url=direct[0], source_type=EMPLOYER_PAGE)
         return Resolution("unresolved_aggregator", reason="no_employer_posting_link")
     chosen = _pick_link(postings, company)
     if chosen is None:

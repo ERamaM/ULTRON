@@ -55,11 +55,12 @@ FETCHERS: dict[str, Callable] = {
 
 def fetch_vendor_jobs(
     vendor: str, board: str, *, client: AtsHTTPClient, timeout: int, verify_only: bool = False,
-    preferred_locations: tuple[str, ...] = (), max_pages: int | None = None,
+    preferred_locations: tuple[str, ...] = (), max_pages: int | None = None, include_content: bool = False,
 ) -> list[AtsPosting]:
     """Spec §5.7: validate ``board`` for ``vendor`` and keep every call on the vendor's hosts.
 
-    ``max_pages`` bounds Workday pagination (discover passes the board's share of the vendor budget)."""
+    ``max_pages`` bounds Workday pagination (discover passes the board's share of the vendor budget).
+    ``include_content`` asks Greenhouse for each posting's text too (Ashby and Lever always return it)."""
     fetcher = FETCHERS.get(vendor)
     if fetcher is None:
         raise AtsClientError("vendor_not_supported_yet")
@@ -72,6 +73,8 @@ def fetch_vendor_jobs(
             max_pages=2 if verify_only else max_pages,
             preferred_locations=() if verify_only else preferred_locations,
         )
+    if vendor == "greenhouse" and include_content:
+        return fetcher(board, timeout, client=scoped_client, include_content=True)
     return fetcher(board, timeout, client=scoped_client)
 
 

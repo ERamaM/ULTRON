@@ -60,6 +60,39 @@ The scout arm passes on a profile when, against the agent without ULTRON in the 
 
 The redesign passes when the scout arm passes on both profiles and the second-day run of [27](27-multi-arm-and-second-day-measurement.md) finds every relevant new posting of the watchlist at under half the tokens of a first-day run.
 
+## Results of 2026-11-25
+
+Specifications 21 to 27 were implemented in #99. The final measurement and one improvement-loop iteration followed the same day.
+
+**Final measurement (pass 0).** Live, two profiles, three repetitions per arm. The baselines were interleaved and labelled blind. The user spot check of these sessions is still open, so the numbers are provisional.
+
+| Metric (mean of 3) | AI baseline | AI scout | Finance baseline | Finance scout |
+|---|---|---|---|---|
+| Relevant jobs per run | 15.0 | 11.0 | 20.0 | 7.7 |
+| P@5 / P@10 | 1.00 / 0.93 | 0.67 / 0.63 | 1.00 / 1.00 | 1.00 / 0.84 |
+| Ineligible rate | 0.00 | 0.12 | 0.03 | 0.18 |
+| Tokens per relevant job | 13.0k | 14.8k | 7.2k | 16.0k |
+
+The scout arm fails the pass criteria on both profiles. On the AI profile it clearly beats the sweep of ULTRON 0.4.1 measured earlier the same day: 7.3 relevant jobs per run and a P@5 of 0.40. No aggregator URL was exported.
+
+**Iteration 1 of the loop** ([29](29-improvement-loop.md)).
+- *Trace.* Half of each scout agent's finds were stale copies of closed postings, and the agent stopped searching before it knew. Only 13 to 25 finds per run were live, against 25 verified postings from the agent without ULTRON.
+- *Change.* An incremental fetch reported live finds after every batch, so the agent could keep searching until 25 were live.
+- *Result.* Relevant jobs per run moved from 11.0 to 11.3 (AI) and from 8.7 to 10.3 (finance). Both moves are within the spread between repetitions, about 3. P@5 and P@10 improved: AI from 0.67 / 0.63 to 0.87 / 0.79, finance P@10 from 0.86 to 0.93.
+- *Decision.* The target metric did not beat the spread, so the change was reverted (branch `fix/scout-live-finds`, commit a949d4a, not merged). The finds were also not like for like: two agents reached the live target by querying public board APIs with their own scripts.
+
+**Why the loop stopped.** The session's shared web-search quota ran out during iteration 1. Without web search, a live scout repetition is not comparable. The loop stopped with 24 of the 30 live runs used. Specification [28](28-retire-the-sweep-pipeline.md) is not applied.
+
+Still open:
+- the user spot check of the four sessions;
+- the second-day measurement;
+- the ideas not tried: raise the scout queue cap so more expansion postings are judged (expansion keeps were 69% relevant on the AI profile, and 53 to 97 postings per run were left unevaluated), and export only `keep` rows;
+- defects found in the runs:
+  - several aggregators and job boards are classed as employer pages: wellfound, jobgether, 4dayweek, builtin, remoterocketship, remotefirstjobs, startup.jobs, flexa, arc.dev and VC portfolio boards;
+  - an aggregator page with a single unrelated job link resolves to that job;
+  - an ATS board root URL is queued as a posting;
+  - the `live` count includes postings that `filter` later finds closed.
+
 ## Constraints
 
 - The user raised the live budget for this work to 30 runs per session on 2026-11-25. Six were spent on the first comparison. The other limits of the charter still apply, including the stop on HTTP 429 or 403 from two domains.

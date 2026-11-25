@@ -113,6 +113,17 @@ def known_pending(conn: sqlite3.Connection, profile_slug: str) -> set[str]:
         "SELECT identity_key FROM watch_pending WHERE profile_slug = ?", (profile_slug,))}
 
 
+def return_to_pending(conn: sqlite3.Connection, profile_slug: str, keys: Iterable[str]) -> int:
+    """Put watched postings a scout run did not evaluate back in the pending list for the next run."""
+    keys = list(keys)
+    with conn:
+        conn.executemany(
+            "UPDATE watch_pending SET state = 'pending', run_id = NULL WHERE profile_slug = ? AND identity_key = ?",
+            [(profile_slug, key) for key in keys],
+        )
+    return len(keys)
+
+
 def mark_queued(conn: sqlite3.Connection, profile_slug: str, keys: Iterable[str], run_id: str) -> int:
     """Hand pending postings to scout run ``run_id``."""
     keys = list(keys)

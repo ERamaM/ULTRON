@@ -139,6 +139,7 @@ def queue_pending_watch(run_id: str, run: dict) -> int:
         runs.append_jsonl(runs.run_dir(run_id) / "candidates.jsonl", rows)
         keys = [str(item.get("identity_key") or item.get("normalized_url") or "") for item in pending]
         watchlist.mark_queued(conn, run["profile_slug"], keys, run_id)
+    runs.mark_stage(run_id, "candidates")  # the run can fetch its watched postings without any agent find
     return len(rows)
 
 
@@ -264,6 +265,7 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
     negatives = role_negatives_for(profile)
     regions = location_scope(profile)["preferred"]
     flags, conn = _memory_lookup(run["profile_slug"], [row["identity_key"] for row in rows])
+    criteria_digest = scout_memory.profile_hash(profile)
     queue: list[tuple[tuple, dict]] = []
     carried: list[dict] = []
     discarded: list[dict] = []
@@ -289,7 +291,7 @@ def route_postings(rows: list[dict], run: dict) -> dict[str, Any]:
                 continue
             digest = scout_memory.content_hash(job.title, job.location, job.remote_text, job.body_text)
             if flag == "seen" and conn is not None:
-                previous = scout_memory.carried_row(conn, run["profile_slug"], key, digest)
+                previous = scout_memory.carried_row(conn, run["profile_slug"], key, digest, criteria_digest)
                 if previous is not None:
                     carried.append({"identity_key": key, "row": previous[0].model_dump(mode="json"),
                                     "priority": previous[1]})

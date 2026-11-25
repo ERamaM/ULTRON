@@ -103,20 +103,23 @@ def _row(title="Senior ML Engineer", company="Acme"):
 def test_memory_flags_and_carried_rows():
     with closing(ledger.connect()) as conn:
         digest = scout_memory.content_hash("Senior ML Engineer", "Remote")
+        criteria = scout_memory.profile_hash({"criteria": {"target_titles": ["ML Engineer"]}})
         scout_memory.record_verdicts(conn, "p1", "r1", [
             {"identity_key": "k-keep", "verdict": "keep", "priority": 1, "content_hash": digest, "row": _row()},
             {"identity_key": "k-drop", "verdict": "discard", "discard_category": "role_family"},
             {"identity_key": "k-closed", "verdict": "discard", "discard_category": "closed_or_invalid"},
-        ])
+        ], criteria)
         conn.execute("INSERT INTO jobs (identity_key, canonical_url, first_seen, last_seen, review_state)"
                      " VALUES ('k-applied', 'u', 'x', 'x', 'applied'), ('k-archived', 'u2', 'x', 'x', 'archived')")
         flags = scout_memory.flags(conn, "p1", ["k-keep", "k-drop", "k-closed", "k-applied", "k-archived", "k-new"])
         assert flags == {"k-keep": "seen", "k-drop": "rejected", "k-closed": "new", "k-applied": "applied",
                          "k-archived": "rejected", "k-new": "new"}
         assert scout_memory.flags(conn, "p2", ["k-keep"]) == {"k-keep": "new"}
-        carried = scout_memory.carried_row(conn, "p1", "k-keep", digest)
+        carried = scout_memory.carried_row(conn, "p1", "k-keep", digest, criteria)
         assert carried is not None and carried[1] == 1 and carried[0].title == "Senior ML Engineer"
-        assert scout_memory.carried_row(conn, "p1", "k-keep", "changed") is None
+        assert scout_memory.carried_row(conn, "p1", "k-keep", "changed", criteria) is None
+        edited = scout_memory.profile_hash({"criteria": {"target_titles": ["ML Engineer"], "exclusion_terms": ["x"]}})
+        assert scout_memory.carried_row(conn, "p1", "k-keep", digest, edited) is None  # the profile changed
         assert scout_memory.known_count(conn, "p1") == 3
 
 
@@ -161,6 +164,8 @@ def test_watch_pending_lifecycle():
         assert watchlist.mark_queued(conn, "p1", ["k1"], "run") == 1
         assert [p["normalized_url"] for p in watchlist.pending(conn, "p1")] == ["u2"]
         assert watchlist.known_pending(conn, "p1") == {"k1", "k2"}
+        assert watchlist.return_to_pending(conn, "p1", ["k1"]) == 1
+        assert len(watchlist.pending(conn, "p1")) == 2
 
 
 def test_siblings_share_role_family(monkeypatch):
@@ -266,3 +271,17 @@ def test_new_run_rejects_unknown_modes():
     with pytest.raises(ValueError, match="unknown mode"):
         runs.new_run(profiles.EXAMPLE_SLUG, "balanced", mode="turbo")
     assert runs.run_mode({}) == "sweep"
+
+
+def test_row_board_key_credits_agent_finds():
+    from ultron.stages.final_helpers import row_board_key
+
+    found = _row()
+    found.source_type, found.source_key = "web_search", "web_search"
+    assert row_board_key(found) == "greenhouse:acme"
+    expanded = _row()
+    expanded.source_type, expanded.source_key = "ats_api", "greenhouse:acme"
+    assert row_board_key(expanded) == "greenhouse:acme"
+    page = _row()
+    page.apply_url, page.source_type = "https://careers.example.org/jobs/1", "employer_page"
+    assert row_board_key(page) == ""

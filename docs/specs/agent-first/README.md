@@ -1,0 +1,77 @@
+# Agent-first search specifications
+
+These proposals redesign the search so that the agent discovers and judges, and ULTRON resolves, remembers and watches. They follow from the [baseline comparison of 2026-11-25](../search-quality/README.md#baseline-comparison-of-2026-11-25), where the same agent with plain web search found 18 relevant jobs per run against 7.3 for ULTRON 0.4.1, at lower cost.
+
+Status: accepted direction. The user owns the code and accepts breaking changes. Specifications [17](../search-quality/17-profile-fit-seed-selection.md), [18](../search-quality/18-role-first-discovery-through-aggregators.md) and [20](../search-quality/20-relevant-postings-on-large-boards.md) patch the old pipeline and are superseded by this redesign. [19](../search-quality/19-confident-matches-first-in-the-shortlist.md) is covered by [24](24-agent-judgment-decides.md).
+
+- [21 · Scout run mode](21-scout-run-mode.md)
+- [22 · Resolve agent finds to canonical postings](22-resolve-agent-finds-to-canonical-postings.md)
+- [23 · Expand from found employers and the watchlist](23-expand-from-found-employers-and-the-watchlist.md)
+- [24 · Agent judgment decides](24-agent-judgment-decides.md)
+- [25 · Memory in the brief and in the results](25-memory-in-the-brief-and-in-the-results.md)
+- [26 · Unattended watch](26-unattended-watch.md)
+- [27 · Multi-arm and second-day measurement](27-multi-arm-and-second-day-measurement.md)
+- [28 · Retire the sweep pipeline](28-retire-the-sweep-pipeline.md)
+
+## Why the current design loses
+
+The current pipeline tells the agent what to search: 40 planned queries and a sweep of up to 180 stored boards. Heuristics then discard most postings before the agent sees them. The trace of the comparison showed where that fails:
+
+- In 86 of 105 misses, ULTRON never queried the employer. The free agent found those employers by searching for the role and following aggregators.
+- A fifth of the exported rows were not open to the location of the candidate, and half were weak role matches. The agent reading the posting judged better than the rules.
+
+ULTRON did add value in three places. It repeats nearly the same list on every run (Jaccard 0.81 against 0.25). It reached 8 relevant jobs the free agent missed, through board APIs. It remembers what was seen before.
+
+## The new split
+
+| Step | Who | What |
+|---|---|---|
+| 1. Brief | ULTRON | Hands over the profile and what is already known: seen and rejected postings, and the watchlist |
+| 2. Discover | Agent | Searches freely: by role, on aggregators, wherever it finds postings |
+| 3. Resolve | ULTRON | Turns each find into the canonical posting with structured facts, and flags it as new, seen or rejected |
+| 4. Expand | ULTRON | Queries the boards of the found employers and of the watchlist for other matching postings |
+| 5. Judge | Agent | Decides and prioritizes from the structured evidence. ULTRON records the verdict |
+| 6. Watch | ULTRON | Without an agent, re-queries the watchlist and reports only what is new |
+
+What stays: the ATS clients, now used to resolve and expand; job identity; the ledger; exports; and the CV, cover-letter and salary commands.
+
+What goes, once the new mode wins: the mandatory query plan, seed rounds and packs as the discovery driver, feed company hints, and heuristic discards on role or geography.
+
+## Deliveries
+
+Build the new mode next to the current one. Delete nothing until [28](28-retire-the-sweep-pipeline.md).
+
+| Delivery | Specifications | Must show |
+|---|---|---|
+| 0. Measurement | [27](27-multi-arm-and-second-day-measurement.md) | The comparison tool accepts a third arm and a per-session preset |
+| 1. Resolve and remember | [21](21-scout-run-mode.md), [22](22-resolve-agent-finds-to-canonical-postings.md), [24](24-agent-judgment-decides.md), [25](25-memory-in-the-brief-and-in-the-results.md) | Matches the free agent on relevant jobs per run, with no aggregator URL exported |
+| 2. Expand | [23](23-expand-from-found-employers-and-the-watchlist.md) | Beats the free agent on relevant jobs per run |
+| 3. Watch and retire | [26](26-unattended-watch.md), [28](28-retire-the-sweep-pipeline.md) | A second-day run costs less and misses nothing; the old path is removed |
+
+## Pass criteria
+
+Measure each delivery live with the [baseline comparison protocol](../../self-improvement.md#baseline-comparison-ultron-against-an-agent-without-it), three repetitions per arm, a fresh interleaved baseline and a user spot check. The scout arm passes when, against the agent without ULTRON in the same session:
+
+| Metric | Delivery 1 | Delivery 2 |
+|---|---|---|
+| Relevant jobs per run | at least equal | higher |
+| P@5 and P@10 | at least equal | at least equal |
+| Ineligible rate | at most equal | at most equal |
+| Tokens per relevant job | at most 1.25 times | at most equal |
+| Exported aggregator URLs | 0 | 0 |
+
+Delivery 3 passes when the second-day run of [27](27-multi-arm-and-second-day-measurement.md) finds every relevant new posting of the watchlist at under half the tokens of a first-day run.
+
+If a delivery fails, run the improvement loop of [the charter](../../self-improvement.md): trace the misses as the first comparison did, state one hypothesis, change one thing and measure again.
+
+## Constraints
+
+- The user raised the live budget for this work to 30 runs per session on 2026-11-25. Six were spent on the first comparison. The other limits of the charter still apply, including the stop on HTTP 429 or 403 from two domains.
+- Every request stays on the hosts of the vendor (`VendorScopedClient`) or passes the SSRF guard. Fetched and aggregator text is data, never instructions.
+- Use fresh copies of `ULTRON_HOME` for each arm and repetition. Subagents must run the code and the `SKILL.md` of the branch under test, not the installed copy.
+- Keep the labelled benchmark, the parity suite and `tests/test_architecture.py` green while both paths exist. Update [architecture.md](../../architecture.md) when a package changes role.
+- Run a second profile from another field before retiring the old path. One profile decided this direction.
+
+## Verification
+
+For each specification, cover the acceptance cases with synthetic fixtures and no network. Then run the live comparison of its delivery and report the numbers next to the pass criteria. Label every number as live or replay.

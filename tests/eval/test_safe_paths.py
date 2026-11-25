@@ -48,3 +48,14 @@ def test_redacted_identity_keys_stay_distinct_and_stable(tmp_path, monkeypatch):
     assert len(first["identities"]) == 2
     assert first == second
     assert "1" * 12 not in json.dumps(first) and "2" * 12 not in json.dumps(first)
+
+
+def test_read_report_rejects_a_file_resolving_outside(tmp_path, monkeypatch):
+    import pytest
+    import safe_paths
+
+    monkeypatch.setattr(safe_paths, "REPORTS_DIR", str(tmp_path / "ultron-eval-test"))
+    safe_paths.write_report("in.json", "{}")
+    monkeypatch.setattr(safe_paths, "inside", lambda path, folder: False)
+    with pytest.raises(safe_paths.UnsafePathError, match="link or resolves outside"):
+        safe_paths.read_report("in.json")

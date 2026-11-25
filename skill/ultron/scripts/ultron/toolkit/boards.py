@@ -14,6 +14,7 @@ from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.base import AtsPosting
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.models import AtsBoardSeed, ExtractedJob
+from ultron.core.rules.hard_filters import is_open_status_ok
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked
 from ultron.seeds import load_inventory
 from ultron.seeds.inventory import is_unconfirmed, make_seed_id
@@ -44,9 +45,18 @@ def cache_row(identity: str, status: str, candidate, job: dict, url: str) -> dic
 def board_job(seed: AtsBoardSeed, posting: AtsPosting) -> ExtractedJob:
     """The posting a board API returned with its text, as an extracted job."""
     url = normalize_url(posting.apply_url)
+    raw = posting.raw_payload or {}
+    # Greenhouse falls back to updated_at when it has no publication date: an edit date is never a publication date.
+    published = raw.get("first_published") if seed.ats == "greenhouse" else posting.posted_at
     return ExtractedJob(apply_url=url, domain=domain_of(url), title=posting.title, company=seed.company,
                         location=posting.location, remote_text=posting.remote_hint, body_text=posting.description,
-                        apply_available=True, posting_date=posting.posted_at)
+                        apply_available=True, posting_date=str(published) if published else None)
+
+
+def board_status(job: ExtractedJob) -> str:
+    """``open``, or ``closed`` when the posting text says it is filled or expired (the rule ``fetch`` applies)."""
+    open_ok = is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint, expired=job.valid_through_expired)
+    return "open" if open_ok else "closed"
 
 
 def list_board(seed: AtsBoardSeed, client, timeout: int) -> list[AtsPosting]:
@@ -76,9 +86,10 @@ def board_dossiers(seed: AtsBoardSeed, postings: list[AtsPosting], context: Prof
             continue
         if posting.description:
             job = board_job(seed, posting)
-            dossier = posting_dossier(job, identity, "open", context, detail=detail)
+            status = board_status(job)
+            dossier = posting_dossier(job, identity, status, context, detail=detail)
             dossier["board"] = seed_key(seed)
-            cache.append(cache_row(identity, "open", candidate, job.model_dump(mode="json"), candidate.normalized_url))
+            cache.append(cache_row(identity, status, candidate, job.model_dump(mode="json"), candidate.normalized_url))
         else:
             dossier = listed_dossier(posting, identity, seed.company, seed_key(seed))
             job = {"apply_url": candidate.normalized_url, "title": posting.title, "company": seed.company,

@@ -279,3 +279,16 @@ def test_a_confirmed_company_board_joins_the_profile_inventory(monkeypatch):
     monkeypatch.setattr(boards, "guessed_board_ownership", lambda *_a: "owned")
     inspect.inspect_jobs(SLUG, [], ["Acme"])
     assert any(s.board_identifier == "acme" for s in seeds.load_inventory(SLUG))
+
+
+def test_board_reads_keep_date_provenance_and_closure():
+    from ultron.core.ats.clients.base import AtsPosting
+    from ultron.core.models import AtsBoardSeed
+    from ultron.toolkit import boards
+    seed = AtsBoardSeed(seed_id="greenhouse:acme", company="Acme", ats="greenhouse", board_identifier="acme")
+    edited = AtsPosting(title="ML Lead", apply_url=POSTING, posted_at="2026-11-20", description="Remote EU.",
+                        raw_payload={"updated_at": "2026-11-20"})
+    assert boards.board_job(seed, edited).posting_date is None  # an edit date is not a publication date
+    filled = AtsPosting(title="ML Lead", apply_url=POSTING, description="This position has been filled.")
+    assert boards.board_status(boards.board_job(seed, filled)) == "closed"
+    assert boards.board_status(boards.board_job(seed, edited)) == "open"

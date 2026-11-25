@@ -118,11 +118,24 @@ def write_report(raw_name: str | os.PathLike[str], text: str) -> Path:
 
 
 def read_report(raw_name: str | os.PathLike[str]) -> str:
-    """The text of ``REPORTS_DIR/<name>``."""
+    """The text of ``REPORTS_DIR/<name>``; a link, or a file resolving outside the folder, is rejected."""
     name = _report_name(raw_name)
     path = os.path.join(REPORTS_DIR, name)
+    if os.path.islink(REPORTS_DIR) or os.path.islink(path) or (os.path.lexists(path) and not inside(path, REPORTS_DIR)):
+        raise UnsafePathError(f"{name}: report is a link or resolves outside the reports folder")
     with open(path, encoding="utf-8") as handle:
         return handle.read()
+
+
+def remove_report(raw_name: str | os.PathLike[str]) -> bool:
+    """Delete ``REPORTS_DIR/<name>`` when it is a regular file there; return whether it existed."""
+    name = _report_name(raw_name)
+    path = os.path.join(_private_reports_dir(), name)  # refuses a linked or foreign folder first
+    if not os.path.lexists(path):
+        return False
+    _check_target(path)
+    os.remove(path)
+    return True
 
 
 def inside(path: str, folder: str) -> bool:

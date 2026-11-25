@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from contextlib import closing
 from dataclasses import asdict
-from pathlib import Path
 from typing import Any
 
 from ultron.core.ats.identity import seed_identity
@@ -200,8 +199,3 @@ def add_scout_finds(run_id: str, run: dict, rows: list, *, boards: dict[str, str
     verified = scout_verified.store_verified(batch.out_dir, batch.verified)
     runs.mark_stage(run_id, "candidates")
     return _summary(items, batch, verified)
-
-
-def add_finds_file(run_id: str, path: Path) -> dict:
-    """``candidates add`` for a scout run: read the finds JSONL at ``path`` and add them."""
-    return add_scout_finds(run_id, runs.load_run(run_id), runs.read_jsonl(path))

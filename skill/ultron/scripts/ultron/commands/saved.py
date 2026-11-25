@@ -46,7 +46,7 @@ def _delete(args: argparse.Namespace) -> int:
 
 def _run(args: argparse.Namespace) -> int:
     try:
-        emit(saved.run(args.name, unattended=args.unattended))
+        emit(saved.run(args.name, unattended=args.unattended, watch=args.watch))
     except LookupError as exc:
         return fail("not_found", str(exc.args[0]))
     except FileNotFoundError as exc:
@@ -78,4 +78,5 @@ def register(subparsers) -> None:
     p = sub.add_parser("run", help="run a saved search")
     p.add_argument("name")
     p.add_argument("--unattended", action="store_true")
+    p.add_argument("--watch", action="store_true", help="watch the profile's watchlist instead of searching")
     p.set_defaults(func=_run)

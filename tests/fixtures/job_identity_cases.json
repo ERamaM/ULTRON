@@ -74,6 +74,16 @@
       ]
     },
     {
+      "name": "recruitee_board_on_custom_domain",
+      "expected_identity_key": "recruitee:pvcase:finance-business-partner",
+      "source_type": "ats_api",
+      "source_key": "recruitee:pvcase",
+      "urls": [
+        "https://jobs.pvcase.com/o/finance-business-partner",
+        "https://pvcase.recruitee.com/o/finance-business-partner"
+      ]
+    },
+    {
       "name": "breezy_position_id",
       "expected_identity_key": "breezy:acme:5f2c9a1b3d4e",
       "source_type": "ats_api",

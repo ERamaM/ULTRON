@@ -10,6 +10,8 @@ from ultron.stages.candidates import add_candidates
 from ultron.stages.discover import discover_ats
 from ultron.stages.feeds import discover_feeds
 from ultron.stages.fetch import fetch
+from ultron.stages.scout_finds import add_finds_file
+from ultron.stages.verified_check import check_verified
 from ultron.storage import runs
 
 
@@ -34,11 +36,20 @@ def _discover_feeds(args: argparse.Namespace) -> int:
     return _guard(discover_feeds, args.run)
 
 
+def _add_finds(run_id: str, source: Path) -> dict:
+    """Scout runs resolve and judge finds; sweep runs append web-search candidates."""
+    if runs.run_mode(runs.load_run(run_id)) == "scout":
+        return add_finds_file(run_id, source)
+    return add_candidates(run_id, source)
+
+
 def _candidates_add(args: argparse.Namespace) -> int:
-    return _guard(add_candidates, args.run, Path(args.source))
+    return _guard(_add_finds, args.run, Path(args.source))
 
 
 def _fetch(args: argparse.Namespace) -> int:
+    if args.check_verified:
+        return _guard(check_verified, args.run)
     return _guard(fetch, args.run)
 
 
@@ -62,4 +73,6 @@ def register(subparsers) -> None:
 
     fetch_parser = subparsers.add_parser("fetch", help="download candidate pages and extract postings")
     fetch_parser.add_argument("--run", required=True)
+    fetch_parser.add_argument("--check-verified", action="store_true",
+                              help="scout runs: fetch the verified finds once to compare, changing no verdict")
     fetch_parser.set_defaults(func=_fetch)

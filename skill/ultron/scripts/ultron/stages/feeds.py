@@ -22,7 +22,7 @@ from ultron.core.discovery.prefilter import (
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.feeds.collectors import COLLECTORS
-from ultron.core.feeds.urls import AGGREGATOR_DOMAINS, SHORTENER_DOMAINS, candidate_urls_from_row, redirect_targets
+from ultron.core.feeds.urls import SHORTENER_DOMAINS, candidate_urls_from_row, is_aggregator_host, redirect_targets
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import AtsBoardSeed, CandidateUrl
 from ultron.core.remote_requirement import is_remote_required
@@ -71,10 +71,6 @@ def _posting_like(row: dict) -> SimpleNamespace:
     )
 
 
-_AGGREGATORS = {d.removeprefix("www.") for d in AGGREGATOR_DOMAINS}
-# Names too generic to match across TLDs (``remote.co`` must not claim ``remote.de`` or ``remote.acme.de``).
-_GENERIC_AGGREGATOR_NAMES = frozenset({"remote"})
-_AGGREGATOR_NAMES = {d.split(".")[0] for d in _AGGREGATORS} - _GENERIC_AGGREGATOR_NAMES
 _COUNTRY_SLDS = COUNTRY_SLDS  # arbeitnow.co.uk, foo.com.au
 _GENERIC_HOST_LABELS = frozenset({"www", "jobs", "careers", "apply", "boards", "job", "work", "team"})
 # Legal forms plus product words that do not distinguish a company's domain label.
@@ -158,27 +154,6 @@ def _company_domain_from_url(url: str, company: str = "") -> str:
     if not _label_matches_company(reg_labels[0], company):
         return ""
     return registrable
-
-
-def is_aggregator_host(host: str) -> bool:
-    """``host`` (a hostname or netloc) belongs to a job aggregator of ``AGGREGATOR_DOMAINS``.
-
-    Also matches subdomains and the same site under another country domain (``www.arbeitnow.co.uk``
-    for ``arbeitnow.com``): ``<name>.<tld>`` or ``<name>.<co|com|org|net>.<tld>`` whose name is a
-    non-generic aggregator name. Hosts on a supported ATS domain are never aggregators.
-    """
-    h = str(host or "").lower().rpartition("@")[2]
-    h = h.rsplit(":", 1)[0] if h.count(":") == 1 else h  # drop the port (IPv6 literals are not aggregators)
-    h = h.rstrip(".").removeprefix("www.")
-    if not h or is_direct_supported_ats_host(h):
-        return False
-    if h in _AGGREGATORS or any(h.endswith("." + d) for d in _AGGREGATORS):
-        return True
-    name, _, rest = h.partition(".")
-    if not rest or name not in _AGGREGATOR_NAMES:
-        return False
-    labels = rest.split(".")
-    return len(labels) == 1 or (len(labels) == 2 and labels[0] in _COUNTRY_SLDS)
 
 
 # Path segments of a company's careers index ("/careers", "/company/careers", "/en/jobs"), never of a posting.

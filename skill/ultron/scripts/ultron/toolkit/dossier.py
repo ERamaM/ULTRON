@@ -24,6 +24,7 @@ from ultron.salary.disclosure import extract_salaries_from_text
 GEO_EXCERPT = 250
 ROLE_EXCERPT = 500
 DETAIL_ROLE_EXCERPT = 2500
+SALARY_SCAN_CHARS = 20_000
 TEXT_LIMIT = 200
 # Company names that are the page's platform, not the employer (an ATS's own name or a board's heading).
 PLATFORM_NAMES = frozenset({"job boards", "manatal", "careers", "careers page", "jobs", "workable", "greenhouse",
@@ -95,7 +96,8 @@ def role_excerpt(body_text: str, *, detail: bool) -> str:
 
 def salary(body_text: str) -> str:
     """The first pay band the posting discloses, as written (``""`` when none)."""
-    hits = extract_salaries_from_text(body_text or "")
+    # Posting text is untrusted: only a bounded prefix is scanned, so a huge listing cannot pin the worker.
+    hits = extract_salaries_from_text((body_text or "")[:SALARY_SCAN_CHARS])
     if not hits:
         return ""
     hit = hits[0]

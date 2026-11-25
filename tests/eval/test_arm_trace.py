@@ -29,8 +29,9 @@ def _texts():
         "evaluations.jsonl": _jsonl([{"identity_key": identity(_url(6)), "evaluation": {"keep": False}}]),
         "postings.jsonl": _jsonl([{"identity_key": identity(_url(8)), "candidate": {"normalized_url": _url(8)}}]),
         "fetch_errors.jsonl": _jsonl([{"url": _url(9), "error": "inaccessible"}]),
-        "candidates.jsonl": _jsonl([{"normalized_url": _url(10), "ats_company": "Queried Co"},
+        "candidates.jsonl": _jsonl([{"normalized_url": _url(10), "ats_company": "Agent Only Co"},
                                     {"normalized_url": _url(9), "ats_company": "Other"}]),
+        "board_report.jsonl": _jsonl([{"seed_key": "greenhouse:queried", "company": "Queried Co", "listed": 3}]),
     }
 
 
@@ -47,6 +48,7 @@ def _texts():
     (10, "", "candidate_not_fetched"),
     (11, "Queried Co", "employer_queried_job_missing"),
     (12, "Unknown Co", "employer_never_queried"),
+    (13, "Agent Only Co", "employer_never_queried"),  # an agent find is not a board query
 ])
 def test_run_view_outcomes(n, company, expected):
     view = at.RunView(_texts())
@@ -67,3 +69,10 @@ def test_trace_arm_counts_missed_relevant_jobs():
 def test_load_run_view_reports_unreadable_runs(tmp_path):
     with pytest.raises(ComparisonError, match="cannot be traced"):
         at.load_run_view("not-a-run", str(tmp_path))
+
+
+def test_run_view_falls_back_to_ats_candidates_without_a_board_report():
+    texts = {"candidates.jsonl": _jsonl([{"normalized_url": _url(1), "ats_company": "Expanded Co",
+                                          "source_type": "ats_api"}])}
+    view = at.RunView(texts)
+    assert view.outcome({at._identity(_url(2))}, "Expanded Co", top_n=25) == "employer_queried_job_missing"

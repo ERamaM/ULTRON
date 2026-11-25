@@ -558,13 +558,22 @@ def discover_ats(run_id: str) -> dict:
 
     # Keep candidates added by other stages (web search, feeds); ATS rows are rebuilt on every run.
     # A feed row for a posting this run also found through its ATS board yields to the ATS row.
-    ats_identities = {_identity(c.model_dump()) for c in candidates}
-    kept_rows = [
-        r for r in runs.read_jsonl(out_dir / "candidates.jsonl")
-        if r.get("source_type") != "ats_api"
-        and not (str(r.get("source_type") or "").startswith("feed:") and _identity(r) in ats_identities)
-    ]
-    runs.write_jsonl(out_dir / "candidates.jsonl", [*candidates, *kept_rows])
+    previous = runs.read_jsonl(out_dir / "candidates.jsonl")
+    if scout_run:
+        # Agent finds and watched postings keep their place and provenance; expansion only adds postings the
+        # run does not have yet (an earlier expansion is rebuilt).
+        kept_rows = [r for r in previous if r.get("search_pass") != scout.EXPANSION_PASS]
+        known = {_identity(r) for r in kept_rows}
+        merged = [*kept_rows, *(c for c in candidates if _identity(c.model_dump()) not in known)]
+    else:
+        ats_identities = {_identity(c.model_dump()) for c in candidates}
+        kept_rows = [
+            r for r in previous
+            if r.get("source_type") != "ats_api"
+            and not (str(r.get("source_type") or "").startswith("feed:") and _identity(r) in ats_identities)
+        ]
+        merged = [*candidates, *kept_rows]
+    runs.write_jsonl(out_dir / "candidates.jsonl", merged)
     runs.write_jsonl(out_dir / "seed_errors.jsonl", errors)
     runs.write_jsonl(out_dir / BOARD_REPORT_FILE, board_report)
     skipped_ids = {e["seed_id"] for e in errors if e.get("skipped")}

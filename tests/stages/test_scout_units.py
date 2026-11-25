@@ -61,6 +61,28 @@ class _Client:
         return 200, url, f"<html><body>{body}</body></html>"
 
 
+def test_resolve_aggregator_with_several_posting_links():
+    other = "https://jobs.lever.co/otherco/11111111-2222-3333-4444-555555555555"
+    page = _Client([other, POSTING])
+    assert scout_resolve.resolve_aggregator("https://remoteok.com/1", page, 5).reason == "ambiguous_posting_links"
+    picked = scout_resolve.resolve_aggregator("https://remoteok.com/1", page, 5, company="Acme Inc.")
+    assert picked.url == POSTING
+    same = _Client([POSTING, POSTING + "?utm_source=x"])
+    assert scout_resolve.resolve_aggregator("https://remoteok.com/1", same, 5).url == POSTING
+
+
+def test_content_hash_covers_eligibility_text():
+    base = scout_memory.content_hash("ML Engineer", "Remote", "Remote EU", "Open to EU residents")
+    assert base != scout_memory.content_hash("ML Engineer", "Remote", "Remote EU", "US residents only")
+    assert base != scout_memory.content_hash("ML Engineer", "Remote", "Remote US", "Open to EU residents")
+
+
+def test_board_seed_for_unknown_and_known_vendors():
+    seed = scout.board_seed("greenhouse:acme", "Acme")
+    assert (seed.ats, seed.board_identifier, seed.company) == ("greenhouse", "acme", "Acme")
+    assert scout.board_seed("nosuchvendor:x") is None and scout.board_seed("greenhouse:") is None
+
+
 def test_resolve_aggregator_outcomes():
     resolved = scout_resolve.resolve_aggregator("https://remoteok.com/1", _Client(["javascript:x", POSTING]), 5)
     assert (resolved.outcome, resolved.url) == ("resolved_aggregator", POSTING)

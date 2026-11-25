@@ -22,9 +22,14 @@ USER_REJECTED_STATES = ("rejected", "archived")
 TRANSIENT_DISCARDS = frozenset({"closed_or_invalid"})
 
 
-def content_hash(title: str, location: str) -> str:
-    """A digest of the posting facts whose change makes the agent judge a seen posting again."""
-    text = " | ".join(" ".join(str(part or "").casefold().split()) for part in (title, location))
+def content_hash(title: str, location: str, remote_text: str = "", body_text: str = "") -> str:
+    """A digest of the posting facts whose change makes the agent judge a seen posting again.
+
+    It covers the title, location, remote policy and description, so a posting whose requirements or
+    eligibility change is judged again instead of being carried from memory.
+    """
+    parts = (title, location, remote_text, body_text)
+    text = " | ".join(" ".join(str(part or "").casefold().split()) for part in parts)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 

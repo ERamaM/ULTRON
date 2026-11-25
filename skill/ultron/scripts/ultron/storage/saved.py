@@ -85,7 +85,7 @@ def run(name: str, *, unattended: bool, watch: bool = False) -> dict:
 
     s = get(name)
     if watch:
-        return {"saved_search": name, **watch_profile(s["profile_slug"], s["preset"])}
+        return {"saved_search": name, **watch_profile(s["profile_slug"], s["preset"], s["overrides"] or None)}
     overrides = s["overrides"] or None
     if unattended:
         result = run_unattended(s["profile_slug"], s["preset"], overrides)

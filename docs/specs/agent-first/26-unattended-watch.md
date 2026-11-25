@@ -1,6 +1,6 @@
 # 26 · Unattended watch
 
-Status: proposed. Delivery 3.
+Status: proposed.
 
 ## Current behavior
 

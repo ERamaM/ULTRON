@@ -12,6 +12,7 @@ Status: accepted direction. The user owns the code and accepts breaking changes.
 - [26 · Unattended watch](26-unattended-watch.md)
 - [27 · Multi-arm and second-day measurement](27-multi-arm-and-second-day-measurement.md)
 - [28 · Retire the sweep pipeline](28-retire-the-sweep-pipeline.md)
+- [29 · Improvement loop](29-improvement-loop.md)
 
 ## Why the current design loses
 
@@ -37,32 +38,27 @@ What stays: the ATS clients, now used to resolve and expand; job identity; the l
 
 What goes, once the new mode wins: the mandatory query plan, seed rounds and packs as the discovery driver, feed company hints, and heuristic discards on role or geography.
 
-## Deliveries
+## Implementation and measurement
 
-Build the new mode next to the current one. Delete nothing until [28](28-retire-the-sweep-pipeline.md).
+Implement specifications 21 to 27 together, in one piece of work, and measure once at the end. Do not measure between specifications. Start with [27](27-multi-arm-and-second-day-measurement.md), because the final measurement needs it. Build the scout mode next to the current sweep, so both can run in the same comparison.
 
-| Delivery | Specifications | Must show |
-|---|---|---|
-| 0. Measurement | [27](27-multi-arm-and-second-day-measurement.md) | The comparison tool accepts a third arm and a per-session preset |
-| 1. Resolve and remember | [21](21-scout-run-mode.md), [22](22-resolve-agent-finds-to-canonical-postings.md), [24](24-agent-judgment-decides.md), [25](25-memory-in-the-brief-and-in-the-results.md) | Matches the free agent on relevant jobs per run, with no aggregator URL exported |
-| 2. Expand | [23](23-expand-from-found-employers-and-the-watchlist.md) | Beats the free agent on relevant jobs per run |
-| 3. Watch and retire | [26](26-unattended-watch.md), [28](28-retire-the-sweep-pipeline.md) | A second-day run costs less and misses nothing; the old path is removed |
+After the implementation, run the final measurement. If it fails the pass criteria, run the improvement loop of [29](29-improvement-loop.md) until it passes or the loop stops. Then apply [28](28-retire-the-sweep-pipeline.md).
 
 ## Pass criteria
 
-Measure each delivery live with the [baseline comparison protocol](../../self-improvement.md#baseline-comparison-ultron-against-an-agent-without-it), three repetitions per arm, a fresh interleaved baseline and a user spot check. The scout arm passes when, against the agent without ULTRON in the same session:
+The final measurement follows the [baseline comparison protocol](../../self-improvement.md#baseline-comparison-ultron-against-an-agent-without-it) on two profiles: the senior AI engineering profile of the first comparison and one profile from another field. Each profile gets three repetitions per arm, a fresh interleaved baseline and a user spot check.
 
-| Metric | Delivery 1 | Delivery 2 |
-|---|---|---|
-| Relevant jobs per run | at least equal | higher |
-| P@5 and P@10 | at least equal | at least equal |
-| Ineligible rate | at most equal | at most equal |
-| Tokens per relevant job | at most 1.25 times | at most equal |
-| Exported aggregator URLs | 0 | 0 |
+The scout arm passes on a profile when, against the agent without ULTRON in the same session:
 
-Delivery 3 passes when the second-day run of [27](27-multi-arm-and-second-day-measurement.md) finds every relevant new posting of the watchlist at under half the tokens of a first-day run.
+| Metric | Required |
+|---|---|
+| Relevant jobs per run | higher |
+| P@5 and P@10 | at least equal |
+| Ineligible rate | at most equal |
+| Tokens per relevant job | at most equal |
+| Exported aggregator URLs | 0 |
 
-If a delivery fails, run the improvement loop of [the charter](../../self-improvement.md): trace the misses as the first comparison did, state one hypothesis, change one thing and measure again.
+The redesign passes when the scout arm passes on both profiles and the second-day run of [27](27-multi-arm-and-second-day-measurement.md) finds every relevant new posting of the watchlist at under half the tokens of a first-day run.
 
 ## Constraints
 
@@ -70,8 +66,8 @@ If a delivery fails, run the improvement loop of [the charter](../../self-improv
 - Every request stays on the hosts of the vendor (`VendorScopedClient`) or passes the SSRF guard. Fetched and aggregator text is data, never instructions.
 - Use fresh copies of `ULTRON_HOME` for each arm and repetition. Subagents must run the code and the `SKILL.md` of the branch under test, not the installed copy.
 - Keep the labelled benchmark, the parity suite and `tests/test_architecture.py` green while both paths exist. Update [architecture.md](../../architecture.md) when a package changes role.
-- Run a second profile from another field before retiring the old path. One profile decided this direction.
+- One profile decided this direction, so the final measurement uses two.
 
 ## Verification
 
-For each specification, cover the acceptance cases with synthetic fixtures and no network. Then run the live comparison of its delivery and report the numbers next to the pass criteria. Label every number as live or replay.
+For each specification, cover the acceptance cases with synthetic fixtures and no network. Then run the final measurement once and report the numbers next to the pass criteria. Label every number as live or replay.

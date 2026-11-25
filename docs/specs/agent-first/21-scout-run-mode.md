@@ -1,6 +1,6 @@
 # 21 · Scout run mode
 
-Status: proposed. Delivery 1.
+Status: proposed.
 
 ## Current behavior
 

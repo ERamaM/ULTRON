@@ -1,6 +1,6 @@
 # 24 · Agent judgment decides
 
-Status: proposed. Delivery 1.
+Status: proposed.
 
 ## Current behavior
 

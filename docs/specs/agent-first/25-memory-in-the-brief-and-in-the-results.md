@@ -1,6 +1,6 @@
 # 25 · Memory in the brief and in the results
 
-Status: proposed. Delivery 1.
+Status: proposed.
 
 ## Current behavior
 

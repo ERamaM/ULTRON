@@ -1,14 +1,14 @@
 # 28 · Retire the sweep pipeline
 
-Status: proposed. Delivery 3. Blocked until the scout mode passes deliveries 1 and 2 on two profiles.
+Status: proposed. The removal is blocked until the scout mode passes the final measurement on two profiles.
 
 ## Current behavior
 
-After the earlier deliveries, two search paths exist: the default sweep and the scout mode. The skill documents both, and the sweep keeps its own code: the query plan, seed rounds and packs, feed company hints, the heuristic evaluator as a filter, and the unattended sweep.
+After specifications 21 to 27, two search paths exist: the default sweep and the scout mode. The skill documents both, and the sweep keeps its own code: the query plan, seed rounds and packs, feed company hints, the heuristic evaluator as a filter, and the unattended sweep.
 
 ## Expected behavior
 
-Once the scout mode has passed the [pass criteria](README.md#pass-criteria) on the first profile and on a second profile from another field, make it the only search path:
+Once the redesign has passed the [pass criteria](README.md#pass-criteria), make the scout mode the only search path:
 
 - `ultron run new` creates a scout run. `--mode` is removed.
 - Remove the code only the sweep used: the mandatory query plan, `seeds plan` and seed rounds, sector packs as a discovery driver, feed company hints and the unattended sweep. `ultron watch` replaces `run --unattended`.

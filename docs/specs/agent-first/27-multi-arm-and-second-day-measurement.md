@@ -1,6 +1,6 @@
 # 27 · Multi-arm and second-day measurement
 
-Status: proposed. Delivery 0: do this first.
+Status: proposed. Implement first: the final measurement needs it.
 
 ## Current behavior
 

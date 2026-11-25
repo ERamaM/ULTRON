@@ -1,6 +1,6 @@
 # 22 · Resolve agent finds to canonical postings
 
-Status: proposed. Delivery 1.
+Status: proposed.
 
 ## Current behavior
 

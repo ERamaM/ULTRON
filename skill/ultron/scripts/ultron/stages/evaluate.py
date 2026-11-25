@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from ultron.core.models import JobEvaluation
 from ultron.core.rules.geography import build_geo_body_excerpt
+from ultron.stages.scout_verified import exported_count, load_verified
 from ultron.storage import runs
 
 EXCERPT_CHARS = 1500
@@ -105,4 +106,7 @@ def pending_batch(run_id: str, limit: int = 10) -> dict:
             "body_excerpt": (job.get("body_text") or "")[:EXCERPT_CHARS],
             "geo_excerpt": build_geo_body_excerpt(job.get("body_text") or "", max_chars=GEO_EXCERPT_CHARS),
         })
-    return {"pending": len(todo), "returned": len(items), "items": items}
+    result = {"pending": len(todo), "returned": len(items), "items": items}
+    if scout_run:  # verified finds are settled: they never reach this queue
+        result["verified_finds"] = exported_count(load_verified(out_dir))
+    return result

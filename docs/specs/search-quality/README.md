@@ -2,6 +2,8 @@
 
 Specifications 01 to 16 expand the eight improvements identified during the product review. Specifications 17 to 20 come from the [baseline comparison of 2026-11-25](#baseline-comparison-of-2026-11-25). Numbers identify specifications and do not imply delivery order. Each proposal can be selected independently. Specifications 06 and 07 share the salary observation model.
 
+Specifications 17, 18 and 20 patch the current pipeline. The [agent-first redesign](../agent-first/README.md) supersedes them and covers 19: implement the redesign instead.
+
 - [01 · Unique vacancies per board](01-unique-vacancies-per-board.md)
 - [02 · Publication and update dates](02-publication-and-update-dates.md)
 - [03 · Reliable board yield history](03-reliable-board-yield-history.md)
@@ -55,7 +57,7 @@ The misses are a discovery problem, not a filtering one. The quality of what ULT
 
 Limits of this measurement: it is one profile, in a field where remote-job aggregators are well stocked. The labellers ran on the same model as the agent without ULTRON. Pool recall counts the jobs either arm found, not the whole market.
 
-Suggested order: 17 first, since it needs no new network traffic, then 18, 19 and 20. Repeat the comparison after each one.
+If the redesign is not adopted, the suggested order is 17 first, since it needs no new network traffic, then 18, 19 and 20, repeating the comparison after each one.
 
 ## Verification
 

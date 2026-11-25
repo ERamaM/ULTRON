@@ -18,7 +18,6 @@ A group without an action runs its default (marked "default").
 ```
 ultron search [profile] [preset]      full search with the agent (default)
        search quick [profile] [preset] heuristic-only search, no web search or evaluation
-       search scout [profile] [preset] you search freely; ULTRON resolves, expands and remembers
        search watch [profile]         re-check the watched boards with no agent
        search saved [list|run|create|delete] [name]
 ultron profile                        list profiles (default)
@@ -58,8 +57,6 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
   selected, run `ultron run --unattended --profile <slug> [--preset <p>]` with the requested preset
   and summarize the counts and top matches. Use `balanced` by default.
   Tell the user it used heuristics only.
-- `search scout [profile] [preset]`: the scout run (`ultron run new --profile <slug> --preset <p> --mode
-  scout`, `references/scout.md`), kept while the toolkit replaces it.
 - `search watch [profile]`: `ultron watch --profile <slug>`; summarize the new postings per employer and the
   postings that closed, and offer a search to judge the new ones. `ultron watchlist list|add|remove --profile
   <slug>` shows or edits the watched boards (`references/toolkit.md`).

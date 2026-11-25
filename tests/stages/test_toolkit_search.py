@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 import httpx
 import pytest
-from test_scout_flow import GH_BOARD, GH_PAGE, OTHER_POSTING, POSTING
+from toolkit_helpers import GH_BOARD, GH_PAGE, OTHER_POSTING, POSTING
 
 from ultron import seeds
 from ultron.cli import main
@@ -40,7 +40,7 @@ REED = {"results": [{"jobId": 77, "jobTitle": "Machine Learning Engineer", "empl
 SEEN: list[httpx.Request] = []
 
 
-def _handler(request: httpx.Request) -> httpx.Response:
+def handler(request: httpx.Request) -> httpx.Response:
     SEEN.append(request)
     host, path = request.url.host, request.url.path
     if host == "remotive.com" and path.startswith("/api"):
@@ -73,7 +73,7 @@ def _offline(tmp_path, monkeypatch):
         monkeypatch.delenv(name, raising=False)
     SEEN.clear()
     http_factory.set_test_overrides(
-        transport=httpx.MockTransport(_handler), resolver=lambda h, p: ["93.184.216.34"],
+        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
         sleep=lambda s: None, min_interval_per_host=0.0,
     )
     profiles.install_example()
@@ -114,7 +114,7 @@ def test_keyed_sources_send_their_keys_only_to_their_hosts(monkeypatch):
 
 def test_failed_sources_are_reported_without_stopping(monkeypatch):
     def broken(request):
-        return httpx.Response(500) if request.url.host == "remotive.com" else _handler(request)
+        return httpx.Response(500) if request.url.host == "remotive.com" else handler(request)
     http_factory.set_test_overrides(transport=httpx.MockTransport(broken), resolver=lambda h, p: ["93.184.216.34"],
                                     sleep=lambda s: None, min_interval_per_host=0.0)
     out = search.search_jobs(SLUG)
@@ -255,7 +255,7 @@ def test_a_failing_term_keeps_the_other_terms_rows(monkeypatch):
     def flaky(request):
         if request.url.host == "remotive.com" and "Second" in str(request.url):
             return httpx.Response(500)
-        return _handler(request)
+        return handler(request)
     http_factory.set_test_overrides(transport=httpx.MockTransport(flaky), resolver=lambda h, p: ["93.184.216.34"],
                                     sleep=lambda s: None, min_interval_per_host=0.0)
     from ultron.core.feeds.role_search import SOURCES

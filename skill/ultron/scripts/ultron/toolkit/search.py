@@ -113,6 +113,7 @@ class _Searcher:
         except PAYLOAD_ERRORS as exc:
             return seed_key(seed), {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, []
         dossiers, _cache = board_dossiers(seed, postings, self.context, limit=None)  # ranked globally later
+        dossiers = [d for d in dossiers if d["status"] != "closed"]
         for dossier in dossiers:
             dossier["source"] = seed_key(seed)
         return seed_key(seed), {"status": "ok", "results": len(dossiers)}, dossiers

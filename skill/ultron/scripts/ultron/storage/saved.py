@@ -69,7 +69,7 @@ def write_digest(run_id: str, name: str) -> tuple[str, int]:
     """Write ``runs/<id>/digest.md`` listing only the offers new in this run; return (path, count)."""
     path = runs.run_dir(run_id) / "results.json"
     rows = json.loads(path.read_text(encoding="utf-8"))["rows"] if path.is_file() else []
-    new = [r for r in rows if r.get("is_new")]
+    new = [r for r in rows if r.get("is_new_in_saved_search", r.get("is_new"))]
     lines = [f"# Digest: {name}", "", f"Run {run_id}: {len(new)} new role(s).", ""]
     for r in new:
         lines.append(f"- {r.get('title', '')} - {r.get('company', '')} - {r.get('apply_url', '')} "
@@ -87,11 +87,12 @@ def run(name: str, *, unattended: bool, watch: bool = False) -> dict:
     if watch:
         return {"saved_search": name, **watch_profile(s["profile_slug"], s["preset"], s["overrides"] or None)}
     overrides = s["overrides"] or None
+    search_id = ledger.saved_search_identity(s["name"], s["created_at"])
     if unattended:
-        result = run_unattended(s["profile_slug"], s["preset"], overrides)
+        result = run_unattended(s["profile_slug"], s["preset"], overrides, saved_search_id=search_id)
         digest, count = write_digest(result["run_id"], name)
         return {"run_id": result["run_id"], "new_roles": count, "digest": digest}
-    run_id = runs.new_run(s["profile_slug"], s["preset"], overrides)
+    run_id = runs.new_run(s["profile_slug"], s["preset"], overrides, saved_search_id=search_id)
     runs.mark_stage(run_id, "new")
     data = runs.load_run(run_id)
     return {"run_id": run_id, "prompt": s["prompt"],

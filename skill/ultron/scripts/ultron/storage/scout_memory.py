@@ -1,8 +1,7 @@
-"""Scout memory: what a profile already saw, rejected or applied to, and the agent's last verdicts.
+"""Agent memory: what a profile already saw, rejected or applied to, and the agent's last verdicts.
 
-A scout run reads this memory to brief the agent, to flag each find and to skip postings it already judged.
-It stores the agent verdict of every evaluated posting per profile, with the exported row, so a later run can
-carry an unchanged posting forward without asking the agent again.
+``inspect`` and ``search`` read it to flag every posting (``new``, ``seen``, ``rejected``, ``applied``), and
+``shortlist save`` stores the agent's verdict of every saved posting per profile, with its exported row.
 """
 
 from __future__ import annotations
@@ -14,27 +13,14 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Literal
 
-from ultron.core.models import FinalRow
-
 Flag = Literal["new", "seen", "rejected", "applied"]
 USER_REJECTED_STATES = ("rejected", "archived")
 # An agent discard for a fact that can change does not reject the posting for good: it may reopen.
 TRANSIENT_DISCARDS = frozenset({"closed_or_invalid"})
 
 
-def content_hash(title: str, location: str, remote_text: str = "", body_text: str = "") -> str:
-    """A digest of the posting facts whose change makes the agent judge a seen posting again.
-
-    It covers the title, location, remote policy and description, so a posting whose requirements or
-    eligibility change is judged again instead of being carried from memory.
-    """
-    parts = (title, location, remote_text, body_text)
-    text = " | ".join(" ".join(str(part or "").casefold().split()) for part in parts)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
-
-
 def profile_hash(profile: dict) -> str:
-    """A digest of the profile's search criteria; a carried verdict is valid only under the same criteria."""
+    """A digest of the profile's search criteria, stored with each verdict."""
     criteria = json.dumps((profile or {}).get("criteria") or {}, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(criteria.encode("utf-8")).hexdigest()[:16]
 
@@ -78,42 +64,8 @@ def _flag(conn: sqlite3.Connection, profile_slug: str, key: str) -> Flag:
     return "seen" if exported else "new"
 
 
-def carried_row(
-    conn: sqlite3.Connection, profile_slug: str, key: str, digest: str, criteria_digest: str,
-) -> tuple[FinalRow, int | None] | None:
-    """The last row and priority of a seen posting, else ``None``.
-
-    The row is carried only when neither the posting's facts nor the profile's criteria changed since the agent
-    judged it; otherwise the posting is judged again.
-    """
-    found = conn.execute(
-        "SELECT verdict, content_hash, row_json, priority, profile_hash FROM scout_verdicts"
-        " WHERE profile_slug = ? AND identity_key = ?",
-        (profile_slug, key),
-    ).fetchone()
-    if not found or found[0] not in {"keep", "unsure"} or found[1] != digest or not found[2]:
-        return None
-    if found[4] != criteria_digest:
-        return None
-    return FinalRow.model_validate(json.loads(found[2])), found[3]
 
 
-def carried_unfetched(
-    conn: sqlite3.Connection, profile_slug: str, key: str, criteria_digest: str,
-) -> tuple[FinalRow, int | None] | None:
-    """The stored row and priority of a verified find seen before without any fetched posting text.
-
-    A verified find is stored with an empty content digest. The first time a later run fetches the posting, its
-    verdict is carried as it is (and the caller stores the digest), unless the profile's criteria changed.
-    """
-    found = conn.execute(
-        "SELECT verdict, content_hash, row_json, priority, profile_hash FROM scout_verdicts"
-        " WHERE profile_slug = ? AND identity_key = ?",
-        (profile_slug, key),
-    ).fetchone()
-    if not found or found[0] not in {"keep", "unsure"} or found[1] or not found[2] or found[4] != criteria_digest:
-        return None
-    return FinalRow.model_validate(json.loads(found[2])), found[3]
 
 
 def record_verdicts(
@@ -145,24 +97,3 @@ def record_verdicts(
             rows,
         )
     return len(rows)
-
-
-def rejected_companies(conn: sqlite3.Connection, profile_slug: str, limit: int = 20) -> list[str]:
-    """Employers whose postings the user rejected for this profile, most rejections first."""
-    rows = conn.execute(
-        "SELECT company, COUNT(*) AS n FROM jobs WHERE profile_slug = ? AND company != ''"
-        " AND review_state IN (?, ?) GROUP BY company ORDER BY n DESC, company LIMIT ?",
-        (profile_slug, *USER_REJECTED_STATES, limit),
-    )
-    return [company for company, _count in rows]
-
-
-def known_count(conn: sqlite3.Connection, profile_slug: str) -> int:
-    """Postings this profile already exported or judged."""
-    exported = conn.execute(
-        "SELECT COUNT(DISTINCT o.identity_key) FROM job_occurrences o JOIN runs r ON r.run_id = o.run_id"
-        " WHERE r.profile_slug = ?",
-        (profile_slug,),
-    ).fetchone()[0]
-    judged = conn.execute("SELECT COUNT(*) FROM scout_verdicts WHERE profile_slug = ?", (profile_slug,)).fetchone()[0]
-    return max(exported, judged)

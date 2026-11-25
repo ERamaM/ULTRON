@@ -370,3 +370,107 @@ def test_audit_cv_run_reads_heuristic_fit_signals_from_kept_jsonl_before_finaliz
     all_terms = set(align["matched"]) | set(align["missing"])
     assert {"PyTorch", "Kubernetes", "Airflow"} <= all_terms
     assert report["subscores"]["target_alignment"] is not None
+
+
+def test_offline_audit_finds_older_recorded_vacancy_after_latest_capture_is_removed(tmp_path, monkeypatch, capsys):
+    from contextlib import closing
+
+    from ultron.storage import ledger
+
+    profiles.install_example()
+    url = "https://boards.greenhouse.io/acme/jobs/42"
+    old = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+    recent = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+    vacancy = FinalRow(
+        title="Senior Data Engineer", company="Acme", apply_url=url, location="Remote EU",
+        remote_policy="remote_eu", eligibility="high", eligibility_evidence="", fit_signals=[], freshness="",
+    )
+    with closing(ledger.connect()) as conn:
+        (key,) = ledger.record_occurrences(conn, old, [vacancy])
+        ledger.record_occurrences(conn, recent, [vacancy])
+    posting = ExtractedJob(
+        title=vacancy.title, company=vacancy.company, apply_url=url, domain="boards.greenhouse.io",
+        body_text="Required skills: Snowflake and Python.",
+    )
+    runs.write_jsonl(runs.run_dir(old) / "postings.jsonl", [
+        {"identity_key": key, "job": posting.model_dump(mode="json")},
+    ])
+    (runs.run_dir(old) / "run.json").unlink()
+    (runs.run_dir(recent) / "run.json").unlink()
+    for _ in range(7):
+        unrelated = runs.new_run(profiles.EXAMPLE_SLUG, "balanced")
+        runs.mark_stage(unrelated, "fetch")
+        runs.write_jsonl(runs.run_dir(unrelated) / "postings.jsonl", [{
+            "identity_key": "unrelated",
+            "job": posting.model_copy(update={"apply_url": url.replace("/42", "/99")}).model_dump(mode="json"),
+        }])
+
+    def fail_network(*args, **kwargs):
+        pytest.fail("The audit attempted a network fetch")
+
+    monkeypatch.setattr(ats_target, "_fetch_job_url", fail_network)
+    cv_path = SYNTHETIC / "en_skills.txt"
+    assert cli.main(["cv", "audit", str(cv_path), "--job", url, "--no-fetch"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["target"]["run_id"] == old
+    assert output["target"]["identity_key"] == key
+    assert "Snowflake" in output["keyword_alignment"]["missing"]
+
+    (runs.run_dir(old) / "postings.jsonl").unlink()
+    assert cli.main(["cv", "audit", str(cv_path), "--job", url, "--no-fetch"]) == 2
+    assert "no surviving local posting snapshot" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("posting", [
+    "SQL or Python is required. Tableau is desirable. Our company uses Redis. Docker is not required.",
+    "SQL o Python es obligatorio. Tableau es deseable. Nuestra empresa usa Redis. Docker no es obligatorio.",
+    "Requirements:\n\nSQL or Python\n\nPreferred:\nTableau\nCompany:\nRedis and Docker",
+    "## Requirements\nSQL or Python\nPreferred\nTableau\n## Company\nRedis and Docker",
+])
+def test_audit_prioritizes_requirements_and_preserves_alternatives(tmp_path, capsys, posting):
+    job = tmp_path / "posting.txt"
+    job.write_text(posting, encoding="utf-8")
+    output = {}
+    for skill in ("SQL", "Tableau"):
+        cv = tmp_path / f"{skill}.txt"
+        cv.write_text(f"Ada Lovelace\nSkills\n{skill}\n", encoding="utf-8")
+        assert cli.main(["cv", "audit", str(cv), "--job-file", str(job)]) == 0
+        output[skill] = json.loads(capsys.readouterr().out)
+
+    sql, tableau = output["SQL"], output["Tableau"]
+    assert sql["subscores"]["target_alignment"] > tableau["subscores"]["target_alignment"]
+    evidence = sql["keyword_alignment"]["criteria"]
+    required = [row for row in evidence if row["category"] == "required"]
+    assert len(required) == 1
+    assert set(required[0]["alternatives"]) == {"SQL", "Python"}
+    assert required[0]["matched"] == ["SQL"]
+    assert required[0]["evidence"] in posting
+    assert any(row["category"] == "preferred" and row["alternatives"] == ["Tableau"] for row in evidence)
+    assert any(row["category"] == "unspecified" and row["alternatives"] == ["Docker"] for row in evidence)
+    assert any(row["category"] == "unspecified" and row["alternatives"] == ["Redis"] for row in evidence)
+    assert "Required · matched" in Path(sql["report_path"]).read_text(encoding="utf-8")
+
+
+def test_audit_resolves_or_with_overlapping_term_matches(tmp_path, capsys):
+    job = tmp_path / "posting.txt"
+    job.write_text("Power BI or Tableau is required.", encoding="utf-8")
+    cv = tmp_path / "tableau.txt"
+    cv.write_text("Ada Lovelace\nSkills\nTableau\n", encoding="utf-8")
+    assert cli.main(["cv", "audit", str(cv), "--job-file", str(job)]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["subscores"]["target_alignment"] == 20
+    (criterion,) = output["keyword_alignment"]["criteria"]
+    assert criterion["alternatives"] == ["Power BI", "Tableau"]
+
+
+@pytest.mark.parametrize(("description", "skill", "expected"), [
+    ("Required skills: Python", "Python", 20),
+    ("SQL required, Python preferred. Tableau is desirable.", "Tableau", 4),
+])
+def test_audit_keeps_independent_requirements(description, skill, expected, tmp_path, capsys):
+    job = tmp_path / "posting.txt"
+    job.write_text(description, encoding="utf-8")
+    cv = tmp_path / "cv.txt"
+    cv.write_text(f"Ada Lovelace\nSkills\n{skill}\n", encoding="utf-8")
+    assert cli.main(["cv", "audit", str(cv), "--job-file", str(job)]) == 0
+    assert json.loads(capsys.readouterr().out)["subscores"]["target_alignment"] == expected

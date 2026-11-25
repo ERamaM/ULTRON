@@ -74,11 +74,15 @@ def run_mode(run: dict) -> str:
     return run.get("mode") or DEFAULT_MODE
 
 
-def new_run(profile_slug: str, preset: str, overrides: dict | None = None, *, mode: str = DEFAULT_MODE) -> str:
+def new_run(
+    profile_slug: str, preset: str, overrides: dict | None = None, *, mode: str = DEFAULT_MODE,
+    saved_search_id: str | None = None,
+) -> str:
     """Create a new run folder with resolved preset settings and return its run ID.
 
-    ``mode`` is ``sweep`` (the planned search over stored boards) or ``scout`` (the agent finds postings and
-    ULTRON resolves, expands and remembers). It raises ``ValueError`` for an unknown mode.
+    ``mode`` is ``sweep`` (the planned search over stored boards) or ``scout`` (a shortlist the agent judged and
+    saved). It raises ``ValueError`` for an unknown mode. ``saved_search_id`` ties the run to the saved search
+    that started it.
     """
     if mode not in MODES:
         raise ValueError(f"unknown mode: {mode!r} (choose from {', '.join(MODES)})")
@@ -100,6 +104,7 @@ def new_run(profile_slug: str, preset: str, overrides: dict | None = None, *, mo
         "profile_snapshot": snapshot,
         "stages_done": [],
         "created_at": now.isoformat(),
+        **({"saved_search_id": saved_search_id} if saved_search_id is not None else {}),
     })
     return run_id
 
@@ -137,7 +142,7 @@ def require_stage(run_id: str, stage: str) -> None:
     """Check that ``stage`` (the stage about to run) may run now.
 
     Dependencies (``STAGE_REQUIRES``): fetch needs discover_ats or discover_feeds (either one),
-    filter needs fetch, finalize needs filter. In a scout run, fetch may also follow ``candidates`` alone.
+    filter needs fetch, finalize needs filter.
     Stages without a declared dependency are a no-op. Raises ``StageOrderError`` if no prerequisite is in
     ``stages_done``.
     """
@@ -145,10 +150,7 @@ def require_stage(run_id: str, stage: str) -> None:
     if needed is None:
         return
     options = (needed,) if isinstance(needed, str) else tuple(needed)
-    run = load_run(run_id)
-    if stage == "fetch" and run_mode(run) == "scout":
-        options = (*options, "candidates")
-    done = run["stages_done"]
+    done = load_run(run_id)["stages_done"]
     if not any(option in done for option in options):
         raise StageOrderError(stage, " or ".join(options))
 

@@ -26,9 +26,11 @@ What the JSON output gives you:
   overlapping roles), separated `internship_months`, `relevant_years` (when `--profile` is given),
   `highest_education`, `leadership_signals`, `inferred_seniority_band`, and parsed `roles`.
 - `target_currencies`: currencies inferred from the profile's target markets or CV header.
-- `run_market_comps`: disclosed salaries mined from fetched postings in recent runs (with
-  `us_pay_transparency_count` separated so US salary ranges are never conflated with European or
-  LATAM pay bands).
+- `run_market_comps` contains disclosed salaries mined from fetched postings. Use
+  `target_comparable_groups` when the profile names a market. Each group has a distinct vacancy
+  count and keeps the stated period and compensation basis. A group with a missing market or
+  basis represents unresolved evidence. Samples include their observation date and a historical
+  flag. Explicitly withdrawn disclosures are listed separately from the groups.
 - `research_queries`: tailored queries for live web research.
 
 If `warnings` includes `no_explicit_experience_section` or `source_cv_missing`, check the extracted
@@ -40,7 +42,7 @@ Run targeted web searches using `research_queries` (and check public benchmarks,
 surveys, and comparable remote/local roles for the candidate's country and tax/contract market).
 
 If you have no web-search capability or searches fail, do not invent live web citations: base the
-range strictly on `run_market_comps` (only when enough same-region samples exist) or tell the user
+range on compatible groups within `run_market_comps` when enough samples exist or tell the user
 that live market research was unavailable and lower `confidence` to `low`.
 
 ## 3. Present the benchmark

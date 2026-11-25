@@ -12,7 +12,7 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 from ultron.infra import home
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -225,8 +225,8 @@ def _apply_v4(conn: sqlite3.Connection) -> None:
 _IDENTITY_TABLES = ("jobs", "job_occurrences", "job_feedback", "diagnostics")
 
 
-def _apply_v7(conn: sqlite3.Connection) -> None:
-    """v7: the publication, update and unverified dates of each job."""
+def _apply_v8(conn: sqlite3.Connection) -> None:
+    """v8: the publication, update and unverified dates of each job."""
     columns = {row[1] for row in conn.execute("PRAGMA table_info(jobs)")}
     for column in _JOB_DATE_DETAILS:
         if column not in columns:
@@ -256,6 +256,30 @@ def _apply_v5(conn: sqlite3.Connection) -> None:
             continue
         for table in _IDENTITY_TABLES:
             conn.execute(f"UPDATE {table} SET identity_key = ? WHERE identity_key = ?", (new, old))
+
+
+def _apply_search_scope(conn: sqlite3.Connection) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS run_scopes (
+        run_id TEXT PRIMARY KEY,
+        profile_slug TEXT NOT NULL,
+        saved_search_id TEXT,
+        created_at TEXT
+    )""")
+    conn.execute(
+        "INSERT OR IGNORE INTO run_scopes (run_id, profile_slug, created_at)"
+        " SELECT run_id, profile_slug, created_at FROM runs"
+    )
+    conn.execute("""CREATE TABLE IF NOT EXISTS profile_job_feedback (
+        identity_key TEXT NOT NULL REFERENCES jobs(identity_key),
+        profile_slug TEXT NOT NULL,
+        relevance TEXT NOT NULL CHECK (relevance IN ('relevant', 'not_relevant', 'uncertain')),
+        reason_code TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        labeled_at TEXT NOT NULL,
+        PRIMARY KEY (identity_key, profile_slug)
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS runs_saved_search ON run_scopes(saved_search_id, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS runs_profile ON run_scopes(profile_slug, created_at)")
 
 
 def migrate(conn: sqlite3.Connection) -> int:
@@ -298,8 +322,11 @@ def migrate(conn: sqlite3.Connection) -> int:
                 _apply_v6(conn)
                 version = 6
             if version == 6:
-                _apply_v7(conn)
+                _apply_search_scope(conn)
                 version = 7
+            if version == 7:
+                _apply_v8(conn)
+                version = 8
                 conn.execute(f"PRAGMA user_version = {version}")
             conn.execute("COMMIT")
         except BaseException:
@@ -341,6 +368,13 @@ def first_observations(conn: sqlite3.Connection, run_id: str) -> dict[str, str]:
     ))
 
 
+def occurrence_details(payload: str | None) -> dict:
+    """Decode a vacancy occurrence snapshot using its original field order."""
+    if not payload:
+        return {}
+    return dict(zip(_JOB_DETAILS, json.loads(payload), strict=False))
+
+
 def _remove_occurrence(conn: sqlite3.Connection, run_id: str, key: str) -> None:
     conn.execute("DELETE FROM job_occurrences WHERE run_id = ? AND identity_key = ?", (run_id, key))
     first = conn.execute(
@@ -370,8 +404,9 @@ def _remove_occurrence(conn: sqlite3.Connection, run_id: str, key: str) -> None:
     conn.execute(
         "DELETE FROM jobs WHERE identity_key = ? AND times_seen = 0 AND review_state = 'unreviewed'"
         " AND review_changed_at IS NULL AND notes = ''"
-        " AND NOT EXISTS (SELECT 1 FROM job_feedback WHERE identity_key = ?)",
-        (key, key),
+        " AND NOT EXISTS (SELECT 1 FROM job_feedback WHERE identity_key = ?)"
+        " AND NOT EXISTS (SELECT 1 FROM profile_job_feedback WHERE identity_key = ?)",
+        (key, key, key),
     )
 
 
@@ -439,7 +474,10 @@ def record_occurrences(
         return _record_occurrences(conn, run_id, rows, profile_slug)
 
 
-def _record_run(conn: sqlite3.Connection, run_id: str, summary: RunSummary, profile_slug: str, preset: str) -> None:
+def _record_run(
+    conn: sqlite3.Connection, run_id: str, summary: RunSummary, profile_slug: str, preset: str,
+    saved_search_id: str | None = None,
+) -> None:
     conn.execute(
         "INSERT INTO runs (run_id, profile_slug, preset, created_at, finished_at, roles_kept, discard_counts_json)"
         " VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -450,6 +488,15 @@ def _record_run(conn: sqlite3.Connection, run_id: str, summary: RunSummary, prof
             run_id, profile_slug, preset, summary.started_at.isoformat(), summary.ended_at.isoformat(),
             summary.roles_kept, json.dumps(summary.discard_counts, ensure_ascii=False),
         ),
+    )
+
+
+    conn.execute(
+        "INSERT INTO run_scopes (run_id, profile_slug, saved_search_id, created_at) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT(run_id) DO UPDATE SET profile_slug = excluded.profile_slug,"
+        " saved_search_id = COALESCE(excluded.saved_search_id, run_scopes.saved_search_id),"
+        " created_at = excluded.created_at",
+        (run_id, profile_slug, saved_search_id, summary.started_at.isoformat()),
     )
 
 
@@ -478,13 +525,43 @@ def seed_yields(conn: sqlite3.Connection, profile_slug: str) -> dict[str, tuple[
     }
 
 
+def saved_search_identity(name: str, created_at: str) -> str:
+    """Identify a saved search definition by its name and creation timestamp."""
+    return json.dumps([name, created_at], separators=(",", ":"), ensure_ascii=False)
+
+
+def new_keys_in_saved_search(conn: sqlite3.Connection, run_id: str) -> set[str]:
+    """Return vacancy identities making their first appearance in this saved search."""
+    return {row[0] for row in conn.execute(
+        "SELECT o.identity_key FROM job_occurrences o JOIN run_scopes current ON current.run_id = o.run_id"
+        " WHERE o.run_id = ? AND current.saved_search_id IS NOT NULL AND NOT EXISTS ("
+        " SELECT 1 FROM job_occurrences older JOIN run_scopes prior ON prior.run_id = older.run_id"
+        " WHERE older.identity_key = o.identity_key AND prior.saved_search_id = current.saved_search_id"
+        " AND (prior.created_at, prior.run_id) < (current.created_at, current.run_id))",
+        (run_id,),
+    )}
+
+
+def vacancy_snapshot_runs(conn: sqlite3.Connection, identity_key: str, canonical_url: str) -> tuple[str, list[str]]:
+    """Find the stable identity and all recorded run IDs that can contain its local posting snapshot."""
+    row = conn.execute(
+        "SELECT identity_key FROM jobs WHERE identity_key = ? OR canonical_url = ?"
+        " ORDER BY (identity_key = ?) DESC, last_seen DESC, identity_key LIMIT 1",
+        (identity_key, canonical_url, identity_key),
+    ).fetchone()
+    key = row[0] if row else identity_key
+    return key, [item[0] for item in conn.execute(
+        "SELECT run_id FROM job_occurrences WHERE identity_key = ? ORDER BY run_id DESC", (key,),
+    )]
+
+
 def record_finalized_run(
     conn: sqlite3.Connection, summary: RunSummary, rows: list[FinalRow], *, profile_slug: str, preset: str,
-    seed_kept: dict[str, int] | None = None,
+    seed_kept: dict[str, int] | None = None, saved_search_id: str | None = None,
 ) -> dict[str, bool]:
     """Record the run and its occurrences; ``seed_kept`` (seed key -> kept postings) replaces its seed yield rows."""
     with conn:
-        _record_run(conn, summary.run_id, summary, profile_slug, preset)
+        _record_run(conn, summary.run_id, summary, profile_slug, preset, saved_search_id)
         if seed_kept is not None:
             _record_seed_yield(conn, summary.run_id, profile_slug, seed_kept)
         return _record_occurrences(conn, summary.run_id, rows, profile_slug)

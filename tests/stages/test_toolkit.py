@@ -7,8 +7,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from test_scout_flow import AGGREGATOR, DEAD_AGGREGATOR, EMPLOYER, POSTING, _handler
-from test_scout_flow import EMPLOYER_PAGE as EMPLOYER_PAGE_HTML
+from toolkit_helpers import AGGREGATOR, DEAD_AGGREGATOR, EMPLOYER, POSTING, handler
+from toolkit_helpers import EMPLOYER_PAGE as EMPLOYER_PAGE_HTML
 
 from ultron import seeds
 from ultron.cli import main
@@ -27,7 +27,7 @@ def _offline(tmp_path, monkeypatch):
     empty.mkdir()
     monkeypatch.setattr(seeds.inventory, "packs_dir", lambda: empty)
     http_factory.set_test_overrides(
-        transport=httpx.MockTransport(_handler), resolver=lambda h, p: ["93.184.216.34"],
+        transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
         sleep=lambda s: None, min_interval_per_host=0.0,
     )
     profiles.install_example()
@@ -151,7 +151,7 @@ def test_redirected_postings_use_the_identity_saving_records():
     def redirecting(request):
         if str(request.url) == moved:
             return httpx.Response(302, headers={"Location": POSTING})
-        return _handler(request)
+        return handler(request)
     http_factory.set_test_overrides(transport=httpx.MockTransport(redirecting), resolver=lambda h, p: ["93.184.216.34"],
                                     sleep=lambda s: None, min_interval_per_host=0.0)
     (found,) = inspect.inspect_jobs(SLUG, [moved])["dossiers"]
@@ -185,11 +185,11 @@ def test_vendor_board_homes_are_boards():
 
 
 def _serve(pages: dict[str, str]):
-    def handler(request):
+    def serving(request):
         if str(request.url) in pages:
             return httpx.Response(200, text=pages[str(request.url)])
-        return _handler(request)
-    http_factory.set_test_overrides(transport=httpx.MockTransport(handler), resolver=lambda h, p: ["93.184.216.34"],
+        return handler(request)
+    http_factory.set_test_overrides(transport=httpx.MockTransport(serving), resolver=lambda h, p: ["93.184.216.34"],
                                     sleep=lambda s: None, min_interval_per_host=0.0)
 
 

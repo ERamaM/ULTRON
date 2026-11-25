@@ -424,6 +424,9 @@ def prepare_cover_letter_brief(
         "candidate": header,
         "verified_experience": {
             "total_months": exp.get("total_months", 0),
+            "precision": exp.get("experience_precision"),
+            "minimum_total_months": exp.get("minimum_total_months"),
+            "maximum_total_months": exp.get("maximum_total_months"),
             "total_years": exp.get("total_years", 0.0),
             "roles_count": len(exp.get("roles") or []),
             "recent_roles": [

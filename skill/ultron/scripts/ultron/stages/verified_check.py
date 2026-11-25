@@ -7,25 +7,15 @@ fetcher calls closed a posting the agent found open (specification 30).
 
 from __future__ import annotations
 
-from ultron.core.ats.clients.occupop import occupop_job_ref
-from ultron.core.discovery.url_filter import domain_of, normalize_url
-from ultron.core.extractors import parse_ats_page
-from ultron.core.models import JobRawPage
-from ultron.core.rules.hard_filters import is_open_status_ok
-from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected
-from ultron.stages.fetch import (
-    get_posting_page,
-    is_closed_redirect,
-    occupop_posting_job,
-    page_canonical_url,
-    unusable_page_reason,
-)
+from ultron.core.decision.unit import load_allowed_domains
+from ultron.infra.net import RequestBudgetExceeded, VendorBlocked
+from ultron.stages.fetch import fetch_posting, posting_status
 from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run
+from ultron.stages.scout_finds import web_candidate
 from ultron.stages.scout_verified import EXPORTED_VERDICTS, load_verified
 from ultron.storage import runs
 
 CHECK_FILE = "verified_check.jsonl"
-CLOSED_STATUSES = frozenset({404, 410})
 
 
 class NotScoutRun(ValueError):
@@ -33,31 +23,12 @@ class NotScoutRun(ValueError):
 
 
 def fetch_outcome(client, url: str) -> str:
-    """``open``, ``closed``, ``failed`` or ``unusable`` for one posting URL."""
+    """``open``, ``closed``, ``failed`` or ``unusable`` for one posting URL, read exactly as ``fetch`` reads it."""
     try:
-        status, final_url, html = get_posting_page(client, url)
-    except (HostBlocked, HttpError, RequestBudgetExceeded, URLRejected):
+        result = fetch_posting(web_candidate(url, {}, "check"), client, load_allowed_domains())
+    except (RequestBudgetExceeded, VendorBlocked):
         return "failed"
-    if status in CLOSED_STATUSES or is_closed_redirect(url, final_url):
-        return "closed"
-    if status >= 400:
-        return "failed"
-    if occupop_job_ref(url):  # Occupop answers with its job JSON, not a page
-        job, reason = occupop_posting_job(url, html)
-        if job is not None:
-            return "open"
-        return "closed" if reason == "expired_or_closed" else "unusable"
-    page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
-                      canonical_url=page_canonical_url(html, final_url))
-    try:
-        job = parse_ats_page(page)
-    except (ValueError, KeyError, TypeError, AttributeError):
-        return "unusable"
-    job.domain = domain_of(normalize_url(final_url))
-    if not job.title or unusable_page_reason(html, job):  # nothing that reads as a posting
-        return "unusable"
-    open_ok = is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint, expired=job.valid_through_expired)
-    return "open" if open_ok else "closed"
+    return posting_status(result)
 
 
 def check_verified(run_id: str) -> dict:

@@ -120,7 +120,8 @@ def final_row(row: dict) -> FinalRow:
         title=row["title"], company=row["company"], apply_url=row["apply_url"], location=row["location"],
         remote_policy=row["remote_policy"], eligibility=row["eligibility"],
         eligibility_evidence=row["eligibility_evidence"], fit_signals=row["fit_signals"], freshness="",
-        evaluation_verdict=row["verdict"], source_type=row["source_type"], source_key="", source_label="Agent find",
+        evaluation_verdict=row["verdict"], source_type=row["source_type"], source_key=row.get("source_key", ""),
+        source_label="Agent find",
         priority=row["priority"], found_by=VERIFIED_FOUND_BY,
     )
 

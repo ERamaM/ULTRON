@@ -33,7 +33,8 @@ from ultron.storage import ledger, scout_memory, watchlist
 WATCH_DIR = "watch"
 
 
-def _matching(postings: list, profile: dict) -> list:
+def profile_matches(postings: list, profile: dict) -> list:
+    """Board postings that match the profile's titles or role family and are not clearly ineligible."""
     criteria = profile.get("criteria") or {}
     pack, geo, scope = active_pack(profile), geo_scope(profile), location_scope(profile)
     vocabulary = build_title_vocabulary(criteria, vocabulary=pack)
@@ -98,7 +99,7 @@ def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET, overrides: di
         if error:
             errors.append({"seed_key": seed_key(seed), "error": error})
             continue
-        for posting in _matching(postings, profile):
+        for posting in profile_matches(postings, profile):
             if (candidate := posting_candidate(seed, posting, search_pass=WATCH_PASS)) is not None:
                 matched.append(candidate.model_dump(mode="json"))
     with closing(ledger.connect()) as conn:

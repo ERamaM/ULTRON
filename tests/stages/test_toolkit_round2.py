@@ -292,3 +292,10 @@ def test_board_reads_keep_date_provenance_and_closure():
     filled = AtsPosting(title="ML Lead", apply_url=POSTING, description="This position has been filled.")
     assert boards.board_status(boards.board_job(seed, filled)) == "closed"
     assert boards.board_status(boards.board_job(seed, edited)) == "open"
+
+
+def test_salary_scans_a_bounded_prefix(monkeypatch):
+    seen = []
+    monkeypatch.setattr(dossier, "extract_salaries_from_text", lambda text: seen.append(len(text)) or [])
+    dossier.salary("x" * 1_000_000)
+    assert seen == [dossier.SALARY_SCAN_CHARS]

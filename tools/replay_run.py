@@ -44,16 +44,19 @@ class ReplayError(ValueError):
     """The run or a report cannot be read."""
 
 
-def read_run_files(run_id: str) -> dict[str, str | None]:
+def read_run_files(
+    run_id: str, *, extra: tuple[str, ...] = (), ultron_home: str | None = None,
+) -> dict[str, str | None]:
     """Text of every file the replay needs from ``ULTRON_HOME/runs/<run_id>`` (``None`` when absent).
 
-    The run id must fully match the run-id pattern, the folder is rebuilt from ``ULTRON_HOME`` here,
-    and only the fixed file names above are read. A file that resolves outside the run folder (a
-    symlink to elsewhere) is rejected. Nothing is created under ``ULTRON_HOME``.
+    The run id must fully match the run-id pattern, the folder is rebuilt from ``ULTRON_HOME`` (or
+    ``ultron_home`` when given) here, and only the fixed file names above plus ``extra`` (plain names from
+    the caller, never from user input) are read. A file that resolves outside the run folder (a symlink to
+    elsewhere) is rejected. Nothing is created under ``ULTRON_HOME``.
     """
     if not isinstance(run_id, str) or not runs.RUN_ID_RE.fullmatch(run_id):
         raise ReplayError(f"invalid run id: {run_id!r} (run ids look like YYYYMMDD-HHMMSS-xxxxxx)")
-    env = os.environ.get("ULTRON_HOME")
+    env = ultron_home or os.environ.get("ULTRON_HOME")
     home = os.path.expanduser(env) if env else os.path.join(os.path.expanduser("~"), ".ultron")
     # Take the folder path from the directory listing, not from the argument: the argument only
     # selects which existing entry to use.
@@ -68,7 +71,7 @@ def read_run_files(run_id: str) -> dict[str, str | None]:
     if folder is None:
         raise ReplayError(f"run not found: {run_id}")
     texts: dict[str, str | None] = {}
-    for name in (*REQUIRED_FILES, *OPTIONAL_FILES):
+    for name in dict.fromkeys((*REQUIRED_FILES, *OPTIONAL_FILES, *extra)):
         path = os.path.join(folder, name)
         if not os.path.lexists(path):
             texts[name] = None

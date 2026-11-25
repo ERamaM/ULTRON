@@ -12,12 +12,12 @@ from ultron.core.ats.clients.occupop import occupop_job_ref
 from ultron.core.decision.unit import characterize_job, load_allowed_domains
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.extractors import parse_ats_page
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, JobRawPage
 from ultron.core.rules.geography import location_scope
 from ultron.infra.net import HttpError, RequestBudgetExceeded, URLRejected
 from ultron.profiles import store as profiles
-from ultron.stages.feeds import is_aggregator_host
 from ultron.stages.fetch import (
     get_posting_page,
     has_ats_fingerprint,

@@ -103,7 +103,7 @@ To measure how often the fetcher reads your open postings as closed, run
 
 ## Judging the extras
 
-`evaluate pending` serves the postings you did not verify: watched postings first, then your unverified finds,
+`evaluate pending` serves the postings you did not verify: your unverified finds first, then watched postings,
 then postings from board expansion. It also reports `verified_finds`. Each item adds `found_by`, `memory`
 (`new` or `changed`), `posting_date` and `hint`: what the rules would have decided (`outcome`, `reason`,
 `stage`). The hint is only a hint: you decide.

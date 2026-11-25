@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Any, get_args
 
 from ultron.core.models import Eligibility, FinalRow, RemotePolicy
+from ultron.core.ranker.final_rows import VERIFIED_FOUND_BY
 from ultron.core.text_clean import clean_text
 from ultron.storage import runs
 
 JUDGED_FILE = "judged_finds.jsonl"
 JUDGED_PASS = "judged"
-VERIFIED_FOUND_BY = "agent_verified"
 AGENT_REJECTED = "agent_rejected"
 VERDICTS = ("keep", "unsure", "discard")
 EXPORTED_VERDICTS = frozenset({"keep", "unsure"})

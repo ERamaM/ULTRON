@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from bs4 import BeautifulSoup
 
 from ultron.core.ats.clients.base import AtsHTTPClient
+from ultron.core.ats.registry import is_direct_supported_ats_host
 from ultron.infra.net import HostBlocked, RequestBudgetExceeded
 
 URL_RE = r"https?://[^\s\"'<>]+"
@@ -203,3 +204,32 @@ def fetch_page_links(url: str, timeout: int, *, client: AtsHTTPClient) -> list[s
     for extracted in extract_urls_from_text(text[:180000]):
         add(extracted)
     return out[:300]
+
+
+# Second-level labels under a country domain (``arbeitnow.co.uk``, ``foo.com.au``).
+COUNTRY_SLDS = frozenset({"co", "com", "org", "net"})
+_AGGREGATORS = {d.removeprefix("www.") for d in AGGREGATOR_DOMAINS}
+# Names too generic to match across TLDs (``remote.co`` must not claim ``remote.de`` or ``remote.acme.de``).
+_GENERIC_AGGREGATOR_NAMES = frozenset({"remote"})
+_AGGREGATOR_NAMES = {d.split(".")[0] for d in _AGGREGATORS} - _GENERIC_AGGREGATOR_NAMES
+
+
+def is_aggregator_host(host: str) -> bool:
+    """``host`` (a hostname or netloc) belongs to a job aggregator of ``AGGREGATOR_DOMAINS``.
+
+    Also matches subdomains and the same site under another country domain (``www.arbeitnow.co.uk``
+    for ``arbeitnow.com``): ``<name>.<tld>`` or ``<name>.<co|com|org|net>.<tld>`` whose name is a
+    non-generic aggregator name. Hosts on a supported ATS domain are never aggregators.
+    """
+    h = str(host or "").lower().rpartition("@")[2]
+    h = h.rsplit(":", 1)[0] if h.count(":") == 1 else h  # drop the port (IPv6 literals are not aggregators)
+    h = h.rstrip(".").removeprefix("www.")
+    if not h or is_direct_supported_ats_host(h):
+        return False
+    if h in _AGGREGATORS or any(h.endswith("." + d) for d in _AGGREGATORS):
+        return True
+    name, _, rest = h.partition(".")
+    if not rest or name not in _AGGREGATOR_NAMES:
+        return False
+    labels = rest.split(".")
+    return len(labels) == 1 or (len(labels) == 2 and labels[0] in COUNTRY_SLDS)

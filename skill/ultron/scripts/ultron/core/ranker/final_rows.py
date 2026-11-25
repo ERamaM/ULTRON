@@ -95,9 +95,11 @@ class RoleIdentityIndex:
         return self._count
 
 
-def _duplicate_quality(row: FinalRow) -> tuple[int, int, float, bool]:
+def _duplicate_quality(row: FinalRow) -> tuple[int, int, int, float, bool]:
+    # The agent's scout priority comes before the heuristic signals; rows without one (sweep runs) tie at 2.
     return (
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
+        row.priority if row.priority is not None else 2,
         _ELIGIBILITY_RANK.get(row.eligibility, 4),
         -row.match_score if row.match_score is not None else float("inf"),
         str(row.location or "").strip().lower() in {"", LOCATION_NOT_SHOWN},
@@ -219,3 +221,23 @@ def rank_final_rows(rows: list[FinalRow], *, use_match_score: bool = False) -> l
         rows,
         key=key,
     )
+
+
+def rank_scout_rows(rows: list[FinalRow], new_keys: set[int] | None = None) -> list[FinalRow]:
+    """Order a scout shortlist the way the agent judged it: verdict, then priority, then eligibility.
+
+    Every ``keep`` comes before every ``unsure``. A row without a priority reads as priority 2. Within the same
+    verdict, priority and eligibility, rows whose ``id`` is in ``new_keys`` come first; the match score only
+    breaks the remaining ties.
+    """
+    new_keys = new_keys or set()
+    return sorted(rows, key=lambda row: (
+        _VERDICT_RANK.get(row.evaluation_verdict, 2),
+        row.priority if row.priority is not None else 2,
+        _ELIGIBILITY_RANK.get(row.eligibility, 4),
+        0 if id(row) in new_keys else 1,
+        -(row.match_score if row.match_score is not None else 0),
+        row.company.casefold(),
+        row.title.casefold(),
+        row.apply_url,
+    ))

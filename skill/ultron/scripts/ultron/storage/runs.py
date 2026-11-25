@@ -20,6 +20,8 @@ from ultron.profiles import store as profiles
 RUN_ID_RE = re.compile(r"\d{8}-\d{6}-[0-9a-f]{6}", re.ASCII)  # always used with fullmatch
 STAGES = ("new", "seeds", "discover_feeds", "discover_ats", "candidates", "fetch", "filter", "evaluate", "finalize")
 # A tuple value means "any of these stages must be done".
+MODES = ("sweep", "scout")
+DEFAULT_MODE = "sweep"
 STAGE_REQUIRES: dict[str, str | tuple[str, ...]] = {
     "fetch": ("discover_ats", "discover_feeds"),
     "filter": "fetch",
@@ -67,8 +69,19 @@ def _write_run(run_id: str, data: dict) -> None:
     _atomic_write(run_dir(run_id) / "run.json", json.dumps(data, ensure_ascii=False, indent=2))
 
 
-def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> str:
-    """Create a new run folder with resolved preset settings and return its run ID."""
+def run_mode(run: dict) -> str:
+    """The mode of a loaded run; runs created before modes existed are sweep runs."""
+    return run.get("mode") or DEFAULT_MODE
+
+
+def new_run(profile_slug: str, preset: str, overrides: dict | None = None, *, mode: str = DEFAULT_MODE) -> str:
+    """Create a new run folder with resolved preset settings and return its run ID.
+
+    ``mode`` is ``sweep`` (the planned search over stored boards) or ``scout`` (the agent finds postings and
+    ULTRON resolves, expands and remembers). It raises ``ValueError`` for an unknown mode.
+    """
+    if mode not in MODES:
+        raise ValueError(f"unknown mode: {mode!r} (choose from {', '.join(MODES)})")
     settings = presets.resolve(preset)
     if overrides:
         settings.update(presets.validate_overrides(overrides, settings))
@@ -82,6 +95,7 @@ def new_run(profile_slug: str, preset: str, overrides: dict | None = None) -> st
         "run_id": run_id,
         "profile_slug": profile_slug,
         "preset": preset,
+        "mode": mode,
         "settings": settings,
         "profile_snapshot": snapshot,
         "stages_done": [],
@@ -106,7 +120,8 @@ def list_runs() -> list[dict]:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        out.append({k: data.get(k) for k in ("run_id", "profile_slug", "preset", "created_at", "stages_done")})
+        out.append({**{k: data.get(k) for k in ("run_id", "profile_slug", "preset", "created_at", "stages_done")},
+                    "mode": run_mode(data)})
     return out
 
 
@@ -122,14 +137,18 @@ def require_stage(run_id: str, stage: str) -> None:
     """Check that ``stage`` (the stage about to run) may run now.
 
     Dependencies (``STAGE_REQUIRES``): fetch needs discover_ats or discover_feeds (either one),
-    filter needs fetch, finalize needs filter. Stages without a declared dependency are a no-op.
-    Raises ``StageOrderError`` if no prerequisite is in ``stages_done``.
+    filter needs fetch, finalize needs filter. In a scout run, fetch may also follow ``candidates`` alone.
+    Stages without a declared dependency are a no-op. Raises ``StageOrderError`` if no prerequisite is in
+    ``stages_done``.
     """
     needed = STAGE_REQUIRES.get(stage)
     if needed is None:
         return
     options = (needed,) if isinstance(needed, str) else tuple(needed)
-    done = load_run(run_id)["stages_done"]
+    run = load_run(run_id)
+    if stage == "fetch" and run_mode(run) == "scout":
+        options = (*options, "candidates")
+    done = run["stages_done"]
     if not any(option in done for option in options):
         raise StageOrderError(stage, " or ".join(options))
 

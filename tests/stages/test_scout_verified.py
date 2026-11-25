@@ -25,6 +25,7 @@ from ultron.cli import main
 from ultron.core.ranker.final_rows import dedupe_final_rows, rank_scout_rows
 from ultron.infra.net import HttpError
 from ultron.profiles import store as profiles
+from ultron.stages import fetch as fetch_stage
 from ultron.stages import http_factory, scout, scout_verified, verified_check
 from ultron.storage import ledger, runs, scout_memory
 
@@ -253,7 +254,7 @@ def test_fetch_outcome_branches(monkeypatch, page, expected):
             raise page
         return page
 
-    monkeypatch.setattr(verified_check, "get_posting_page", fake)
+    monkeypatch.setattr(fetch_stage, "get_posting_page", fake)
     assert verified_check.fetch_outcome(None, "https://x.example/j") == expected
 
 
@@ -336,7 +337,7 @@ def test_memory_of_an_unfetched_verified_find():
 @pytest.mark.parametrize(("body", "expected"), [('{"job": null}', "closed"), ("not json", "unusable")])
 def test_fetch_outcome_reads_occupop_job_json(monkeypatch, body, expected):
     url = "https://api.occupop.com/shared/job/" + OCCUPOP_REF
-    monkeypatch.setattr(verified_check, "get_posting_page", lambda _client, _url: (200, url, body))
+    monkeypatch.setattr(fetch_stage, "get_posting_page", lambda _client, _url: (200, url, body))
     assert verified_check.fetch_outcome(None, url) == expected
 
 
@@ -363,3 +364,12 @@ def test_a_late_verified_discard_drops_the_carried_row(capsys):
     assert _pipeline(capsys, second)[1]["carried_from_memory"] == 1
     _add(capsys, second, [{**KEEP, "verdict": "discard"}], "late.jsonl")
     assert _cli(capsys, "finalize", "--run", second)["roles"] == 0
+
+
+def test_two_verified_postings_with_the_same_title_stay_apart():
+    first = scout_verified.final_row({**scout_verified.judgment(UNSURE), "identity_key": "a", "apply_url": EMPLOYER,
+                                      "source_type": "employer_page"})
+    second = first.model_copy(update={"apply_url": EMPLOYER + "-2"})
+    extra = first.model_copy(update={"found_by": "expansion", "apply_url": EMPLOYER + "?ref=x"})
+    kept, dropped = dedupe_final_rows([first, second, extra])
+    assert [row.apply_url for row in kept] == [EMPLOYER, EMPLOYER + "-2"] and dropped == [extra]

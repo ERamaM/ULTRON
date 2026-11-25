@@ -82,7 +82,7 @@ def _is_tracking_key(key: str) -> bool:
 def _source_vendor(source_type: str, source_key: str) -> tuple[str, str]:
     source_type_low = str(source_type or "").strip().casefold()
     source_key_low = str(source_key or "").strip().casefold()
-    for vendor in ("greenhouse", "lever", "ashby", "workable", "workday", "personio"):
+    for vendor in ("greenhouse", "lever", "ashby", "workable", "workday", "personio", "recruitee"):
         if source_key_low.startswith(f"{vendor}:"):
             return vendor, source_key_low.split(":", 1)[1].strip()
         if source_type_low == vendor:
@@ -267,6 +267,13 @@ def _vendor_identity(*, host: str, path: str, pairs: list[tuple[str, str]], sour
         job_id = (requisitions[-1] if requisitions else "") or query_id
         if job_id:
             return f"workday:{host}:{job_id}"
+
+    if vendor == "recruitee" and source_board:
+        # A Recruitee board listed through its API on the employer's own domain (jobs.example.com/o/<slug>) is the
+        # same posting as <board>.recruitee.com/o/<slug>.
+        match = re.match(r"/o/([a-z0-9][a-z0-9-]*)(?:/|$)", low_path)
+        if match:
+            return f"recruitee:{source_board}:{match.group(1)}"
 
     if vendor == "personio" or _host_matches(host, "personio.com") or _host_matches(host, "personio.de"):
         match = re.search(r"/(?:job|position)/([a-z0-9-]+)(?:/|$)", low_path)

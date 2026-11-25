@@ -57,7 +57,8 @@ def employer_name(company: str, url: str) -> str:
         return name
     parts = urlsplit(url)
     segments = [s for s in parts.path.split("/") if s]
-    if (parts.hostname or "").endswith("careers-page.com") and segments:
+    host = (parts.hostname or "").lower()
+    if (host == "careers-page.com" or host.endswith(".careers-page.com")) and segments:
         return _slug_name(segments[0])  # Manatal: careers-page.com/<employer>/job/<id>
     seed = extract_seed_from_url(url, "")
     if seed is not None:

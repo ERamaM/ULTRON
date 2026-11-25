@@ -200,3 +200,39 @@ def test_requested_postings_match_their_board_whatever_the_greenhouse_host():
     result = inspect.inspect_jobs(SLUG, ["https://job-boards.greenhouse.io/acme/jobs/4012345"])
     read = {d["id"]: d for d in result["dossiers"]}["greenhouse:acme:4012345"]
     assert read["status"] == "open" and "via" not in read and page_hits == []
+
+
+def test_the_gate_spaces_tenants_of_one_vendor_across_clients():
+    from ultron.infra.net import HttpClient
+
+    gate, sleeps = HostGate(), []
+    clock = [100.0]
+
+    def make():
+        return HttpClient(max_requests=10, max_requests_per_host=10, min_interval_per_host=0.0,
+                          transport=httpx.MockTransport(lambda r: httpx.Response(200, json={})),
+                          resolver=lambda h, p: ["93.184.216.34"], sleep=sleeps.append, clock=lambda: clock[0],
+                          gate=gate, vendor_of=lambda host: "workday" if "myworkdayjobs" in host else None,
+                          min_interval_per_vendor=2.0, vendor_budget=VendorBudget(max_requests=None))
+    make().request_json("https://a.wd1.myworkdayjobs.com/x")
+    make().request_json("https://b.wd3.myworkdayjobs.com/y")  # another tenant, another client
+    assert 2.0 in sleeps
+
+
+def test_an_explicit_read_wins_over_its_board_listing():
+    listed = {"id": "k", "status": "listed", "board": "workable:acme"}
+    read = {"id": "k", "status": "open", "hint": {}}
+    sibling = {"id": "k", "status": "open", "via": "same_board"}
+    assert inspect._unique([listed, read]) == [read]
+    assert inspect._unique([sibling, read]) == [read]
+    assert inspect._unique([read, listed]) == [read]
+
+
+def test_a_stored_guessed_board_stays_unconfirmed(monkeypatch):
+    from ultron.core.models import AtsBoardSeed
+    from ultron.toolkit import boards
+    guessed = AtsBoardSeed(seed_id="greenhouse:acme", company="Acme", ats="greenhouse", board_identifier="acme",
+                           source_type="guessed_unconfirmed")
+    monkeypatch.setattr(boards, "inventory_board", lambda name: guessed)
+    dossiers = inspect.inspect_jobs(SLUG, [], ["Acme"])["dossiers"]
+    assert dossiers and all(d.get("board_confirmed") is False for d in dossiers)

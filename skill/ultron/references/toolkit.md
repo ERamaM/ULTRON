@@ -114,3 +114,11 @@ paths, and return the same JSON as the CLI. Register the command `ultron mcp`, u
 role APIs, records the postings the profile has never seen for the next `ultron search`, and re-reads the latest
 shortlist to report postings that `closed`. The digest under `<ULTRON_HOME>/watch/` lists both. A saved search
 runs it on a schedule with `ultron saved-search run <name> --watch`.
+
+The watchlist holds the boards the user added and the boards that produced kept postings for this profile or
+for a profile of the same role family:
+
+- `ultron watchlist list --profile <slug>`: the watched boards and the user's entries.
+- `ultron watchlist add --profile <slug> --board <board URL or vendor:board>`: watch a board.
+- `ultron watchlist remove --profile <slug> --board <board URL or vendor:board>`: stop watching it; it is never
+  added back on its own.

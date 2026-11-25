@@ -1,4 +1,4 @@
-"""The agent toolkit commands: ``ultron inspect`` and ``ultron shortlist save``."""
+"""The agent toolkit commands: ``ultron search``, ``ultron inspect`` and ``ultron shortlist save``."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from ultron.core import presets
 from ultron.profiles import store as profile_store
 from ultron.storage import runs
 from ultron.toolkit.inspect import inspect_jobs
+from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import EmptyShortlist, save_shortlist
 
 
@@ -61,6 +62,13 @@ def _inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _search(args: argparse.Namespace) -> int:
+    if (code := _check(args.profile, args.preset)) is not None:
+        return code
+    emit(search_jobs(args.profile, args.query or "", new_only=args.new_only, limit=args.limit, preset=args.preset))
+    return 0
+
+
 def _save(args: argparse.Namespace) -> int:
     if (code := _check(args.profile, args.preset)) is not None:
         return code
@@ -76,7 +84,15 @@ def _save(args: argparse.Namespace) -> int:
 
 
 def register(subparsers) -> None:
-    """Register ``inspect`` and ``shortlist save``."""
+    """Register ``search``, ``inspect`` and ``shortlist save``."""
+    search = subparsers.add_parser("search", help="postings from the watch, watched boards and role job APIs")
+    search.add_argument("--profile", required=True)
+    search.add_argument("--query", help="a role query instead of the profile's target titles")
+    search.add_argument("--new-only", action="store_true", help="only postings the profile has never seen")
+    search.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
+    search.add_argument("--preset", default=presets.DEFAULT_PRESET)
+    search.set_defaults(func=_search)
+
     inspect = subparsers.add_parser("inspect", help="open postings, boards and companies at once; compact dossiers")
     inspect.add_argument("--profile", required=True)
     inspect.add_argument("--url", action="append", help="a posting, aggregator or ATS board URL (repeatable)")

@@ -7,6 +7,7 @@ Usage (from the repository root)::
     uv run python tools/arm_comparison.py ingest-agent --session <name> --rep 1 --from <file>.jsonl
     uv run python tools/arm_comparison.py record-cost --session <name> --arm ultron --rep 1 \
         --tokens 120000 --tool-calls 85 --seconds 900
+    uv run python tools/arm_comparison.py discard --session <name> --arm baseline --rep 2
     uv run python tools/arm_comparison.py pool --session <name>
     uv run python tools/arm_comparison.py spotcheck --session <name> [--size 20]
     uv run python tools/arm_comparison.py score --session <name> [--output report.json]
@@ -47,12 +48,14 @@ from arm_pool import (
 )
 from arm_report import report_markdown
 from replay_run import ReplayError, read_run_files
-from safe_paths import UnsafePathError, check_report_names, read_report, write_report
+from safe_paths import UnsafePathError, check_report_names, read_report, remove_report, write_report
 
 from ultron import __version__
 from ultron.profiles.store import load_profile
 
 SCHEMA_VERSION = 1
+PRESET = "balanced"
+MIN_REPETITIONS = 3
 DEFAULT_TOP_N = 25
 DEFAULT_SPOTCHECK = 20
 RELABEL_THRESHOLD = 0.15
@@ -65,13 +68,14 @@ ARM_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 BRIEF_KEYS = ("name", "description", "prompt", "criteria")
 BRIEF_CRITERIA_SKIP = {"vocabulary_packs"}
 SESSION_SUFFIXES = (".state", ".brief", ".labels", ".spotcheck")
+WINDOWS_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
 
 
 # --- session files --------------------------------------------------------------------------------
 
 
 def _session_name(raw: str) -> str:
-    if not isinstance(raw, str) or not NAME_RE.fullmatch(raw):
+    if not isinstance(raw, str) or not NAME_RE.fullmatch(raw) or raw.lower() in WINDOWS_RESERVED:
         raise ComparisonError(f"{raw!r}: session names use letters, digits, '-' and '_' (max 48)")
     return raw
 
@@ -160,14 +164,18 @@ def prepare(profile_slug: str, session: str, top_n: int, *, force: bool = False)
     if not force and _read_text(_artifact(session, "state.json"), missing_ok=True) is not None:
         raise ComparisonError(f"session {session} already exists: pick another name or pass --force")
     try:
-        profile = brief_profile(load_profile(profile_slug))
-    except FileNotFoundError as exc:
-        raise ComparisonError(str(exc)) from exc
+        full = load_profile(profile_slug)
+    except (OSError, yaml.YAMLError) as exc:
+        raise ComparisonError(f"profile {profile_slug!r} cannot be loaded ({type(exc).__name__})") from exc
+    if not isinstance(full, dict):
+        raise ComparisonError(f"profile {profile_slug!r} is not a mapping")
+    profile = brief_profile(full)
     state = {
         "schema_version": SCHEMA_VERSION,
         "session": session,
         "profile_slug": profile_slug,
         "profile_sha256": profile_hash(profile),
+        "profile_full_sha256": profile_hash(full),
         "ultron_version": __version__,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "top_n": top_n,
@@ -175,13 +183,15 @@ def prepare(profile_slug: str, session: str, top_n: int, *, force: bool = False)
         "job_ids": {},
     }
     check_report_names(_artifact(session, "brief.md"), _artifact(session, "state.json"))
+    for kind in ("labels.yaml", "spotcheck.yaml"):  # labels of a replaced session no longer apply
+        remove_report(_artifact(session, kind))
     brief_path = _write_text(_artifact(session, "brief.md"), brief_markdown(profile, top_n))
     save_state(state)
     return {"session": session, "brief": str(brief_path), "top_n": top_n}
 
 
 def profile_hash(profile: dict[str, Any]) -> str:
-    """A stable digest of the brief profile, to tie runs to the frozen session."""
+    """A stable digest of a profile mapping, to tie runs to the frozen session."""
     return hashlib.sha256(json.dumps(profile, sort_keys=True, default=str).encode()).hexdigest()
 
 
@@ -200,10 +210,20 @@ def _arm_name(arm: str) -> str:
     return arm
 
 
+def _check_source_unused(reps: dict[str, Any], rep: str, source: str) -> None:
+    for other_rep, entry in reps.items():
+        if entry.get("source") == source and other_rep != rep:
+            raise ComparisonError(f"{source} is already repetition {other_rep}")
+
+
 def store_rows(state: dict[str, Any], arm: str, rep: int, rows: list[Any], **extra: Any) -> dict[str, Any]:
-    """Replace the rows of one repetition (cost kept only when re-ingesting the same source)."""
-    cleaned = [clean_row(raw, index) for index, raw in enumerate(rows, start=1)]
+    """Replace the top N rows of one repetition (cost kept only when re-ingesting the same source).
+
+    Rows below the top N are never scored, so they are neither validated nor kept.
+    """
     reps = state["arms"].setdefault(_arm_name(arm), {})
+    _check_source_unused(reps, _rep_key(rep), extra["source"])
+    cleaned = [clean_row(raw, index) for index, raw in enumerate(rows[: state["top_n"]], start=1)]
     previous = reps.get(_rep_key(rep), {})
     same_source = previous.get("source") == extra.get("source")
     reps[_rep_key(rep)] = {
@@ -213,20 +233,20 @@ def store_rows(state: dict[str, Any], arm: str, rep: int, rows: list[Any], **ext
         **extra,
     }
     save_state(state)
-    return {"session": state["session"], "arm": arm, "rep": rep, "rows": len(cleaned)}
+    return {"session": state["session"], "arm": arm, "rep": rep, "rows": len(cleaned), "submitted": len(rows)}
 
 
-def _check_run(state: dict[str, Any], run_id: str, run: dict[str, Any], rep: str) -> None:
+def _check_run(state: dict[str, Any], run_id: str, run: dict[str, Any]) -> None:
     if run.get("profile_slug") != state["profile_slug"]:
         raise ComparisonError(f"run {run_id} used profile {run.get('profile_slug')!r}, not {state['profile_slug']!r}")
     snapshot = run.get("profile_snapshot")
-    if not isinstance(snapshot, dict) or profile_hash(brief_profile(snapshot)) != state["profile_sha256"]:
+    if not isinstance(snapshot, dict) or profile_hash(snapshot) != state["profile_full_sha256"]:
         raise ComparisonError(f"run {run_id} used a different version of the profile than the brief")
-    if "finalize" not in (run.get("stages_done") or []):
+    if run.get("preset") != PRESET:
+        raise ComparisonError(f"run {run_id} used preset {run.get('preset')!r}, not {PRESET!r}")
+    stages = run.get("stages_done")
+    if not isinstance(stages, list) or "finalize" not in stages:
         raise ComparisonError(f"run {run_id} is not finalized")
-    for other_rep, entry in state["arms"].get(ULTRON_ARM, {}).items():
-        if entry.get("source") == run_id and other_rep != rep:
-            raise ComparisonError(f"run {run_id} is already repetition {other_rep}")
 
 
 def ingest_ultron(session: str, rep: int, run_id: str) -> dict[str, Any]:
@@ -237,14 +257,14 @@ def ingest_ultron(session: str, rep: int, run_id: str) -> dict[str, Any]:
     except ReplayError as exc:
         raise ComparisonError(str(exc)) from exc
     run = json_object(texts["run.json"], f"run {run_id}: run.json")
-    _check_run(state, run_id, run, _rep_key(rep))
+    _check_run(state, run_id, run)
     if texts.get("results.json") is None:
         raise ComparisonError(f"run {run_id} has no results.json: finalize it first")
     results = json_object(texts["results.json"], f"run {run_id}: results.json")
     if not isinstance(results.get("rows"), list):
         raise ComparisonError(f"run {run_id}: results.json has no rows list")
     summary = results.get("summary") if isinstance(results.get("summary"), dict) else {}
-    return store_rows(state, ULTRON_ARM, rep, results["rows"], source=run_id, preset=run.get("preset"),
+    return store_rows(state, ULTRON_ARM, rep, results["rows"], source=run_id,
                       pipeline_seconds=run_seconds(summary))
 
 
@@ -280,6 +300,18 @@ def record_cost(session: str, arm: str, rep: int, **cost: float | None) -> dict[
     return {"session": session, "arm": arm, "rep": rep, "cost": entry["cost"]}
 
 
+def discard(session: str, arm: str, rep: int) -> dict[str, Any]:
+    """Drop one repetition (for example a baseline agent that used ULTRON); run ``pool`` again after."""
+    state = load_state(session)
+    reps = state["arms"].get(_arm_name(arm), {})
+    if reps.pop(_rep_key(rep), None) is None:
+        raise ComparisonError(f"{arm} repetition {rep} is not ingested")
+    if not reps:
+        del state["arms"][arm]
+    save_state(state)
+    return {"session": session, "discarded": {"arm": arm, "rep": rep}}
+
+
 # --- pool, spot check and score -------------------------------------------------------------------
 
 
@@ -299,10 +331,12 @@ def pool(session: str) -> dict[str, Any]:
     state = load_state(session)
     existing = load_labels(session)
     pooled = assign_ids(state)
+    for group in pooled["merged"]:  # one label now covers several former jobs: judge it again
+        existing.pop(group[0], None)
     path = _write_text(_artifact(session, "labels.yaml"), labels_yaml(session, pooled["jobs"], existing))
     save_state(state)
     return {"labels": str(path), "jobs": len(pooled["jobs"]),
-            "pending": len(pending_jobs(existing, pooled["jobs"])), "merged_ids": pooled["merged"]}
+            "pending": len(pending_jobs(existing, pooled["jobs"])), "merged_ids_relabel": pooled["merged"]}
 
 
 def spotcheck(session: str, size: int) -> dict[str, Any]:
@@ -319,17 +353,36 @@ def spotcheck(session: str, size: int) -> dict[str, Any]:
         spot = parse_labels(text, session, fields=("relevant",))
     except LabelError as exc:
         raise ComparisonError(f"{name}: {exc}") from exc
-    return agreement(load_labels(session), spot, RELABEL_THRESHOLD)
+    result = agreement(load_labels(session), spot, RELABEL_THRESHOLD)
+    state = load_state(session)
+    state["spotcheck"] = {**result, "size": len(spot), "checked_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    save_state(state)
+    return result
 
 
 def _check_complete(state: dict[str, Any]) -> list[str]:
     """Reasons the experiment is not a complete, balanced comparison (empty when it is)."""
     problems = [f"arm {arm} has no repetitions" for arm in EXPECTED_ARMS if not state["arms"].get(arm)]
     problems += [f"unexpected arm {arm}" for arm in state["arms"] if arm not in EXPECTED_ARMS]
-    counts = {arm: len(reps) for arm, reps in state["arms"].items()}
-    if len(set(counts.values())) > 1:
-        problems.append(f"arms have different repetition counts: {counts}")
-    return problems
+    rep_sets = {arm: sorted(reps, key=int) for arm, reps in state["arms"].items()}
+    if len({tuple(keys) for keys in rep_sets.values()}) > 1:
+        problems.append(f"arms have different repetitions: {rep_sets}")
+    if any(len(keys) < MIN_REPETITIONS for keys in rep_sets.values()):
+        problems.append(f"every arm needs at least {MIN_REPETITIONS} repetitions")
+    problems += [f"{arm} repetition {rep} has no {field} recorded"
+                 for arm, reps in sorted(state["arms"].items()) for rep, entry in sorted(reps.items())
+                 for field in COST_FIELDS if entry.get("cost", {}).get(field) is None]
+    return problems + _spotcheck_problems(state.get("spotcheck"))
+
+
+def _spotcheck_problems(spot: dict[str, Any] | None) -> list[str]:
+    if not spot:
+        return ["no spot check recorded: run spotcheck"]
+    if spot["pending"]:
+        return [f"the spot check has {spot['pending']} pending jobs"]
+    if spot["relabel"]:
+        return ["spot check disagreement is above the threshold: relabel, then run spotcheck again"]
+    return []
 
 
 def build_report(session: str, *, allow_partial: bool = False) -> dict[str, Any]:
@@ -360,6 +413,7 @@ def build_report(session: str, *, allow_partial: bool = False) -> dict[str, Any]
         "problems": problems,
         "pending_jobs": len(pending),
         "profile_sha256": state["profile_sha256"],
+        "spotcheck": state.get("spotcheck"),
         "ultron_version": state["ultron_version"],
         "top_n": state["top_n"],
         "pipeline_seconds": {rep: entry.get("pipeline_seconds")
@@ -372,7 +426,7 @@ def _output_names(output: str) -> tuple[str, str]:
     if not output.endswith(".json"):
         raise ComparisonError("--output must be a .json file name (a .md summary is written next to it)")
     stem = output[: -len(".json")]
-    if stem.lower().endswith(SESSION_SUFFIXES):
+    if stem.lower().endswith(SESSION_SUFFIXES) or stem.split(".")[0].lower() in WINDOWS_RESERVED:
         raise ComparisonError(f"{output}: that name is reserved for session files")
     try:
         check_report_names(output, f"{stem}.md")
@@ -411,6 +465,8 @@ def _parser() -> argparse.ArgumentParser:
     cost.add_argument("--arm", required=True)
     for name in ("--tokens", "--tool-calls", "--seconds"):
         cost.add_argument(name, type=float)
+    drop = sub.add_parser("discard", help="drop one repetition")
+    drop.add_argument("--arm", required=True)
     sub.add_parser("pool", help="write the blind labels file")
     spot = sub.add_parser("spotcheck", help="write the user's blind sample, then report agreement")
     spot.add_argument("--size", type=int, default=DEFAULT_SPOTCHECK)
@@ -419,7 +475,7 @@ def _parser() -> argparse.ArgumentParser:
     out.add_argument("--allow-partial", action="store_true", help="score an incomplete experiment")
     for command in sub.choices.values():
         command.add_argument("--session", required=True)
-    for command in (ult, agent, cost):
+    for command in (ult, agent, cost, drop):
         command.add_argument("--rep", type=int, required=True)
     return parser
 
@@ -434,6 +490,8 @@ def _dispatch(args: argparse.Namespace) -> dict[str, Any]:
     if args.command == "record-cost":
         return record_cost(args.session, args.arm, args.rep, tokens=args.tokens,
                            tool_calls=args.tool_calls, seconds=args.seconds)
+    if args.command == "discard":
+        return discard(args.session, args.arm, args.rep)
     if args.command == "pool":
         return pool(args.session)
     if args.command == "spotcheck":
@@ -448,6 +506,9 @@ def main(argv: list[str] | None = None) -> int:
         result = _dispatch(args)
     except (ComparisonError, UnsafePathError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}))
+        return 2
+    except OSError as exc:
+        print(json.dumps({"ok": False, "error": f"file system error ({type(exc).__name__})"}))
         return 2
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

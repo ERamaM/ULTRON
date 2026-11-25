@@ -225,7 +225,9 @@ repository for this reason.
 uv run python tools/arm_comparison.py prepare --profile <slug> --session <name> [--top-n 25] [--force]
 uv run python tools/arm_comparison.py ingest-ultron --session <name> --rep <k> --run <run-id>
 uv run python tools/arm_comparison.py ingest-agent --session <name> --rep <k> --from <file>.jsonl
-uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k>     --tokens <n> --tool-calls <n> --seconds <n>
+uv run python tools/arm_comparison.py record-cost --session <name> --arm <arm> --rep <k> \
+    --tokens <n> --tool-calls <n> --seconds <n>
+uv run python tools/arm_comparison.py discard --session <name> --arm <arm> --rep <k>
 uv run python tools/arm_comparison.py pool --session <name>
 uv run python tools/arm_comparison.py spotcheck --session <name> [--size 20]
 uv run python tools/arm_comparison.py score --session <name> --output report.json [--allow-partial]
@@ -260,32 +262,44 @@ Protocol:
    - **ULTRON arm**: give each repetition its own copy of the starting `ULTRON_HOME` (see
      experiment hygiene). The subagent follows `SKILL.md` with `--preset balanced` through
      `finalize`. Then run `ingest-ultron` with the same `ULTRON_HOME`. It refuses a run that is
-     not finalized, a run of another profile or of a changed profile, and a run already used for
+     not finalized, a run that did not use `balanced`, a run of another profile, a run of a changed
+     profile (the whole profile is hashed, `source_cv` included), and a run already used for
      another repetition. It stores the run's own create-to-finalize time as `pipeline_seconds`.
    - **Baseline arm**: the subagent receives only the brief and is told not to use ULTRON. It may
      use web search and page fetches, and returns the JSONL. Save the JSONL in the reports folder
-     and run `ingest-agent`. Check the transcript for ULTRON commands, and discard the repetition
-     if it used any.
+     and run `ingest-agent`. A file already used for another repetition is refused. Check the
+     transcript for ULTRON commands, and `discard` the repetition if it used any.
+   - Only the top N rows are validated and kept. A bad row below the cut does not block the
+     import.
    - After every repetition, run `record-cost` with the subagent's reported tokens, tool calls
      and wall-clock seconds. Use the same source for both arms. ULTRON's cost covers its whole
      run, including the postings it processed beyond the top N: that is the price of its
      shortlist.
 3. **Label blind.** `pool` clusters the scored rows into jobs. Two rows are the same job when
    their canonical posting identity matches, or when company, normalized title and location are
-   all equal.
+   all equal and none is empty or a placeholder such as `Confidential`.
    - Job ids are stored in the session, so labels survive later ingestions in any order. `pool`
-     lists any ids a new row joined, under `merged_ids`, for re-checking.
+     resets the label of any job a new row joined into another, and lists those ids under
+     `merged_ids_relabel`.
    - `<session>.labels.yaml` is shuffled and shows no arm. Each entry lists every URL and location
-     variant of its job.
+     variant of its job. The URL hosts can still hint at the source, ATS board or aggregator,
+     so the blinding is imperfect. The report says so.
    - Replace each `pending` with `true`, `false` or `null` (cannot tell), opening each posting.
      `relevant: true` requires `open`, `eligible` and `role_fit` not to be `false`.
 4. **Spot check.** `spotcheck` writes a reproducible blind sample (`--size`, default 20) for the
    user to label `relevant` without looking at the labels file. Run it again once the sample is
-   filled in to get the disagreement rate on `relevant`. Above 15%, relabel everything and record
-   the sample size and outcome in the report.
-5. **Score.** `score` refuses to run while a label is pending, an arm is missing or the arms have
-   different repetition counts. `--allow-partial` scores anyway and marks the report partial. The
-   report gives each repetition, then the mean ± sample std:
+   filled in to get the disagreement rate on `relevant`. A sampled job stays pending until both
+   the user and the main labels have judged it. The result is saved in the session and shown in
+   the report. Above 15%, relabel everything and run `spotcheck` again.
+5. **Score.** `score` refuses to run when the experiment is incomplete:
+   - a label is pending;
+   - an arm is missing, or has fewer than 3 repetitions;
+   - the two arms have different repetition numbers;
+   - a repetition has no tokens, tool calls or seconds recorded;
+   - the spot check is missing, unfinished or above the disagreement threshold.
+
+   `--allow-partial` scores anyway, marks the report partial and lists the reasons. The report
+   gives each repetition, then the mean ± sample std with its `n`:
    - quality: precision, P@5 and P@10, closed, ineligible and role-mismatch rates, and duplicate
      rows.
      - P@k slices the ranked positions first.

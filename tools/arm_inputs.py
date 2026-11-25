@@ -38,6 +38,8 @@ def _check_url(url: str, index: int) -> None:
         raise ComparisonError(f"row {index}: apply_url is malformed") from exc
     if parts.scheme.lower() not in {"http", "https"} or not host:
         raise ComparisonError(f"row {index}: apply_url must be an http(s) URL")
+    if parts.username or parts.password:
+        raise ComparisonError(f"row {index}: apply_url must not embed a user name or password")
     if redact(url) != url:
         raise ComparisonError(f"row {index}: apply_url carries a credential-like value; remove it first")
 
@@ -60,9 +62,9 @@ def run_seconds(summary: dict[str, Any]) -> float | None:
     try:
         start = datetime.fromisoformat(str(summary["started_at"]))
         end = datetime.fromisoformat(str(summary["ended_at"]))
-    except (KeyError, TypeError, ValueError):
+        seconds = (end - start).total_seconds()
+    except (KeyError, TypeError, ValueError):  # TypeError: one naive and one aware timestamp
         return None
-    seconds = (end - start).total_seconds()
     return round(seconds, 1) if seconds >= 0 else None
 
 

@@ -18,7 +18,8 @@ from ultron.core.ranker.final_rows import normalize_title_for_dedup
 
 PENDING = "pending"
 LABEL_VALUES = (True, False, None, PENDING)
-PLACEHOLDER_COMPANIES = {"", "not found", "unknown", "n/a", "company not found"}
+PLACEHOLDER_COMPANIES = {"", "not found", "unknown", "n/a", "company not found", "confidential",
+                         "confidential company", "undisclosed", "stealth", "stealth startup"}
 LABELS_HEADER = (
     "# Blind labels: one entry per pooled job, arms hidden. Replace each 'pending' with true, false or\n"
     "# null (null = cannot tell; left out of the metrics).\n"
@@ -37,11 +38,12 @@ def _fold(text: str) -> str:
 
 
 def row_keys(row: dict[str, str]) -> list[str]:
-    """Matching keys of a row: its canonical identity, plus an alias when company and title are usable."""
+    """Matching keys of a row: its canonical identity, plus an alias when company, title and location are usable."""
     keys = ["id:" + canonical_job_identity(row["apply_url"]).identity_key]
     company, title = _fold(row.get("company", "")), normalize_title_for_dedup(row["title"])
-    if company not in PLACEHOLDER_COMPANIES and title:
-        keys.append(f"alias:{company}|{title}|{_fold(row.get('location', ''))}")
+    location = _fold(row.get("location", ""))
+    if company not in PLACEHOLDER_COMPANIES and title and location:
+        keys.append(f"alias:{company}|{title}|{location}")
     return keys
 
 
@@ -74,7 +76,7 @@ def scored_rows(state: dict[str, Any]) -> list[tuple[str, str, int, dict[str, st
 
 
 def _job_id(identity: str) -> str:
-    return "j" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:10]
+    return "j" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
 
 
 def assign_ids(state: dict[str, Any]) -> dict[str, Any]:
@@ -187,6 +189,8 @@ def agreement(labels: dict[str, dict[str, Any]], spot: dict[str, dict[str, Any]]
     compared = {job: v for job, v in judged.items() if labels.get(job, {}).get("relevant") in (True, False)}
     disagree = sorted(job for job, value in compared.items() if labels[job]["relevant"] is not value)
     rate = round(len(disagree) / len(compared), 4) if compared else None
-    pending = sum(1 for value in spot.values() if value["relevant"] == PENDING)
+    # A sampled job is pending until both the user and the main labels have judged it.
+    pending = sum(1 for job, value in spot.items()
+                  if value["relevant"] == PENDING or labels.get(job, {}).get("relevant", PENDING) == PENDING)
     return {"compared": len(compared), "pending": pending, "disagreements": disagree,
             "disagreement_rate": rate, "relabel": rate is not None and rate > threshold}

@@ -37,10 +37,12 @@ def home(tmp_path, monkeypatch):
     return folder
 
 
-def _make_run(home, run_id, rows, *, profile=None, stages=("finalize",), slug="synthetic", results=True):
+def _make_run(home, run_id, rows, *, profile=None, stages=("finalize",), slug="synthetic", results=True,
+              preset="balanced"):
     folder = home / "runs" / run_id
     folder.mkdir()
-    run = {"run_id": run_id, "profile_slug": slug, "preset": "balanced", "stages_done": list(stages),
+    stages = list(stages) if isinstance(stages, tuple) else stages
+    run = {"run_id": run_id, "profile_slug": slug, "preset": preset, "stages_done": stages,
            "profile_snapshot": profile or dict(PROFILE)}
     (folder / "run.json").write_text(json.dumps(run), encoding="utf-8")
     (folder / "postings.jsonl").write_text("", encoding="utf-8")
@@ -94,10 +96,18 @@ def test_prepare_rejects_bad_inputs(monkeypatch):
     with pytest.raises(ac.ComparisonError):
         ac.prepare("x", "s1", top_n=0)
     monkeypatch.setattr(ac, "load_profile", missing)
-    with pytest.raises(ac.ComparisonError, match="profile not found"):
+    with pytest.raises(ac.ComparisonError, match="cannot be loaded"):
         ac.prepare("x", "s1", top_n=5)
-    with pytest.raises(ac.ComparisonError, match="session names"):
-        ac.prepare("x", "../evil", top_n=5)
+    for name in ("../evil", "CON", "lpt1"):
+        with pytest.raises(ac.ComparisonError, match="session names"):
+            ac.prepare("x", name, top_n=5)
+
+
+@pytest.mark.parametrize("loaded", [["a list"], "text"])
+def test_prepare_rejects_non_mapping_profiles(monkeypatch, loaded):
+    monkeypatch.setattr(ac, "load_profile", lambda slug: loaded)
+    with pytest.raises(ac.ComparisonError, match="not a mapping"):
+        ac.prepare("x", "s5", top_n=5)
 
 
 @pytest.mark.parametrize("content, message", [(None, "not found"), ("[]", "unsupported"), ("{", "not valid JSON"),
@@ -122,6 +132,7 @@ def test_load_state_errors(reports_dir, content, message):
     ({"title": "T", "apply_url": "https://[bad/"}, "malformed"),
     ({"title": "T", "apply_url": "https://x.test/" + "a" * 2100}, "longer"),
     ({"title": "T", "apply_url": "https://x.test/job?access_token=abcdef1234567890abcdef"}, "credential"),
+    ({"title": "T", "apply_url": "https://user:pw@x.test/job"}, "user name or password"),
 ])
 def test_clean_row_rejects_unusable_rows(raw, message):
     with pytest.raises(ac.ComparisonError, match=message):
@@ -149,6 +160,19 @@ def test_ingest_agent_and_validation(session, reports_dir):
         ac.ingest_agent(session, 1, "../b1.jsonl")
 
 
+def test_ingest_agent_refuses_the_same_file_twice(session, reports_dir):
+    _write_jsonl(reports_dir, "b1.jsonl", [_row(1)])
+    ac.ingest_agent(session, 1, "b1.jsonl")
+    with pytest.raises(ac.ComparisonError, match="already repetition 1"):
+        ac.ingest_agent(session, 2, "b1.jsonl")
+
+
+def test_only_top_n_rows_are_validated_and_kept(session, reports_dir):
+    _write_jsonl(reports_dir, "b1.jsonl", [_row(1), _row(2), _row(3), {"title": "bad"}])
+    assert ac.ingest_agent(session, 1, "b1.jsonl") == {"session": session, "arm": "baseline", "rep": 1,
+                                                       "rows": 3, "submitted": 4}
+
+
 def test_parse_jsonl_keeps_unicode_line_separators():
     assert ai.parse_jsonl('{"title": "a b"}\n') == [{"title": "a b"}]
 
@@ -172,7 +196,10 @@ def test_ingest_ultron_reads_results_and_pipeline_time(session, home):
 @pytest.mark.parametrize("kwargs, message", [
     ({"slug": "other"}, "used profile"),
     ({"profile": {**PROFILE, "criteria": {"target_titles": ["Nurse"]}}}, "different version"),
+    ({"profile": {**PROFILE, "source_cv": "/home/someone/cv-v2.pdf"}}, "different version"),
+    ({"preset": "fast"}, "preset"),
     ({"stages": ()}, "not finalized"),
+    ({"stages": "finalize"}, "not finalized"),
     ({"results": False}, "no results.json"),
     ({"results": {"rows": "x"}}, "rows list"),
 ])
@@ -210,6 +237,7 @@ def test_unreadable_report_is_a_clean_error(session, reports_dir):
 def test_run_seconds_edge_cases():
     assert ai.run_seconds({}) is None
     assert ai.run_seconds({"started_at": "2026-11-25T10:00:00", "ended_at": "2026-11-25T09:00:00"}) is None
+    assert ai.run_seconds({"started_at": "2026-11-25T10:00:00", "ended_at": "2026-11-25T11:00:00+00:00"}) is None
 
 
 def test_record_cost(session, reports_dir):
@@ -236,60 +264,111 @@ def test_record_cost_rejects_bad_values(session, cost, message):
 # --- pool, spot check, score ----------------------------------------------------------------------
 
 
-def _full_experiment(session, home, reports_dir, reps=1):
+def _ingest_rep(session, home, reports_dir, rep):
+    _make_run(home, RUN_IDS[rep - 1], [_row(1), _row(2), _row(3), _row(4)])
+    ac.ingest_ultron(session, rep, RUN_IDS[rep - 1])
+    _write_jsonl(reports_dir, f"b{rep}.jsonl", [_row(3), _row(5)])
+    ac.ingest_agent(session, rep, f"b{rep}.jsonl")
+    for arm in ("ultron", "baseline"):
+        ac.record_cost(session, arm, rep, tokens=2000, tool_calls=10, seconds=100)
+
+
+def _full_experiment(session, home, reports_dir, reps=3):
     for rep in range(1, reps + 1):
-        _make_run(home, RUN_IDS[rep - 1], [_row(1), _row(2), _row(3), _row(4)])
-        ac.ingest_ultron(session, rep, RUN_IDS[rep - 1])
-        _write_jsonl(reports_dir, f"b{rep}.jsonl", [_row(3), _row(5)])
-        ac.ingest_agent(session, rep, f"b{rep}.jsonl")
-        ac.record_cost(session, "baseline", rep, tokens=2000, tool_calls=10, seconds=100)
+        _ingest_rep(session, home, reports_dir, rep)
     ac.pool(session)
 
 
+def _fill_spotcheck(reports_dir, session, size=2):
+    ac.spotcheck(session, size)
+    path = reports_dir / f"{session}.spotcheck.yaml"
+    spot = yaml.safe_load(path.read_text(encoding="utf-8"))
+    labels = {job["id"]: job["relevant"] for job in
+              yaml.safe_load((reports_dir / f"{session}.labels.yaml").read_text(encoding="utf-8"))["jobs"]}
+    for job in spot["jobs"]:
+        job["relevant"] = labels[job["id"]]
+    path.write_text(yaml.safe_dump(spot), encoding="utf-8")
+    return ac.spotcheck(session, size)
+
+
 def test_pool_only_lists_scored_rows_and_hides_arms(session, home, reports_dir):
-    _full_experiment(session, home, reports_dir)
+    _full_experiment(session, home, reports_dir, reps=1)
     text = (reports_dir / "s1.labels.yaml").read_text(encoding="utf-8")
     assert "jobs.example.test/4" not in text  # rank 4 is below top N = 3
     assert "ultron" not in text and "baseline" not in text
     assert ac.pool(session)["pending"] == 4
 
 
+def test_pool_resets_labels_of_merged_jobs(session, home, reports_dir):
+    _full_experiment(session, home, reports_dir, reps=1)
+    _label_all(reports_dir, session, {"https://jobs.example.test/1"})
+    bridge = {**_row(2), "apply_url": "https://jobs.example.test/5"}  # joins job 2 and job 5
+    _write_jsonl(reports_dir, "b2.jsonl", [bridge])
+    ac.ingest_agent(session, 2, "b2.jsonl")
+    result = ac.pool(session)
+    assert len(result["merged_ids_relabel"]) == 1 and result["pending"] == 1
+
+
 def test_score_end_to_end(session, home, reports_dir):
-    _full_experiment(session, home, reports_dir, reps=2)
+    _full_experiment(session, home, reports_dir)
     _label_all(reports_dir, session, {"https://jobs.example.test/1", "https://jobs.example.test/3"})
+    assert _fill_spotcheck(reports_dir, session)["relabel"] is False
     report = ac.build_report(session)
-    assert report["complete"] is True
+    assert report["complete"] is True and report["spotcheck"]["compared"] == 2
     ultron = report["arms"]["ultron"]
     assert ultron["repetitions"]["1"]["rows"] == 3
     assert ultron["repetitions"]["1"]["precision"] == pytest.approx(0.6667)
     assert ultron["only_this_arm_relevant"] == 1 and ultron["reproducibility_jaccard"] == 1.0
     assert report["arms"]["baseline"]["cost_per_relevant"]["tokens"] == 2000
-    assert report["pipeline_seconds"] == {"1": 900.0, "2": 900.0}
+    assert report["pipeline_seconds"] == {"1": 900.0, "2": 900.0, "3": 900.0}
     assert ac.score(session, "report.json")["complete"] is True
     markdown = (reports_dir / "report.md").read_text(encoding="utf-8")
-    assert "| Precision |" in markdown and "Partial" not in markdown
+    assert "| Precision |" in markdown and "Partial" not in markdown and "(n=3)" in markdown
 
 
 def test_score_refuses_incomplete_experiments(session, home, reports_dir):
     with pytest.raises(ac.ComparisonError, match="no repetitions"):
         ac.build_report(session)
-    _full_experiment(session, home, reports_dir)
-    with pytest.raises(ac.ComparisonError, match="pending labels"):
+    _full_experiment(session, home, reports_dir, reps=1)
+    with pytest.raises(ac.ComparisonError, match="at least 3"):
         ac.build_report(session)
-    _write_jsonl(reports_dir, "b2.jsonl", [_row(7)])
-    ac.ingest_agent(session, 2, "b2.jsonl")
-    with pytest.raises(ac.ComparisonError, match="different repetition counts"):
-        ac.build_report(session)
+    _write_jsonl(reports_dir, "b9.jsonl", [_row(7)])
+    ac.ingest_agent(session, 9, "b9.jsonl")
     with pytest.raises(ac.ComparisonError, match="run pool again"):
         ac.build_report(session, allow_partial=True)
     ac.pool(session)
     report = ac.build_report(session, allow_partial=True)
+    problems = " ".join(report["problems"])
+    assert "different repetitions" in problems and "no tokens recorded" in problems and "spot check" in problems
     assert report["complete"] is False and report["pending_jobs"] == 5
     assert "Partial result" in arm_report.report_markdown(report)
 
 
+def test_score_refuses_pending_labels(session, home, reports_dir):
+    _full_experiment(session, home, reports_dir)
+    with pytest.raises(ac.ComparisonError, match="spot check"):
+        ac.build_report(session)
+    _label_all(reports_dir, session, set())
+    _fill_spotcheck(reports_dir, session)
+    labels = (reports_dir / "s1.labels.yaml").read_text(encoding="utf-8")
+    (reports_dir / "s1.labels.yaml").write_text(labels.replace("relevant: false", "relevant: pending", 1),
+                                                encoding="utf-8")
+    with pytest.raises(ac.ComparisonError, match="pending labels"):
+        ac.build_report(session)
+
+
+@pytest.mark.parametrize("spot, message", [
+    (None, "no spot check"), ({"pending": 2, "relabel": False}, "2 pending"),
+    ({"pending": 0, "relabel": True}, "relabel"), ({"pending": 0, "relabel": False}, None),
+])
+def test_spotcheck_problems(spot, message):
+    problems = ac._spotcheck_problems(spot)
+    assert (message in problems[0]) if message else problems == []
+
+
 @pytest.mark.parametrize("output, message", [
     ("report.txt", r"\.json"), ("s1.state.json", "reserved"), ("s1.Brief.json", "reserved"), ("../r.json", "plain"),
+    ("nul.json", "reserved"),
 ])
 def test_score_output_names(session, output, message):
     with pytest.raises((ac.ComparisonError, safe_paths.UnsafePathError), match=message):
@@ -297,21 +376,39 @@ def test_score_output_names(session, output, message):
 
 
 def test_spotcheck_flow(session, home, reports_dir):
-    _full_experiment(session, home, reports_dir)
+    _full_experiment(session, home, reports_dir, reps=1)
     with pytest.raises(ac.ComparisonError, match="size"):
         ac.spotcheck(session, 0)
     assert ac.spotcheck(session, 2)["jobs"] == 2
-    _label_all(reports_dir, session, {"https://jobs.example.test/1"})
     path = reports_dir / "s1.spotcheck.yaml"
     spot = yaml.safe_load(path.read_text(encoding="utf-8"))
     for job in spot["jobs"]:
         job["relevant"] = True
     path.write_text(yaml.safe_dump(spot), encoding="utf-8")
+    assert ac.spotcheck(session, 2)["pending"] == 2  # the main labels are still pending
+    _label_all(reports_dir, session, {"https://jobs.example.test/1"})
     result = ac.spotcheck(session, 2)
     assert result["compared"] == 2 and result["pending"] == 0
+    assert ac.load_state(session)["spotcheck"]["size"] == 2
     path.write_text("session: s1\njobs: 3\n", encoding="utf-8")
     with pytest.raises(ac.ComparisonError, match="jobs"):
         ac.spotcheck(session, 2)
+
+
+def test_discard_drops_a_repetition(session, reports_dir):
+    _write_jsonl(reports_dir, "b1.jsonl", [_row(1)])
+    ac.ingest_agent(session, 1, "b1.jsonl")
+    assert ac.discard(session, "baseline", 1)["discarded"] == {"arm": "baseline", "rep": 1}
+    assert "baseline" not in ac.load_state(session)["arms"]
+    with pytest.raises(ac.ComparisonError, match="not ingested"):
+        ac.discard(session, "baseline", 1)
+
+
+def test_force_removes_stale_labels(session, home, reports_dir):
+    _full_experiment(session, home, reports_dir, reps=1)
+    ac.spotcheck(session, 1)
+    ac.prepare("synthetic", session, top_n=3, force=True)
+    assert not (reports_dir / "s1.labels.yaml").exists() and not (reports_dir / "s1.spotcheck.yaml").exists()
 
 
 def test_bad_labels_file_is_reported(session, reports_dir):
@@ -326,8 +423,8 @@ def test_report_markdown_formats_missing_values():
            "cost_per_relevant": {"tokens": None, "tool_calls": None, "seconds": 2.5},
            **{key: None for _, key in arm_report.ARM_ROWS}}
     report = {"session": "s", "complete": True, "top_n": 1, "pool": {"jobs": 0, "relevant": 0},
-              "ultron_version": "0", "arms": {"a": arm}, "between_arms": {"a|b": {"jaccard_all": None,
-                                                                                 "jaccard_relevant": 0.5}}}
+              "ultron_version": "0", "pipeline_seconds": {}, "spotcheck": None, "arms": {"a": arm},
+              "between_arms": {"a|b": {"jaccard_all": None, "jaccard_relevant": 0.5}}}
     text = arm_report.report_markdown(report)
     assert "None" not in text and "2.5" in text and "relevant 0.5" in text
 
@@ -348,6 +445,16 @@ def test_cli_end_to_end(session, home, reports_dir, capsys):
     capsys.readouterr()
     assert ac.main(["score", "--session", session, "--allow-partial"]) == 0
     assert json.loads(capsys.readouterr().out)["top_n"] == 3
+    assert ac.main(["discard", "--session", session, "--arm", "baseline", "--rep", "1"]) == 0
+
+
+def test_cli_reports_file_system_errors(session, monkeypatch, capsys):
+    def broken(*_args, **_kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(ac, "load_state", broken)
+    assert ac.main(["pool", "--session", session]) == 2
+    assert "file system error" in capsys.readouterr().out
 
 
 def test_cli_prepare(monkeypatch, capsys):

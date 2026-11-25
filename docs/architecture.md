@@ -12,7 +12,7 @@ enforces the rules below on every import.
 | `commands/` | One module per command group (`ultron cv`, `ultron runs`, ...) plus `output` (JSON output and errors). A command parses arguments, calls domain code and prints the result. |
 | `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, atomic filesystem & link helpers (`fs`), OOXML builders (`ooxml`), data folders (`home`), agent platform paths (`platforms`) and a read-only view of installs (`installs`). |
 | `core/` | Domain logic that reads no run state: models, run presets, ATS clients and identity, extractors, feeds, rules, decisions, ranking and Markdown rendering. |
-| `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`) and replaying a run with a draft profile (`explain`). |
+| `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`), shared watch role families (`families`), and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`, `ats_target`, `ats_requirements`), experience timeline (`experience`, `experience_terms`), truthfulness and claim attribution (`truth`, `claim_attribution`) and the `.docx` writer. |
 | `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
 | `salary/` | Salary estimation (estimator), disclosure extraction and display formatting (disclosure, display), and run-local market observations (observations). |

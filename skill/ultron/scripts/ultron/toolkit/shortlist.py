@@ -45,7 +45,11 @@ def _with_cache(rows: list, cache: dict[str, dict]) -> list:
                     **{field: job.get(field, "") for field in FILLED_FIELDS}}
         merged = {**defaults, **{key: value for key, value in row.items() if value not in (None, "")}}
         if "published_at" not in row:
-            merged["published_at"] = job.get("posting_date")
+            if job.get("posting_date_verified") is True:
+                merged["published_at"] = job.get("posting_date")
+            else:
+                merged.setdefault("unverified_date", job.get("posting_date"))
+        merged.setdefault("updated_at", job.get("updated_at"))
         if "salary" not in row:
             merged["salary"] = job.get("salary") or format_salary_disclosure(job.get("body_text", ""))
         filled.append(merged)

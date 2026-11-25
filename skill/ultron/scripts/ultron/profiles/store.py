@@ -26,28 +26,28 @@ def _bundled_dir() -> Path:
     return home.data_dir() / "profiles"
 
 
-def _find(slug: str) -> Path | None:
+def _find(slug: str, user_dir: Path | None = None) -> Path | None:
     if not isinstance(slug, str) or not SLUG_RE.fullmatch(slug):
         return None
-    for folder in (_user_dir(), _bundled_dir()):
+    for folder in (user_dir if user_dir is not None else _user_dir(), _bundled_dir()):
         path = folder / f"{slug}.yaml"
         if path.is_file():
             return path
     return None
 
 
-def load_profile(slug: str) -> dict:
-    """Load and return the YAML profile mapping for ``slug``."""
-    path = _find(slug)
+def load_profile(slug: str, *, user_dir: Path | None = None) -> dict:
+    """Load the YAML profile for a slug, optionally from an alternate profiles directory."""
+    path = _find(slug, user_dir)
     if path is None:
         raise FileNotFoundError(f"profile not found: {slug}")
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
-def list_profiles() -> list[dict]:
+def list_profiles(*, user_dir: Path | None = None) -> list[dict]:
     """List bundled and user search profiles with user copies taking precedence."""
     found: dict[str, dict] = {}
-    for folder in (_bundled_dir(), _user_dir()):  # user entries override bundled ones
+    for folder in (_bundled_dir(), user_dir if user_dir is not None else _user_dir()):
         if not folder.is_dir():
             continue
         for path in sorted(folder.glob("*.yaml")):

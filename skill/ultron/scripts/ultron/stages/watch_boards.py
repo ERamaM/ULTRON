@@ -13,34 +13,16 @@ from ultron.core.ats.identity import seed_identity
 from ultron.core.ats.registry import get_vendor_spec
 from ultron.core.models import AtsBoardSeed
 from ultron.infra import home
-from ultron.profiles import store as profile_store
+from ultron.profiles.families import load_profile_families, related_profiles, role_family
 from ultron.seeds import load_inventory
 from ultron.storage import ledger, watchlist
 
 WATCH_PASS = "watch"
 
 
-def _family(profile: dict) -> tuple[str, set[str]]:
-    criteria = profile.get("criteria") or {}
-    label = " ".join(str(criteria.get("role_family_label") or "").casefold().split())
-    return label, {str(p).casefold() for p in criteria.get("vocabulary_packs") or [] if p}
-
-
 def siblings(profile_slug: str, profile: dict) -> list[str]:
-    """Other profiles of the same role family: the same role family label, or a shared vocabulary pack."""
-    label, packs = _family(profile)
-    out = []
-    for item in profile_store.list_profiles():
-        slug = str(item.get("slug") or "")
-        if not slug or slug == profile_slug:
-            continue
-        try:
-            other_label, other_packs = _family(profile_store.load_profile(slug))
-        except (OSError, ValueError):
-            continue
-        if (label and label == other_label) or packs & other_packs:
-            out.append(slug)
-    return sorted(out)
+    """Other profiles sharing the run's role family."""
+    return related_profiles(profile_slug, role_family(profile), load_profile_families())
 
 
 def watch_seeds(run: dict) -> list:

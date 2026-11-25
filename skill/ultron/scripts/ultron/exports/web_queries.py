@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, get_args
 
 from ultron.core.extractors.posting_date import iso_vacancy_date
 from ultron.core.models import Eligibility, RemotePolicy
 from ultron.exports import sanitize, view_model
+from ultron.profiles.families import load_profile_families, related_profiles
 from ultron.storage.watchlist import watched
 
 RELEVANCE = ("relevant", "not_relevant", "uncertain")
@@ -78,7 +80,7 @@ def enrich_job(job: dict[str, Any], judgment: dict, feedback: dict, profile: str
                    feedback_note=scoped["note"], feedback_at=scoped["labeled_at"])
 
 
-def read_watchlist(conn: sqlite3.Connection, tables: set[str]) -> list[dict[str, Any]]:
+def read_watchlist(conn: sqlite3.Connection, tables: set[str], profiles_dir: Path) -> list[dict[str, Any]]:
     """Read explicit board settings and the effective history-backed watchlist."""
     if "watchlist" not in tables:
         return []
@@ -87,11 +89,14 @@ def read_watchlist(conn: sqlite3.Connection, tables: set[str]) -> list[dict[str,
         " ORDER BY profile_slug, seed_key"
     )]
     if "seed_yield_runs" in tables:
+        families = load_profile_families(profiles_dir)
         profiles = {row[0] for row in conn.execute("SELECT DISTINCT profile_slug FROM seed_yield_runs")}
-        for profile in sorted(profiles):
+        profiles.update(row["profile_slug"] for row in items)
+        for profile in sorted(profiles | families.keys()):
+            siblings = related_profiles(profile, families.get(profile, ("", set())), families)
             items.extend({"profile_slug": profile, "seed_key": board["seed_key"], "company": board["company"],
                           "state": "watch", "added_by": "history", "added_at": ""}
-                         for board in watched(conn, profile) if board["source"] == "history")
+                         for board in watched(conn, profile, siblings) if board["source"] == "history")
     return [{field: sanitize.clean_text(value) for field, value in row.items()} for row in items]
 
 

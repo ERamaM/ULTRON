@@ -361,7 +361,7 @@ def test_snapshot_projects_toolkit_feedback_and_watch(tmp_path, monkeypatch):
             (slug, "queued", "{}", "queued"),
         ])
     _write_digest(slug, [], "20261122T204010", [
-        {"apply_url": url, "title": f"Closed {_SYNTHETIC_GH_TOKEN}", "company": "Beta Labs"},
+        {"apply_url": f"{url}?utm_source=campaign", "title": f"Closed {_SYNTHETIC_GH_TOKEN}", "company": "Beta Labs"},
         {"apply_url": "javascript:alert(1)", "title": "unsafe", "company": ""},
     ])
     before = path.stat().st_mtime_ns
@@ -443,3 +443,18 @@ def test_closed_watch_rejects_symlinks(tmp_path):
         pytest.skip(f"symlink creation unavailable: {exc}")
     assert read_closed_watch(watch, []) == []
     assert read_closed_watch(tmp_path / "linked", []) == []
+
+
+
+def test_snapshot_includes_sibling_watch_boards_for_a_profile_without_history(tmp_path, monkeypatch):
+    path = _seed_full_ledger(tmp_path, monkeypatch)
+    slug = profiles.EXAMPLE_SLUG
+    profile = profiles.load_profile(slug)
+    sibling = {**profile, "slug": "sibling"}
+    from ultron.profiles.store import save_profile
+
+    save_profile(sibling)
+    snapshot = web_data.build_ledger_snapshot(path)
+    assert {row["seed_key"] for row in snapshot["watchlist"] if row["profile_slug"] == "sibling"} == {
+        "greenhouse:acme", "lever:beta",
+    }

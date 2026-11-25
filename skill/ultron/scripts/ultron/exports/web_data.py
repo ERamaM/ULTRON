@@ -368,7 +368,7 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
         seed_yields = _read_seed_yields(conn, tables)
         saved_searches = _read_saved_searches(conn, tables)
         diagnostics = _read_diagnostics(conn, tables)
-        watchlist = web_queries.read_watchlist(conn, tables)
+        watchlist = web_queries.read_watchlist(conn, tables, target.parent / "profiles")
         pending = web_queries.read_watch_pending(conn, tables)
 
     closed = read_closed_watch(target.parent / "watch", jobs)

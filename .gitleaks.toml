@@ -9,6 +9,7 @@ paths = [
   '''(?:^|/)tests/core/test_privacy_and_export\.py$''',
   '''(?:^|/)tests/eval/test_replay_run\.py$''',
   '''(?:^|/)tests/core/test_ats_occupop\.py$''',
+  '''(?:^|/)tests/eval/test_arm_comparison\.py$''',
 ]
 
 [[allowlists]]

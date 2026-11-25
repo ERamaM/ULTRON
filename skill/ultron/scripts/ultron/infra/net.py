@@ -361,6 +361,7 @@ class HttpClient:
 
     def _send_once(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
+        headers: Mapping[str, str] | None = None,
     ) -> tuple[int, httpx.Headers, str]:
         vendor = self.vendor_for(host)
         if vendor is not None:
@@ -382,6 +383,8 @@ class HttpClient:
         kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
+        if headers:
+            kwargs["headers"] = dict(headers)
         try:
             with self._client.stream(method, url, **kwargs) as response:
                 body = bytearray()
@@ -406,10 +409,12 @@ class HttpClient:
     def _fetch(
         self, method: str, url: str, timeout: float | None, json_body: Any = None,
         allowed_domains: tuple[str, ...] = (), *, max_bytes: int | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> tuple[int, str, str]:
         effective_timeout = self.timeout if timeout is None else timeout
         byte_limit = self.max_bytes if max_bytes is None else max_bytes
         current = url
+        first_origin: tuple[str, str, int | None] | None = None
         for _hop in range(MAX_REDIRECTS + 1):
             admitted = admit_url(current, allowed_domains=allowed_domains)
             # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
@@ -423,13 +428,18 @@ class HttpClient:
                 connect_host, admitted.port, resolver=self._resolver
             )
             current = admitted.url
+            origin = (urlsplit(admitted.url).scheme, admitted.hostname, admitted.port)
+            first_origin = first_origin or origin
+            # Request headers (credentials) go only to the origin they were meant for (scheme, host and port), never
+            # to a redirect target on another host or downgraded to plain HTTP.
+            hop_headers = headers if origin == first_origin else None
             vendor = self.vendor_for(admitted.hostname)
             rate_limited = False
             try:
                 for attempt in range(1, MAX_ATTEMPTS + 1):
                     try:
-                        status, headers, text = self._send_once(
-                            method, current, admitted.hostname, effective_timeout, json_body, byte_limit,
+                        status, response_headers, text = self._send_once(
+                            method, current, admitted.hostname, effective_timeout, json_body, byte_limit, hop_headers,
                         )
                     except HttpError as exc:
                         if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
@@ -438,7 +448,7 @@ class HttpClient:
                         raise
                     rate_limited = rate_limited or status == 429
                     if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-                        delay = _retry_after(httpx.Response(status, headers=headers), self._wall_clock())
+                        delay = _retry_after(httpx.Response(status, headers=response_headers), self._wall_clock())
                         self._sleep(0.5 * attempt if delay is None else delay)
                         continue
                     break
@@ -450,7 +460,7 @@ class HttpClient:
                 raise
             if vendor is not None:
                 self.vendor_budget.record(vendor, status, rate_limited=rate_limited)
-            location = headers.get("Location")
+            location = response_headers.get("Location")
             if status in REDIRECT_STATUSES and location:
                 current = urljoin(current, location)
                 if status in {301, 302, 303}:
@@ -483,10 +493,14 @@ class HttpClient:
         *,
         allowed_domains: tuple[str, ...] = (),
         max_bytes: int | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> dict | list:
-        """Execute an HTTP request and parse the response body as JSON."""
+        """Execute an HTTP request and parse the response body as JSON.
+
+        ``headers`` (for example an API key) are sent to the requested host only, never to a redirect target.
+        """
         status, final_url, text = self._fetch(
-            method.upper(), url, timeout, json_body, allowed_domains, max_bytes=max_bytes,
+            method.upper(), url, timeout, json_body, allowed_domains, max_bytes=max_bytes, headers=headers,
         )
         if status >= 300:
             raise HttpError(f"HTTP {status} for {urlsplit(final_url).netloc}", status_code=status)

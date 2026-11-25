@@ -6,6 +6,7 @@ import functools
 import html as html_lib
 import json
 import re
+from dataclasses import dataclass
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import yaml
@@ -26,14 +27,16 @@ from ultron.core.decision.unit import load_allowed_domains
 from ultron.core.discovery.url_filter import canonicalize_url_for_allowlist, domain_of, is_domain_allowed, normalize_url
 from ultron.core.extractors import parse_ats_page
 from ultron.core.extractors.base import ats_canonical_domain, detect_ats_fingerprint
+from ultron.core.feeds.urls import is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import CandidateUrl, ExtractedJob, JobRawPage
+from ultron.core.rules.hard_filters import is_open_status_ok
 from ultron.core.text_clean import clean_text
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked, top_hosts
 from ultron.infra.urlpolicy import admit_url
 from ultron.stages import http_factory
-from ultron.stages.feeds import is_aggregator_host
 from ultron.stages.http_factory import client_for_run
+from ultron.stages.scout_verified import JUDGED_PASS
 from ultron.storage import runs
 
 _GH_JOB_RE = re.compile(r"^/([^/]+)/(?:embed/)?jobs/([0-9]+)(?:/|$)", re.IGNORECASE)
@@ -195,6 +198,11 @@ def _workable_closed_redirect(url: str, final_url: str) -> bool:
         and bool(_WORKABLE_BOARD_JOB_RE.match(original.path) or _WORKABLE_SHORT_JOB_RE.match(original.path))
         and parse_qs(final.query).get("not_found") == ["true"]
     )
+
+
+def is_closed_redirect(url: str, final_url: str) -> bool:
+    """Whether a posting request was redirected to the vendor's closed-posting page (Workable, Greenhouse)."""
+    return _workable_closed_redirect(url, final_url) or _greenhouse_closed_redirect(url, final_url)
 
 
 def _greenhouse_closed_redirect(url: str, final_url: str) -> bool:
@@ -519,6 +527,122 @@ def unusable_page_reason(html: str, job: ExtractedJob) -> str | None:
     return None
 
 
+@dataclass
+class PostingFetch:
+    """The outcome of fetching one posting: its job, or the error record ``fetch`` writes for it.
+
+    ``sent`` is false when no request reached the posting host (a blocked host), and ``navigation_failure`` is
+    true when the network itself failed (no HTTP response, or no name resolution).
+    """
+
+    job: ExtractedJob | None = None
+    error: dict | None = None
+    ats_fingerprint: bool = False
+    sent: bool = True
+    navigation_failure: bool = False
+    # The URL read after HTTP redirects; a page's own canonical link never changes it.
+    final_url: str = ""
+
+
+FAILED_PREFIXES = ("http_error", "url_rejected", "host_blocked", "inaccessible", "vendor_blocked")
+
+
+def posting_status(result: PostingFetch) -> str:
+    """``open``, ``closed``, ``failed`` (no usable response) or ``unusable`` (nothing that reads as a posting)."""
+    if result.job is not None:
+        job = result.job
+        if not job.title:
+            return "unusable"
+        open_ok = is_open_status_ok(job.body_text, job.apply_available, job.is_open_hint,
+                                    expired=job.valid_through_expired)
+        return "open" if open_ok else "closed"
+    error = str((result.error or {}).get("error") or "")
+    if error == "expired_or_closed":
+        return "closed"
+    return "failed" if error.startswith(FAILED_PREFIXES) else "unusable"
+
+
+def _fallback_or(candidate: CandidateUrl, client, error: dict, **flags) -> PostingFetch:
+    """The Greenhouse API copy of the posting when it has one, else ``error``."""
+    fallback = _greenhouse_api_fallback(candidate, client)
+    if fallback is not None:
+        return PostingFetch(job=fallback[0], ats_fingerprint=True, **{k: v for k, v in flags.items() if k == "sent"})
+    return PostingFetch(error=error, **flags)
+
+
+def fetch_posting(candidate: CandidateUrl, client, allowed_domains: list[str]) -> PostingFetch:
+    """Fetch and extract one candidate posting, with the vendor API enrichers and fallbacks ``fetch`` uses.
+
+    ``VendorBlocked`` and ``RequestBudgetExceeded`` propagate: the caller decides how its budgets react.
+    """
+    url = candidate.normalized_url
+    try:
+        status, final_url, html = get_posting_page(client, url)
+    except VendorBlocked:
+        raise  # a vendor-wide block is the caller's budget decision, not this posting's outcome
+    except HostBlocked:
+        return _fallback_or(candidate, client, {"url": url, "error": "host_blocked"}, sent=False)
+    except HttpError as exc:
+        error = {"url": url, "error": f"http_error: {exc}", "status": exc.status_code}
+        return _fallback_or(candidate, client, error, navigation_failure=exc.status_code is None)
+    except URLRejected as exc:
+        # With no network, name resolution fails first.
+        return PostingFetch(error={"url": url, "error": f"url_rejected: {exc}"},
+                            navigation_failure=str(exc) == "dns_resolution_failed")
+    if status >= 400:
+        error = {"url": url, "error": "expired_or_closed" if status in {404, 410} else "inaccessible", "status": status}
+        if status in {403, 429} or status >= 500:
+            return _fallback_or(candidate, client, error)
+        return PostingFetch(error=error)
+    if _workable_closed_redirect(url, final_url) or _greenhouse_closed_redirect(url, final_url):
+        return PostingFetch(error={"url": url, "error": "expired_or_closed", "status": status})
+    if occupop_job_ref(url):
+        job, reason = occupop_posting_job(url, html, company_hint=candidate.ats_company)
+        if job is None:
+            return PostingFetch(error={"url": url, "error": reason, "status": status})
+        return PostingFetch(job=job, ats_fingerprint=True, final_url=normalize_url(final_url))
+    result = _extract_page(candidate, client, allowed_domains, (status, final_url, html))
+    result.final_url = normalize_url(final_url)
+    return result
+
+
+def _extract_page(candidate: CandidateUrl, client, allowed_domains: list[str], page_data: tuple) -> PostingFetch:
+    """Parse a fetched posting page, enrich it from the vendor API and settle its apply URL."""
+    url = candidate.normalized_url
+    status, final_url, html = page_data
+    page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
+                      canonical_url=page_canonical_url(html, final_url))
+    # Same hint keys and sources as MARK III's verification_fetch.
+    ats_hints = {
+        "title": candidate.ats_title,
+        "company": candidate.ats_company,
+        "location": candidate.ats_location,
+        "remote_hint": candidate.ats_remote_hint,
+    }
+    try:
+        job = parse_ats_page(page, ats_hints=ats_hints)
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
+        return PostingFetch(error={"url": url, "error": f"extract_failed: {exc!r}"})
+    job.title, job.company, job.location = clean_text(job.title), clean_text(job.company), clean_text(job.location)
+    job.apply_url = normalize_url(final_url)
+    job.domain = domain_of(job.apply_url)
+    job, gh_enriched = _greenhouse_api_enrich(candidate, job, client)
+    workable_job = _workable_api_enrich(candidate, job, client)
+    workable_enriched, job = workable_job is not job, workable_job
+    # SmartRecruiters metadata without a description keeps the page text, which still needs classifying.
+    job, sr_enriched, sr_described = _smartrecruiters_api_lookup(candidate, job, client)
+    job, wd_enriched = _workday_api_enrich(candidate, job, client)
+    job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
+    enriched = gh_enriched or workable_enriched or sr_described or wd_enriched or bamboo_enriched
+    if job.apply_url == normalize_url(final_url):  # an enricher's posting URL is kept as is
+        job.apply_url = resolve_apply_url(candidate, final_url, page.canonical_url, allowed_domains)
+        job.domain = domain_of(job.apply_url)
+    if not enriched and (reason := unusable_page_reason(html, job)):
+        return PostingFetch(error={"url": url, "error": reason, "status": status})  # left for the agent to open
+    return PostingFetch(job=job, ats_fingerprint=bool(gh_enriched or sr_enriched or wd_enriched or bamboo_enriched
+                                                      or has_ats_fingerprint(html)))
+
+
 def fetch(run_id: str) -> dict:
     """Fetch candidate job pages for ``run_id``, parse postings, and record outcomes."""
     runs.require_stage(run_id, "fetch")
@@ -531,8 +655,13 @@ def fetch(run_id: str) -> dict:
 
     unique: list[tuple[CandidateUrl, str]] = []
     seen: set[str] = set()
+    scout_run = runs.run_mode(run) == "scout"
+    verified_skipped = 0
     for row in runs.read_jsonl(out_dir / "candidates.jsonl"):
         candidate = CandidateUrl.model_validate(row)
+        if scout_run and candidate.search_pass == JUDGED_PASS:  # the agent opened and judged it already
+            verified_skipped += 1
+            continue
         identity = canonical_job_identity(
             candidate.source_url, source_type=candidate.source_type, source_key=candidate.source_key
         ).identity_key
@@ -572,22 +701,13 @@ def fetch(run_id: str) -> dict:
             slots -= 1
             continue
         attempted += 1
-        occupop_ref = occupop_job_ref(url)
         try:
-            status, final_url, html = get_posting_page(client, url)
+            result = fetch_posting(candidate, client, allowed_domains)
         except VendorBlocked as exc:
             # Any tenant of this vendor answered 429/403 too often in this run: no request was sent.
             errors.append({"url": url, "error": "vendor_blocked", "vendor": exc.vendor})
             slots -= 1
             attempted -= 1  # no request was sent: not an attempt for the navigation-failure stop
-            continue
-        except HostBlocked:
-            attempted -= 1
-            if (fallback := _greenhouse_api_fallback(candidate, client)) is not None:  # different (API) host
-                postings.append({"candidate": candidate.model_dump(mode="json"), "job": fallback[0].model_dump(mode="json"),
-                                 "identity_key": identity, "ats_fingerprint": True})
-                continue
-            errors.append({"url": url, "error": "host_blocked"})
             continue
         except RequestBudgetExceeded as exc:
             attempted -= 1  # refused before sending
@@ -602,91 +722,16 @@ def fetch(run_id: str) -> dict:
                 budget_spent = True
                 errors.append({"url": url, "error": "request_budget_exhausted"})
             continue
-        except HttpError as exc:
-            fallback = _greenhouse_api_fallback(candidate, client)
-            if fallback is not None:
-                job, _ = fallback
-                postings.append({
-                    "candidate": candidate.model_dump(mode="json"),
-                    "job": job.model_dump(mode="json"),
-                    "identity_key": identity,
-                    "ats_fingerprint": True,
-                })
-                continue
-            errors.append({"url": url, "error": f"http_error: {exc}", "status": exc.status_code})
-            if exc.status_code is None:  # transport failure: no HTTP response at all
-                nav_failures += 1
-                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
+        if not result.sent:
+            attempted -= 1
+        if result.navigation_failure:
+            nav_failures += 1
+            nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
+        if result.job is None:
+            errors.append(result.error)
             continue
-        except URLRejected as exc:
-            errors.append({"url": url, "error": f"url_rejected: {exc}"})
-            if str(exc) == "dns_resolution_failed":  # with no network, name resolution fails first
-                nav_failures += 1
-                nav_stopped = should_stop_on_nav_failures(nav_failures, attempted)
-            continue
-        if status >= 400:
-            if status in {403, 429} or status >= 500:
-                fallback = _greenhouse_api_fallback(candidate, client)
-                if fallback is not None:
-                    job, _ = fallback
-                    postings.append({
-                        "candidate": candidate.model_dump(mode="json"),
-                        "job": job.model_dump(mode="json"),
-                        "identity_key": identity,
-                        "ats_fingerprint": True,
-                    })
-                    continue
-            reason = "expired_or_closed" if status in {404, 410} else "inaccessible"
-            errors.append({"url": url, "error": reason, "status": status})
-            continue
-        if _workable_closed_redirect(url, final_url) or _greenhouse_closed_redirect(url, final_url):
-            errors.append({"url": url, "error": "expired_or_closed", "status": status})
-            continue
-        if occupop_ref:
-            job, reason = occupop_posting_job(url, html, company_hint=candidate.ats_company)
-            if job is None:
-                errors.append({"url": url, "error": reason, "status": status})
-                continue
-            postings.append({"candidate": candidate.model_dump(mode="json"), "job": job.model_dump(mode="json"),
-                             "identity_key": identity, "ats_fingerprint": True})
-            continue
-        page = JobRawPage(url=url, final_url=final_url, status_code=status, html=html,
-                          canonical_url=page_canonical_url(html, final_url))
-        # Same hint keys and sources as MARK III's verification_fetch.
-        ats_hints = {
-            "title": candidate.ats_title,
-            "company": candidate.ats_company,
-            "location": candidate.ats_location,
-            "remote_hint": candidate.ats_remote_hint,
-        }
-        try:
-            job = parse_ats_page(page, ats_hints=ats_hints)
-        except (ValueError, KeyError, TypeError, AttributeError) as exc:
-            errors.append({"url": url, "error": f"extract_failed: {exc!r}"})
-            continue
-        job.title, job.company, job.location = clean_text(job.title), clean_text(job.company), clean_text(job.location)
-        job.apply_url = normalize_url(final_url)
-        job.domain = domain_of(job.apply_url)
-        job, gh_enriched = _greenhouse_api_enrich(candidate, job, client)
-        workable_job = _workable_api_enrich(candidate, job, client)
-        workable_enriched, job = workable_job is not job, workable_job
-        # SmartRecruiters metadata without a description keeps the page text, which still needs classifying.
-        job, sr_enriched, sr_described = _smartrecruiters_api_lookup(candidate, job, client)
-        job, wd_enriched = _workday_api_enrich(candidate, job, client)
-        job, bamboo_enriched = _bamboohr_api_enrich(candidate, job, client)
-        enriched = gh_enriched or workable_enriched or sr_described or wd_enriched or bamboo_enriched
-        if job.apply_url == normalize_url(final_url):  # an enricher's posting URL is kept as is
-            job.apply_url = resolve_apply_url(candidate, final_url, page.canonical_url, allowed_domains)
-            job.domain = domain_of(job.apply_url)
-        if not enriched and (reason := unusable_page_reason(html, job)):
-            errors.append({"url": url, "error": reason, "status": status})  # left for the agent to open manually
-            continue
-        postings.append({
-            "candidate": candidate.model_dump(mode="json"),
-            "job": job.model_dump(mode="json"),
-            "identity_key": identity,
-            "ats_fingerprint": gh_enriched or sr_enriched or wd_enriched or bamboo_enriched or has_ats_fingerprint(html),
-        })
+        postings.append({"candidate": candidate.model_dump(mode="json"), "job": result.job.model_dump(mode="json"),
+                         "identity_key": identity, "ats_fingerprint": result.ats_fingerprint})
 
     # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
     runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
@@ -704,4 +749,6 @@ def fetch(run_id: str) -> dict:
                "vendors_blocked": client.vendors_blocked()}
     if nav_stopped:
         summary["stopped"] = "navigation_failures"
+    if scout_run:
+        summary["verified_skipped"] = verified_skipped
     return summary

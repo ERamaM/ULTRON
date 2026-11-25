@@ -63,9 +63,18 @@ the profile before creating a run or starting discovery:
    `references/profile.md` to show and confirm the draft before saving it. If the user confirms
    that draft for this search, use the new profile.
 
-Then use the requested preset or default to `balanced` (`fast`, `deep`, and `seed_boost` are also
-available). A named saved search uses its saved profile. A standalone unattended command uses its
-explicit `--profile` argument.
+Then pick the way to search:
+
+- **You can search the web (the default):** follow `references/toolkit.md`. `ultron search` brings
+  postings web search does not reach, you search the web for more, `ultron inspect` opens them all at
+  once in compact dossiers, you judge, and `ultron shortlist save` keeps the shortlist with its history,
+  memory and watchlist. The same tools are available as an MCP server (`ultron mcp`).
+- **The user asks for the planned board sweep (`search planned`):** run the table below with the
+  requested preset or `balanced` (`fast`, `deep`, and `seed_boost` are also available).
+- **No agent, or a zero-token or scheduled run:** see the unattended run at the end of this section.
+
+A named saved search uses its saved profile. A standalone unattended command uses its explicit
+`--profile` argument.
 
 | # | Who | Action | Load |
 |---|---|---|---|
@@ -86,6 +95,9 @@ least all the unsure ones, then as many keeps as the preset's budget allows (see
 reference); unevaluated postings keep the heuristic verdict at finalize. Say how many were left to
 the heuristic.
 
+On later days, `ultron watch --profile <slug>` finds what is new and what closed with no agent and no
+tokens; the next `ultron search` serves the new postings first (`references/toolkit.md`).
+
 No agent available or the user wants a zero-token/scheduled run: `ultron run --unattended --profile
 <slug> [--preset <p>]` runs new → discover feeds → verify feed companies → discover ats → fetch →
 filter → finalize with heuristics only (no web search, no evaluation).
@@ -97,6 +109,7 @@ filter → finalize with heuristics only (no web search, no evaluation).
 | a new search | the search loop above |
 | review, mark, add notes or feedback on found jobs | `references/jobs-ledger.md` |
 | what is new since the last run | `ultron jobs new-since <run_id>`; `references/jobs-ledger.md` |
+| what is new or closed since the last shortlist, or the watched boards | `ultron watch`, `ultron watchlist list`; `references/toolkit.md` |
 | to know why a job did not show up | `ultron diagnose <url>`; `references/diagnose.md` |
 | to start from a CV, or create or edit a profile | `ultron cv extract`; `references/profile.md` |
 | expected salary range from a CV or profile | `ultron salary analyze`, `ultron salary save`; `references/salary.md` |

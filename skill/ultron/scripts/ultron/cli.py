@@ -22,13 +22,15 @@ from ultron.commands import salary as salary_cmd
 from ultron.commands import saved as saved_cmd
 from ultron.commands import seeds as seeds_cmd
 from ultron.commands import stages as stages_cmd
+from ultron.commands import toolkit as toolkit_cmd
 from ultron.commands import update as update_cmd
+from ultron.commands import watch as watch_cmd
 from ultron.commands.output import emit, fail
 
 __all__ = ["COMMAND_MODULES", "build_parser", "emit", "fail", "main"]
 
 # Stage modules that expose ``register(subparsers)``; later tasks append here.
-COMMAND_MODULES: list = [profile_cmd, runs_cmd, seeds_cmd, stages_cmd, filter_cmd, jobs_cmd, saved_cmd, diagnose_cmd, cv_cmd, cover_letter_cmd, salary_cmd, export_cmd, maintenance_cmd, doctor_cmd, import_mark3_cmd, update_cmd]
+COMMAND_MODULES: list = [profile_cmd, runs_cmd, seeds_cmd, stages_cmd, filter_cmd, jobs_cmd, saved_cmd, diagnose_cmd, cv_cmd, cover_letter_cmd, salary_cmd, export_cmd, maintenance_cmd, doctor_cmd, import_mark3_cmd, update_cmd, watch_cmd, toolkit_cmd]
 
 
 class _Parser(argparse.ArgumentParser):

@@ -95,9 +95,21 @@ class RoleIdentityIndex:
         return self._count
 
 
-def _duplicate_quality(row: FinalRow) -> tuple[int, int, float, bool]:
+# A posting the agent opened and judged itself (scout verified find) leads its duplicate group and the shortlist.
+VERIFIED_FOUND_BY = "agent_verified"
+
+
+def _tier(row: FinalRow) -> int:
+    return 0 if row.found_by == VERIFIED_FOUND_BY else 1
+
+
+def _duplicate_quality(row: FinalRow) -> tuple[int, int, int, int, float, bool]:
+    # A verified find wins its group; then the agent's scout priority comes before the heuristic signals. Sweep rows
+    # have no ``found_by`` and no priority, so they all tie on the first two keys and sweep results do not change.
     return (
+        _tier(row),
         _VERDICT_RANK.get(row.evaluation_verdict, 2),
+        row.priority if row.priority is not None else 2,
         _ELIGIBILITY_RANK.get(row.eligibility, 4),
         -row.match_score if row.match_score is not None else float("inf"),
         str(row.location or "").strip().lower() in {"", LOCATION_NOT_SHOWN},
@@ -109,26 +121,40 @@ def dedupe_final_rows(
 ) -> tuple[list[FinalRow], list[FinalRow]]:
     """Keep each group's best row in its first arrival's position.
 
+    Two verified finds of the agent at different posting URLs are never merged: it opened and judged each.
+
     With ``merge_locations`` (remote-only profiles), the location variants of one posting (same company,
     title and board, one listing per city) also collapse into one row that lists every location.
     """
     kept: list[FinalRow] = []
     duplicates: list[FinalRow] = []
     identities = RoleIdentityIndex()
+    positions: list[int] = []  # index group -> position in ``kept``
     for row in rows:
         group = identities.group_key(row)
         if group is None:
             identities.add(row)
+            positions.append(len(kept))
             kept.append(row)
-        elif _duplicate_quality(row) < _duplicate_quality(kept[int(group)]):
-            duplicates.append(kept[int(group)])
-            kept[int(group)] = row
+            continue
+        at = positions[int(group)]
+        if _both_verified_apart(row, kept[at]):
+            kept.append(row)  # the agent opened both postings and judged each: two vacancies, not one
+        elif _duplicate_quality(row) < _duplicate_quality(kept[at]):
+            duplicates.append(kept[at])
+            kept[at] = row
         else:
             duplicates.append(row)
     if merge_locations:
         kept, merged = _merge_location_variants(kept)
         duplicates.extend(merged)
     return kept, duplicates
+
+
+def _both_verified_apart(row: FinalRow, other: FinalRow) -> bool:
+    """Two verified finds at different posting URLs (same title and company, such as two openings)."""
+    return (row.found_by == VERIFIED_FOUND_BY and other.found_by == VERIFIED_FOUND_BY
+            and row.apply_url != other.apply_url)
 
 
 _MAX_LISTED_LOCATIONS = 10
@@ -219,3 +245,25 @@ def rank_final_rows(rows: list[FinalRow], *, use_match_score: bool = False) -> l
         rows,
         key=key,
     )
+
+
+def rank_scout_rows(rows: list[FinalRow], new_keys: set[int] | None = None) -> list[FinalRow]:
+    """Order a scout shortlist the way the agent judged it, in two tiers.
+
+    Tier 0 holds the agent's verified finds, tier 1 everything else (extras it kept from the queue, rows carried
+    from memory). Within a tier every ``keep`` comes before every ``unsure``, then priority (none reads as 2), then
+    eligibility; rows whose ``id`` is in ``new_keys`` come first among equals, and the match score breaks the
+    remaining ties.
+    """
+    new_keys = new_keys or set()
+    return sorted(rows, key=lambda row: (
+        _tier(row),
+        _VERDICT_RANK.get(row.evaluation_verdict, 2),
+        row.priority if row.priority is not None else 2,
+        _ELIGIBILITY_RANK.get(row.eligibility, 4),
+        0 if id(row) in new_keys else 1,
+        -(row.match_score if row.match_score is not None else 0),
+        row.company.casefold(),
+        row.title.casefold(),
+        row.apply_url,
+    ))

@@ -239,3 +239,9 @@ def test_a_kept_custom_domain_posting_records_its_board_identity(capsys):
     assert listed["identity_key"] in keys
     assert main(["watchlist", "list", "--profile", SLUG]) == 0
     assert [w["seed_key"] for w in json.loads(capsys.readouterr().out)["watched"]] == ["recruitee:exampleorg"]
+
+
+def test_a_saved_shortlist_exports_the_first_observation():
+    out = shortlist.save_shortlist(SLUG, [{"url": EMPLOYER, "verdict": "keep", "title": "ML", "company": "Example Org"}])
+    (row,) = json.loads(Path(out["outputs"]["results_json"]).read_text(encoding="utf-8"))["rows"]
+    assert row["first_seen"]

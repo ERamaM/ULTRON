@@ -23,8 +23,8 @@ __all__ = [
 MATCH_BANDS = ("strong", "good", "borderline", "ineligible")
 _PRIORITY_LABELS = {1: "P1 · Apply first", 2: "P2 · Strong", 3: "P3 · Backup"}
 _REMOTE_LABELS = dict(zip(
-    ("remote_spain", "remote_eu", "remote_europe", "remote_emea", "remote_other"),
-    ("Remote · Spain", "Remote · EU", "Remote · Europe", "Remote · EMEA", "Remote · Other"),
+    ("remote_spain", "remote_eu", "remote_europe", "remote_emea", "remote_other", "hybrid", "onsite"),
+    ("Remote · Spain", "Remote · EU", "Remote · Europe", "Remote · EMEA", "Remote · Other", "Hybrid", "On-site"),
     strict=True,
 ))
 _DATE_FIELDS = (

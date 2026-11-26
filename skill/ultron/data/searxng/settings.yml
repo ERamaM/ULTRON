@@ -10,6 +10,25 @@ use_default_settings:
       - yahoo
       - mojeek
 
+# The allowlist alone preserves the image's enabled/disabled defaults.
+engines:
+  - name: bing
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: google
+    disabled: false
+  - name: duckduckgo
+    disabled: true
+
 general:
   instance_name: ULTRON SearXNG
   enable_metrics: false
@@ -28,5 +47,5 @@ server:
   # The container receives its per-install key in SEARXNG_SECRET.
 
 outgoing:
-  request_timeout: 8.0
-  max_request_timeout: 12.0
+  request_timeout: 5.0
+  max_request_timeout: 7.0

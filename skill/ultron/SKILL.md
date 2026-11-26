@@ -101,6 +101,18 @@ No agent available or the user wants a zero-token/scheduled run: `ultron run --u
 <slug> [--preset <p>]` runs new → discover feeds → verify feed companies → discover ats → fetch →
 filter → finalize with heuristics only (no web search, no evaluation).
 
+## Local web search setup
+
+For the default search, ULTRON can start an installed Docker daemon and its local SearXNG container.
+When the user asks to stop SearXNG, run `ultron searxng down`. See `references/toolkit.md` for setup.
+
+If `ultron searxng status` or the `web_search` result reports `docker_available: false`, explain
+that SearXNG uses Docker for better keyless web coverage. Walk the user through the steps in
+`install_hint` for their operating system. On Windows, point out the WSL 2 requirement and possible
+restart. Ask them to confirm when Docker is installed, then run `ultron searxng up` and retry the
+search. Ask before installing any system software. If the user wants to proceed without Docker,
+use `ddg` or `ddg_html` for web search alongside feeds and boards.
+
 ## Other intents
 
 | User wants | Do |

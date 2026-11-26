@@ -9,11 +9,12 @@ from ultron.core import presets
 from ultron.core.discovery.url_filter import normalize_url
 from ultron.core.ranker.lexical import LexicalRanker
 from ultron.core.web_search import searxng
-from ultron.core.web_search.cascade import search_web
+from ultron.core.web_search.cascade import provider_mode, search_web
 from ultron.core.web_search.dedup import deduplicate_hits
 from ultron.core.web_search.models import WebSearchResult
 from ultron.core.web_search.query_builder import build_queries, relaxed_queries
 from ultron.infra.net import HostGate
+from ultron.infra.searxng import prepare_search
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.http_factory import load_vendor_budget
 from ultron.stages.role_feeds import known_resolutions, query_terms, remember_resolutions
@@ -43,8 +44,10 @@ MAX_QUERIES = 40
 MAX_INSPECTIONS = 120
 MAX_COMPANY_PROBES = 20
 MAX_LOOKUPS = 8
-DISCOVERY_SECONDS = 18.0
-TOTAL_SECONDS = 43.0
+DISCOVERY_SECONDS = 28.0
+TOTAL_SECONDS = 60.0
+MAX_AGGREGATOR_TARGETS = 12
+MAX_AGGREGATOR_HOST_TARGETS = 3
 _SOURCE_ORDER = {"ats_posting": 0, "listed": 1, "employer_page": 2, "aggregator": 3}
 _NOISE_HOSTS = frozenset({
     "linkedin.com", "facebook.com", "instagram.com", "youtube.com", "twitter.com", "x.com", "indeed.com",
@@ -104,16 +107,39 @@ def _candidate_pool(local: list[dict], web: WebSearchResult, aliases: dict[str, 
     return list(open_rows.values()), [row for row in inspect.values() if row["id"] not in open_rows]
 
 
-def _target_plan(rows: list[dict], ranker: LexicalRanker, limit: int) -> list[dict]:
-    ordered = sorted(ranker.ordered(rows), key=lambda row: _SOURCE_ORDER[
-        "listed" if row["status"] == "listed" and row["kind"] != "ats_posting" else row["kind"]])
-    unique: dict[str, dict] = {}
+def _inspection_order(row: dict) -> int:
+    if row["kind"] == "aggregator":
+        return _SOURCE_ORDER["aggregator"]
+    return _SOURCE_ORDER["listed" if row["status"] == "listed" and row["kind"] != "ats_posting" else row["kind"]]
+
+
+def _target_plan(rows: list[dict], ranker: LexicalRanker, limit: int, known: dict[str, str]) -> list[dict]:
+    # A cached employer URL counts as a direct candidate. Only uncached aggregators spend the aggregator allowance.
+    prepared = []
+    for row in rows:
+        target = known.get(row["url"]) or row["url"]
+        kind = row["kind"] if target == row["url"] else _classify(target)
+        if kind in _SOURCE_ORDER:
+            prepared.append({**row, "target": target, "kind": kind})
+    ordered = sorted(ranker.ordered(prepared), key=_inspection_order)
+    unique, identities = {}, set()
+    host_counts: Counter[str] = Counter()
+    aggregator_count = 0
     for row in ordered:
-        unique.setdefault(row["id"], row)
+        target = row["target"]
+        if target in unique or row["id"] in identities:
+            continue
+        if row["kind"] == "aggregator":
+            host = (urlsplit(target).hostname or "").removeprefix("www.")
+            if aggregator_count >= MAX_AGGREGATOR_TARGETS or host_counts[host] >= MAX_AGGREGATOR_HOST_TARGETS:
+                continue
+            host_counts[host] += 1
+            aggregator_count += 1
+        unique[target] = row
+        identities.add(row["id"])
         if len(unique) >= limit:
             break
     return list(unique.values())
-
 
 def _lookup_targets(unresolved: list[dict], original: dict[str, dict], ranker: LexicalRanker,
                     deadline: float) -> dict[str, dict]:
@@ -195,18 +221,20 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
                       preset: str = presets.DEFAULT_PRESET) -> dict:
     """Return one batch of ranked factual dossiers and cache the selected postings for shortlist save."""
     if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
-        raise ValueError("limit must be 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“100 and max_queries must be 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“40")
-    start = time.monotonic()
+        raise ValueError("limit must be 1-100 and max_queries must be 1-40")
     run = run_context(profile_slug, preset)
     profile = run["profile_snapshot"]
     terms = query_terms(profile, query)
     queries = build_queries(profile, max_queries, query=query if query.strip() else None)
     if query.strip():
         run = {**run, "profile_snapshot": profile_for_query(profile, terms)}
+    mode = provider_mode(web_provider)
+    docker_status = prepare_search() if queries and mode in {"auto", "searxng"} else {}
+    start = time.monotonic()
     gate, budget = HostGate(), load_vendor_budget(run)
     discovery_deadline = start + DISCOVERY_SECONDS
     with ThreadPoolExecutor(max_workers=2) as pool:
-        web_task = pool.submit(search_web, queries, web_provider, deadline=discovery_deadline)
+        web_task = pool.submit(search_web, queries, mode, deadline=discovery_deadline)
         sources = discover_sources(run, terms, gate, budget, detail=detail, deadline=discovery_deadline)
         web = web_task.result()
 
@@ -218,8 +246,7 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     skipped = len(candidates) - len(eligible)
     ranker = LexicalRanker(profile, query=query)
     searx_enabled = web.provider_used in {"searxng", "multi"} and any(hit.provider == "searxng" for hit in web.hits)
-    targets = _target_plan(eligible, ranker, MAX_INSPECTIONS - (MAX_LOOKUPS if searx_enabled else 0))
-    known = known_resolutions()
+    targets = _target_plan(eligible, ranker, MAX_INSPECTIONS - (MAX_LOOKUPS if searx_enabled else 0), known_resolutions())
 
     def skip(key: str) -> bool:
         return _blocked(memory_flags(profile_slug, [key])[key], new_only=new_only)
@@ -227,11 +254,7 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     deadline = start + TOTAL_SECONDS
     inspector = InspectionSession(run, detail, aliases, gate=gate, vendor_budget=budget,
                                   skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline)
-    origins: dict[str, dict] = {}
-    for row in targets:
-        url = known.get(row["url"]) or row["url"]
-        if _classify(url) != "rejected":
-            origins.setdefault(url, row)
+    origins = {row["target"]: row for row in targets}
     locations = [(url, row["company"]) for url, row in origins.items()]
     result = inspector.inspect(locations)
     rows = [*opened, *result.dossiers]
@@ -259,7 +282,7 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     _mark_gather_watch(profile_slug, returned, sources.dossiers)
 
     counts = Counter(row["status"] for row in rows)
-    metadata = web.metadata()
+    metadata = {**web.metadata(), **docker_status}
     metadata["provider"] = metadata.pop("provider_used")
     metadata["unique_urls"] = metadata.pop("unique_hits")
     unresolved = [{"url": row["url"], "company": row.get("company") or original.get(row["url"], {}).get("company", "")}

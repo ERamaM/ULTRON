@@ -29,16 +29,14 @@ def test_invalid_rows_name_the_field_and_the_rest_are_saved():
         {**KEEP, "priority": 7},
         {**KEEP, "priority": True},
         {**KEEP, "verdict": "maybe"},
-        {**KEEP, "remote_policy": "sometimes"},
-        {**KEEP, "eligibility": "certain"},
         {**KEEP, "fit_signals": "Python"},
         {**KEEP, "remote_policy": ["remote_eu"]},
         {**KEEP, "eligibility": {"level": "high"}},
     ]
     out = shortlist.save_shortlist(SLUG, [*bad, UNSURE])
     reasons = [row["reason"] for row in out["not_saved"]]
-    for field, reason in zip(("title", "company", "priority", "priority", "verdict", "remote_policy", "eligibility",
-                              "fit_signals", "remote_policy", "eligibility"), reasons, strict=True):
+    for field, reason in zip(("title", "company", "priority", "priority", "verdict", "fit_signals",
+                              "remote_policy", "eligibility"), reasons, strict=True):
         assert reason.startswith(field)
     assert out["saved"] == {"keep": 0, "unsure": 1, "discard": 0}
 

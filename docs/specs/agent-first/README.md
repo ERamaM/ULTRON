@@ -15,6 +15,7 @@ Status: accepted direction. The user owns the code and accepts breaking changes.
 - [29 · Improvement loop](29-improvement-loop.md)
 - [30 · Verified finds first](30-verified-finds-first.md)
 - [31 · Agent toolkit](31-agent-toolkit.md)
+- [36 · Keyless gather and single-turn search](36-keyless-gather-and-single-turn-search.md)
 
 ## Why the current design loses
 
@@ -112,6 +113,10 @@ The scout mode merged in #99 did not implement the split above faithfully. The a
 ## Pass 0 of specification 30 stopped
 
 The measurement of specification 30 was stopped by the user after 3 of 6 repetitions, and no loop iteration ran. The scout agent did the baseline's work plus ULTRON's protocol, so it could at best match the baseline's relevant jobs while always spending more tokens (190k to 275k per run against 134k to 220k). The agents scripted the ATS APIs themselves (300 to 525 requests per run) because the protocol gave them no way to use ULTRON's clients. [31](31-agent-toolkit.md) replaces the scout loop with tools the agent calls.
+
+## Measurement of specification 31 and move to keyless gather
+
+Specification [31](31-agent-toolkit.md) was implemented in `#104`–`#108` and measured in a single CLI run per profile against three baselines (blind labels, single labeller). The toolkit arm surfaced 8–9 unique relevant openings per run via ATS APIs and ran Day-2 `ultron watch` at 0 agent tokens in ~30 s, but spent 45–50% more tokens (215k–282k vs 143k–195k) and roughly twice the wall time (32–42 min vs 11–18 min) because agents still ran 40+ built-in web searches on top of ULTRON, distrusted heuristic `hint`s that misclassified `"EMEA Remote"` / `"hybrid"`, and hit unresolved aggregator listings. [36 · Keyless gather and single-turn search](36-keyless-gather-and-single-turn-search.md) moves keyless web discovery (local SearXNG + DuckDuckGo fallbacks, zero API keys), parallel inspection, and lexical pre-ranking into `ultron gather` / `gather_candidates` so the agent judges 50–60 verified factual dossiers in a single turn.
 
 ## Constraints
 

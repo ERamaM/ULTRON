@@ -105,7 +105,9 @@ def test_no_external_resources(run_id, tmp_path, capsys):
         rest = rest.replace(url.replace("&", "&amp;"), "")
     assert "http:" not in rest and "https:" not in rest
     without_script = re.sub(r"<script\b[^>]*>.*?</script[^>]*>", "", rest, flags=re.DOTALL | re.IGNORECASE)
-    assert "//" not in without_script  # no protocol-relative URLs
+    assert not re.search(r'(?:href|src|srcset)="//', without_script, re.IGNORECASE)
+    # Identity attributes are data, not loadable resource locations.
+    assert 'data-id="url://example.com/job/1"' in page
 
 
 def test_csp_is_first_in_head_and_hashes_the_script(run_id, tmp_path, capsys):
@@ -132,7 +134,7 @@ def test_content_summary_and_score_clamp(run_id, tmp_path, capsys):
     page = _export(run_id, tmp_path, capsys)
     assert "Engineer" in page and "Acme" in page
     assert "--s:0" in page and "--s:82" in page  # -5 is clamped to the 0-100 range
-    assert "3 new" in page
+    assert '<dt>New since last run</dt><dd><span class="new">3</span></dd>' in page
     assert "<details" in page and "stale (1)" in page and "final cap (1)" in page
     assert '<meta name="viewport"' in page and "prefers-color-scheme:dark" in page and "@media print" in page
     assert "[hidden]{display:none!important}" in page  # the filter's hidden cards must beat .job{display:grid}
@@ -175,3 +177,40 @@ def test_redaction_runs_after_removing_format_characters():
     cleaned = html_report._clean(split)
     assert "ghp_abcdefgh12345678" not in cleaned and "[REDACTED]" in cleaned
     assert html_report._clean("  two\nlines\twith\u200b zero width  ") == "two lines with zero width"
+
+
+
+def test_toolkit_hero_priority_salary_and_shared_triage_views():
+    from ultron.exports.html_report import render_html
+
+    malicious = '<script>alert("bad")</script>'
+    page = render_html({"run_id": "toolkit"}, {"rows": [
+        _row(priority=1, match_score=None, match_band=None, salary="EUR 90,000 / year",
+             published_at="2026-11-20", fit_signals=["Python", malicious], identity_key="key"),
+        _row(priority=2, match_score=None, match_band=None, salary=malicious, identity_key=malicious,
+             eligibility_evidence=malicious),
+        _row(priority=3, match_score=None, match_band=None),
+    ]}, [])
+    assert "No score" not in page and "Match Bands</p>" not in page
+    for label in ("P1 \u00b7 Apply first", "P2 \u00b7 Strong", "P3 \u00b7 Backup", "Annual median EUR 90,000"):
+        assert label in page
+    assert "Published 2026-11-20" in page
+    assert 'class="avatar tone-' in page
+    assert 'class="tag" data-filter="tag" data-value="python"' in page
+    assert 'data-priority="p1"' in page and 'data-salary-mid="90000.0"' in page
+    assert 'data-remote="remote_eu"' in page and 'data-date="2026-11-20"' in page
+    assert re.search(r'<tr data-id="key">', page)
+    assert malicious not in page and '&lt;script&gt;alert(&quot;bad&quot;)&lt;/script&gt;' in page
+    assert "ultron jobs mark -- " in page and "ultron jobs note -- " in page
+
+
+
+def test_search_index_includes_requirement_text():
+    from ultron.exports.html_report import render_html
+
+    page = render_html({}, {"rows": [
+        _row(fit_signals=[], matched_requirements=["Java"], missing_requirements=["Italian"],
+             uncertain_requirements=["German"]),
+    ]}, [])
+    [match] = re.findall(r'data-search="([^"]*)"', page)
+    assert all(term in match for term in ("java", "italian", "german"))

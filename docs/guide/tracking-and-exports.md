@@ -61,12 +61,17 @@ Every finished run writes `results.md` and `results.json` inside `$ULTRON_HOME/r
 | **Markdown** | Automatic on finalize | `$ULTRON_HOME/runs/<run_id>/results.md` concise shortlist table & summaries |
 | **JSON** | Automatic on finalize | `$ULTRON_HOME/runs/<run_id>/results.json` structured output with redacted secrets |
 | **Excel (`.xlsx`)** | `ultron export xlsx --run <run_id> [--out file.xlsx]` | Multi-sheet workbook (`openpyxl`) with a live dashboard, a filterable Roles table, and an employer rollup |
-| **Offline HTML** | `ultron export html --run <run_id> [--out file.html]` | Single self-contained `results.html` file viewable offline in any browser with zero network requests and strict HTML escaping |
+| **Offline HTML** | `ultron export html --run <run_id> [--out file.html]` | Single self-contained `results.html` file with a shortlist dashboard, Cards and Table views, and offline triage |
 | **Live Web Viewer** | `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open] [--editable]` | Local ledger with Cards, Table, Kanban, and Watch & Salaries. Read-only by default. |
 
 The Excel Summary shows live counts as you change **My Status** in the Roles table. Pick **To Review**,
 **Shortlisted**, **Applied**, **Interview**, or **Rejected**, and add comments in **My Notes**. The
 Companies sheet groups open roles by employer. These edits stay in your workbook.
+
+In the offline HTML report, use the priority or match band, filter chips and search to narrow the
+shortlist. Switch between **Cards** and **Table** with the same filters and triage. Browsers that
+permit local storage keep your decisions and notes for that report. Use **Export triage**, choose
+your shell, copy the commands, and run them to record decisions in the ledger.
 
 All exports neutralize formula prefixes, redact credentials, and validate links. The web viewer binds
 to loopback and serves all assets locally. In read-only mode, it opens the ledger without migrating it.

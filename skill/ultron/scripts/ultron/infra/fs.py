@@ -28,3 +28,18 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
 def atomic_write_text(path: Path, text: str) -> None:
     """Atomically write UTF-8 text with LF newlines to ``path``."""
     atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def atomic_create_bytes(path: Path, content: bytes) -> bool:
+    """Publish a private file atomically without replacing an existing entry."""
+    fd, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(content)
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        Path(temporary).unlink(missing_ok=True)

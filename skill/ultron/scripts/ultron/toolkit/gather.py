@@ -2,6 +2,7 @@
 
 import time
 from collections import Counter
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qsl, unquote, urlsplit
 
@@ -242,8 +243,9 @@ def _inspect_lookups(
 def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAULT_LIMIT,
                       max_queries: int = DEFAULT_QUERIES, web_provider: str | None = None,
                       new_only: bool = False, detail: bool = False,
-                      preset: str = presets.DEFAULT_PRESET) -> dict:
-    """Return one batch of ranked factual dossiers and cache the selected postings for shortlist save."""
+                      preset: str = presets.DEFAULT_PRESET,
+                      select_response: Callable[[dict], dict] | None = None) -> dict:
+    """Cache ranked dossiers and mark only the watch postings selected for the response as served."""
     if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
         raise ValueError("limit must be 1-100 and max_queries must be 1-40")
     run = run_context(profile_slug, preset)
@@ -304,7 +306,6 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     returned = [{key: value for key, value in row.items() if key not in {"snippet", "kind"}}
                 for row in ranker.shortlist(safe, limit)]
     _persist(profile_slug, returned, caches, sources.boards)
-    _mark_gather_watch(profile_slug, returned, sources.dossiers)
 
     counts = Counter(row["status"] for row in rows)
     metadata = {**web.metadata(), **docker_status}
@@ -317,5 +318,8 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     inspected["unresolved_aggregator"] = len(failed)
     inspected.update(attempted=len(locations) + len(followed), skipped_memory=skipped + counts["skipped_memory"],
                      requests=result.requests + extra_requests)
-    return {"profile": profile_slug, "queries": queries, "web_search": metadata, "sources": sources.sources,
-            "inspected": inspected, "returned": len(returned), "dossiers": returned, "unresolved": unresolved}
+    payload = {"profile": profile_slug, "queries": queries, "web_search": metadata, "sources": sources.sources,
+               "inspected": inspected, "returned": len(returned), "dossiers": returned, "unresolved": unresolved}
+    response = select_response(payload) if select_response is not None else payload
+    _mark_gather_watch(profile_slug, response["dossiers"], sources.dossiers)
+    return response

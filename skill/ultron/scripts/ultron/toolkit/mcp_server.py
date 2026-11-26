@@ -19,7 +19,7 @@ from ultron.core.web_search.cascade import WEB_PROVIDERS
 from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
 from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
-from ultron.toolkit.mcp_gather import gather_text
+from ultron.toolkit.mcp_output import compact_dossiers, compact_gather, encode_inline
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import MAX_ROWS, save_shortlist
 
@@ -151,7 +151,8 @@ def _gather(arguments: dict) -> dict:
     if not isinstance(new_only, bool) or not isinstance(detail, bool):
         raise ToolInputError("new_only and detail must be booleans")
     return gather_candidates(_profile(arguments), query, limit=limit, max_queries=max_queries,
-                             web_provider=arguments.get("web_provider"), new_only=new_only, detail=detail)
+                             web_provider=arguments.get("web_provider"), new_only=new_only, detail=detail,
+                             select_response=compact_gather)
 
 
 def _search(arguments: dict) -> dict:
@@ -162,15 +163,16 @@ def _search(arguments: dict) -> dict:
     if not isinstance(query, str):
         raise ToolInputError("query must be a string")
     return search_jobs(_profile(arguments), query, new_only=bool(arguments.get("new_only")),
-                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET)
+                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET, select_response=compact_dossiers)
 
 
 def _inspect(arguments: dict) -> dict:
     urls, companies = _targets(arguments), _strings(arguments, "companies", MAX_COMPANIES)
     if not urls and not companies:
         raise ToolInputError("give urls or companies")
-    return inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
-                        show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
+    inspected = inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
+                             show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
+    return compact_dossiers(inspected)
 
 
 def _save(arguments: dict) -> dict:
@@ -184,9 +186,8 @@ HANDLERS: dict[str, Callable[[dict], dict]] = {"gather_candidates": _gather, "se
                                                "save_shortlist": _save}
 
 
-def _text_result(payload: dict, *, error: bool = False, compact_gather: bool = False) -> dict:
-    text = gather_text(payload) if compact_gather else json.dumps(payload, ensure_ascii=False)
-    return {"content": [{"type": "text", "text": text}], "isError": error}
+def _text_result(payload: dict, *, error: bool = False) -> dict:
+    return {"content": [{"type": "text", "text": encode_inline(payload)}], "isError": error}
 
 
 def call_tool(name: str, arguments: Any) -> dict:
@@ -197,7 +198,7 @@ def call_tool(name: str, arguments: Any) -> dict:
     if not isinstance(arguments, dict):
         return _text_result({"error": "invalid_arguments", "message": "arguments must be an object"}, error=True)
     try:
-        return _text_result(handler(arguments), compact_gather=name == "gather_candidates")
+        return _text_result(handler(arguments))
     except FileNotFoundError:
         return _text_result({"error": "profile_not_found", "message": "profile not found"}, error=True)
     except (ToolInputError, ValueError, KeyError) as exc:

@@ -184,11 +184,11 @@ def _gather_fixture(count: int) -> dict:
 
 def test_gather_mcp_keeps_sixty_ranked_dossiers_inline(monkeypatch):
     gathered = _gather_fixture(60)
-    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, **kwargs: gathered)
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, select_response, **kwargs: select_response(gathered))
     (response,) = _session(_call("gather_candidates", {"profile": SLUG}))
     text = response["result"]["content"][0]["text"]
     payload = _payload(response)
-    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 36_000
+    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 44_000
     assert payload["returned"] == 60 and not payload.get("truncated")
     assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"]]
     assert "queries" not in payload and "unresolved" not in payload
@@ -204,13 +204,13 @@ def test_gather_reports_a_ranked_prefix_with_large_multibyte_urls(monkeypatch):
     gathered["sources"]["large"] = "x" * 40_000
     for row in gathered["dossiers"]:
         row["url"] += "/" + "職" * 4_000
-    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, **kwargs: gathered)
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, select_response, **kwargs: select_response(gathered))
     (response,) = _session(_call("gather_candidates", {"profile": SLUG, "detail": True}))
     text = response["result"]["content"][0]["text"]
     payload = _payload(response)
-    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 36_000
-    assert payload["truncated"] and payload["returned"] == 2 and payload["dossiers_omitted"] == 8
-    assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"][:2]]
+    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 44_000
+    assert payload["truncated"] and payload["returned"] == 3 and payload["dossiers_omitted"] == 7
+    assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"][:3]]
     assert payload["web_search"] == gathered["web_search"] and "sources" not in payload
 
 
@@ -219,3 +219,47 @@ def test_inspect_mcp_detail_keeps_full_excerpts(monkeypatch):
     monkeypatch.setattr(mcp_server, "inspect_jobs", lambda *args, **kwargs: result)
     (response,) = _session(_call("inspect_jobs", {"profile": SLUG, "urls": [POSTING], "detail": True}))
     assert _payload(response) == result
+
+
+@pytest.mark.parametrize("large_diagnostics", [False, True])
+def test_gather_detail_preserves_full_excerpts_for_a_small_batch(monkeypatch, large_diagnostics):
+    gathered = _gather_fixture(2)
+    gathered["unresolved"] = []
+    if large_diagnostics:
+        gathered["sources"]["large"] = "x" * 50_000
+    dossier = gathered["dossiers"][0]
+    dossier["role_excerpt"] = "R" * 2_500
+    dossier["geo_excerpt"] = "G" * 350
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, select_response, **kwargs: select_response(gathered))
+    (response,) = _session(_call("gather_candidates", {"profile": SLUG, "detail": True}))
+    payload = _payload(response)
+    first = payload["dossiers"][0]
+    assert (first["geo_excerpt"], first["role_excerpt"]) == (dossier["geo_excerpt"], dossier["role_excerpt"])
+    assert ("sources" in payload) is not large_diagnostics
+
+
+def test_gather_drops_the_tail_before_cutting_below_excerpt_floors(monkeypatch):
+    gathered = _gather_fixture(76)
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, select_response, **kwargs: select_response(gathered))
+    (response,) = _session(_call("gather_candidates", {"profile": SLUG}))
+    text = response["result"]["content"][0]["text"]
+    payload = _payload(response)
+    assert len(text.encode("utf-8")) <= 44_000 and payload["truncated"]
+    count = payload["returned"]
+    assert 50 <= count < 76 and payload["dossiers_omitted"] == 76 - count
+    assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"][:count]]
+    assert all(len(row["geo_excerpt"]) == 220 and len(row["role_excerpt"]) == 240 for row in payload["dossiers"])
+
+
+def test_inspect_mcp_caps_an_oversized_detail_batch(monkeypatch):
+    result = _gather_fixture(25)
+    result.update(results=25, requests=25, partial=True, status={"open": 25})
+    for row in result["dossiers"]:
+        row["role_excerpt"] = "R" * 2_500
+    monkeypatch.setattr(mcp_server, "inspect_jobs", lambda *args, **kwargs: result)
+    (response,) = _session(_call("inspect_jobs", {"profile": SLUG, "urls": [POSTING], "detail": True}))
+    assert len(response["result"]["content"][0]["text"].encode("utf-8")) <= 44_000
+    payload = _payload(response)
+    assert payload["partial"] and payload["status"] == {"open": 25} and payload["requests"] == 25
+    assert len(payload["dossiers"]) == 25
+    assert all(len(row["role_excerpt"]) >= 240 for row in payload["dossiers"])

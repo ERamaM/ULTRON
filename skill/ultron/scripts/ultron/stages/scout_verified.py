@@ -10,9 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, get_args
 
+from ultron.core.extractors.posting_date import iso_vacancy_date
 from ultron.core.models import Eligibility, FinalRow, RemotePolicy
 from ultron.core.ranker.final_rows import VERIFIED_FOUND_BY
 from ultron.core.text_clean import clean_text
+from ultron.exports.sanitize import clean_text as sanitize_export_text
 from ultron.storage import runs
 
 JUDGED_FILE = "judged_finds.jsonl"
@@ -82,6 +84,10 @@ def judgment(row: dict) -> dict[str, Any]:
         "eligibility": _choice(row, "eligibility", ELIGIBILITIES, "high" if verdict == "keep" else "unknown"),
         "eligibility_evidence": _text(row.get("eligibility_evidence"), EVIDENCE_LIMIT),
         "fit_signals": _fit_signals(row),
+        "salary": sanitize_export_text(row.get("salary"))[:120] if isinstance(row.get("salary"), str) else "",
+        "published_at": iso_vacancy_date(row.get("published_at")),
+        "updated_at": iso_vacancy_date(row.get("updated_at")),
+        "unverified_date": iso_vacancy_date(row.get("unverified_date")),
         "discard_reason": _text(row.get("discard_reason"), EVIDENCE_LIMIT) if verdict == "discard" else "",
     }
 
@@ -121,7 +127,8 @@ def final_row(row: dict) -> FinalRow:
         remote_policy=row["remote_policy"], eligibility=row["eligibility"],
         eligibility_evidence=row["eligibility_evidence"], fit_signals=row["fit_signals"], freshness="",
         evaluation_verdict=row["verdict"], source_type=row["source_type"], source_key=row.get("source_key", ""),
-        source_label="Agent find",
+        source_label="Agent find", salary=row.get("salary", ""), published_at=row.get("published_at"),
+        updated_at=row.get("updated_at"), unverified_date=row.get("unverified_date"),
         priority=row["priority"], found_by=VERIFIED_FOUND_BY,
     )
 

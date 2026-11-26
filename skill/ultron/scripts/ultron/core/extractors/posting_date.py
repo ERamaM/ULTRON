@@ -7,6 +7,7 @@ next to a publication label wins, and dates labelled as updates or deadlines are
 from __future__ import annotations
 
 import re
+from datetime import date, datetime
 
 DATE_RE = re.compile(
     r"(20\d{2}[-/](?:0?[1-9]|1[0-2])[-/](?:0?[1-9]|[12]\d|3[01])\b"
@@ -43,3 +44,13 @@ def posting_date_from_text(text: str, *, require_label: bool = False) -> str | N
             continue
         return match.group(1)
     return None
+
+
+def iso_vacancy_date(value: object) -> str | None:
+    """Return the calendar date of an ISO date or timestamp."""
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}(?:[T ][^\r\n]{1,32})?", value):
+        return None
+    try:
+        return (datetime.fromisoformat(value).date() if len(value) > 10 else date.fromisoformat(value)).isoformat()
+    except ValueError:
+        return None

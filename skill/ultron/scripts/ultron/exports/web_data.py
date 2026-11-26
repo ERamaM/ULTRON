@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from ultron import __version__
-from ultron.exports import sanitize
+from ultron.exports import sanitize, web_queries
+from ultron.exports.view_model import MATCH_BANDS, summarize_job_display
+from ultron.exports.web_watch import read_closed_watch
 from ultron.infra import home
 
-_BANDS = ("strong", "good", "borderline", "ineligible")
 _STATES = ("unreviewed", "shortlisted", "applied", "rejected", "archived")
-_RELEVANCE = ("relevant", "not_relevant", "uncertain")
 _DIAGNOSTIC_LIMIT = 200
 
 
@@ -138,8 +138,11 @@ def _read_jobs(
 
     sql = f"SELECT {', '.join(fields)} FROM jobs j{join_sql} ORDER BY j.last_seen DESC, j.identity_key"
     items: list[dict[str, Any]] = []
+    judgments, latest = web_queries.read_judgments(conn, tables)
+    feedback = web_queries.read_profile_feedback(conn, tables)
     for row in conn.execute(sql):
-        key = sanitize.clean_text(row["identity_key"])
+        raw_key, profile = row["identity_key"], row["profile_slug"]
+        key = sanitize.clean_text(raw_key)
         occ = occurrences_by_job.get(key, [])
         items.append(
             {
@@ -161,9 +164,9 @@ def _read_jobs(
                 "last_seen_run_id": sanitize.clean_text(row["last_seen_run_id"]) or None,
                 "notes": sanitize.clean_multiline_text(row["notes"]),
                 "match_score": sanitize.clamp_score(row["match_score"]),
-                "match_band": sanitize.normalize_token(row["match_band"], _BANDS, default="unscored"),
+                "match_band": sanitize.normalize_token(row["match_band"], MATCH_BANDS, default="unscored"),
                 "profile_slug": sanitize.clean_text(row["profile_slug"]),
-                "feedback_relevance": sanitize.normalize_token(row["feedback_relevance"], _RELEVANCE, default="")
+                "feedback_relevance": sanitize.normalize_token(row["feedback_relevance"], web_queries.RELEVANCE, default="")
                 if row["feedback_relevance"]
                 else None,
                 "feedback_reason": sanitize.clean_text(row["feedback_reason"]),
@@ -173,6 +176,8 @@ def _read_jobs(
                 "occurrences": occ,
             }
         )
+        web_queries.enrich_job(items[-1], judgments.get((raw_key, profile), latest.get(raw_key, {})),
+                               feedback.get(raw_key, {}), profile)
     return items
 
 
@@ -276,10 +281,11 @@ def _build_summary(
     seed_yields: list[dict[str, Any]],
     saved_searches: list[dict[str, Any]],
     diagnostics: list[dict[str, Any]],
+    *, watchlist: list, pending: list, closed: list,
 ) -> dict[str, Any]:
-    band_counts = _empty_counts(_BANDS, extra="unscored")
+    band_counts = _empty_counts(MATCH_BANDS, extra="unscored")
     state_counts = _empty_counts(_STATES)
-    feedback_counts = _empty_counts(_RELEVANCE)
+    feedback_counts = _empty_counts(web_queries.RELEVANCE)
     companies: Counter[str] = Counter()
     sources: Counter[str] = Counter()
     profiles: set[str] = {r["profile_slug"] for r in runs_list if r["profile_slug"]}
@@ -303,6 +309,10 @@ def _build_summary(
             profiles.add(job["profile_slug"])
 
     return {
+        **summarize_job_display(jobs),
+        "watchlist_count": sum(row["state"] == "watch" for row in watchlist),
+        "watch_pending_count": len(pending),
+        "closed_watch_count": len(closed),
         "total_jobs": len(jobs),
         "new_jobs": new_jobs,
         "avg_score": round(sum(scores) / len(scores), 1) if scores else None,
@@ -321,6 +331,10 @@ def _build_summary(
     }
 
 
+def _watch_display(watchlist: list, pending: list, closed: list) -> dict[str, Any]:
+    return {"watchlist": watchlist, "watch_pending": pending, "closed_watch": closed}
+
+
 def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
     """Read ``$ULTRON_HOME/ultron.sqlite3`` strictly read-only into a sanitized snapshot."""
     target = Path(db_path) if db_path is not None else default_db_path()
@@ -335,12 +349,13 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
                 "generated_at": now_iso,
                 "db_updated_at": None,
             },
-            "summary": _build_summary([], [], [], [], []),
+            "summary": _build_summary([], [], [], [], [], watchlist=[], pending=[], closed=[]),
             "jobs": [],
             "runs": [],
             "seed_yields": [],
             "saved_searches": [],
             "diagnostics": [],
+            **_watch_display([], [], []),
         }
 
     db_updated_at = datetime.fromtimestamp(target.stat().st_mtime, tz=UTC).isoformat()
@@ -353,7 +368,10 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
         seed_yields = _read_seed_yields(conn, tables)
         saved_searches = _read_saved_searches(conn, tables)
         diagnostics = _read_diagnostics(conn, tables)
+        watchlist = web_queries.read_watchlist(conn, tables, target.parent / "profiles")
+        pending = web_queries.read_watch_pending(conn, tables)
 
+    closed = read_closed_watch(target.parent / "watch", jobs)
     return {
         "meta": {
             "db_name": target.name,
@@ -363,10 +381,12 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
             "generated_at": now_iso,
             "db_updated_at": db_updated_at,
         },
-        "summary": _build_summary(jobs, runs_list, seed_yields, saved_searches, diagnostics),
+        "summary": _build_summary(jobs, runs_list, seed_yields, saved_searches, diagnostics,
+                                  watchlist=watchlist, pending=pending, closed=closed),
         "jobs": jobs,
         "runs": runs_list,
         "seed_yields": seed_yields,
         "saved_searches": saved_searches,
         "diagnostics": diagnostics,
+        **_watch_display(watchlist, pending, closed),
     }

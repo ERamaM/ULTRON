@@ -8,7 +8,10 @@ import pytest
 from toolkit_helpers import cli, offline
 
 from ultron.cli import main
+from ultron.exports.web_watch import read_closed_watch
+from ultron.infra import home
 from ultron.profiles import store as profiles
+from ultron.stages import watch as watch_stage
 
 
 @pytest.fixture(autouse=True)
@@ -52,3 +55,39 @@ def test_watchlist_list_and_remove(capsys):
     assert [w["seed_key"] for w in listed["watched"]] == ["greenhouse:acme"]
     cli(capsys, "watchlist", "remove", "--profile", profiles.EXAMPLE_SLUG, "--board", "greenhouse:acme")
     assert cli(capsys, "watchlist", "list", "--profile", profiles.EXAMPLE_SLUG)["watched"] == []
+
+
+
+def test_clean_watch_clears_previous_closure(capsys, monkeypatch):
+    slug = profiles.EXAMPLE_SLUG
+    folder = home.ultron_home() / "watch"
+    url = "https://example.com/jobs/1"
+    job = {"canonical_url": url, "identity_key": "key"}
+    watch_stage._write_digest(slug, [], "20260101T000000", [
+        {"apply_url": url, "title": "Engineer", "company": "Acme"},
+    ])
+    assert len(read_closed_watch(folder, [job])) == 1
+    assert job["is_closed_watch"]
+    monkeypatch.setattr(watch_stage, "_role_candidates", lambda *args: ([], []))
+    monkeypatch.setattr(watch_stage, "recheck_closed", lambda *args: ([], set()))
+    result = cli(capsys, "watch", "--profile", slug)
+    assert result["new_postings"] == 0 and result["closed"] == [] and result["digest"] is None
+    assert read_closed_watch(folder, [job]) == []
+    assert job["is_closed_watch"] is False
+
+
+
+def test_incomplete_watch_preserves_only_unconfirmed_closures(capsys, monkeypatch):
+    slug = profiles.EXAMPLE_SLUG
+    folder = home.ultron_home() / "watch"
+    reopened = "https://example.com/jobs/1"
+    skipped = "https://example.com/jobs/2"
+    watch_stage._write_digest(slug, [], "20260101T000000", [
+        {"apply_url": url, "title": "Engineer", "company": "Acme"} for url in (reopened, skipped)
+    ])
+    monkeypatch.setattr(watch_stage, "_role_candidates", lambda *args: ([], []))
+    monkeypatch.setattr(watch_stage, "recheck_closed", lambda *args: ([], {skipped}))
+    result = cli(capsys, "watch", "--profile", slug)
+    assert result["closed"] == [] and result["digest"] is None
+    [alert] = read_closed_watch(folder, [])
+    assert alert["url"] == skipped and alert["detected_at"] == "2026-01-01T00:00:00+00:00"

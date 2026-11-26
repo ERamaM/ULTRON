@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any
 
 from ultron.exports import sanitize
+from ultron.exports.view_model import MATCH_BANDS
 from ultron.storage import runs
 
-_BANDS = ("strong", "good", "borderline", "ineligible")
 _BAND_LABELS = {"strong": "Strong", "good": "Good", "borderline": "Borderline", "ineligible": "Ineligible"}
 _ELIGIBILITY = ("confirmed", "high", "medium", "unknown")
 # Eligibility pills reuse the band colors: the strongest evidence gets the strongest color.
@@ -189,7 +189,7 @@ def _plural(n: int, one: str, many: str) -> str:
 
 
 def _job_card(rank: int, row: dict) -> str:
-    band = _token(row.get("match_band"), _BANDS)
+    band = _token(row.get("match_band"), MATCH_BANDS)
     elig = _token(row.get("eligibility"), _ELIGIBILITY)
     score = _score(row.get("match_score"))
     is_new = row.get("is_new") is True
@@ -297,7 +297,7 @@ def render_html(run: dict, results: dict, discards: list[dict]) -> str:
     summary = results.get("summary") if isinstance(results.get("summary"), dict) else {}
     run_id = _t(results.get("run_id") or run.get("run_id"))
     new_count = sum(1 for r in rows if r.get("is_new") is True)
-    bands = Counter(_token(r.get("match_band"), _BANDS) for r in rows)
+    bands = Counter(_token(r.get("match_band"), MATCH_BANDS) for r in rows)
     discard_counts = summary.get("discard_counts") if isinstance(summary.get("discard_counts"), dict) else {}
     total_discards = max(len(discards), sum(v for v in discard_counts.values() if isinstance(v, int)))
     when = _when(run.get("finalized_at") or summary.get("ended_at") or run.get("created_at"))
@@ -313,7 +313,7 @@ def render_html(run: dict, results: dict, discards: list[dict]) -> str:
     if rows:
         segments = "".join(
             f'<span class="b-{band}" style="width:{bands[band] * 100 / len(rows):.4f}%"></span>'
-            for band in (*_BANDS, "none") if bands[band])
+            for band in (*MATCH_BANDS, "none") if bands[band])
         legend = "".join(
             f'<li><span class="sw b-{band}"></span>{label} {bands[band]}</li>'
             for band, label in (*_BAND_LABELS.items(), ("none", "Unscored")) if bands[band] or band != "none")

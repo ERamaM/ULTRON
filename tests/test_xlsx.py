@@ -7,7 +7,7 @@ import pytest
 from openpyxl import load_workbook
 
 from ultron.cli import main
-from ultron.exports import xlsx
+from ultron.exports import xlsx, xlsx_styles
 from ultron.profiles import store as profiles
 from ultron.storage import runs
 
@@ -48,11 +48,11 @@ def test_workbook_sheets(run_id):
     path = xlsx.export_run_to_excel(run_id)
     assert path == runs.run_dir(run_id) / "results.xlsx"
     wb = load_workbook(path)
-    assert wb.sheetnames == ["Summary", "Roles (2)", "Discards (2)"]
+    assert wb.sheetnames == ["Summary", "Roles (2)", "Companies (1)", "Discards (2)"]
     assert wb["Roles (2)"].max_row == 3
-    assert wb["Roles (2)"].auto_filter.ref
-    assert wb["Roles (2)"].freeze_panes == "B2"
-    assert wb["Roles (2)"]["Q2"].hyperlink is not None
+    assert wb["Roles (2)"].tables["RolesTable"].autoFilter.ref
+    assert wb["Roles (2)"].freeze_panes == "D2"
+    assert wb["Roles (2)"]["D2"].hyperlink.target == "https://example.com/job/1"
     d = wb["Discards (2)"]
     assert [d.cell(row=r, column=1).value for r in (2, 3)] == ["stale", "final_cap"]
 
@@ -73,7 +73,7 @@ def test_repeated_cli_exports_preserve_workbook_content_and_format(run_id, capsy
 def test_formula_neutralized(run_id):
     path = xlsx.export_run_to_excel(run_id, runs.run_dir(run_id) / "out.xlsx")
     ws = load_workbook(path)["Roles (2)"]
-    cell = ws["B3"]
+    cell = ws["D3"]
     assert cell.data_type == "s"
     assert cell.value.startswith("'=HYPERLINK")
 
@@ -109,10 +109,14 @@ def test_numbers_native_and_unsafe_urls_not_linked(run_id):
                    {**_row(url="file:///etc/passwd")}]
     (d / "results.json").write_text(json.dumps(res), encoding="utf-8")
     ws = load_workbook(xlsx.export_run_to_excel(run_id))["Roles (2)"]
-    assert ws["L2"].value == -5 and ws["L2"].data_type == "n"
-    assert ws["L3"].value == 80
-    assert ws["R2"].value == "New"  # locale-independent label instead of a boolean
-    assert ws["Q2"].hyperlink is None and ws["Q3"].hyperlink is None
+    columns = {cell.value: cell.column_letter for cell in ws[1]}
+    score = columns["Match Score"]
+    assert ws[f"{score}2"].value == 0 and ws[f"{score}2"].data_type == "n"
+    assert ws[f"{score}3"].value == 80
+    assert ws["B2"].value == "New"
+    for header in ("Title", "Apply URL", "Apply"):
+        assert ws[f"{columns[header]}2"].hyperlink is None
+        assert ws[f"{columns[header]}3"].hyperlink is None
 
 
 def test_empty_rows_export(run_id):
@@ -121,7 +125,7 @@ def test_empty_rows_export(run_id):
     (d / "discarded.jsonl").unlink()
     (d / "finalize_discards.jsonl").unlink()
     wb = load_workbook(xlsx.export_run_to_excel(run_id))
-    assert wb.sheetnames == ["Summary", "Roles (0)", "Discards (0)"]
+    assert wb.sheetnames == ["Summary", "Roles (0)", "Companies (0)", "Discards (0)"]
 
 
 def test_missing_results_json_is_export_failed(run_id, capsys):
@@ -144,14 +148,14 @@ def test_control_characters_are_stripped(run_id, capsys, tmp_path):
     assert main(["export", "xlsx", "--run", run_id, "--out", str(out)]) == 0
     assert json.loads(capsys.readouterr().out)["path"] == str(out)
     wb = load_workbook(out)
-    assert wb["Roles (2)"]["B2"].value == "Backend [1mEngineer"
-    assert wb["Summary"]["A17"].value == "stale"
-    assert (wb["Summary"]["A18"].value, wb["Summary"]["B18"].value) == ("dup", "1")
+    assert wb["Roles (2)"]["D2"].value == "Backend [1mEngineer"
+    assert wb["Summary"]["A21"].value == "stale"
+    assert (wb["Summary"]["A22"].value, wb["Summary"]["B22"].value) == ("dup", "1")
     discards = wb["Discards (2)"]
     assert discards["D2"].value == "Old"
     assert discards["G2"].value == "posted [0m=1+1"
 
 
 def test_control_characters_cannot_unmask_a_formula():
-    assert xlsx._norm("\x08=1+1") == "'=1+1"
-    assert xlsx._norm(["\x1b@cmd", "x"]) == "'@cmd | x"
+    assert xlsx_styles.cell_value("\x08=1+1") == "'=1+1"
+    assert xlsx_styles.cell_value(["\x1b@cmd", "x"]) == "'@cmd | x"

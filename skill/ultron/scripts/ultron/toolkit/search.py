@@ -10,7 +10,7 @@ Three kinds of source, in this order:
 
 Every posting is matched against the profile's titles and location rules, ranked by how closely its title fits,
 de-duplicated by company and title and flagged against memory. A board whose API carries each posting's text
-gives ``open`` dossiers, read and hinted; the rest are ``listed`` (open at their source, not read yet), with the
+gives ``open`` dossiers, with factual excerpts; the rest are ``listed`` (open at their source, not read yet), with the
 excerpt their source returned when it returned one. All sources run in parallel; a shared host gate keeps any
 host to one request at a time.
 """
@@ -19,13 +19,14 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
+from dataclasses import dataclass
 from typing import Any
 
 from ultron.core import presets
 from ultron.core.discovery.url_filter import normalize_url
 from ultron.core.feeds.role_search import SOURCES, RoleSource
 from ultron.infra import home
-from ultron.infra.net import HostGate
+from ultron.infra.net import HostGate, VendorBudget
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.discover import profile_seeds, seed_key
 from ultron.stages.http_factory import HOST_BLOCK_THRESHOLD, client_for_run, load_vendor_budget
@@ -78,45 +79,47 @@ def matching_rows(rows: list[dict], profile: dict, label: str) -> list[dict]:
 class _Searcher:
     """Queries each source with its own client; all clients share one host gate and one vendor budget."""
 
-    def __init__(self, run: dict, terms: list[str]) -> None:
+    def __init__(self, run: dict, terms: list[str], gate: HostGate, vendor_budget: VendorBudget | None,
+                 *, detail: bool = False) -> None:
         self.run, self.terms = run, terms
         self.profile = run["profile_snapshot"]
         self.context = ProfileContext(self.profile)
         self.timeout = run["settings"]["ats_api_timeout"]
-        self.gate, self.vendor_budget = HostGate(), load_vendor_budget(run)
+        self.gate, self.vendor_budget = gate, vendor_budget
+        self.detail = detail
 
     def _client(self):
         return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD, gate=self.gate,
                               vendor_budget=self.vendor_budget)
 
-    def role_source(self, source: RoleSource) -> tuple[str, dict, list[dict]]:
+    def role_source(self, source: RoleSource) -> tuple[str, dict, list[dict], list[dict]]:
         """One role API; ``(name, status, dossiers)``."""
         with self._client() as client:
             status, rows = role_source_rows(source, self.terms, client, self.timeout)
         found = matching_rows(rows, self.profile, source.label)
-        return source.name, {**status, "results": len(found)} if rows else status, found
+        return source.name, {**status, "results": len(found)} if rows else status, found, []
 
-    def local_feed(self, source: dict) -> tuple[str, dict, list[dict]]:
+    def local_feed(self, source: dict) -> tuple[str, dict, list[dict], list[dict]]:
         """One keyless feed, filtered by the profile and the role terms; ``(name, status, dossiers)``."""
         with self._client() as client:
             status, rows = local_feed_rows(source, client, self.timeout)
         found = [d for d in matching_rows(rows, self.profile, source["id"]) if relevance(d["title"], self.terms) > 0]
-        return source["id"], {**status, "results": len(found)}, found
+        return source["id"], {**status, "results": len(found)}, found, []
 
-    def board(self, seed) -> tuple[str, dict, list[dict]]:
+    def board(self, seed) -> tuple[str, dict, list[dict], list[dict]]:
         """One ATS board's postings that match the profile; ``(seed key, status, dossiers)``."""
         try:
             with self._client() as client:
                 postings = list_board(seed, client, self.timeout)
         except NETWORK_ERRORS as exc:
-            return seed_key(seed), {"status": "failed", "error": type(exc).__name__}, []
+            return seed_key(seed), {"status": "failed", "error": type(exc).__name__}, [], []
         except PAYLOAD_ERRORS as exc:
-            return seed_key(seed), {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, []
-        dossiers, _cache = board_dossiers(seed, postings, self.context, limit=None)  # ranked globally later
+            return seed_key(seed), {"status": "failed", "error": f"unexpected_payload: {type(exc).__name__}"}, [], []
+        dossiers, cache = board_dossiers(seed, postings, self.context, detail=self.detail, limit=None)  # ranked globally later
         dossiers = [d for d in dossiers if d["status"] != "closed"]
         for dossier in dossiers:
             dossier["source"] = seed_key(seed)
-        return seed_key(seed), {"status": "ok", "results": len(dossiers)}, dossiers
+        return seed_key(seed), {"status": "ok", "results": len(dossiers)}, dossiers, cache
 
 
 def _ledger_ready() -> bool:
@@ -148,12 +151,12 @@ def _pending(profile_slug: str, profile: dict) -> list[dict]:
     return out
 
 
-def _mark_served(profile_slug: str, dossiers: list[dict]) -> None:
+def mark_watch_served(profile_slug: str, dossiers: list[dict], *, origin: str = "search") -> None:
     """Mark as queued only the watch postings this answer returns; the rest stay pending."""
     keys = [d["id"] for d in dossiers if d["source"] == "watch"]
     if keys and _ledger_ready():
         with closing(ledger.connect()) as conn:
-            watchlist.mark_queued(conn, profile_slug, keys, "search")
+            watchlist.mark_queued(conn, profile_slug, keys, origin)
 
 
 def profile_for_query(profile: dict, terms: list[str]) -> dict:
@@ -166,7 +169,7 @@ def profile_for_query(profile: dict, terms: list[str]) -> dict:
     return {**profile, "criteria": criteria}
 
 
-def _cache_row(dossier: dict, boards: set[str]) -> dict:
+def listed_cache_row(dossier: dict, boards: set[str]) -> dict:
     """The inspect-cache row of a returned posting, so ``shortlist save`` can name it by ``id`` alone."""
     board = dossier.get("board") or (dossier["source"] if dossier["source"] in boards else "")
     job = {"apply_url": dossier["url"], "title": dossier["title"], "company": dossier["company"],
@@ -175,7 +178,7 @@ def _cache_row(dossier: dict, boards: set[str]) -> dict:
             "source_type": "ats_api" if board else "web_search", "source_key": board, "job": job}
 
 
-def _flag(profile_slug: str, dossiers: list[dict]) -> None:
+def flag_memory(profile_slug: str, dossiers: list[dict]) -> None:
     """Memory flags; an aggregator listing ULTRON already followed takes its employer posting's flag."""
     links = known_resolutions()
     resolved = {}
@@ -186,7 +189,7 @@ def _flag(profile_slug: str, dossiers: list[dict]) -> None:
     for dossier in dossiers:
         own = flags[dossier["id"]]
         employer = flags.get(resolved.get(dossier["id"], ""), "new")
-        dossier["memory"] = own if own != "new" else employer
+        dossier["memory"] = employer if own == "new" or employer in {"applied", "rejected"} else own
 
 
 def _rank(dossiers: list[dict], terms: list[str]) -> list[dict]:
@@ -209,6 +212,44 @@ def _rank(dossiers: list[dict], terms: list[str]) -> list[dict]:
     return out
 
 
+@dataclass(slots=True)
+class SourceDiscovery:
+    """Discovery results with provenance and the cache rows already read from boards."""
+
+    dossiers: list[dict]
+    cache: list[dict]
+    sources: dict[str, dict]
+    boards: set[str]
+
+
+def discover_sources(run: dict, terms: list[str], gate: HostGate, vendor_budget: VendorBudget | None, *,
+                     detail: bool = False) -> SourceDiscovery:
+    """Discover pending watch postings, ATS boards and feeds with shared network budgets."""
+    searcher = _Searcher(run, terms, gate, vendor_budget, detail=detail)
+    profile_slug = run["profile_slug"]
+    seeds = watch_seeds(run) or profile_seeds(profile_slug, run["profile_snapshot"], DAY_ONE_BOARDS,
+                                              run["settings"]["max_requests_per_host"])
+    jobs = [(searcher.board, seed) for seed in seeds]
+    jobs += [(searcher.role_source, source) for source in SOURCES]
+    jobs += [(searcher.local_feed, source) for source in local_feeds()]
+    sources: dict[str, dict] = {}
+    dossiers, cache = [], []
+    boards: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        pending = pool.submit(_pending, profile_slug, run["profile_snapshot"])
+        discovered = pool.map(lambda job: job[0](job[1]), jobs)
+        watched = pending.result()
+        sources["watch"] = {"status": "ok", "results": len(watched)}
+        dossiers.extend(watched)
+        for name, status, found, rows in discovered:
+            (boards if ":" in name else sources)[name] = status
+            dossiers.extend(found)
+            cache.extend(rows)
+    sources["boards"] = {"queried": len(boards), "failed": sum(1 for s in boards.values() if s["status"] == "failed"),
+                         "results": sum(s.get("results", 0) for s in boards.values())}
+    return SourceDiscovery(dossiers, cache, sources, {seed_key(seed) for seed in seeds})
+
+
 def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, limit: int = DEFAULT_LIMIT,
                 preset: str = presets.DEFAULT_PRESET) -> dict[str, Any]:
     """Postings for ``profile_slug`` from the watch, ATS boards and role-searchable job APIs.
@@ -221,28 +262,15 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     terms = query_terms(run["profile_snapshot"], query)
     if query.strip():  # match titles against the asked role; location and eligibility rules stay the profile's
         run = {**run, "profile_snapshot": profile_for_query(run["profile_snapshot"], terms)}
-    searcher = _Searcher(run, terms)
-    seeds = watch_seeds(run) or profile_seeds(profile_slug, run["profile_snapshot"], DAY_ONE_BOARDS,
-                                              run["settings"]["max_requests_per_host"])
-    jobs = [(searcher.board, seed) for seed in seeds]
-    jobs += [(searcher.role_source, source) for source in SOURCES]
-    jobs += [(searcher.local_feed, source) for source in local_feeds()]
-    dossiers = _pending(profile_slug, run["profile_snapshot"])
-    sources: dict[str, dict] = {"watch": {"status": "ok", "results": len(dossiers)}}
-    boards: dict[str, dict] = {}
-    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-        for name, status, found in pool.map(lambda job: job[0](job[1]), jobs):
-            (boards if ":" in name else sources)[name] = status
-            dossiers.extend(found)
-    sources["boards"] = {"queried": len(boards), "failed": sum(1 for s in boards.values() if s["status"] == "failed"),
-                         "results": sum(s.get("results", 0) for s in boards.values())}
+    found = discover_sources(run, terms, HostGate(), load_vendor_budget(run))
+    dossiers = found.dossiers
     # Memory first: with new_only, a seen posting must not hide a new opening of the same role.
-    _flag(profile_slug, dossiers)
+    flag_memory(profile_slug, dossiers)
     if new_only:
         dossiers = [d for d in dossiers if d["memory"] == "new"]
     ranked = _rank(dossiers, terms)
-    cache_postings(profile_slug, [_cache_row(d, {seed_key(s) for s in seeds}) for d in ranked if d.get("url")])
+    cache_postings(profile_slug, [listed_cache_row(d, found.boards) for d in ranked if d.get("url")])
     returned = ranked[:max(1, limit)]
-    _mark_served(profile_slug, returned)
-    return {"profile": profile_slug, "queries": terms, "sources": sources, "results": len(ranked),
+    mark_watch_served(profile_slug, returned)
+    return {"profile": profile_slug, "queries": terms, "sources": found.sources, "results": len(ranked),
             "dossiers": returned}

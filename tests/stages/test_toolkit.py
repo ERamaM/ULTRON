@@ -43,7 +43,7 @@ def test_inspect_reads_every_kind_of_url():
     found = _by_url(result)
     posting = {d["id"]: d for d in result["dossiers"] if "id" in d}["greenhouse:acme:4012345"]  # one dossier per posting
     assert posting["status"] == "open" and posting["url"] == POSTING
-    assert posting["memory"] == "new" and posting["hint"]["verdict"] in {"keep", "unsure", "discard"}
+    assert posting["memory"] == "new" and "hint" not in posting
     assert len(posting["role_excerpt"]) <= dossier.ROLE_EXCERPT
     assert len(posting["geo_excerpt"]) <= dossier.GEO_EXCERPT
     assert found[EMPLOYER]["status"] == "open" and found[EMPLOYER]["company"]
@@ -168,9 +168,9 @@ def test_redirected_postings_use_the_identity_saving_records():
 def test_cache_survives_unicode_line_separators():
     folder = inspect.home.ultron_home() / inspect.CACHE_DIR / SLUG
     folder.mkdir(parents=True)
-    row = {"identity_key": "k", "status": "open", "job": {"title": "A B\u0085C", "apply_url": EMPLOYER}}
+    row = {"identity_key": "k", "status": "open", "job": {"title": "Aâ€¨B\u0085C", "apply_url": EMPLOYER}}
     (folder / inspect.CACHE_FILE).write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
-    assert inspect.cached_postings(SLUG)["k"]["job"]["title"] == "A B\u0085C"
+    assert inspect.cached_postings(SLUG)["k"]["job"]["title"] == "Aâ€¨B\u0085C"
 
 
 def test_rows_over_the_cap_are_reported(monkeypatch):

@@ -1,6 +1,6 @@
 """ATS boards for the toolkit: list a board's postings that match a profile, and find a company's board fast.
 
-A board whose API returns each posting's text (Ashby, Lever) yields ``open`` dossiers at once, read and hinted;
+A board whose API returns each posting's text (Ashby, Lever) yields ``open`` dossiers at once, with factual excerpts;
 other boards yield ``listed`` dossiers (open on the board, not read yet). A company's board is looked up in the
 seed inventory first (no request), then probed on the vendors with a JSON board API only, stopping at the first
 board that lists postings; no HTML is scraped.
@@ -87,7 +87,7 @@ def board_dossiers(seed: AtsBoardSeed, postings: list[AtsPosting], context: Prof
         if posting.description:
             job = board_job(seed, posting)
             status = board_status(job)
-            dossier = posting_dossier(job, identity, status, context, detail=detail)
+            dossier = posting_dossier(job, identity, status, detail=detail)
             dossier["board"] = seed_key(seed)
             cache.append(cache_row(identity, status, candidate, job.model_dump(mode="json"), candidate.normalized_url))
         else:

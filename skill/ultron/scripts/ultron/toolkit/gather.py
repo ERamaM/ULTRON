@@ -1,0 +1,249 @@
+"""Gather inspectable candidates from web search, watch, boards, and public feeds."""
+
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlsplit
+
+from ultron.core import presets
+from ultron.core.discovery.url_filter import normalize_url
+from ultron.core.ranker.lexical import LexicalRanker
+from ultron.core.web_search import searxng
+from ultron.core.web_search.cascade import search_web
+from ultron.core.web_search.dedup import deduplicate_hits
+from ultron.core.web_search.models import WebSearchResult
+from ultron.core.web_search.query_builder import build_queries, relaxed_queries
+from ultron.infra.net import HostGate
+from ultron.stages.candidates import candidate_identity
+from ultron.stages.http_factory import load_vendor_budget
+from ultron.stages.role_feeds import known_resolutions, query_terms, remember_resolutions
+from ultron.stages.scout_finds import memory_flags, web_candidate
+from ultron.stages.scout_resolve import classify_find
+from ultron.toolkit.aggregators import aggregator_company, lookup_query, matches_lookup, title_company
+from ultron.toolkit.inspect import InspectionSession, board_aliases, cache_postings, cached_postings, run_context
+from ultron.toolkit.search import (
+    DEFAULT_LIMIT,
+    discover_sources,
+    flag_memory,
+    listed_cache_row,
+    mark_watch_served,
+    profile_for_query,
+)
+
+MAX_LIMIT = 100
+DEFAULT_QUERIES = 20
+MAX_QUERIES = 40
+MAX_INSPECTIONS = 120
+MAX_COMPANY_PROBES = 20
+MAX_LOOKUPS = 8
+_SOURCE_ORDER = {"ats_posting": 0, "listed": 1, "employer_page": 2, "aggregator": 3}
+_NOISE_HOSTS = frozenset({
+    "linkedin.com", "facebook.com", "instagram.com", "youtube.com", "twitter.com", "x.com", "indeed.com",
+    "glassdoor.com", "ziprecruiter.com", "jooble.org", "monster.com", "google.com",
+})
+_NOISE_PATHS = frozenset({"login", "signin", "sign-in", "privacy", "register", "signup", "search", "auth", "oauth"})
+
+
+def _blocked(memo: str, *, new_only: bool) -> bool:
+    return memo in {"rejected", "applied"} or (new_only and memo != "new")
+
+
+def _identity(url: str) -> str:
+    return candidate_identity(web_candidate(url, {}, "gather").model_dump())
+
+
+def _classify(url: str) -> str:
+    kind = classify_find(url).outcome
+    if kind == "rejected":
+        return kind
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    segments = parts.path.lower().strip("/").split("/")
+    if any(host == blocked or host.endswith("." + blocked) for blocked in _NOISE_HOSTS):
+        return "rejected"
+    if any(segment in _NOISE_PATHS for segment in segments):
+        return "rejected"
+    return kind if kind == "ats_posting" or parts.path.strip("/") else "rejected"
+
+
+def _web_candidates(web: WebSearchResult) -> list[dict]:
+    return [{"id": _identity(hit.url), "url": hit.url, "title": hit.title, "snippet": hit.snippet,
+             "company": aggregator_company(hit.url) or title_company(hit.title), "source": "web",
+             "status": "unread"} for hit in web.hits if _classify(hit.url) != "rejected"]
+
+
+def _candidate_pool(local: list[dict], web: WebSearchResult) -> tuple[list[dict], list[dict]]:
+    open_rows, inspect = [], {}
+    for row in [*local, *_web_candidates(web)]:
+        url = normalize_url(row["url"])
+        if (kind := _classify(url)) == "rejected":
+            continue
+        if row["status"] == "open" and kind != "aggregator":
+            open_rows.append(row)
+            continue
+        item = {**row, "url": url, "kind": kind}
+        if url not in inspect:
+            inspect[url] = item
+        elif row["status"] == "unread":
+            current = inspect[url]
+            current["company"] = current.get("company") or item["company"]
+            current["snippet"] = item["snippet"]
+    return open_rows, list(inspect.values())
+
+
+def _target_plan(rows: list[dict], ranker: LexicalRanker, limit: int) -> list[dict]:
+    ordered = sorted(ranker.ordered(rows), key=lambda row: _SOURCE_ORDER[
+        "listed" if row["status"] == "listed" and row["kind"] != "ats_posting" else row["kind"]])
+    unique: dict[str, dict] = {}
+    for row in ordered:
+        unique.setdefault(row["id"], row)
+        if len(unique) >= limit:
+            break
+    return list(unique.values())
+
+
+def _lookup_targets(unresolved: list[dict], original: dict[str, dict], ranker: LexicalRanker) -> dict[str, dict]:
+    query_rows = {}
+    for dossier in ranker.ordered([original[row["url"]] for row in unresolved if row["url"] in original]):
+        query = lookup_query(dossier.get("company") or "", dossier.get("title") or "")
+        if query:
+            query_rows.setdefault(query, dossier)
+        if len(query_rows) >= MAX_LOOKUPS:
+            break
+    if not query_rows:
+        return {}
+    hits, _ = searxng.search(list(query_rows))
+    variants = {variant: row for query, row in query_rows.items() for variant in (query, *relaxed_queries(query))}
+    targets = {}
+    have_listing = set()
+    for hit in deduplicate_hits(hits):
+        row = variants.get(hit.query)
+        if row and row["url"] not in have_listing and matches_lookup(hit.url, hit.title, row["company"], row["title"]):
+            targets[hit.url] = row
+            have_listing.add(row["url"])
+    return targets
+
+
+def _canonical(row: dict) -> bool:
+    return all(_classify(url) not in {"aggregator", "rejected"}
+               for url in (row["url"], row.get("apply_url") or row["url"]))
+
+
+def _inherit_sources(rows: list[dict], by_url: dict[str, dict]) -> None:
+    for row in rows:
+        origin = by_url.get(row.get("found_at")) or by_url.get(row["url"])
+        if origin is not None:
+            row["source"] = origin["source"]
+            if origin["url"] != row["url"] and not row.get("found_at"):
+                row["found_at"] = origin["url"]
+
+
+def _persist(profile: str, returned: list[dict], caches: list[dict], boards: set[str]) -> None:
+    cache = {(row["identity_key"], row["status"], row["url"]): row for row in caches}
+    rows = []
+    for dossier in returned:
+        key = (dossier["id"], dossier["status"], dossier["url"])
+        row = cache.get(key)
+        rows.append(row if row is not None else listed_cache_row(dossier, boards))
+    cache_postings(profile, rows)
+
+
+def _mark_gather_watch(profile: str, returned: list[dict], candidates: list[dict]) -> None:
+    returned_urls = {row.get("found_at") or row["url"] for row in returned if row.get("source") == "watch"}
+    originals = [row for row in candidates if row["source"] == "watch" and row["url"] in returned_urls]
+    mark_watch_served(profile, originals, origin="gather")
+
+
+def _inspect_lookups(
+    inspector: InspectionSession, targets: dict[str, dict], rows: list[dict], caches: list[dict],
+) -> tuple[int, set[str]]:
+    if not targets:
+        return 0, set()
+    result = inspector.inspect([(url, row["company"]) for url, row in targets.items()])
+    resolved = set()
+    for row in result.dossiers:
+        if row["status"] == "open" and _canonical(row) and (origin := targets.get(row["url"])):
+            row["found_at"] = origin["url"]
+            row["source"] = origin["source"]
+            row["via"] = "targeted_ats_search"
+            inspector.resolutions[origin["url"]] = row["url"]
+            resolved.add(origin["url"])
+    rows.extend(result.dossiers)
+    caches.extend(result.cache)
+    return result.requests, resolved
+
+
+def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAULT_LIMIT,
+                      max_queries: int = DEFAULT_QUERIES, web_provider: str | None = None,
+                      new_only: bool = False, detail: bool = False,
+                      preset: str = presets.DEFAULT_PRESET) -> dict:
+    """Return one batch of ranked factual dossiers and cache the selected postings for shortlist save."""
+    if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
+        raise ValueError("limit must be 1â€“100 and max_queries must be 1â€“40")
+    run = run_context(profile_slug, preset)
+    profile = run["profile_snapshot"]
+    terms = query_terms(profile, query)
+    queries = build_queries(profile, max_queries, query=query if query.strip() else None)
+    if query.strip():
+        run = {**run, "profile_snapshot": profile_for_query(profile, terms)}
+    gate, budget = HostGate(), load_vendor_budget(run)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        web_task = pool.submit(search_web, queries, web_provider)
+        sources = discover_sources(run, terms, gate, budget, detail=detail)
+        web = web_task.result()
+
+    opened, candidates = _candidate_pool(sources.dossiers, web)
+    flag_memory(profile_slug, candidates)
+    eligible = [row for row in candidates if not _blocked(row["memory"], new_only=new_only)]
+    skipped = len(candidates) - len(eligible)
+    ranker = LexicalRanker(profile, query=query)
+    searx_enabled = web.provider_used in {"searxng", "multi"} and any(hit.provider == "searxng" for hit in web.hits)
+    targets = _target_plan(eligible, ranker, MAX_INSPECTIONS - (MAX_LOOKUPS if searx_enabled else 0))
+    aliases = board_aliases(cached_postings(profile_slug))
+    aliases.update(board_aliases({row["identity_key"]: row for row in sources.cache}))
+    known = known_resolutions()
+
+    def skip(key: str) -> bool:
+        return _blocked(memory_flags(profile_slug, [key])[key], new_only=new_only)
+
+    inspector = InspectionSession(run, detail, aliases, gate=gate, vendor_budget=budget,
+                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES)
+    origins: dict[str, dict] = {}
+    for row in targets:
+        url = known.get(row["url"]) or row["url"]
+        if _classify(url) != "rejected":
+            origins.setdefault(url, row)
+    locations = [(url, row["company"]) for url, row in origins.items()]
+    result = inspector.inspect(locations)
+    rows = [*opened, *result.dossiers]
+    caches = [*sources.cache, *result.cache]
+    failed = [row for row in result.dossiers if row["status"] == "unresolved_aggregator"]
+    original = {row["url"]: row for row in targets}
+    followed = _lookup_targets(failed, original, ranker) if searx_enabled else {}
+    extra_requests, resolved_urls = _inspect_lookups(inspector, followed, rows, caches)
+    failed = [row for row in failed if row["url"] not in resolved_urls]
+    remember_resolutions(inspector.resolutions)
+    _inherit_sources(rows, origins)
+    verified = [row for row in rows if row["status"] in {"open", "listed"} and _canonical(row)]
+    closed_ids = {row.get("id") for row in rows if row["status"] == "closed"}
+    verified.extend(row for row in eligible if row["status"] == "listed" and row["id"] not in closed_ids
+                    and _canonical(row))
+    flag_memory(profile_slug, verified)
+    safe = [row for row in verified if not _blocked(row["memory"], new_only=new_only)]
+    returned = [{key: value for key, value in row.items() if key not in {"snippet", "kind"}}
+                for row in ranker.shortlist(safe, limit)]
+    _persist(profile_slug, returned, caches, sources.boards)
+    _mark_gather_watch(profile_slug, returned, eligible)
+
+    counts = Counter(row["status"] for row in rows)
+    metadata = web.metadata()
+    metadata["provider"] = metadata.pop("provider_used")
+    metadata["unique_urls"] = metadata.pop("unique_hits")
+    unresolved = [{"url": row["url"], "company": row.get("company") or original.get(row["url"], {}).get("company", "")}
+                  for row in failed]
+    inspected = {status: counts[status] for status in ("open", "listed", "closed", "failed", "unresolved_aggregator")}
+    inspected["failed"] += counts["unusable"] + counts["rejected"]
+    inspected["unresolved_aggregator"] = len(failed)
+    inspected.update(attempted=len(locations) + len(followed), skipped_memory=skipped + counts["skipped_memory"],
+                     requests=result.requests + extra_requests)
+    return {"profile": profile_slug, "queries": queries, "web_search": metadata, "sources": sources.sources,
+            "inspected": inspected, "returned": len(returned), "dossiers": returned, "unresolved": unresolved}

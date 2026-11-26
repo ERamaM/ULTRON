@@ -13,19 +13,20 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%7C%20Codex%20%7C%20OpenCode%20%7C%20Antigravity-black)](#supported-agents)
 
-ULTRON is a production-ready agent skill and deterministic CLI for **Claude Code, Codex, OpenCode, and Antigravity**. It automates end-to-end job searches for any role family and geographic region: your coding agent supplies reasoning (CV-to-profile drafting, company discovery, web queries, ambiguous-role evaluation, salary research, and tailored cover letter drafting), while a local Python CLI handles high-volume ATS board queries, structured job feeds, strict filtering, scoring, deduplication, ledger history, `.docx` building, and exports.
+ULTRON is a production-ready agent skill, deterministic CLI, and stdio MCP server for **Claude Code, Codex, OpenCode, and Antigravity**. It automates end-to-end job searches for any role family and geographic region: your coding agent supplies judgment (CV-to-profile drafting, single-turn evaluation of factual dossiers, salary research, ATS CV rewrites, and tailored cover letters), while a local Python engine handles keyless web search, 22 direct ATS APIs, public job feeds, parallel inspection, lexical pre-ranking, persistent memory, Day-2 watch, SQLite ledger & Kanban exports, and `.docx` building.
 
 ## Highlights
 
 - **Any role, any region:** Works across engineering, AI/ML, product, finance, operations, industrial R&D, and more, in Europe, the Americas, APAC, or global remote markets.
 - **Zero-Python bootstrap:** `install.sh` and `install.ps1` automatically provision standalone `uv` and Python 3.12 if your machine does not have Python installed.
-- **22 direct ATS integrations + structured feeds:** Fetches live openings straight from vendor APIs and aggregates public feeds via `discover feeds`.
-- **Hybrid precision & triage:** Deterministic rules discard off-location/off-seniority noise before your agent spends tokens reviewing only genuinely uncertain ("unsure") or high-signal postings.
-- **Incremental job ledger & exports:** Tracks seen roles in SQLite across runs, highlights new openings (`jobs new-since`), writes Markdown, JSON, Excel (`.xlsx`), and offline HTML reports, or opens a live read-only local web dashboard directly over `ultron.sqlite3` (`ultron export web`) without creating files.
+- **Keyless single-turn discovery (`ultron gather` / `ultron mcp`):** Combines keyless web search (auto-managed local SearXNG in Docker, optional `ddgs`, and built-in DuckDuckGo HTML/Lite), 22 direct ATS APIs, and public role feeds into one pre-ranked batch of factual `open` dossiers — no third-party search API keys required.
+- **Agent judgment, zero heuristic guesswork:** Interactive dossiers report factual excerpts (location, work mode, salary, role summary) and profile memory (`new`, `seen`, `rejected`, `applied`) so your agent judges in one pass instead of fighting noisy filter rules or opening dozens of raw pages.
+- **Day-2 watch at zero tokens (`ultron watch`):** Re-queries watched boards and keyless role APIs without an agent, queuing unseen openings for the next session and flagging shortlisted roles that closed.
+- **Incremental job ledger, Kanban & exports:** Tracks seen roles and verdicts in SQLite across runs, highlights new openings (`jobs new-since`), writes Markdown, JSON, redesigned Excel (`.xlsx`), and interactive offline HTML triage reports, or opens the local web ledger & Kanban dashboard directly over `ultron.sqlite3` (`ultron export web`, with optional local edits via `--editable`).
 - **Expected salary benchmarking:** Calculates sourced compensation ranges from verified non-internship CV tenure, run disclosures, and live market research (`ultron salary analyze`, `ultron salary save`).
 - **ATS CV audit & `.docx` optimizer:** Audits `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility, verifies rewrite truthfulness against the source CV (`ultron cv verify-truth`), and generates a clean single-column Word `.docx` (`ultron cv build-docx`).
 - **Tailored cover letter generator:** Pairs verified CV experience with job postings or profiles across bundled Word templates (`classic`, `modern`, `executive`) or custom `.docx` templates (`ultron cover-letter prepare`, `ultron cover-letter build-docx`).
-- **Scheduled / zero-token mode:** Run unattended heuristic searches with `ultron run --unattended`.
+- **Scheduled / zero-token modes:** Run unattended heuristic sweeps (`ultron run --unattended`) or watchlist digests (`ultron watch`).
 
 ## Documentation & User Wiki
 
@@ -35,8 +36,8 @@ Read the complete step-by-step documentation either in the **[Repository User Gu
 | --- | --- |
 | [Getting Started](docs/guide/getting-started.md) | Zero-Python installation, `doctor` verification, agent sandboxes, updating & uninstalling |
 | [Search Profiles](docs/guide/search-profiles.md) | Creating profiles from a CV or interview, schema & seed packs, `explain`, diff edits & `undo` |
-| [Searches & Presets](docs/guide/search-and-presets.md) | The 7-stage loop, choosing between `fast` / `balanced` / `deep` / `seed_boost`, custom overrides |
-| [Unattended & Scheduling](docs/guide/unattended-and-scheduling.md) | Zero-token CLI runs, saved searches, `cron` / `launchd` / Task Scheduler / agent schedules |
+| [Searches & Presets](docs/guide/search-and-presets.md) | Interactive discovery, planned sweeps (`fast` / `balanced` / `deep` / `seed_boost`), custom overrides |
+| [Unattended & Scheduling](docs/guide/unattended-and-scheduling.md) | Zero-token CLI runs, `watch` digests, saved searches, `cron` / `launchd` / Task Scheduler / agent schedules |
 | [Tracking & Exports](docs/guide/tracking-and-exports.md) | SQLite ledger, `jobs mark`/`note`/`feedback`, `new-since`, `.xlsx`, offline HTML, & live web viewer |
 | [Career Tools](docs/guide/career-tools.md) | Salary estimation (`salary`), ATS CV optimization (`cv`), and cover letters (`cover-letter`) |
 | [Troubleshooting & Data](docs/guide/troubleshooting-and-data.md) | `doctor`, `diagnose`, backups/cleanup/purge, privacy guarantees, common fixes |
@@ -111,21 +112,19 @@ See [Getting Started — Updating ULTRON](docs/guide/getting-started.md#updating
 
 ```mermaid
 flowchart LR
-    P["1. Profile"] --> S["2. Verify Companies"]
-    S --> D["3. Feeds & Web Search"]
-    D --> A["4. Query 22 ATS APIs"]
-    A --> F["5. Fetch Postings"]
-    F --> H["6. Deterministic Filter"]
-    H --> E["7. Agent Eval & Finalize"]
+    P["1. Profile"] --> G["2. Gather (Keyless Web + 22 ATS + Feeds)"]
+    G --> J["3. Agent Judges Factual Dossiers"]
+    J --> S["4. Save Shortlist & Watchlist"]
+    S --> W["5. Day-2 Watch (0 Tokens)"]
 ```
 
-1. **Profile:** Draft a search profile from a PDF/text CV, build one by answering a few questions, or adapt the bundled template. Refine it in chat ("no management roles", "add Rust"): every change is previewed as a diff and can be undone.
-2. **Companies:** Propose target employers and verify their live ATS boards (`ultron seeds verify`). A profile without full seed pack coverage generates new companies in rounds until reaching the preset target (`ultron seeds plan`, then `ultron seeds verify --round`).
-3. **Discovery:** Pull structured job feeds (`ultron discover feeds` reading `skill/ultron/data/feeds.yaml`) and run targeted web queries (`candidates add`).
-4. **ATS Crawl:** Query verified boards across 22 ATS vendors (`discover ats`).
-5. **Fetch:** Download job descriptions with vendor API enrichment fallbacks (`fetch`).
-6. **Filter:** Apply deterministic role, seniority, language, remote-policy, and geo rules (`filter`).
-7. **Evaluate & Finalize:** Have the agent evaluate doubtful (`unsure`) postings, rank results, persist history to `$ULTRON_HOME`, and emit `results.md`, `results.json`, and optional `.xlsx` and `.html` exports.
+1. **Profile:** Draft a search profile from a PDF/Word/LaTeX/text CV, build one by answering a few questions, or adapt the bundled template. Refine it in chat ("no management roles", "add Rust"): every change is previewed as a diff and can be undone.
+2. **Gather (`ultron gather` / MCP `gather_candidates`):** In one call at zero LLM tokens, ULTRON runs keyless web searches (auto-starting a pinned loopback-only local SearXNG container via Docker when installed, or falling back to optional `ddgs` / built-in DuckDuckGo HTML/Lite), checks pending watch postings, queries watched/seed ATS boards across 22 vendors and keyless role feeds, pre-skips `rejected`/`applied` memory, resolves aggregators, inspects live postings in parallel, and lexically pre-ranks up to 60 factual `open` dossiers.
+3. **Judge in one pass:** Your agent evaluates the factual dossiers (title, location, work-mode excerpt, salary, and role excerpt) against the profile criteria in a single pass. For a high-priority truncated posting, it calls `ultron inspect --detail` (MCP `inspect_jobs`); if strong matches fall short or web search degrades, it runs at most one targeted follow-up pass.
+4. **Save, remember & export (`ultron shortlist save` / MCP `save_shortlist`):** Saves your ranked `keep`, `unsure`, and `discard` decisions to `$ULTRON_HOME`, records discards in profile memory so they never reappear, adds kept employers' boards to the profile watchlist, and writes `results.md` and `results.json` — ready for Excel (`.xlsx`), offline HTML triage, or the local web ledger & Kanban (`ultron export web`).
+5. **Day 2+ at zero tokens (`ultron watch`):** Re-queries watched boards and keyless role APIs without an agent, queues unseen postings for the next `gather`, and reports previously shortlisted roles that have closed.
+
+ULTRON also exposes `gather_candidates`, `inspect_jobs`, `search_jobs`, and `save_shortlist` over stdio MCP (`ultron mcp`, kept within a 44 KB inline response budget) and manages local SearXNG with `ultron searxng up|down|restart|status|diagnose`. If you specifically want the classic multi-stage board crawl (`search planned`) or a scheduled heuristic run (`ultron run --unattended`), the 7-stage deterministic sweep (`discover feeds` → `discover ats` → `fetch` → `filter` → `evaluate` → `finalize`) remains available with the presets below.
 
 ## Supported ATS Vendors (22) & Feeds
 
@@ -133,11 +132,11 @@ ULTRON queries job boards directly through vendor-scoped clients (preventing SSR
 
 `Ashby` · `BambooHR` · `Breezy` · `CandidateManager` · `Comeet` · `Factorial` · `Greenhouse` · `HireHive` · `Homerun` · `iCIMS` · `JazzHR` · `Jobvite` · `Lever` · `Occupop` · `Personio` · `Pinpoint` · `Recruitee` · `SmartRecruiters` · `Taleo` · `Teamtailor` · `Workable` · `Workday`
 
-Public structured feed and curated remote-company list endpoints live in `skill/ultron/data/feeds.yaml` and are executed by `discover feeds`.
+Interactive `gather` / `search` and `watch` query keyless role APIs (`Remotive`, `Himalayas`, `Jobicy`, `Arbeitnow`, `Hacker News`), plus opt-in `Adzuna` and `Reed` only when the user sets their environment keys. Public structured feed and curated remote-company list endpoints for planned and unattended sweeps live in `skill/ultron/data/feeds.yaml` and are executed by `discover feeds`.
 
 ## Search Presets
 
-Presets control crawl depth, request budgets, company discovery breadth, and how aggressively borderline postings are sent to the agent for review (`balanced` is used by default unless you pass `--preset <name>`):
+Presets control request budgets across ULTRON and govern crawl depth, company discovery breadth, and borderline review queues for planned (`search planned`) and unattended sweeps (`balanced` is used by default unless you pass `--preset <name>`):
 
 | Preset | Max Pages | Max Seeds | Web Queries | Ambiguity Threshold | New Companies Target | Best For |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

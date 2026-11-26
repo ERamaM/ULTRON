@@ -99,6 +99,7 @@ def _assemble_final_row(
     fallback_fit_signals: list[str] | None = None,
     profile_criteria: dict[str, Any] | None = None,
     geo: GeoScope = "eu",
+    salary: str = "",
 ) -> FinalRow:
     """Build a kept FinalRow: fill geo defaults, assemble eligibility evidence, map source fields."""
     remote_required = is_remote_required(profile_criteria)
@@ -155,6 +156,7 @@ def _assemble_final_row(
         eligibility_evidence=eligibility_evidence,
         fit_signals=(evaluation.fit_signals or fallback_fit_signals or [])[:3],
         freshness=vacancy_date_label(extracted),
+        salary=salary,
         published_at=extracted.posting_date if extracted.posting_date_verified else None,
         updated_at=extracted.updated_at,
         unverified_date=extracted.posting_date if not extracted.posting_date_verified else None,

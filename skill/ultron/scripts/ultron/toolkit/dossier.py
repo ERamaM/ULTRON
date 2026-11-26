@@ -20,11 +20,11 @@ from ultron.core.rules.geography import build_geo_body_excerpt, geo_scope, locat
 from ultron.core.rules.role_matching import role_negatives_for
 from ultron.core.vocabulary import active_pack
 from ultron.salary.disclosure import extract_salaries_from_text
+from ultron.salary.display import SALARY_SCAN_CHARS
 
 GEO_EXCERPT = 250
 ROLE_EXCERPT = 500
 DETAIL_ROLE_EXCERPT = 2500
-SALARY_SCAN_CHARS = 20_000
 TEXT_LIMIT = 200
 # Company names that are the page's platform, not the employer (an ATS's own name or a board's heading).
 PLATFORM_NAMES = frozenset({"job boards", "manatal", "careers", "careers page", "jobs", "workable", "greenhouse",

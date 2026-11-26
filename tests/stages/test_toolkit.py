@@ -250,3 +250,23 @@ def test_a_saved_shortlist_exports_the_first_observation():
     (row,) = json.loads(Path(out["outputs"]["results_json"]).read_text(encoding="utf-8"))["rows"]
     assert row["first_seen"]
 
+
+
+@pytest.mark.parametrize(("verified", "overrides", "date", "salary"), [
+    (True, {}, "2026-02-28", "EUR 80,000\u2013110,000 / year"),
+    (False, {}, None, "EUR 80,000\u2013110,000 / year"),
+    (False, {"published_at": "2026-03-01", "salary": "EUR 95,000 / year"}, "2026-03-01", "EUR 95,000 / year"),
+    (True, {"published_at": "2026-02-30", "salary": "\x00"}, None, ""),
+])
+def test_save_shortlist_propagates_disclosed_salary_and_date(verified, overrides, date, salary):
+    identity = "greenhouse:acme:4012345"
+    inspect.cache_postings(SLUG, [{
+        "identity_key": identity, "url": POSTING, "source_key": "greenhouse:acme",
+        "job": {"title": "Backend engineer", "company": "Acme", "posting_date": "2026-02-28",
+                "posting_date_verified": verified, "body_text": "Salary: EUR 80,000 to 110,000 per year"},
+    }])
+    result = shortlist.save_shortlist(SLUG, [{"id": identity, "verdict": "keep", **overrides}])
+    [row] = json.loads(Path(result["outputs"]["results_json"]).read_text(encoding="utf-8"))["rows"]
+    assert row["salary"] == salary
+    assert row["published_at"] == date
+    assert row["unverified_date"] == ("2026-02-28" if not verified and not overrides else None)

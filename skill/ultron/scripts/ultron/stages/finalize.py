@@ -16,6 +16,7 @@ from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope, other_country_restriction
 from ultron.core.rules.hard_filters import is_full_remote_only
+from ultron.salary.display import format_salary_disclosure
 from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept, stamp_first_seen
 from ultron.stages.scout_finalize import finalize_scout
 from ultron.storage import ledger, runs
@@ -91,6 +92,7 @@ def finalize(run_id: str) -> dict:
             fallback_fit_signals=fallback,
             profile_criteria=criteria,
             geo=geo,
+            salary=format_salary_disclosure(job.body_text),
         )
         if limited_to:
             row.eligibility = "unknown"

@@ -9,8 +9,6 @@ are rendered as links.
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import html
 import json
 from collections import Counter
@@ -18,10 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ultron.exports import sanitize
-from ultron.exports.view_model import MATCH_BANDS
+from ultron.core.job_identity import canonical_job_identity
+from ultron.exports import sanitize, view_model
+from ultron.exports.html_assets import CSP, REPORT_CSS, REPORT_JS
 from ultron.storage import runs
 
+MATCH_BANDS = view_model.MATCH_BANDS
 _BAND_LABELS = {"strong": "Strong", "good": "Good", "borderline": "Borderline", "ineligible": "Ineligible"}
 _ELIGIBILITY = ("confirmed", "high", "medium", "unknown")
 # Eligibility pills reuse the band colors: the strongest evidence gets the strongest color.
@@ -51,220 +51,12 @@ def _token(value: Any, allowed: tuple[str, ...]) -> str:
     return sanitize.normalize_token(value, allowed)
 
 
-_CSS = """
-:root{color-scheme:light dark;--paper:#f2f4f7;--surface:#fff;--ink:#16202d;--muted:#566275;--line:#d7dde6;
---accent:#1f5fad;--accent-ink:#fff;--soft:#dce8f6;--soft-ink:#0b3d73;--warm:#fbe2c3;--warm-ink:#7a3e00;
---grey:#e4e7ec;--grey-ink:#3a4452;--new:#fff1bf;--new-ink:#5c4300;--ring-track:#e3e8ef;--focus:#c25e00;
---serif:"Iowan Old Style","Charter","Bitstream Charter","Sitka Text",Cambria,Georgia,serif;
---sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans","Helvetica Neue",Arial,sans-serif}
-@media (prefers-color-scheme:dark){:root{--paper:#0f151e;--surface:#172030;--ink:#e5eaf1;--muted:#9eabbd;
---line:#2b3748;--accent:#86b6f2;--accent-ink:#0b1a2d;--soft:#1d3554;--soft-ink:#cfe2fb;--warm:#4a2f12;
---warm-ink:#ffd6a6;--grey:#2a3240;--grey-ink:#cdd5e0;--new:#4a3d0c;--new-ink:#ffe9a3;--ring-track:#273244;
---focus:#ffb35c}}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--sans)}
-a{color:var(--accent)}
-:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
-.wrap{max-width:62rem;margin:0 auto;padding:2.5rem 1rem 3rem}
-.skip{position:absolute;left:-999px}.skip:focus{left:1rem;top:1rem;background:var(--surface);padding:.5rem}
-header.run h1{font:600 clamp(1.9rem,4.5vw,2.8rem)/1.1 var(--serif);margin:0 0 .4rem;letter-spacing:-.01em}
-.meta{color:var(--muted);margin:0 0 1.5rem;font-size:.95rem}
-.lede{font:1.15rem/1.45 var(--serif);margin:0 0 1rem;max-width:40rem}
-.lede strong{font-variant-numeric:tabular-nums}
-.bands{margin:0 0 2rem}
-.strip{display:flex;height:.7rem;border-radius:.35rem;overflow:hidden;background:var(--ring-track);margin:0 0 .6rem}
-.strip span{display:block;height:100%}
-.legend{display:flex;flex-wrap:wrap;gap:.35rem 1.1rem;margin:0;padding:0;list-style:none;font-size:.9rem}
-.legend li{display:flex;align-items:center;gap:.4rem}
-.sw{width:.8rem;height:.8rem;border-radius:.2rem;display:inline-block;border:1px solid var(--line)}
-.b-strong{background:var(--accent);color:var(--accent-ink)}
-.b-good{background:var(--soft);color:var(--soft-ink)}
-.b-borderline{background:var(--warm);color:var(--warm-ink)}
-.b-ineligible,.b-none{background:var(--grey);color:var(--grey-ink)}
-.tools{display:flex;flex-wrap:wrap;gap:.6rem 1rem;align-items:center;margin:0 0 1rem}
-.tools[hidden]{display:none}
-.tools input[type=search],.tools select{font:inherit;color:inherit;background:var(--surface);
-border:1px solid var(--line);border-radius:.4rem;padding:.4rem .6rem;min-width:0}
-.tools input[type=search]{flex:1 1 14rem}
-.tools label{display:flex;align-items:center;gap:.4rem}
-.count{color:var(--muted);font-size:.9rem;margin-left:auto}
-h2.sec{font:600 1.4rem/1.2 var(--serif);margin:2.5rem 0 1rem}
-ol.jobs{list-style:none;margin:0;padding:0;counter-reset:none}
-.job{display:grid;grid-template-columns:2.6rem minmax(0,1fr) auto;gap:.2rem 1rem;background:var(--surface);
-border:1px solid var(--line);border-radius:.6rem;padding:1.1rem 1.1rem 1rem .6rem;margin:0 0 .75rem}
-.job.is-new{box-shadow:inset .3rem 0 0 var(--focus)}
-.rank{font:600 1.35rem/1 var(--serif);color:var(--muted);text-align:right;padding-top:.15rem;
-font-variant-numeric:tabular-nums}
-.job h3{font:600 1.2rem/1.25 var(--serif);margin:0;overflow-wrap:anywhere}
-.org{margin:.15rem 0 .5rem;color:var(--muted);overflow-wrap:anywhere}
-.org b{color:var(--ink);font-weight:600}
-.pills{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 .5rem;padding:0;list-style:none}
-.pill{font-size:.8rem;line-height:1;padding:.32rem .55rem;border-radius:1rem;font-weight:600}
-.pill.plain{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
-.pill.new{background:var(--new);color:var(--new-ink)}
-.fit{margin:0 0 .4rem;font-size:.95rem;overflow-wrap:anywhere}
-details{margin:.25rem 0 0;font-size:.92rem}
-summary{cursor:pointer;color:var(--accent);width:max-content;max-width:100%}
-details p,details dl{margin:.35rem 0 .2rem;overflow-wrap:anywhere}
-details dt{font-weight:600}details dd{margin:0 0 .3rem}
-.side{display:flex;flex-direction:column;align-items:center;gap:.7rem;min-width:6rem}
-.ring{--s:0;width:4.6rem;height:4.6rem;border-radius:50%;display:grid;place-items:center;
-background:conic-gradient(var(--ring) calc(var(--s)*1%),var(--ring-track) 0)}
-.ring span{width:3.6rem;height:3.6rem;border-radius:50%;background:var(--surface);display:grid;place-items:center;
-font:600 1.3rem/1 var(--sans);font-variant-numeric:tabular-nums}
-.ring small{display:block;font-size:.65rem;font-weight:500;color:var(--muted);margin-top:.1rem}
-.r-strong{--ring:var(--accent)}.r-good{--ring:#5b9be0}.r-borderline{--ring:#e08a2c}.r-ineligible,.r-none{--ring:#8a94a3}
-.noscore{color:var(--muted);font-size:.85rem;text-align:center}
-.apply{display:inline-block;background:var(--accent);color:var(--accent-ink);text-decoration:none;font-weight:600;
-padding:.5rem 1rem;border-radius:.4rem;white-space:nowrap}
-.apply:hover{filter:brightness(1.08)}
-.nolink{color:var(--muted);font-size:.85rem}
-.empty{background:var(--surface);border:1px dashed var(--line);border-radius:.6rem;padding:1.5rem;margin:0}
-.discards>details{background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:.6rem .9rem;
-margin:0 0 .5rem;font-size:1rem}
-.discards>details>summary{color:var(--ink);font-weight:600}
-.discards ul{margin:.6rem 0 .2rem;padding-left:1.1rem;font-size:.92rem}
-.discards li{margin:0 0 .45rem;overflow-wrap:anywhere}
-.discards .why{color:var(--muted)}
-footer{margin-top:3rem;color:var(--muted);font-size:.85rem}
-@media (max-width:40rem){.wrap{padding-top:1.5rem}
-.job{grid-template-columns:minmax(0,1fr);padding:1rem}
-.rank{text-align:left;font-size:1rem}
-.side{flex-direction:row;justify-content:space-between;min-width:0;margin-top:.5rem}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
-@media print{:root{--paper:#fff;--surface:#fff;--ink:#000;--muted:#333;--line:#999}
-body{font-size:11pt}.tools,.skip{display:none!important}.wrap{max-width:none;padding:0}
-.job,.discards>details{break-inside:avoid;box-shadow:none}
-.apply{background:none;color:#000;padding:0;text-decoration:underline}
-.apply::after{content:" (" attr(href) ")";font-weight:400;font-size:9pt;overflow-wrap:anywhere}
-.ring{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-"""
-
-# Reads only the DOM (no data is ever interpolated here); controls stay hidden without JavaScript.
-_JS = """(function(){
-var tools=document.getElementById('tools');var list=document.getElementById('jobs');
-if(!tools||!list){return;}
-tools.hidden=false;
-var q=document.getElementById('q');var onlyNew=document.getElementById('only-new');
-var sort=document.getElementById('sort');var count=document.getElementById('count');
-var items=Array.prototype.slice.call(list.children);
-function apply(){
-var needle=q.value.trim().toLowerCase();var shown=0;
-var key=sort.value;
-items.slice().sort(function(a,b){
-if(key==='score'){return (Number(b.dataset.score)-Number(a.dataset.score))||(Number(a.dataset.rank)-Number(b.dataset.rank));}
-if(key==='company'){return a.dataset.company.localeCompare(b.dataset.company)||(Number(a.dataset.rank)-Number(b.dataset.rank));}
-return Number(a.dataset.rank)-Number(b.dataset.rank);
-}).forEach(function(li){list.appendChild(li);});
-items.forEach(function(li){
-var ok=(!needle||li.textContent.toLowerCase().indexOf(needle)!==-1)&&(!onlyNew.checked||li.dataset.new==='1');
-li.hidden=!ok;if(ok){shown++;}
-});
-count.textContent=shown+' of '+items.length+' shown';
-}
-q.addEventListener('input',apply);onlyNew.addEventListener('change',apply);sort.addEventListener('change',apply);
-apply();
-})();"""
-
-_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(_JS.encode("utf-8")).digest()).decode("ascii")
-
-CSP = (
-    "default-src 'none'; style-src 'unsafe-inline'; "
-    f"script-src '{_JS_HASH}'; img-src 'none'; base-uri 'none'; form-action 'none'"
-)
-
-
 def _when(value: Any) -> str:
     """``2026-11-19 12:30`` for an ISO timestamp; any other value is shown as escaped text."""
     try:
         return datetime.fromisoformat(str(value)).strftime("%Y-%m-%d %H:%M")
     except (TypeError, ValueError):
         return _t(value)
-
-
-def _plural(n: int, one: str, many: str) -> str:
-    return f"{n} {one if n == 1 else many}"
-
-
-def _job_card(rank: int, row: dict) -> str:
-    band = _token(row.get("match_band"), MATCH_BANDS)
-    elig = _token(row.get("eligibility"), _ELIGIBILITY)
-    score = _score(row.get("match_score"))
-    is_new = row.get("is_new") is True
-    url = _safe_url(row.get("apply_url"))
-    title = _t(row.get("title")) or "Untitled role"
-    company = _t(row.get("company"))
-    location = _t(row.get("location"))
-
-    pills = []
-    if band != "none":
-        pills.append(f'<li class="pill b-{band}">{_BAND_LABELS[band]} match</li>')
-    eligibility = _t(row.get("eligibility"))
-    if eligibility:
-        css = f"b-{_ELIGIBILITY_CLASS[elig]}" if elig in _ELIGIBILITY_CLASS else "plain"
-        pills.append(f'<li class="pill {css}">Eligibility: {eligibility}</li>')
-    remote = _t(row.get("remote_policy"))
-    if remote and remote != "unknown":
-        pills.append(f'<li class="pill plain">{remote.replace("_", " ")}</li>')
-    if is_new:
-        pills.append('<li class="pill new">New</li>')
-
-    fit = _t(row.get("fit_signals"))
-    evidence = _t(row.get("eligibility_evidence"))
-    dates = [
-        (label, _t(row.get(key)))
-        for key, label in (("published_at", "Published"), ("updated_at", "Updated"),
-                           ("unverified_date", "Unverified source date"), ("first_seen", "First seen"))
-        if row.get(key)
-    ]
-    freshness = _t(row.get("freshness"))
-    reqs = [(label, _t(row.get(key))) for key, label in (
-        ("matched_requirements", "Matched"), ("missing_requirements", "Missing"),
-        ("uncertain_requirements", "Uncertain"))]
-    reqs = [(label, text) for label, text in reqs if text]
-
-    parts = [
-        (f'<li class="job{" is-new" if is_new else ""}" data-rank="{rank}"'
-         f' data-score="{score if score is not None else -1}"'
-         f' data-company="{company.lower()}" data-new="{1 if is_new else 0}">'),
-        f'<div class="rank" aria-hidden="true">{rank}</div>',
-        '<div class="body">',
-        f"<h3>{title}</h3>",
-        f'<p class="org"><b>{company or "Unknown company"}</b>{" in " + location if location else ""}</p>',
-    ]
-    if pills:
-        parts.append(f'<ul class="pills" aria-label="Labels">{"".join(pills)}</ul>')
-    if fit:
-        parts.append(f'<p class="fit">{fit}</p>')
-    if evidence or freshness or dates:
-        parts.append("<details><summary>Eligibility evidence</summary>")
-        if evidence:
-            parts.append(f"<p>{evidence}</p>")
-        for label, value in dates:
-            parts.append(f"<p>{label}: {value}</p>")
-        if freshness and not any(row.get(key) for key in ("published_at", "updated_at", "unverified_date")):
-            parts.append(f"<p>Date evidence: {freshness}</p>")
-        parts.append("</details>")
-    if reqs:
-        parts.append("<details><summary>Requirements</summary><dl>")
-        parts.extend(f"<dt>{label}</dt><dd>{text}</dd>" for label, text in reqs)
-        parts.append("</dl></details>")
-    parts.append("</div>")
-    parts.append('<div class="side">')
-    if score is None:
-        parts.append('<p class="noscore">No score</p>')
-    else:
-        parts.append(f'<div class="ring r-{band}" style="--s:{score}" role="img" aria-label="Match score {score} of 100">'
-                     f'<span>{score}</span></div>')
-    if url:
-        parts.append(f'<a class="apply" href="{url}" target="_blank" rel="noopener noreferrer">'
-                     f'Apply<span class="skip"> to {title}</span></a>')
-    else:
-        parts.append('<span class="nolink">No safe link</span>')
-    parts.append("</div></li>")
-    return "".join(parts)
 
 
 def _discard_section(discards: list[dict]) -> str:
@@ -291,85 +83,266 @@ def _discard_section(discards: list[dict]) -> str:
     return "".join(out)
 
 
-def render_html(run: dict, results: dict, discards: list[dict]) -> str:
-    """Return the complete report document for one run."""
-    rows = [r for r in (results.get("rows") or []) if isinstance(r, dict)]
-    summary = results.get("summary") if isinstance(results.get("summary"), dict) else {}
-    run_id = _t(results.get("run_id") or run.get("run_id"))
-    new_count = sum(1 for r in rows if r.get("is_new") is True)
-    bands = Counter(_token(r.get("match_band"), MATCH_BANDS) for r in rows)
-    discard_counts = summary.get("discard_counts") if isinstance(summary.get("discard_counts"), dict) else {}
-    total_discards = max(len(discards), sum(v for v in discard_counts.values() if isinstance(v, int)))
-    when = _when(run.get("finalized_at") or summary.get("ended_at") or run.get("created_at"))
-    meta = [x for x in (f"Profile {_t(run.get('profile_slug'))}" if run.get("profile_slug") else "",
-                        f"preset {_t(run.get('preset'))}" if run.get("preset") else "",
-                        f"run {run_id}" if run_id else "", f"finalized {when}" if when else "") if x]
 
-    lede = (f"<strong>{_plural(len(rows), 'role', 'roles')}</strong> kept, "
-            f"<strong>{new_count} new</strong> since the last run. "
-            f"{_plural(total_discards, 'posting was', 'postings were')} discarded.")
+def _identity(row: dict, url: str | None) -> str:
+    explicit = _clean(row.get("identity_key"))
+    if explicit or not url:
+        return explicit
+    identity = canonical_job_identity(url, source_type=_clean(row.get("source_type")),
+                                      source_key=_clean(row.get("source_key")))
+    return _clean(identity.identity_key)
 
-    band_html = ""
-    if rows:
-        segments = "".join(
-            f'<span class="b-{band}" style="width:{bands[band] * 100 / len(rows):.4f}%"></span>'
-            for band in (*MATCH_BANDS, "none") if bands[band])
-        legend = "".join(
-            f'<li><span class="sw b-{band}"></span>{label} {bands[band]}</li>'
-            for band, label in (*_BAND_LABELS.items(), ("none", "Unscored")) if bands[band] or band != "none")
-        band_html = (f'<div class="bands"><div class="strip" aria-hidden="true">{segments}</div>'
-                     f'<ul class="legend" aria-label="Roles by match band">{legend}</ul></div>')
 
-    if rows:
-        jobs = (
-            '<div class="tools" id="tools" hidden>'
-            '<input type="search" id="q" placeholder="Filter by title, company, skill" aria-label="Filter roles">'
-            '<label><input type="checkbox" id="only-new"> New only</label>'
-            '<label>Sort <select id="sort"><option value="rank">Rank</option><option value="score">Score</option>'
-            '<option value="company">Company</option></select></label>'
-            '<span class="count" id="count" aria-live="polite"></span></div>'
-            f'<ol class="jobs" id="jobs">{"".join(_job_card(i, r) for i, r in enumerate(rows, start=1))}</ol>'
+def _display_job(row: dict, rank: int) -> dict:
+    url = sanitize.safe_http_url(row.get("apply_url"))
+    priority = view_model.normalize_priority(row.get("priority"))
+    salary = _clean(row.get("salary"))
+    currency, midpoint = view_model.parse_salary_midpoint(salary) or ("", "")
+    date = view_model.best_vacancy_date(row) or {}
+    title = _clean(row.get("title")) or "Untitled role"
+    company = _clean(row.get("company")) or "Unknown company"
+    signals = view_model.split_fit_signals(row.get("fit_signals"))
+    remote_label = view_model.remote_label(row.get("remote_policy"))
+    location = _clean(row.get("location"))
+    return {
+        "rank": rank, "id": _identity(row, url), "title": title, "company": company, "location": location,
+        "url": url, "score": _score(row.get("match_score")), "band": _token(row.get("match_band"), MATCH_BANDS),
+        "priority": f"p{priority}" if priority else "unset", "priority_label": view_model.priority_label(priority),
+        "new": row.get("is_new") is True, "salary": salary, "midpoint": midpoint, "currency": currency,
+        "date": date, "remote": _clean(row.get("remote_policy")).lower() if remote_label else "",
+        "remote_label": remote_label, "signals": signals, "monogram": view_model.company_monogram(company),
+        "eligibility": _clean(row.get("eligibility")), "evidence": _clean(row.get("eligibility_evidence")),
+        "freshness": _clean(row.get("freshness")) if not date else "",
+        "date_evidence": [(label, _clean(row.get(key))) for key, label in (
+            ("published_at", "Published"), ("updated_at", "Updated"), ("first_seen", "First seen"),
+            ("unverified_date", "Unverified source date"),
+        ) if row.get(key)],
+        "requirements": [(label, _clean(row.get(key))) for label, key in (
+            ("Matched", "matched_requirements"), ("Missing", "missing_requirements"), ("Uncertain", "uncertain_requirements")
+        ) if row.get(key)],
+    }
+
+
+def _attributes(job: dict) -> str:
+    tokens = {
+        "id": job["id"], "rank": job["rank"], "company": job["company"].lower(),
+        "score": job["score"] if job["score"] is not None else -1, "band": job["band"],
+        "priority": job["priority"], "new": int(job["new"]), "salary": int(bool(job["salary"])),
+        "salary-mid": job["midpoint"], "currency": job["currency"], "date": job["date"].get("iso", ""),
+        "remote": job["remote"], "tags": "\n".join(tag.lower() for tag in job["signals"]),
+        "search": " ".join([job["title"], job["company"], job["location"], job["salary"], job["remote_label"],
+                            job["evidence"], job["eligibility"], *job["signals"],
+                            *(text for _, text in job["requirements"])]).lower(),
+    }
+    return " ".join(f'data-{key}="{html.escape(str(value), quote=True)}"' for key, value in tokens.items())
+
+
+def _filter_button(label: str, field: str, token: str, css: str = "chip", *, style: str = "") -> str:
+    return (f'<button type="button" class="{css}" data-filter="{field}" data-value="{_t(token)}" '
+            f'aria-pressed="false"{style}>{_t(label)}</button>')
+
+
+def _priority_badge(job: dict) -> str:
+    if not job["priority_label"]:
+        return ""
+    shade = {"p1": "strong", "p2": "good", "p3": "ineligible"}[job["priority"]]
+    return f'<span class="priority b-{shade}">{_t(job["priority_label"])}</span>'
+
+
+def _apply_link(job: dict) -> str:
+    if url := _safe_url(job["url"]):
+        return (f'<a class="apply" href="{url}" target="_blank" rel="noopener noreferrer" '
+                f'aria-label="Apply to {_t(job["title"])}">Apply</a>')
+    return '<span class="nolink">No safe link</span>'
+
+
+def _triage(job: dict) -> str:
+    if not job["id"]:
+        return ""
+    buttons = "".join(f'<button type="button" data-state="{value}" aria-pressed="false">{label}</button>'
+                      for value, label in (("shortlisted", "Shortlist"), ("applied", "Applied"), ("rejected", "Dismiss")))
+    return (f'<div class="triage needs-js" aria-label="Triage for {_t(job["title"])}" role="group">{buttons}'
+            '<details><summary>Note</summary><input type="text" maxlength="500" data-note '
+            'aria-label="Personal note" autocomplete="off"></details></div>')
+
+
+def _pills(job: dict) -> str:
+    pills = []
+    if job["band"] in _BAND_LABELS:
+        pills.append(f'<li class="pill b-{job["band"]}">{_BAND_LABELS[job["band"]]} match</li>')
+    if job["new"]:
+        pills.append('<li class="pill new">New</li>')
+    eligibility = job["eligibility"]
+    if eligibility:
+        css = _ELIGIBILITY_CLASS.get(_token(eligibility, _ELIGIBILITY), "none")
+        pills.append(f'<li class="pill b-{css}">Eligibility: {_t(eligibility)}</li>')
+    for label in (job["remote_label"], job["date"].get("label")):
+        if label:
+            pills.append(f'<li class="pill plain">{_t(label)}</li>')
+    return f'<ul class="pills" aria-label="Labels">{"".join(pills)}</ul>' if pills else ""
+
+
+def _evidence(job: dict) -> str:
+    parts = []
+    if job["evidence"] or job["freshness"] or job["date_evidence"]:
+        text = "".join(f"<p>{_t(value)}</p>" for value in (job["evidence"], job["freshness"]) if value)
+        dates = "".join(f"<p>{label}: {_t(value)}</p>" for label, value in job["date_evidence"])
+        parts.append(f"<details><summary>Eligibility evidence</summary>{text}{dates}</details>")
+    if job["requirements"]:
+        reqs = "".join(f"<dt>{label}</dt><dd>{_t(text)}</dd>" for label, text in job["requirements"])
+        parts.append(f"<details><summary>Requirements</summary><dl>{reqs}</dl></details>")
+    return "".join(parts)
+
+
+def _job_card(job: dict) -> str:
+    rank, title, company, monogram = job["rank"], _t(job["title"]), _t(job["company"]), job["monogram"]
+    tags = "".join(_filter_button(tag, "tag", tag.lower(), "tag") for tag in job["signals"])
+    salary = f'<strong class="salary">{_t(job["salary"])}</strong>' if job["salary"] else ""
+    score = job["score"]
+    badge = _priority_badge(job) if score is None else (
+        f'<div class="ring r-{job["band"]}" style="--s:{score}" role="img" '
+        f'aria-label="Match score {score} of 100"><span>{score}</span></div>'
+    )
+    return "".join([
+        f'<li class="job{" is-new" if job["new"] else ""}" {_attributes(job)}>',
+        f'<div class="rank" aria-label="Rank {rank}">{rank}</div><div class="body">',
+        (f'<div class="job-title"><div class="avatar tone-{monogram["tone"]}" aria-hidden="true">'
+        f'{_t(monogram["initials"])}</div><div><h3>{title}</h3>'),
+        f'<p class="org"><b>{company}</b>{" in " + _t(job["location"]) if job["location"] else ""}</p></div></div>',
+        _pills(job), f'<div class="tags" aria-label="Fit signals">{tags}</div>' if tags else "",
+        _evidence(job), _triage(job), f'</div><div class="side">{badge}{salary}{_apply_link(job)}</div></li>',
+    ])
+
+
+def _table(jobs: list[dict], mode: str) -> str:
+    metric = {"toolkit": "Priority", "scored": "Score", "mixed": "Priority / Score"}[mode]
+    columns = ("#", metric, "Company", "Title", "Location", "Remote", "Salary", "Posted", "Triage", "Apply")
+    rows = []
+    for job in jobs:
+        score = job["score"]
+        values = (
+            _priority_badge(job) if score is None else str(score),
+            _t(job["company"]), _t(job["title"]), _t(job["location"]), _t(job["remote_label"]),
+            _t(job["salary"]), _t(job["date"].get("iso")), _triage(job), _apply_link(job),
         )
-    else:
-        jobs = ('<p class="empty">No roles made the shortlist in this run. Check the discarded postings below, '
-                "or widen the profile and search again.</p>")
+        cells = "".join(f"<td>{value}</td>" for value in values)
+        rows.append(f'<tr data-id="{_t(job["id"])}"><th scope="row">{job["rank"]}</th>{cells}</tr>')
+    headers = "".join(f'<th scope="col">{label}</th>' for label in columns)
+    return (f'<div class="compact" id="job-table" tabindex="0" role="region" aria-label="Roles table" hidden>'
+            f'<table><thead><tr>{headers}</tr></thead><tbody id="job-rows">{"".join(rows)}</tbody></table></div>')
 
-    head_title = f"Job shortlist {run_id}".strip()
+
+def _distribution(jobs: list[dict], mode: str) -> str:
+    field = "band" if mode == "scored" else "priority"
+    counts = Counter(job[field] for job in jobs)
+    labels = (*_BAND_LABELS.items(), ("none", "Unscored")) if field == "band" else (
+        ("p1", "P1"), ("p2", "P2"), ("p3", "P3"), ("unset", "Unprioritized"),
+    )
+    shades = {"p1": "strong", "p2": "good", "p3": "ineligible", "unset": "none"} if field == "priority" else {}
+    title = "Match Bands" if field == "band" else "Priority"
+    bar, legend = [], []
+    for token, label in labels:
+        count = counts[token]
+        if count:
+            width = f' style="width:{count * 100 / len(jobs):.4f}%" aria-label="{label} ({count})"'
+            bar.append(_filter_button("", field, token, f"segment b-{shades.get(token, token)}", style=width))
+        legend.append(f'<li>{_filter_button(f"{label} {count}", field, token)}</li>')
+    return (f'<div class="bands"><p>{title}</p><div class="strip">{"".join(bar)}</div>'
+            f'<ul class="legend" aria-label="Roles by {title.lower()}">{"".join(legend)}</ul></div>')
+
+
+def _hero(jobs: list[dict], mode: str, discards: int) -> str:
+    salaries = view_model.summarize_job_display(jobs)["salary_summary"]
+    medians = " / ".join(f"{currency} {stats['median']:,.0f}" for currency, stats in salaries["by_currency"].items())
+    pay_context = f"Annual median {medians}" if medians else f"{discards} discarded" if not salaries["disclosed_count"] else ""
+    new = sum(job["new"] for job in jobs)
+    lead = ("Strong matches", sum(job["band"] == "strong" for job in jobs)) if mode == "scored" else (
+        "P1 \u00b7 Apply first", sum(job["priority"] == "p1" for job in jobs),
+    )
+    tiles = [
+        ("Roles kept", len(jobs), ""), ("New since last run", new, ""),
+        (*lead, ""), ("Disclosed pay", salaries["disclosed_count"], pay_context),
+    ]
+    values = []
+    for index, (label, count, context) in enumerate(tiles):
+        marker = f'<span class="new">{count}</span>' if index == 1 and count else str(count)
+        extra = f"<small>{_t(context)}</small>" if context else ""
+        values.append(f'<div class="kpi"><dt>{label}</dt><dd>{marker}</dd>{extra}</div>')
+    return '<dl class="kpis">' + "".join(values) + "</dl>"
+
+
+def _toolbar(jobs: list[dict], run_id: str, mode: str) -> str:
+    ranking = ("Strong", "band", "strong") if mode == "scored" else ("P1", "priority", "p1")
+    policies = Counter(job["remote"] for job in jobs if job["remote"])
+    chips = [("All", "all", ""), ("New only", "new", "1"), ranking,
+             ("With salary", "salary", "1"), ("Shortlisted", "state", "shortlisted")]
+    chips.extend((view_model.remote_label(policy), "remote", policy) for policy, _ in policies.most_common(3))
+    sort = [('rank', 'Rank')]
+    if mode in {"toolkit", "mixed"}:
+        sort.append(("priority", "Priority"))
+    if mode in {"scored", "mixed"}:
+        sort.append(("score", "Score"))
+    sort += [("date", "Posted date"), ("salary", "Salary"), ("company", "Company")]
+    options = "".join(f'<option value="{value}">{label}</option>' for value, label in sort)
+    return "".join([
+        f'<div class="tools" id="tools" data-run="{_t(run_id)}" hidden>',
+        '<div class="quick" aria-label="Quick filters">',
+        *(_filter_button(label, field, token) for label, field, token in chips), '</div>',
+        '<input type="search" id="q" placeholder="Search roles" aria-label="Search roles">',
+        f'<label>Sort <select id="sort">{options}</select></label>',
+        ('<div class="toggle" role="group" aria-label="View"><button type="button" class="chip" data-view="cards" '
+        'aria-pressed="true">Cards</button><button type="button" class="chip" data-view="table" '
+        'aria-pressed="false">Table</button></div>'),
+        '<label><input type="checkbox" id="hide-dismissed"> Hide dismissed</label>',
+        ('<label>Theme <select id="theme"><option value="system">System</option><option value="light">Light</option>'
+        '<option value="dark">Dark</option></select></label>'),
+        '<button class="chip" type="button" id="show-sync">Export triage (0)</button>',
+        '<span class="count" id="count" aria-live="polite"></span><span id="storage-status" role="status"></span></div>',
+    ])
+
+
+_SYNC = (
+    '<dialog id="sync" aria-labelledby="sync-h"><h2 id="sync-h">Sync to ULTRON</h2>'
+    '<label>Shell <select id="command-shell"><option value="powershell">PowerShell</option>'
+    '<option value="posix">Bash / Zsh</option></select></label>'
+    '<textarea id="commands" aria-label="Triage commands" readonly rows="8"></textarea>'
+    '<div class="actions"><button type="button" id="copy">Copy commands</button>'
+    '<button type="button" id="reset">Reset local triage</button><button type="button" id="close-sync">Close</button></div>'
+    '<p id="sync-status" role="status"></p></dialog>'
+)
+
+
+def render_html(run: dict, results: dict, discards: list[dict]) -> str:
+    """Return the complete offline report for one run."""
+    rows = [row for row in (results.get("rows") or []) if isinstance(row, dict)]
+    jobs = [_display_job(row, rank) for rank, row in enumerate(rows, start=1)]
+    mode = view_model.detect_export_mode(rows)
+    summary = results.get("summary") if isinstance(results.get("summary"), dict) else {}
+    run_id = _clean(results.get("run_id") or run.get("run_id"))
+    metadata = [_t(run.get("profile_slug")), _t(run.get("preset")),
+                _when(run.get("finalized_at") or summary.get("ended_at") or run.get("created_at"))]
+    discard_counts = summary.get("discard_counts")
+    count = sum(v for v in discard_counts.values() if type(v) is int) if isinstance(discard_counts, dict) else 0
+    content = [
+        _toolbar(jobs, run_id, mode), f'<ol class="jobs" id="jobs">{"".join(map(_job_card, jobs))}</ol>',
+        _table(jobs, mode), '<p class="empty" id="no-matches" hidden>No roles match these filters.</p>',
+        _SYNC,
+    ] if jobs else ['<p class="empty">No roles made the shortlist in this run.</p>']
+    distributions = ("scored", "toolkit") if mode == "mixed" else (mode,)
     return "\n".join([
-        "<!doctype html>",
-        '<html lang="en">',
-        "<head>",
-        f'<meta http-equiv="Content-Security-Policy" content="{CSP}">',
-        '<meta charset="utf-8">',
+        "<!doctype html>", '<html lang="en">', "<head>",
+        f'<meta http-equiv="Content-Security-Policy" content="{CSP}">', '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        '<meta name="referrer" content="no-referrer">',
-        '<meta name="generator" content="ULTRON">',
-        f"<title>{head_title}</title>",
-        f"<style>{_CSS}</style>",
-        "</head>",
-        "<body>",
-        '<a class="skip" href="#shortlist">Skip to the shortlist</a>',
-        '<div class="wrap">',
-        '<header class="run">',
-        "<h1>Job shortlist</h1>",
-        f'<p class="meta">{", ".join(meta)}</p>' if meta else "",
-        f'<p class="lede">{lede}</p>',
-        band_html,
-        "</header>",
-        "<main>",
-        '<section id="shortlist" aria-labelledby="shortlist-h">',
-        '<h2 class="sec" id="shortlist-h">Ranked roles</h2>',
-        jobs,
-        "</section>",
-        _discard_section(discards),
-        "</main>",
-        ("<footer><p>Generated by ULTRON. This file works offline and loads nothing from the network. "
-         "Apply links open the employer's posting in a new tab.</p></footer>"),
-        "</div>",
-        f"<script>{_JS}</script>" if rows else "",
-        "</body>",
-        "</html>",
-        "",
+        '<meta name="referrer" content="no-referrer">', '<meta name="generator" content="ULTRON">',
+        f'<title>Job shortlist {_t(run_id)}</title>', f"<style>{REPORT_CSS}</style>", "</head>", "<body>",
+        '<a class="skip" href="#shortlist">Skip to the shortlist</a><div class="wrap">',
+        '<header class="run"><h1>Job shortlist</h1>',
+        f'<p class="meta">{" \u00b7 ".join(item for item in metadata if item)}</p>',
+        _hero(jobs, mode, max(len(discards), count)),
+        "".join(_distribution(jobs, group) for group in distributions) if jobs else "", '</header><main>',
+        '<section id="shortlist" aria-labelledby="shortlist-h"><h2 class="sec" id="shortlist-h">Ranked roles</h2>',
+        *content, "</section>", _discard_section(discards), "</main></div>",
+        f"<script>{REPORT_JS}</script>" if jobs else "", "</body>", "</html>", "",
     ])
 
 

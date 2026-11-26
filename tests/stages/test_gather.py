@@ -23,7 +23,7 @@ from ultron.stages import http_factory
 from ultron.storage import ledger, scout_memory, watchlist
 from ultron.toolkit import aggregators, gather
 from ultron.toolkit.dossier import GEO_EXCERPT, ROLE_EXCERPT, posting_dossier
-from ultron.toolkit.inspect import cached_postings
+from ultron.toolkit.inspect import cache_postings, cached_postings
 from ultron.toolkit.mcp_server import call_tool
 from ultron.toolkit.shortlist import save_shortlist
 
@@ -82,7 +82,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
             return httpx.Response(200, text=GH_PAGE.replace("Acme", "Extra"))
         return default_handler(request)
 
-    def web(queries, provider):
+    def web(queries, provider, *, deadline):
         assert provider == "auto" and len(queries) == 5
         barrier.wait(timeout=15)
         hits = (
@@ -95,7 +95,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
         )
         return WebSearchResult("ok", "searxng", len(hits), len(queries), hits)
 
-    def lookup(queries):
+    def lookup(queries, *, deadline):
         resolution_queries.extend(queries)
         return [hit(LOOKUP_TARGET, "Senior ML Engineer", query=query)
                 for query in queries if "extra" in query], len(queries)
@@ -124,7 +124,6 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
     assert all("hint" not in row and "snippet" not in row for row in result["dossiers"])
     assert all(urlsplit(row["url"]).hostname not in {"himalayas.app", "remoterocketship.com", "jobgether.com"}
                for row in result["dossiers"])
-    assert any(row.get("via") == "company_of_listing" for row in result["dossiers"])
     by_url = {row["url"]: row for row in result["dossiers"]}
     assert by_url[LOOKUP_TARGET]["via"] == "targeted_ats_search"
     assert LOOKUP not in {row["url"] for row in result["unresolved"]}
@@ -141,7 +140,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
 
 def test_gather_expands_the_requested_ats_board(monkeypatch):
     web = WebSearchResult("ok", "ddg_html", 1, 1, (hit(POSTING, "ML Engineer at Acme"),))
-    monkeypatch.setattr(gather, "search_web", lambda *_: web)
+    monkeypatch.setattr(gather, "search_web", lambda *_, **kwargs: web)
     monkeypatch.setattr(gather, "discover_sources", lambda *a, **k: gather_empty_sources())
     result = gather.gather_candidates(SLUG)
     assert any(row.get("via") == "same_board" and row["id"] == "greenhouse:acme:4012346"
@@ -204,6 +203,8 @@ def test_aggregator_clues_and_factual_excerpts():
     assert aggregators.title_company("Acme - Senior Engineer") == "Acme"
     assert aggregators.matches_lookup(POSTING, "Senior ML Engineer", "Acme", "Senior ML Engineer")
     assert not aggregators.matches_lookup(POSTING, "Senior ML Engineer", "Other", "Senior ML Engineer")
+    assert not aggregators.matches_lookup(POSTING, "Senior Software Engineer", "Acme", "Senior Machine Learning Engineer")
+    assert aggregators.matches_lookup(POSTING, "Senior ML Engineer", "Acme", "Senior Machine Learning Engineer at Acme")
     assert not aggregators.matches_lookup(DEAD, "Senior ML Engineer", "Acme", "Senior ML Engineer")
     assert "scope:outside" not in aggregators.lookup_query('Acme" scope:outside', "Engineering")
     job = ExtractedJob(apply_url=EMPLOYER, domain="careers.example.org", title="ML Engineer", company="Sample",
@@ -212,3 +213,35 @@ def test_aggregator_clues_and_factual_excerpts():
     assert "hint" not in dossier
     assert "EMEA Remote" in dossier["geo_excerpt"] and "hybrid" in dossier["geo_excerpt"]
     assert GEO_EXCERPT == 350 and len(dossier["role_excerpt"]) == ROLE_EXCERPT == 700
+
+
+def test_open_source_dossier_is_not_inspected_again(monkeypatch):
+    candidate = {"id": gather._identity(POSTING), "url": POSTING, "source": "greenhouse:acme",
+                 "status": "open", "title": "ML Engineer", "company": "Acme", "location": "Spain"}
+    source = gather_empty_sources()
+    source.dossiers.extend([candidate, {**candidate, "source": "watch", "status": "listed"}])
+    web = WebSearchResult("ok", "ddg_html", 1, 1, (hit(POSTING, "ML Engineer at Acme"),))
+    monkeypatch.setattr(gather, "discover_sources", lambda *a, **k: source)
+    monkeypatch.setattr(gather, "search_web", lambda *a, **k: web)
+    result = gather.gather_candidates(SLUG)
+    assert result["inspected"]["attempted"] == 0
+    (dossier,) = result["dossiers"]
+    assert dossier["source"] == "watch" and dossier["status"] == "open"
+
+
+def test_listed_fallback_reuses_canonical_ats_memory(monkeypatch):
+    custom = "https://careers.example.org/o/senior-ml-engineer"
+    cached = {"identity_key": "recruitee:exampleorg:senior-ml-engineer", "status": "listed", "url": custom,
+              "source_type": "ats_api", "source_key": "recruitee:exampleorg", "job": {}}
+    cache_postings(SLUG, [cached])
+    source = gather_empty_sources()
+    source.dossiers.append({"id": gather._identity(custom), "url": custom, "source": "feed", "status": "listed",
+                            "title": "ML Engineer", "company": "Example Org", "location": "Spain"})
+    monkeypatch.setattr(gather, "discover_sources", lambda *a, **k: source)
+    with closing(ledger.connect()) as conn:
+        scout_memory.record_verdicts(conn, SLUG, "previous", [
+            {"identity_key": cached["identity_key"], "verdict": "discard"}])
+    _setup_transport(monkeypatch, lambda _: pytest.fail("rejected ATS identity should not be requested"))
+    result = gather.gather_candidates(SLUG, web_provider="none", new_only=True)
+    assert result["returned"] == 0
+    assert result["inspected"]["skipped_memory"] == 1 and result["inspected"]["attempted"] == 0

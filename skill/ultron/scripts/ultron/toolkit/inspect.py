@@ -58,6 +58,7 @@ CACHE_DIR = "toolkit"
 CACHE_FILE = "inspected.jsonl"
 SHOWN = ("open", "listed")
 STATUS_ORDER = {"open": 0, "listed": 1}
+WORK_ORDER = {"board_postings": 0, "board": 0, "postings": 1, "aggregator": 2, "company": 3}
 
 
 def run_context(profile_slug: str, preset: str) -> dict:
@@ -138,17 +139,25 @@ def _plan(targets: list[tuple[str, str]], companies: Iterable[str]) -> tuple[lis
     return work, early
 
 
+def inspection_candidate(url: str, source_type: str, boards: dict[str, str]):
+    """Create the inspection candidate with its known canonical ATS board, if any."""
+    candidate = web_candidate(url, {}, "inspect", source_type)
+    if board := boards.get(candidate.normalized_url):
+        candidate.source_type, candidate.source_key = "ats_api", board
+    return candidate
+
+
 class InspectionSession:
     """Runs units of work in parallel; each has its own client, all share one host gate and one vendor budget."""
 
     def __init__(self, run: dict, detail: bool, boards: dict[str, str], *,
                  gate: HostGate | None = None, vendor_budget: VendorBudget | None = None,
                  skip_identity: Callable[[str], bool] | None = None,
-                 max_fallbacks: int | None = None) -> None:
+                 max_fallbacks: int | None = None, deadline: float | None = None) -> None:
         self.run, self.detail = run, detail
         self.context = ProfileContext(run["profile_snapshot"], run["profile_slug"])
         self.skip_identity = skip_identity
-        self.max_fallbacks = max_fallbacks
+        self.max_fallbacks, self.deadline = max_fallbacks, deadline
         self.timeout = run["settings"]["ats_api_timeout"]
         self.allowed = load_allowed_domains()
         self.boards = boards  # normalized posting URL -> the "vendor:board" a board listed it on
@@ -161,7 +170,7 @@ class InspectionSession:
 
     def _client(self):
         return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD, gate=self.gate,
-                              vendor_budget=self.vendor_budget)
+                              vendor_budget=self.vendor_budget, deadline=self.deadline)
 
     def _run_unit(self, unit: _Work) -> tuple[list[dict], list[dict], list[dict], int]:
         """``(dossiers, cache rows, misses, requests)`` for one unit of work."""
@@ -266,7 +275,7 @@ class InspectionSession:
                 if company:
                     dossier["company"] = company
                 return dossier, None
-        candidate = self._candidate(found.url, found.source_type or "web_search")
+        candidate = inspection_candidate(found.url, found.source_type or "web_search", self.boards)
         identity = candidate_identity(candidate.model_dump())
         if self.skip_identity is not None and self.skip_identity(identity):
             return failed_dossier(found.url, "skipped_memory", identity_key=identity), None
@@ -281,7 +290,7 @@ class InspectionSession:
         # own canonical link is page-controlled, so it never decides which posting's memory this is.
         read_url = result.final_url or found.url
         if read_url != candidate.normalized_url:
-            candidate = self._candidate(read_url, candidate.source_type)
+            candidate = inspection_candidate(read_url, candidate.source_type, self.boards)
             identity = candidate_identity(candidate.model_dump())
         if company and not result.job.company:
             result.job.company = company
@@ -294,18 +303,11 @@ class InspectionSession:
             dossier["found_at"] = url
         return dossier, cache_row(identity, status, candidate, result.job.model_dump(mode="json"), read_url)
 
-    def _candidate(self, url: str, source_type: str):
-        """The candidate of ``url``, with its board when a board listed it (so it keeps the board identity)."""
-        candidate = web_candidate(url, {}, "inspect", source_type)
-        board = self.boards.get(candidate.normalized_url)
-        if board:
-            candidate.source_type, candidate.source_key = "ats_api", board
-        return candidate
-
-
     def inspect(self, targets: list[tuple[str, str]], companies: Iterable[str] = ()) -> InspectionBatch:
         """Inspect a bounded batch and collect facts without writing the shortlist cache."""
         work, dossiers = _plan(targets, companies)
+        if self.deadline is not None:
+            work.sort(key=lambda unit: WORK_ORDER[unit.kind])
         requests = 0
         cache: list[dict] = []
         misses: list[dict] = []

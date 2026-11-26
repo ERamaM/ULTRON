@@ -1,5 +1,8 @@
 """Optional adapter for the keyless ddgs Python package."""
 
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 from ultron.core.web_search.models import ProviderUnavailable, SearchHit, make_hit
 
 
@@ -12,20 +15,27 @@ def available() -> bool:
     return True
 
 
-def search(queries: list[str]) -> tuple[list[SearchHit], int]:
+def search(queries: list[str], *, deadline: float | None = None) -> tuple[list[SearchHit], int]:
     """Return results from the optional search package."""
     try:
         from ddgs import DDGS
         from ddgs.exceptions import DDGSException
     except ImportError as error:
         raise ProviderUnavailable("Install ultron[search] to enable ddgs") from error
-    hits = []
-    client = DDGS(timeout=4)
-    for query in queries:
+    def find(query: str) -> tuple[list[SearchHit], int]:
+        timeout = 4.0 if deadline is None else min(4.0, deadline - time.monotonic())
+        if timeout <= 0:
+            return [], 0
         try:
-            rows = client.text(query, max_results=15)
+            rows = DDGS(timeout=timeout).text(query, max_results=15)
         except DDGSException:
-            continue
-        hits.extend(make_hit(row.get("title"), row.get("href"), row.get("body"), query, "ddg")
-                    for row in rows if isinstance(row, dict))
-    return hits, len(queries)
+            return [], 1
+        return [make_hit(row.get("title"), row.get("href"), row.get("body"), query, "ddg")
+                for row in rows if isinstance(row, dict)], 1
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        hits, count = [], 0
+        for rows, attempted in pool.map(find, queries):
+            hits.extend(rows)
+            count += attempted
+    return hits, count

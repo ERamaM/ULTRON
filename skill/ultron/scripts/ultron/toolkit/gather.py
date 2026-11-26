@@ -1,5 +1,6 @@
 """Gather inspectable candidates from web search, watch, boards, and public feeds."""
 
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlsplit
@@ -16,10 +17,17 @@ from ultron.infra.net import HostGate
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.http_factory import load_vendor_budget
 from ultron.stages.role_feeds import known_resolutions, query_terms, remember_resolutions
-from ultron.stages.scout_finds import memory_flags, web_candidate
+from ultron.stages.scout_finds import memory_flags
 from ultron.stages.scout_resolve import classify_find
 from ultron.toolkit.aggregators import aggregator_company, lookup_query, matches_lookup, title_company
-from ultron.toolkit.inspect import InspectionSession, board_aliases, cache_postings, cached_postings, run_context
+from ultron.toolkit.inspect import (
+    InspectionSession,
+    board_aliases,
+    cache_postings,
+    cached_postings,
+    inspection_candidate,
+    run_context,
+)
 from ultron.toolkit.search import (
     DEFAULT_LIMIT,
     discover_sources,
@@ -35,6 +43,8 @@ MAX_QUERIES = 40
 MAX_INSPECTIONS = 120
 MAX_COMPANY_PROBES = 20
 MAX_LOOKUPS = 8
+DISCOVERY_SECONDS = 18.0
+TOTAL_SECONDS = 43.0
 _SOURCE_ORDER = {"ats_posting": 0, "listed": 1, "employer_page": 2, "aggregator": 3}
 _NOISE_HOSTS = frozenset({
     "linkedin.com", "facebook.com", "instagram.com", "youtube.com", "twitter.com", "x.com", "indeed.com",
@@ -47,8 +57,8 @@ def _blocked(memo: str, *, new_only: bool) -> bool:
     return memo in {"rejected", "applied"} or (new_only and memo != "new")
 
 
-def _identity(url: str) -> str:
-    return candidate_identity(web_candidate(url, {}, "gather").model_dump())
+def _identity(url: str, aliases: dict[str, str] | None = None) -> str:
+    return candidate_identity(inspection_candidate(url, "web_search", aliases or {}).model_dump())
 
 
 def _classify(url: str) -> str:
@@ -66,28 +76,32 @@ def _classify(url: str) -> str:
 
 
 def _web_candidates(web: WebSearchResult) -> list[dict]:
-    return [{"id": _identity(hit.url), "url": hit.url, "title": hit.title, "snippet": hit.snippet,
+    return [{"url": hit.url, "title": hit.title, "snippet": hit.snippet,
              "company": aggregator_company(hit.url) or title_company(hit.title), "source": "web",
              "status": "unread"} for hit in web.hits if _classify(hit.url) != "rejected"]
 
 
-def _candidate_pool(local: list[dict], web: WebSearchResult) -> tuple[list[dict], list[dict]]:
-    open_rows, inspect = [], {}
+def _candidate_pool(local: list[dict], web: WebSearchResult, aliases: dict[str, str]) -> tuple[list[dict], list[dict]]:
+    open_rows, inspect = {}, {}
     for row in [*local, *_web_candidates(web)]:
         url = normalize_url(row["url"])
         if (kind := _classify(url)) == "rejected":
             continue
+        identity = _identity(url, aliases) if url in aliases or "id" not in row else row["id"]
         if row["status"] == "open" and kind != "aggregator":
-            open_rows.append(row)
+            open_rows.setdefault(identity, {**row, "id": identity, "url": url})
             continue
-        item = {**row, "url": url, "kind": kind}
+        item = {**row, "id": identity, "url": url, "kind": kind}
         if url not in inspect:
             inspect[url] = item
         elif row["status"] == "unread":
             current = inspect[url]
             current["company"] = current.get("company") or item["company"]
             current["snippet"] = item["snippet"]
-    return open_rows, list(inspect.values())
+    for row in inspect.values():
+        if row["source"] == "watch" and row["id"] in open_rows:
+            open_rows[row["id"]]["source"] = "watch"
+    return list(open_rows.values()), [row for row in inspect.values() if row["id"] not in open_rows]
 
 
 def _target_plan(rows: list[dict], ranker: LexicalRanker, limit: int) -> list[dict]:
@@ -101,7 +115,8 @@ def _target_plan(rows: list[dict], ranker: LexicalRanker, limit: int) -> list[di
     return list(unique.values())
 
 
-def _lookup_targets(unresolved: list[dict], original: dict[str, dict], ranker: LexicalRanker) -> dict[str, dict]:
+def _lookup_targets(unresolved: list[dict], original: dict[str, dict], ranker: LexicalRanker,
+                    deadline: float) -> dict[str, dict]:
     query_rows = {}
     for dossier in ranker.ordered([original[row["url"]] for row in unresolved if row["url"] in original]):
         query = lookup_query(dossier.get("company") or "", dossier.get("title") or "")
@@ -111,7 +126,7 @@ def _lookup_targets(unresolved: list[dict], original: dict[str, dict], ranker: L
             break
     if not query_rows:
         return {}
-    hits, _ = searxng.search(list(query_rows))
+    hits, _ = searxng.search(list(query_rows), deadline=deadline)
     variants = {variant: row for query, row in query_rows.items() for variant in (query, *relaxed_queries(query))}
     targets = {}
     have_listing = set()
@@ -149,7 +164,7 @@ def _persist(profile: str, returned: list[dict], caches: list[dict], boards: set
 
 def _mark_gather_watch(profile: str, returned: list[dict], candidates: list[dict]) -> None:
     returned_urls = {row.get("found_at") or row["url"] for row in returned if row.get("source") == "watch"}
-    originals = [row for row in candidates if row["source"] == "watch" and row["url"] in returned_urls]
+    originals = [row for row in candidates if row["source"] == "watch" and normalize_url(row["url"]) in returned_urls]
     mark_watch_served(profile, originals, origin="gather")
 
 
@@ -161,7 +176,9 @@ def _inspect_lookups(
     result = inspector.inspect([(url, row["company"]) for url, row in targets.items()])
     resolved = set()
     for row in result.dossiers:
-        if row["status"] == "open" and _canonical(row) and (origin := targets.get(row["url"])):
+        origin = targets.get(row.get("found_at") or row["url"])
+        if (origin and row["status"] == "open" and _canonical(row)
+                and matches_lookup(row["url"], row["title"], origin["company"], origin["title"])):
             row["found_at"] = origin["url"]
             row["source"] = origin["source"]
             row["via"] = "targeted_ats_search"
@@ -178,7 +195,8 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
                       preset: str = presets.DEFAULT_PRESET) -> dict:
     """Return one batch of ranked factual dossiers and cache the selected postings for shortlist save."""
     if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
-        raise ValueError("limit must be 1â€“100 and max_queries must be 1â€“40")
+        raise ValueError("limit must be 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“100 and max_queries must be 1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“40")
+    start = time.monotonic()
     run = run_context(profile_slug, preset)
     profile = run["profile_snapshot"]
     terms = query_terms(profile, query)
@@ -186,27 +204,29 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     if query.strip():
         run = {**run, "profile_snapshot": profile_for_query(profile, terms)}
     gate, budget = HostGate(), load_vendor_budget(run)
+    discovery_deadline = start + DISCOVERY_SECONDS
     with ThreadPoolExecutor(max_workers=2) as pool:
-        web_task = pool.submit(search_web, queries, web_provider)
-        sources = discover_sources(run, terms, gate, budget, detail=detail)
+        web_task = pool.submit(search_web, queries, web_provider, deadline=discovery_deadline)
+        sources = discover_sources(run, terms, gate, budget, detail=detail, deadline=discovery_deadline)
         web = web_task.result()
 
-    opened, candidates = _candidate_pool(sources.dossiers, web)
+    aliases = board_aliases(cached_postings(profile_slug))
+    aliases.update(board_aliases({row["identity_key"]: row for row in sources.cache}))
+    opened, candidates = _candidate_pool(sources.dossiers, web, aliases)
     flag_memory(profile_slug, candidates)
     eligible = [row for row in candidates if not _blocked(row["memory"], new_only=new_only)]
     skipped = len(candidates) - len(eligible)
     ranker = LexicalRanker(profile, query=query)
     searx_enabled = web.provider_used in {"searxng", "multi"} and any(hit.provider == "searxng" for hit in web.hits)
     targets = _target_plan(eligible, ranker, MAX_INSPECTIONS - (MAX_LOOKUPS if searx_enabled else 0))
-    aliases = board_aliases(cached_postings(profile_slug))
-    aliases.update(board_aliases({row["identity_key"]: row for row in sources.cache}))
     known = known_resolutions()
 
     def skip(key: str) -> bool:
         return _blocked(memory_flags(profile_slug, [key])[key], new_only=new_only)
 
+    deadline = start + TOTAL_SECONDS
     inspector = InspectionSession(run, detail, aliases, gate=gate, vendor_budget=budget,
-                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES)
+                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline)
     origins: dict[str, dict] = {}
     for row in targets:
         url = known.get(row["url"]) or row["url"]
@@ -218,21 +238,25 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     caches = [*sources.cache, *result.cache]
     failed = [row for row in result.dossiers if row["status"] == "unresolved_aggregator"]
     original = {row["url"]: row for row in targets}
-    followed = _lookup_targets(failed, original, ranker) if searx_enabled else {}
+    lookup_deadline = min(deadline - 2.0, time.monotonic() + 5.0)
+    followed = (_lookup_targets(failed, original, ranker, lookup_deadline)
+                if searx_enabled and lookup_deadline > time.monotonic() else {})
     extra_requests, resolved_urls = _inspect_lookups(inspector, followed, rows, caches)
     failed = [row for row in failed if row["url"] not in resolved_urls]
     remember_resolutions(inspector.resolutions)
     _inherit_sources(rows, origins)
     verified = [row for row in rows if row["status"] in {"open", "listed"} and _canonical(row)]
-    closed_ids = {row.get("id") for row in rows if row["status"] == "closed"}
-    verified.extend(row for row in eligible if row["status"] == "listed" and row["id"] not in closed_ids
-                    and _canonical(row))
+    blocked = [row for row in rows if row["status"] in {"closed", "skipped_memory"}]
+    blocked_ids = {row.get("id") for row in blocked}
+    blocked_urls = {url for row in blocked for url in (row["url"], row.get("found_at")) if url}
+    verified.extend(row for row in eligible if row["status"] == "listed" and row["id"] not in blocked_ids
+                    and row["url"] not in blocked_urls and _canonical(row))
     flag_memory(profile_slug, verified)
     safe = [row for row in verified if not _blocked(row["memory"], new_only=new_only)]
     returned = [{key: value for key, value in row.items() if key not in {"snippet", "kind"}}
                 for row in ranker.shortlist(safe, limit)]
     _persist(profile_slug, returned, caches, sources.boards)
-    _mark_gather_watch(profile_slug, returned, eligible)
+    _mark_gather_watch(profile_slug, returned, sources.dossiers)
 
     counts = Counter(row["status"] for row in rows)
     metadata = web.metadata()

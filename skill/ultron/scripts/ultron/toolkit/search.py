@@ -80,17 +80,17 @@ class _Searcher:
     """Queries each source with its own client; all clients share one host gate and one vendor budget."""
 
     def __init__(self, run: dict, terms: list[str], gate: HostGate, vendor_budget: VendorBudget | None,
-                 *, detail: bool = False) -> None:
+                 *, detail: bool = False, deadline: float | None = None) -> None:
         self.run, self.terms = run, terms
         self.profile = run["profile_snapshot"]
         self.context = ProfileContext(self.profile)
         self.timeout = run["settings"]["ats_api_timeout"]
         self.gate, self.vendor_budget = gate, vendor_budget
-        self.detail = detail
+        self.detail, self.deadline = detail, deadline
 
     def _client(self):
         return client_for_run(self.run, block_threshold=HOST_BLOCK_THRESHOLD, gate=self.gate,
-                              vendor_budget=self.vendor_budget)
+                              vendor_budget=self.vendor_budget, deadline=self.deadline)
 
     def role_source(self, source: RoleSource) -> tuple[str, dict, list[dict], list[dict]]:
         """One role API; ``(name, status, dossiers)``."""
@@ -223,15 +223,17 @@ class SourceDiscovery:
 
 
 def discover_sources(run: dict, terms: list[str], gate: HostGate, vendor_budget: VendorBudget | None, *,
-                     detail: bool = False) -> SourceDiscovery:
+                     detail: bool = False, deadline: float | None = None) -> SourceDiscovery:
     """Discover pending watch postings, ATS boards and feeds with shared network budgets."""
-    searcher = _Searcher(run, terms, gate, vendor_budget, detail=detail)
+    searcher = _Searcher(run, terms, gate, vendor_budget, detail=detail, deadline=deadline)
     profile_slug = run["profile_slug"]
     seeds = watch_seeds(run) or profile_seeds(profile_slug, run["profile_snapshot"], DAY_ONE_BOARDS,
                                               run["settings"]["max_requests_per_host"])
-    jobs = [(searcher.board, seed) for seed in seeds]
-    jobs += [(searcher.role_source, source) for source in SOURCES]
-    jobs += [(searcher.local_feed, source) for source in local_feeds()]
+    boards_to_query = [(searcher.board, seed) for seed in seeds]
+    feeds_to_query = [(searcher.role_source, source) for source in SOURCES]
+    feeds_to_query += [(searcher.local_feed, source) for source in local_feeds()]
+    jobs = (boards_to_query + feeds_to_query if deadline is None else
+            feeds_to_query + boards_to_query)
     sources: dict[str, dict] = {}
     dossiers, cache = [], []
     boards: dict[str, dict] = {}

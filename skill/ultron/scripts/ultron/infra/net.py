@@ -255,6 +255,7 @@ class HttpClient:
         max_requests_per_host: int,
         max_bytes: int = 5_000_000,
         timeout: float = 20.0,
+        deadline: float | None = None,
         min_interval_per_host: float = 0.5,
         gate: HostGate | None = None,
         transport: httpx.BaseTransport | None = None,
@@ -276,6 +277,7 @@ class HttpClient:
         self.max_requests_per_host = max_requests_per_host
         self.max_bytes = max_bytes
         self.timeout = timeout
+        self.deadline = deadline
         self.min_interval_per_host = min_interval_per_host
         self._gate = gate
         self.requests_made = 0
@@ -322,6 +324,28 @@ class HttpClient:
         self._client.close()
 
     # -- internals -------------------------------------------------------
+
+    def _remaining(self, maximum: float) -> float:
+        if self.deadline is None:
+            return maximum
+        remaining = self.deadline - self._clock()
+        if remaining <= 0:
+            raise RequestBudgetExceeded("request time budget exhausted")
+        return min(remaining, maximum)
+
+    def _budget_sleep(self, seconds: float) -> None:
+        if self._remaining(seconds) < seconds:
+            raise RequestBudgetExceeded("request time budget exhausted during retry or throttling")
+        self._sleep(seconds)
+
+    def _lock_host(self, stack: ExitStack, key: str) -> None:
+        lock = self._gate.lock_for(key)
+        if self.deadline is None:
+            stack.enter_context(lock)
+        elif lock.acquire(timeout=self._remaining(threading.TIMEOUT_MAX)):
+            stack.callback(lock.release)
+        else:
+            raise RequestBudgetExceeded("request time budget exhausted while waiting for the host")
 
     def _charge(self, host: str) -> None:
         if self.requests_made >= self.max_requests:
@@ -392,7 +416,7 @@ class HttpClient:
             if last is not None and interval > 0:
                 wait = max(wait, interval - (now - last))
         if wait > 0:
-            self._sleep(wait)
+            self._budget_sleep(wait)
         sent = self._clock()
         for key in keys:
             self._last_request[key] = sent
@@ -409,15 +433,16 @@ class HttpClient:
         keys = sorted({host, *((_VENDOR_KEY + vendor,) if vendor else ())})  # one lock order: no deadlock
         with ExitStack() as stack:
             for key in keys:
-                stack.enter_context(self._gate.lock_for(key))
+                self._lock_host(stack, key)
             for key in keys:
-                self._gate.space(key, self.host_delay(key), self._clock, self._sleep)
+                self._gate.space(key, self.host_delay(key), self._clock, self._budget_sleep)
             return self._send_unlocked(method, url, host, timeout, json_body, max_bytes, headers)
 
     def _send_unlocked(
         self, method: str, url: str, host: str, timeout: float, json_body: Any, max_bytes: int,
         headers: Mapping[str, str] | None = None,
     ) -> tuple[int, httpx.Headers, str]:
+        self._remaining(timeout)
         vendor = self.vendor_for(host)
         if vendor is not None:
             if self.vendor_budget.is_blocked(vendor):
@@ -435,7 +460,7 @@ class HttpClient:
             self._throttle(host, _VENDOR_KEY + vendor)
         else:
             self._throttle(host)
-        kwargs: dict[str, Any] = {"timeout": timeout, "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
+        kwargs: dict[str, Any] = {"timeout": self._remaining(timeout), "extensions": {PINNED_ADDRESSES: self._validated.get(host, ())}}
         if json_body is not None:
             kwargs["json"] = json_body
         if headers:
@@ -444,6 +469,7 @@ class HttpClient:
             with self._client.stream(method, url, **kwargs) as response:
                 body = bytearray()
                 for chunk in response.iter_bytes():
+                    self._remaining(timeout)
                     body.extend(chunk)
                     if len(body) >= max_bytes:
                         del body[max_bytes:]
@@ -471,6 +497,7 @@ class HttpClient:
         current = url
         first_origin: tuple[str, str, int | None] | None = None
         for _hop in range(MAX_REDIRECTS + 1):
+            self._remaining(effective_timeout)
             admitted = admit_url(current, allowed_domains=allowed_domains)
             # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
             # Resolve the ASCII host HTTPX connects to and sends as SNI/Host (IDNA2008, e.g. "xn--fa-hia.de"),
@@ -498,13 +525,13 @@ class HttpClient:
                         )
                     except HttpError as exc:
                         if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
-                            self._sleep(0.5 * attempt)
+                            self._budget_sleep(0.5 * attempt)
                             continue
                         raise
                     rate_limited = rate_limited or status == 429
                     if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
                         delay = _retry_after(httpx.Response(status, headers=response_headers), self._wall_clock())
-                        self._sleep(0.5 * attempt if delay is None else delay)
+                        self._budget_sleep(0.5 * attempt if delay is None else delay)
                         continue
                     break
             except Exception:

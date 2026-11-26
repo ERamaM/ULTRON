@@ -11,6 +11,10 @@ from ultron.toolkit.dossier import employer_name
 
 _PATH_MARKERS = frozenset({"company", "companies", "employers", "employer"})
 _ATS_FILTER = "site:greenhouse.io OR site:ashbyhq.com OR site:lever.co"
+_TITLE_NOISE = frozenset({"senior", "sr", "junior", "jr", "staff", "principal", "lead", "head", "the", "of",
+                         "a", "an", "and", "hiring", "job", "remote", "hybrid", "onsite"})
+_OCCUPATIONS = frozenset({"engineer", "developer", "analyst", "manager", "scientist", "consultant", "specialist"})
+_ABBREVIATIONS = {"ai": ("artificial", "intelligence"), "ml": ("machine", "learning")}
 
 
 def aggregator_company(url: str) -> str:
@@ -48,6 +52,21 @@ def lookup_query(company: str, title: str) -> str:
     return f'"{name}" {role} ({_ATS_FILTER})' if name and role else ""
 
 
+def _role_terms(title: str, company: str) -> set[str]:
+    title = title[:250].split(" | ", 1)[0]
+    for separator in (" at ", " @ "):
+        role, found, _company = title.rpartition(separator)
+        if found:
+            title = role
+            break
+    left, found, right = title.partition(" - ")
+    if found and company_key(left) == company_key(company):
+        title = right
+    elif found and company_key(right) == company_key(company):
+        title = left
+    return {term for word in _words(title) if word not in _TITLE_NOISE for term in _ABBREVIATIONS.get(word, (word,))}
+
+
 def matches_lookup(url: str, result_title: str, company: str, title: str) -> bool:
     """Accept a targeted hit only when its ATS tenant and title match the listing."""
     if not is_job_link(url) or (seed := extract_seed_from_url(url, "")) is None:
@@ -56,6 +75,5 @@ def matches_lookup(url: str, result_title: str, company: str, title: str) -> boo
         return False
     keys = {company_key(name) for name in (company, *slug_candidates(company, ""))}
     board = company_key(str(seed.board_identifier))
-    role = set(_words(title))
-    matched = role.intersection(_words(result_title))
-    return bool(board and board in keys and len(matched) >= min(2, len(role)) and role)
+    role = _role_terms(title, company)
+    return bool(board and board in keys and role - _OCCUPATIONS and role <= _role_terms(result_title, company))

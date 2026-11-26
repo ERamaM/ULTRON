@@ -9,11 +9,12 @@ from ultron.core import presets
 from ultron.core.discovery.url_filter import normalize_url
 from ultron.core.ranker.lexical import LexicalRanker
 from ultron.core.web_search import searxng
-from ultron.core.web_search.cascade import search_web
+from ultron.core.web_search.cascade import provider_mode, search_web
 from ultron.core.web_search.dedup import deduplicate_hits
 from ultron.core.web_search.models import WebSearchResult
 from ultron.core.web_search.query_builder import build_queries, relaxed_queries
 from ultron.infra.net import HostGate
+from ultron.infra.searxng import prepare_search
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.http_factory import load_vendor_budget
 from ultron.stages.role_feeds import known_resolutions, query_terms, remember_resolutions
@@ -221,17 +222,19 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     """Return one batch of ranked factual dossiers and cache the selected postings for shortlist save."""
     if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
         raise ValueError("limit must be 1-100 and max_queries must be 1-40")
-    start = time.monotonic()
     run = run_context(profile_slug, preset)
     profile = run["profile_snapshot"]
     terms = query_terms(profile, query)
     queries = build_queries(profile, max_queries, query=query if query.strip() else None)
     if query.strip():
         run = {**run, "profile_snapshot": profile_for_query(profile, terms)}
+    mode = provider_mode(web_provider)
+    docker_status = prepare_search() if queries and mode in {"auto", "searxng"} else {}
+    start = time.monotonic()
     gate, budget = HostGate(), load_vendor_budget(run)
     discovery_deadline = start + DISCOVERY_SECONDS
     with ThreadPoolExecutor(max_workers=2) as pool:
-        web_task = pool.submit(search_web, queries, web_provider, deadline=discovery_deadline)
+        web_task = pool.submit(search_web, queries, mode, deadline=discovery_deadline)
         sources = discover_sources(run, terms, gate, budget, detail=detail, deadline=discovery_deadline)
         web = web_task.result()
 
@@ -279,7 +282,7 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     _mark_gather_watch(profile_slug, returned, sources.dossiers)
 
     counts = Counter(row["status"] for row in rows)
-    metadata = web.metadata()
+    metadata = {**web.metadata(), **docker_status}
     metadata["provider"] = metadata.pop("provider_used")
     metadata["unique_urls"] = metadata.pop("unique_hits")
     unresolved = [{"url": row["url"], "company": row.get("company") or original.get(row["url"], {}).get("company", "")}

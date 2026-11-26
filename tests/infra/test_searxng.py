@@ -82,9 +82,9 @@ def docker(monkeypatch, tmp_path):
     monkeypatch.delenv("DOCKER_HOST", raising=False)
     monkeypatch.delenv("DOCKER_CONTEXT", raising=False)
     monkeypatch.delenv("ULTRON_SEARXNG_PORT", raising=False)
-    monkeypatch.setattr(searxng, "docker_available", lambda: True)
-    monkeypatch.setattr(searxng, "json_health", lambda url: url.startswith("http://127.0.0.1:"))
-    state = SimpleNamespace(issued=[], container=None, compose=True, remote=False, foreign=False)
+    monkeypatch.setattr(searxng, "docker_executable", lambda: "docker")
+    monkeypatch.setattr(searxng, "json_health", lambda url=None, **_options: bool(url and url.startswith("http://127.0.0.1:")))
+    state = SimpleNamespace(issued=[], container=None, compose=True, remote=False, foreign=False, daemon=True)
     identity = "a" * 64
 
     def run(argv, *, env, shell, timeout, cwd, **kwargs):
@@ -96,6 +96,8 @@ def docker(monkeypatch, tmp_path):
         result = SimpleNamespace(returncode=0, stdout="", stderr="")
         if args[0] == "context":
             result.stdout = "ssh://other" if state.remote else "unix:///var/run/docker.sock"
+        elif args[0] == "info":
+            result.returncode = 0 if state.daemon else 1
         elif args[:2] == ["container", "ls"]:
             result.stdout = identity[:12] if state.container else ""
         elif args[:2] == ["container", "inspect"]:
@@ -220,3 +222,82 @@ def test_docker_missing_and_doctor(monkeypatch):
     assert doctor.check_web_search(network=False).ok
     monkeypatch.setattr(doctor, "ddgs_available", lambda: True)
     assert doctor.check_web_search(network=False).detail == "Optional ddgs search is available."
+
+
+def test_status_only_probes_stopped_daemon(docker, monkeypatch, capsys):
+    docker.daemon = False
+    monkeypatch.setattr(searxng, "start_daemon", lambda *a, **k: pytest.fail("status started Docker"))
+    assert main(["searxng", "status"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["docker_available"] is True and payload["daemon_running"] is False
+    assert payload["state"] == "unknown" and payload["json_healthy"] is False
+    assert payload["start_hint"]
+    assert searxng.manage("down") == payload
+
+
+def test_up_starts_backend_and_polls_before_starting_container(docker, monkeypatch):
+    docker.daemon = False
+    launched = []
+
+    def start(endpoint, *, timeout):
+        assert endpoint.startswith("unix:///") and 0 < timeout <= 4
+        launched.append(endpoint)
+        return True
+
+    def sleep(_):
+        docker.daemon = True
+
+    monkeypatch.setattr(searxng, "start_daemon", start)
+    monkeypatch.setattr(searxng.time, "sleep", sleep)
+    state = searxng.manage("up")
+    assert launched and state["daemon_running"] and state["state"] == "running" and state["json_healthy"]
+    docker.container[1] = "exited"
+    assert searxng.manage("status")["state"] == "exited"
+    assert not searxng.manage("status")["json_healthy"]
+
+
+def test_up_reports_unreachable_daemon_after_bounded_start(docker, monkeypatch):
+    docker.daemon = False
+    monkeypatch.setattr(searxng, "_DAEMON_START_SECONDS", 0)
+    monkeypatch.setattr(searxng, "start_daemon", lambda *a, **k: pytest.fail("startup budget was exhausted"))
+    state = searxng.manage("up")
+    assert state["daemon_running"] is False and state["start_hint"] and docker.container is None
+
+
+def test_prepare_search_skips_override_and_respects_opt_out(docker, monkeypatch):
+    monkeypatch.delenv("ULTRON_SEARXNG_URL", raising=False)
+    assert searxng.prepare_search() == {}
+    monkeypatch.setenv("ULTRON_SEARXNG_AUTO_START", "1")
+    monkeypatch.setenv("ULTRON_SEARXNG_URL", "https://example.org")
+    assert searxng.prepare_search() == {}
+    assert not docker.issued
+    monkeypatch.delenv("ULTRON_SEARXNG_URL", raising=False)
+    state = searxng.prepare_search()
+    assert state == {"docker_available": True, "daemon_running": True, "json_healthy": True}
+    monkeypatch.setattr(searxng, "json_health", lambda *a, **k: True)
+    assert searxng.prepare_search()["json_healthy"]
+
+
+def test_prepare_search_reports_missing_or_unavailable_docker(monkeypatch):
+    monkeypatch.delenv("ULTRON_SEARXNG_URL", raising=False)
+    monkeypatch.setenv("ULTRON_SEARXNG_AUTO_START", "1")
+    monkeypatch.setattr(searxng, "json_health", lambda *a, **k: False)
+    monkeypatch.setattr(searxng, "docker_executable", lambda: None)
+    state = searxng.prepare_search()
+    assert state["docker_available"] is False and state["install_hint"]
+    monkeypatch.setattr(searxng, "docker_executable", lambda: "docker")
+
+    def fail(*_args, **_kwargs):
+        raise searxng.LifecycleError("unavailable")
+
+    monkeypatch.setattr(searxng, "manage", fail)
+    assert searxng.prepare_search()["start_hint"]
+
+
+def test_up_replaces_stale_managed_settings(tmp_path, docker):
+    assert searxng.manage("up")["json_healthy"]
+    settings = tmp_path / "ULTRON state" / "searxng" / "config" / "settings.yml"
+    settings.write_text("old settings", encoding="utf-8")
+    assert searxng.manage("up")["json_healthy"]
+    assert "formats: [html, json]" in settings.read_text(encoding="utf-8")
+    assert any(args[:2] == ["container", "rm"] for args in docker.issued)

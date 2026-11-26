@@ -5,7 +5,6 @@ import json
 import os
 import re
 import secrets
-import shutil
 import stat
 import subprocess
 import time
@@ -14,6 +13,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from ultron.infra.docker_runtime import docker_executable, install_hint, start_daemon, start_hint
 from ultron.infra.fs import atomic_create_bytes, atomic_write_bytes, is_link
 from ultron.infra.home import data_dir, ultron_home
 from ultron.infra.loopback import explicit_loopback_origin, read_loopback
@@ -28,6 +28,8 @@ _CONTAINER_PORT = "8080/tcp"
 _SECRET_VAR = "SEARXNG_SECRET"
 _ID = re.compile(r"[0-9a-f]{12,64}")
 _HEALTH_CHECK = "/search?format=json"
+_DAEMON_START_SECONDS = 50.0
+_SEARCH_START_SECONDS = 55.0
 _RESOURCES = {"cpus": 1.0, "mem_limit": "512m", "pids_limit": 128}
 _CONTAINER_ENV = (
     _SECRET_VAR, "FORCE_OWNERSHIP=false", "GRANIAN_WORKERS=1", "GRANIAN_BLOCKING_THREADS=4",
@@ -113,10 +115,18 @@ def json_health(base: str | None = None, *, timeout: float = 1.5) -> bool:
 
 def docker_available() -> bool:
     """Return whether the Docker CLI is installed."""
-    return shutil.which("docker") is not None
+    return docker_executable() is not None
 
 
-def _docker(*args: str, timeout: int = 15, secret: str | None = None, cwd: Path | None = None):
+def _remaining(deadline: float | None, maximum: float) -> float:
+    return maximum if deadline is None else min(maximum, max(0.0, deadline - time.monotonic()))
+
+
+def _docker(*args: str, timeout: float = 15, secret: str | None = None, cwd: Path | None = None,
+            deadline: float | None = None):
+    timeout = _remaining(deadline, timeout)
+    if timeout <= 0:
+        raise LifecycleError("Docker startup reached its time limit.")
     env = os.environ.copy()
     env.pop(_SECRET_VAR, None)
     env["COMPOSE_DISABLE_ENV_FILE"] = "1"
@@ -124,20 +134,41 @@ def _docker(*args: str, timeout: int = 15, secret: str | None = None, cwd: Path 
         env[_SECRET_VAR] = secret
     try:
         return subprocess.run(
-            ["docker", *args], shell=False, check=False, capture_output=True,
+            [docker_executable() or "docker", *args], shell=False, check=False, capture_output=True,
             text=True, encoding="utf-8", errors="replace", timeout=timeout, env=env, cwd=cwd,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise LifecycleError("Docker could not complete the operation.") from error
 
 
-def _check_context() -> None:
+def _local_endpoint(deadline: float | None) -> str:
     # Restrict bind mounts and published ports to a daemon on this machine.
     override = os.environ.get("DOCKER_HOST") if not os.environ.get("DOCKER_CONTEXT") else None
-    result = _docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}") if not override else None
+    result = _docker("context", "inspect", "--format", "{{.Endpoints.docker.Host}}", deadline=deadline) if not override else None
     endpoint = override or (result.stdout.strip() if result.returncode == 0 else "")
     if not endpoint.startswith(("unix:///", "npipe:////./pipe/")):
         raise LifecycleError("SearXNG requires a local Docker context.")
+    return endpoint
+
+
+def _daemon_running(deadline: float | None) -> bool:
+    try:
+        return _docker("info", "--format", "{{.ServerVersion}}", timeout=2, deadline=deadline).returncode == 0
+    except LifecycleError:
+        return False
+
+
+def _start_and_wait(endpoint: str, deadline: float | None) -> bool:
+    stop = min(time.monotonic() + _DAEMON_START_SECONDS, deadline if deadline is not None else float("inf"))
+    if not (timeout := _remaining(stop, 4)):
+        return False
+    if not start_daemon(endpoint, timeout=timeout):
+        return False
+    while _remaining(stop, 1) > 0:
+        if _daemon_running(stop):
+            return True
+        time.sleep(_remaining(stop, 1))
+    return False
 
 
 def _managed_root() -> Path:
@@ -185,8 +216,8 @@ def _owner(root: Path) -> str:
     return hashlib.sha256(os.fsencode(os.path.normcase(root))).hexdigest()
 
 
-def _inspect(root: Path) -> dict | None:
-    listed = _docker("container", "ls", "-aq", "--filter", f"name=^/{CONTAINER}$")
+def _inspect(root: Path, deadline: float | None) -> dict | None:
+    listed = _docker("container", "ls", "-aq", "--filter", f"name=^/{CONTAINER}$", deadline=deadline)
     if listed.returncode:
         raise LifecycleError("The Docker daemon is unavailable.")
     container_id = listed.stdout.strip()
@@ -196,7 +227,7 @@ def _inspect(root: Path) -> dict | None:
         raise LifecycleError("Docker returned an invalid container identity.")
     fields = ('{{json .Id}}', '{{json .State.Status}}', '{{json .Config.Image}}',
               f'{{{{json (index .Config.Labels "{_OWNER_LABEL}")}}}}', '{{json .HostConfig.PortBindings}}')
-    result = _docker("container", "inspect", "--format", "[" + ",".join(fields) + "]", container_id)
+    result = _docker("container", "inspect", "--format", "[" + ",".join(fields) + "]", container_id, deadline=deadline)
     try:
         full_id, status, image, owner, bindings = json.loads(result.stdout) if result.returncode == 0 else []
         if not _ID.fullmatch(full_id) or owner != _owner(root):
@@ -212,12 +243,12 @@ def _inspect(root: Path) -> dict | None:
         raise LifecycleError("Could not verify local SearXNG container ownership and port.") from error
 
 
-def _launch(root: Path, port: int) -> None:
+def _launch(root: Path, port: int, deadline: float | None) -> None:
     settings, secret = _stage(root)
     owner = _owner(root)
     publish = f"127.0.0.1:{port}:8080"
     target = "/etc/searxng/settings.yml"
-    compose = _docker("compose", "version")
+    compose = _docker("compose", "version", deadline=deadline)
     if compose.returncode == 0:
         # JSON is valid Compose YAML. Escape Compose interpolation in user-selected paths.
         config = {"services": {"searxng": {
@@ -230,7 +261,7 @@ def _launch(root: Path, port: int) -> None:
         path = root / "compose.json"
         atomic_write_bytes(path, json.dumps(config).encode("utf-8"))
         result = _docker("compose", "--project-name", f"ultron-searxng-{owner[:12]}", "--file", str(path),
-                         "up", "--detach", timeout=180, secret=secret, cwd=root)
+                         "up", "--detach", timeout=180, secret=secret, cwd=root, deadline=deadline)
     else:
         source = str(settings)
         if "," in source or '"' in source:
@@ -240,21 +271,22 @@ def _launch(root: Path, port: int) -> None:
                          "--publish", publish, "--mount", f"type=bind,source={source},target={target},readonly",
                          "--cpus", str(_RESOURCES["cpus"]), "--memory", _RESOURCES["mem_limit"],
                          "--pids-limit", str(_RESOURCES["pids_limit"]),
-                         *environment_args, IMAGE, timeout=180, secret=secret)
+                         *environment_args, IMAGE, timeout=180, secret=secret, deadline=deadline)
     if result.returncode:
         raise LifecycleError("Docker could not launch SearXNG. Verify the daemon, port and file sharing.")
 
 
-def _remove(container: dict | None) -> None:
-    if container and _docker("container", "rm", "--force", container["id"], timeout=30).returncode:
+def _remove(container: dict | None, deadline: float | None) -> None:
+    if container and _docker("container", "rm", "--force", container["id"], timeout=30, deadline=deadline).returncode:
         raise LifecycleError("Docker could not remove the managed SearXNG container.")
 
 
-def _wait(url: str) -> bool:
-    for _ in range(20):
-        if json_health(url):
+def _wait(url: str, deadline: float | None) -> bool:
+    stop = time.monotonic() + _remaining(deadline, 12)
+    while timeout := _remaining(stop, 1.5):
+        if json_health(url, timeout=timeout):
             return True
-        time.sleep(0.5)
+        time.sleep(_remaining(stop, 0.5))
     return False
 
 
@@ -278,34 +310,79 @@ def _diagnostics(root: Path, container: dict | None) -> dict:
     return details
 
 
-def manage(action: str, *, port: int | None = None) -> dict:
-    """Perform one lifecycle operation on the installation's local service."""
-    if not docker_available():
-        return {"docker_available": False, "state": "missing", "json_healthy": False}
-    _check_context()
-    root = _managed_root()
-    container = _inspect(root)
-    if action == "down":
-        _remove(container)
+def _config_drift(root: Path) -> bool:
+    settings = root / "config" / "settings.yml"
+    if is_link(settings.parent) or is_link(settings):
+        raise LifecycleError("SearXNG settings paths cannot be links.")
+    return settings.is_file() and settings.read_bytes() != (data_dir() / "searxng" / "settings.yml").read_bytes()
+
+
+def _bring_up(root: Path, container: dict | None, action: str, port: int | None, deadline: float | None) -> dict | None:
+    desired = default_url(port)
+    if action == "restart":
+        _remove(container, deadline)
         container = None
-    elif action in {"up", "restart"}:
-        desired = default_url(port)
-        if action == "restart":
-            _remove(container)
-            container = None
-        if container and (container["url"] != desired or container["image"] != IMAGE):
-            raise LifecycleError("Run ultron searxng restart to apply the requested port or image.")
-        if container is None:
-            _launch(root, configured_port(port))
-        elif container["state"] != "running" and _docker("container", "start", container["id"]).returncode:
-            raise LifecycleError("Docker could not start the managed SearXNG container.")
-        container = _inspect(root)
-        if container and container["url"] == desired:
-            atomic_write_bytes(root / "port", f"{urlsplit(desired).port}\n".encode("ascii"))
-    payload = {"docker_available": True, "state": "absent", "json_healthy": False}
+    if container and (container["url"] != desired or container["image"] != IMAGE):
+        raise LifecycleError("Run ultron searxng restart to apply the requested port or image.")
+    if container and _config_drift(root):
+        _remove(container, deadline)
+        container = None
+    if container is None:
+        _launch(root, configured_port(port), deadline)
+    elif (container["state"] != "running"
+          and _docker("container", "start", container["id"], deadline=deadline).returncode):
+        raise LifecycleError("Docker could not start the managed SearXNG container.")
+    container = _inspect(root, deadline)
+    if container and container["url"] == desired:
+        atomic_write_bytes(root / "port", f"{urlsplit(desired).port}\n".encode("ascii"))
+    return container
+
+
+def manage(action: str, *, port: int | None = None, deadline: float | None = None) -> dict:
+    """Report Docker and container state or perform a bounded lifecycle operation."""
+    if not docker_available():
+        return {"docker_available": False, "daemon_running": False, "state": "missing", "json_healthy": False,
+                "install_hint": install_hint()}
+    starting = action in {"up", "restart"}
+    if starting:
+        configured_port(port)
+    endpoint = _local_endpoint(deadline)
+    if not _daemon_running(deadline):
+        if not starting or not _start_and_wait(endpoint, deadline):
+            return {"docker_available": True, "daemon_running": False, "state": "unknown", "json_healthy": False,
+                    "start_hint": start_hint()}
+        _local_endpoint(deadline)
+    root = _managed_root()
+    container = _inspect(root, deadline)
+    if action == "down":
+        _remove(container, deadline)
+        container = None
+    elif starting:
+        container = _bring_up(root, container, action, port, deadline)
+    payload = {"docker_available": True, "daemon_running": True, "state": "absent", "json_healthy": False}
     if container:
-        probe = _wait if action in {"up", "restart"} else json_health
-        payload.update(container, json_healthy=container["state"] == "running" and probe(container["url"]))
+        healthy = container["state"] == "running" and (
+            _wait(container["url"], deadline) if starting else json_health(container["url"]))
+        payload.update(container, json_healthy=healthy)
     if action == "diagnose":
         payload.update(_diagnostics(root, container))
     return payload
+
+
+def prepare_search() -> dict:
+    """Make the managed SearXNG service available when local auto-start is enabled."""
+    if os.environ.get("ULTRON_SEARXNG_URL") or os.environ.get("ULTRON_SEARXNG_AUTO_START", "").lower() in {
+        "0", "false", "no", "off",
+    }:
+        return {}
+    available = docker_available()
+    try:
+        if json_health() and not _config_drift(_managed_root()):
+            return {"docker_available": available, "json_healthy": True,
+                    **({"install_hint": install_hint()} if not available else {})}
+        state = manage("up", deadline=time.monotonic() + _SEARCH_START_SECONDS)
+    except (LifecycleError, OSError, ValueError):
+        return {"docker_available": available, "json_healthy": False,
+                "start_hint": "Run ultron searxng status or ultron searxng up to finish local setup."}
+    fields = ("docker_available", "daemon_running", "json_healthy", "install_hint", "start_hint")
+    return {key: state[key] for key in fields if key in state}

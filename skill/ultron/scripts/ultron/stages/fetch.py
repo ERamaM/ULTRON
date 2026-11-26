@@ -601,8 +601,13 @@ def fetch_posting(candidate: CandidateUrl, client, allowed_domains: list[str]) -
     ``VendorBlocked`` and ``RequestBudgetExceeded`` propagate: the caller decides how its budgets react.
     """
     url = candidate.normalized_url
+    parsed = urlsplit(url)
     try:
-        status, final_url, html = get_posting_page(client, url)
+        if _host_is(parsed.hostname or "", "greenhouse.io") and _GH_JOB_RE.match(parsed.path):
+            # Try the job API after the first 429, before an HTML retry can trip the vendor breaker.
+            status, final_url, html = client.get_text(url, retry_rate_limited=False)
+        else:
+            status, final_url, html = get_posting_page(client, url)
     except VendorBlocked:
         raise  # a vendor-wide block is the caller's budget decision, not this posting's outcome
     except HostBlocked:

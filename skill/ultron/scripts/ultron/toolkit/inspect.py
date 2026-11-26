@@ -166,7 +166,7 @@ class InspectionSession:
         self.allowed = load_allowed_domains()
         self.boards = boards  # normalized posting URL -> the "vendor:board" a board listed it on
         self.gate = gate if gate is not None else HostGate()
-        self.vendor_budget = vendor_budget if gate is not None else load_vendor_budget(run)
+        self.vendor_budget = vendor_budget or load_vendor_budget(run)
         # Aggregator pages followed, written to disk once at the end of the call (never from parallel threads).
         self.resolutions: dict[str, str] = {}
         self.fallbacks: set[str] = set()
@@ -403,7 +403,7 @@ def _summary(dossiers: list[dict], misses: list[dict], show_all: bool) -> dict[s
 
 def inspect_jobs(profile_slug: str, urls: Iterable[Any] = (), companies: Iterable[str] = (), *,
                  detail: bool = False, show_all: bool = False, preset: str = presets.DEFAULT_PRESET,
-                 time_budget: float | None = None) -> dict[str, Any]:
+                 time_budget: float | None = None, vendor_budget: VendorBudget | None = None) -> dict[str, Any]:
     """Open postings, boards and companies for ``profile_slug``; return compact dossiers of what is open.
 
     ``urls`` holds URLs, or ``{"url", "company"}`` mappings (the company helps follow an aggregator page). Each
@@ -416,7 +416,8 @@ def inspect_jobs(profile_slug: str, urls: Iterable[Any] = (), companies: Iterabl
     """
     deadline = time.monotonic() + time_budget if time_budget is not None else None
     run = run_context(profile_slug, preset)
-    inspector = InspectionSession(run, detail, board_aliases(cached_postings(profile_slug)), deadline=deadline)
+    inspector = InspectionSession(run, detail, board_aliases(cached_postings(profile_slug)), deadline=deadline,
+                                  vendor_budget=vendor_budget)
     result = inspector.inspect(as_targets(urls), companies)
     partial = deadline is not None and time.monotonic() >= deadline
     cache_postings(profile_slug, result.cache)

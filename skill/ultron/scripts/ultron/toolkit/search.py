@@ -255,7 +255,8 @@ def discover_sources(run: dict, terms: list[str], gate: HostGate, vendor_budget:
 
 def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, limit: int = DEFAULT_LIMIT,
                 preset: str = presets.DEFAULT_PRESET,
-                select_response: Callable[[dict], dict] | None = None) -> dict[str, Any]:
+                select_response: Callable[[dict], dict] | None = None,
+                vendor_budget: VendorBudget | None = None) -> dict[str, Any]:
     """Postings for ``profile_slug`` from the watch, ATS boards and role-searchable job APIs.
 
     ``query`` replaces the profile's target titles as the role query. ``new_only`` keeps postings the profile has
@@ -266,7 +267,7 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     terms = query_terms(run["profile_snapshot"], query)
     if query.strip():  # match titles against the asked role; location and eligibility rules stay the profile's
         run = {**run, "profile_snapshot": profile_for_query(run["profile_snapshot"], terms)}
-    found = discover_sources(run, terms, HostGate(), load_vendor_budget(run))
+    found = discover_sources(run, terms, HostGate(), vendor_budget or load_vendor_budget(run))
     dossiers = found.dossiers
     # Memory first: with new_only, a seen posting must not hide a new opening of the same role.
     flag_memory(profile_slug, dossiers)

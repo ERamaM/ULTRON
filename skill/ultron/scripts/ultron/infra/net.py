@@ -75,9 +75,8 @@ class VendorBudget:
 
     A multi-tenant vendor serves each customer from its own host (``acme.wd5.myworkdayjobs.com``), so per-host caps
     and breakers never bound the vendor as a whole. Here every host of a vendor counts toward one cap
-    (``max_requests``) and one breaker. Strikes count per request, not per retry attempt: a request that met a 429 is
-    a strike for the rest of the run; a request that ended in 403 is a strike until the vendor next answers 2xx (a
-    single private tenant must not block the vendor). ``block_threshold`` strikes block the vendor. ``on_change`` is
+    (``max_requests``) and one breaker. Each HTTP 429, including a retry, strikes for the rest of the run.
+    Each 403 is a strike until the vendor next answers 2xx (a single private tenant must not block the vendor). ``block_threshold`` strikes block the vendor. ``on_change`` is
     called after every change (persistence).
     """
 
@@ -126,21 +125,21 @@ class VendorBudget:
             self.requests[vendor] = self.requests.get(vendor, 0) + 1
             self._changed()
 
-    def record(self, vendor: str, status: int, *, rate_limited: bool = False) -> None:
-        """Count one request's outcome: its final ``status``, and ``rate_limited`` if any attempt got a 429."""
+    def record(self, vendor: str, status: int) -> None:
+        """Record one HTTP response before another request to this vendor can be sent."""
         with self._lock:
-            self._record(vendor, status, rate_limited)
+            self._record(vendor, status)
 
-    def _record(self, vendor: str, status: int, rate_limited: bool) -> None:
+    def _record(self, vendor: str, status: int) -> None:
         changed = False
-        if rate_limited or status == 429:
+        if status == 429:
             self.rate_limited[vendor] = self.rate_limited.get(vendor, 0) + 1
             changed = True
         if status == 403:
             self.forbidden_streak[vendor] = self.forbidden_streak.get(vendor, 0) + 1
             changed = True
         elif 200 <= status < 300 and self.forbidden_streak.get(vendor):
-            # Any final success clears the 403 streak, also when an earlier attempt of this request met a 429.
+            # A successful response clears the 403 streak.
             self.forbidden_streak[vendor] = 0
             changed = True
         if not changed:
@@ -434,8 +433,6 @@ class HttpClient:
         with ExitStack() as stack:
             for key in keys:
                 self._lock_host(stack, key)
-            for key in keys:
-                self._gate.space(key, self.host_delay(key), self._clock, self._budget_sleep)
             return self._send_unlocked(method, url, host, timeout, json_body, max_bytes, headers)
 
     def _send_unlocked(
@@ -453,6 +450,11 @@ class HttpClient:
                 )
         if self.block_threshold is not None and self.block_streak(host) >= self.block_threshold:
             raise HostBlocked(host)
+        if self._gate is not None:
+            self._gate.space(host, self.host_delay(host), self._clock, self._budget_sleep)
+            if vendor is not None:
+                key = _VENDOR_KEY + vendor
+                self._gate.space(key, self.host_delay(key), self._clock, self._budget_sleep)
         self._charge(host)
         if vendor is not None:
             self._vendor_spent[vendor] = self._vendor_spent.get(vendor, 0) + 1
@@ -467,6 +469,9 @@ class HttpClient:
             kwargs["headers"] = dict(headers)
         try:
             with self._client.stream(method, url, **kwargs) as response:
+                status = response.status_code
+                if vendor is not None:
+                    self.vendor_budget.record(vendor, status)
                 body = bytearray()
                 for chunk in response.iter_bytes():
                     self._remaining(timeout)
@@ -476,7 +481,6 @@ class HttpClient:
                         break
                 encoding = response.charset_encoding
                 headers = response.headers
-                status = response.status_code
         except httpx.InvalidURL as exc:  # e.g. a host Python's IDNA codec accepts but httpx (IDNA2008) refuses
             raise URLRejected("invalid_url") from exc
         except httpx.HTTPError as exc:
@@ -490,7 +494,7 @@ class HttpClient:
     def _fetch(
         self, method: str, url: str, timeout: float | None, json_body: Any = None,
         allowed_domains: tuple[str, ...] = (), *, max_bytes: int | None = None,
-        headers: Mapping[str, str] | None = None,
+        headers: Mapping[str, str] | None = None, retry_rate_limited: bool = True,
     ) -> tuple[int, str, str]:
         effective_timeout = self.timeout if timeout is None else timeout
         byte_limit = self.max_bytes if max_bytes is None else max_bytes
@@ -516,32 +520,22 @@ class HttpClient:
             # to a redirect target on another host or downgraded to plain HTTP.
             hop_headers = headers if origin == first_origin else None
             vendor = self.vendor_for(admitted.hostname)
-            rate_limited = False
-            try:
-                for attempt in range(1, MAX_ATTEMPTS + 1):
-                    try:
-                        status, response_headers, text = self._send_once(
-                            method, current, admitted.hostname, effective_timeout, json_body, byte_limit, hop_headers,
-                        )
-                    except HttpError as exc:
-                        if attempt < MAX_ATTEMPTS and _is_transient(exc, method):
-                            self._budget_sleep(0.5 * attempt)
-                            continue
+            for attempt in range(1, MAX_ATTEMPTS + 1):
+                try:
+                    status, response_headers, text = self._send_once(
+                        method, current, admitted.hostname, effective_timeout, json_body, byte_limit, hop_headers,
+                    )
+                except HttpError as exc:
+                    if attempt == MAX_ATTEMPTS or not _is_transient(exc, method):
                         raise
-                    rate_limited = rate_limited or status == 429
-                    if status in RETRY_STATUSES and attempt < MAX_ATTEMPTS:
-                        delay = _retry_after(httpx.Response(status, headers=response_headers), self._wall_clock())
-                        self._budget_sleep(0.5 * attempt if delay is None else delay)
-                        continue
+                    self._budget_sleep(0.5 * attempt)
+                    continue
+                if vendor is not None and self.vendor_budget.is_blocked(vendor):
                     break
-            except Exception:
-                # Any interruption of the retries (a transport error, a spent budget, a block) keeps a 429 the
-                # request already met as a vendor strike.
-                if vendor is not None and rate_limited:
-                    self.vendor_budget.record(vendor, 429, rate_limited=True)
-                raise
-            if vendor is not None:
-                self.vendor_budget.record(vendor, status, rate_limited=rate_limited)
+                if status not in RETRY_STATUSES or attempt == MAX_ATTEMPTS or (status == 429 and not retry_rate_limited):
+                    break
+                delay = _retry_after(httpx.Response(status, headers=response_headers), self._wall_clock())
+                self._budget_sleep(0.5 * attempt if delay is None else delay)
             location = response_headers.get("Location")
             if status in REDIRECT_STATUSES and location:
                 current = urljoin(current, location)
@@ -553,9 +547,10 @@ class HttpClient:
 
     # -- public API ------------------------------------------------------
 
-    def get_text(self, url: str, *, allowed_domains: tuple[str, ...] = ()) -> tuple[int, str, str]:
-        """``(status, final_url, text)``; ``allowed_domains`` (host suffixes) is enforced on every redirect hop."""
-        return self._fetch("GET", url, None, allowed_domains=allowed_domains)
+    def get_text(self, url: str, *, allowed_domains: tuple[str, ...] = (),
+                 retry_rate_limited: bool = True) -> tuple[int, str, str]:
+        """Return status, URL and text. Set ``retry_rate_limited=False`` to handle a 429 immediately."""
+        return self._fetch("GET", url, None, allowed_domains=allowed_domains, retry_rate_limited=retry_rate_limited)
 
     def request_text(
         self, url: str, timeout: float | None = None, *, allowed_domains: tuple[str, ...] = ()

@@ -7,11 +7,12 @@ tenants: every per-host cap and breaker counted each tenant separately, so nothi
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 import pytest
 
-from ultron.infra.net import HttpClient, HttpError, RequestBudgetExceeded, VendorBlocked, VendorBudget
+from ultron.infra.net import HostGate, HttpClient, HttpError, RequestBudgetExceeded, VendorBlocked, VendorBudget
 from ultron.profiles import store as profiles
 from ultron.stages import http_factory
 from ultron.storage import runs
@@ -63,24 +64,28 @@ def test_vendor_cap_counts_requests_across_tenant_hosts():
     assert client.get_text("https://employer.example.org/")[0] == 200
 
 
-def test_429s_from_two_tenants_block_every_tenant_of_the_vendor():
+def test_two_429_attempts_block_the_vendor_for_all_clients_sharing_the_gate():
     hits: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         hits.append(request.url.host)
-        return httpx.Response(429) if request.url.host.startswith(("tenant0.", "tenant1.")) else (
-            httpx.Response(200, text="ok"))
+        return httpx.Response(429)
 
-    budget = VendorBudget(max_requests=100, block_threshold=2)
-    client = make_client(handler, budget=budget)
-    # Strikes count per request: the retries of one rate-limited request are one strike.
-    assert client.get_text(tenant(0))[0] == 429
-    assert len(hits) == 3 and budget.strikes("workday") == 1 and not budget.is_blocked("workday")
-    assert client.get_text(tenant(1))[0] == 429  # a second tenant: strike 2 blocks the vendor
-    assert budget.blocked == {"workday"}
-    with pytest.raises(VendorBlocked) as caught:
-        client.get_text(tenant(2))  # a third tenant: no request is sent
-    assert caught.value.vendor == "workday" and len(hits) == 6
+    budget = VendorBudget(max_requests=100)
+    gate = HostGate()
+
+    def fetch(index):
+        with make_client(handler, budget=budget, gate=gate) as client:
+            try:
+                return client.get_text(tenant(index))[0]
+            except VendorBlocked:
+                return None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(fetch, range(8)))
+
+    assert len(hits) == 2
+    assert budget.blocked == {"workday"} and budget.strikes("workday") == 2
 
 
 def test_429_strikes_are_cumulative_but_403_strikes_reset_on_success():
@@ -156,14 +161,14 @@ def test_vendor_state_survives_into_the_next_client_of_the_same_run():
     for host in ("acme.wd3", "beta.wd5"):
         with pytest.raises(HttpError):
             first.request_text(f"https://{host}.myworkdayjobs.com/en-US/External")
-    assert len(hits) == 6
+    assert len(hits) == 2
     state = json.loads((runs.run_dir(run_id) / http_factory.VENDOR_STATE_FILE).read_text(encoding="utf-8"))
-    assert state["blocked"] == ["workday"] and state["requests"] == {"workday": 6}
+    assert state["blocked"] == ["workday"] and state["requests"] == {"workday": 2}
     # A later stage (or another `seeds verify --round` process) builds a new client: the vendor stays blocked.
     second = http_factory.client_for_run(runs.load_run(run_id))
     with pytest.raises(VendorBlocked):
         second.get_text("https://other.wd1.myworkdayjobs.com/en-US/Careers")
-    assert len(hits) == 6
+    assert len(hits) == 2
 
 
 def test_client_for_run_maps_every_tenant_host_to_its_vendor():
@@ -190,15 +195,12 @@ def test_corrupt_or_missing_state_starts_a_fresh_budget():
     assert http_factory.client_for_run(legacy).vendor_allowance("workday") > 0
 
 
-def test_a_429_recovered_by_its_retry_still_clears_an_earlier_403_strike():
-    # Codex review: (200, rate_limited=True) skipped the 2xx branch, so a stale 403 plus the 429 blocked the vendor.
+def test_a_success_clears_forbidden_but_keeps_prior_429_responses():
     budget = VendorBudget(max_requests=100, block_threshold=3)
     budget.record("workday", 403)
-    budget.record("workday", 200, rate_limited=True)
+    budget.record("workday", 429)
+    budget.record("workday", 200)
     assert budget.forbidden_streak.get("workday", 0) == 0 and budget.strikes("workday") == 1
-    budget = VendorBudget(max_requests=100, block_threshold=2)
-    budget.record("workday", 403)
-    budget.record("workday", 200, rate_limited=True)
     assert not budget.is_blocked("workday")
 
 

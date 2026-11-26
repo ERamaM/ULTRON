@@ -131,7 +131,7 @@ def test_tool_errors_are_results_not_crashes(name, arguments, error):
 
 
 def test_unexpected_failures_keep_the_server_answering(monkeypatch):
-    def boom(_arguments):
+    def boom(_arguments, _budget):
         raise RuntimeError("bug")
     monkeypatch.setitem(mcp_server.HANDLERS, "search_jobs", boom)
     failed, ping = _session(_call("search_jobs", {"profile": SLUG}, 1), {"jsonrpc": "2.0", "id": 2, "method": "ping"})
@@ -263,3 +263,32 @@ def test_inspect_mcp_caps_an_oversized_detail_batch(monkeypatch):
     assert payload["partial"] and payload["status"] == {"open": 25} and payload["requests"] == 25
     assert len(payload["dossiers"]) == 25
     assert all(len(row["role_excerpt"]) >= 240 for row in payload["dossiers"])
+
+
+def test_workable_breaker_stops_retries_and_follow_up_calls_in_one_mcp_session(monkeypatch):
+    from ultron.core.web_search.models import SearchHit, WebSearchResult
+    from ultron.toolkit import gather
+    from ultron.toolkit.search import SourceDiscovery
+
+    hits = []
+
+    def rate_limited(request):
+        if request.url.host == "apply.workable.com":
+            hits.append(request.url.path)
+            return httpx.Response(429)
+        return handler(request)
+
+    http_factory.set_test_overrides(transport=httpx.MockTransport(rate_limited))
+    workable = "https://apply.workable.com/example/j/0123456789/"
+    hit = SearchHit("Senior ML Engineer", workable, "", "query", "ddg_html")
+    monkeypatch.setattr(gather, "search_web", lambda *a, **k: WebSearchResult("ok", "ddg_html", 1, 1, (hit,)))
+    monkeypatch.setattr(gather, "discover_sources", lambda *a, **k: SourceDiscovery([], [], {}, set()))
+    first, follow_up = _session(
+        _call("gather_candidates", {"profile": SLUG, "web_provider": "ddg_html"}, 1),
+        _call("inspect_jobs", {"profile": SLUG, "urls": [workable, POSTING], "all": True}, 2),
+    )
+    assert not first["result"]["isError"] and not follow_up["result"]["isError"]
+    assert _payload(follow_up)["status"]["open"] >= 1
+    assert len(hits) == 2
+    _session(_call("inspect_jobs", {"profile": SLUG, "urls": [workable], "all": True}, 3))
+    assert len(hits) == 4

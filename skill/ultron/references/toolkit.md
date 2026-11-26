@@ -154,6 +154,8 @@ Full excerpts are kept when they fit. Large results can omit optional diagnostic
 to no less than 220 geography and 240 role characters, or their original lengths if shorter. When the ranked
 tail does not fit, `truncated: true` and `dossiers_omitted` report it. Omitted watch postings stay pending.
 Use `inspect_jobs` with `detail: true` and a small batch when a returned posting needs more evidence.
+Discovery and inspection calls for a profile share the ATS request budget until the shortlist is saved.
+If an ATS hits its rate limit twice, follow-up calls skip it for the rest of that search.
 
 ## Later days
 

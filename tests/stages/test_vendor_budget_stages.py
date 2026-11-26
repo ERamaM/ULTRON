@@ -57,7 +57,7 @@ def _jobs(offset: int, total: int, prefix: str = "Senior ML Engineer") -> dict:
          "locationsText": "Remote EU"} for i in range(count)]}
 
 
-def test_429s_from_two_tenants_skip_every_other_workday_board(pack_dir):
+def test_two_429_responses_skip_every_other_workday_board(pack_dir):
     hosts = _workday_pack(pack_dir, 8)
     hits: dict[str, int] = {}
 
@@ -68,13 +68,11 @@ def test_429s_from_two_tenants_skip_every_other_workday_board(pack_dir):
     _overrides(handler)
     run_id = runs.new_run(profiles.EXAMPLE_SLUG, "balanced", {"max_seeds_per_run": 20})
     result = discover_ats(run_id)
-    # Before: every tenant was its own host, so all 8 were called (3 attempts each, 24 requests). Now the vendor
-    # stops after two rate-limited boards (3 attempts each).
-    assert sum(hits.values()) == 6
+    assert list(hits.values()) == [2]
     errors = runs.read_jsonl(runs.run_dir(run_id) / "seed_errors.jsonl")
     vendor_rows = [e for e in errors if e.get("error") == "vendor_blocked"]
-    # The second board's own 429 trips the breaker, so its HTML fallback is refused as vendor_blocked too.
-    assert len(vendor_rows) == len(hosts) - 1 and all(e.get("vendor") == "workday" for e in vendor_rows)
+    # The first board trips the breaker during its retry, so its HTML fallback is also blocked.
+    assert len(vendor_rows) == len(hosts) and all(e.get("vendor") == "workday" for e in vendor_rows)
     assert result["vendors_blocked"] == ["workday"]
 
     # The breaker holds for the rest of the run: fetch sends nothing to any Workday tenant.

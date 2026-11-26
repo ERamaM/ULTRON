@@ -58,7 +58,7 @@ def test_all_ok_with_mock_network(_clean_env):
     checks = doctor.run_checks()
     assert [c.id for c in checks] == [
         "python_version", "ultron_home_writable", "db_schema", "optional_extras",
-        "skill_installed", "network_dns", "network_https",
+        "skill_installed", "web_search", "network_dns", "network_https",
     ]
     assert all(c.ok for c in checks), [c for c in checks if not c.ok]
 

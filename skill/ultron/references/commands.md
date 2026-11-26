@@ -154,3 +154,15 @@ To update, ask the user first. If they agree:
 4. Run `ultron doctor` and report any failed check.
 5. Tell the user to restart the agent session so the updated skill is loaded. The folder in `cleanup` may be
    deleted afterwards.
+
+
+## Optional local web search
+
+Docker is optional. Install the Python search extra to enable the ddgs provider.
+Use these commands to manage a local SearXNG instance bound to IPv4 loopback:
+
+- `ultron searxng up [--port 8888]` starts the service and checks its JSON API.
+- `ultron searxng status` reports the current container and JSON API health.
+- `ultron searxng restart [--port 8888]` restarts the managed service.
+- `ultron searxng diagnose` returns health, Docker version and recent redacted logs.
+- `ultron searxng down` removes the managed container and retains its local configuration.

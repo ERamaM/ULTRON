@@ -1,5 +1,6 @@
 """Read DuckDuckGo's HTML and Lite search results without extra dependencies."""
 
+import time
 from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
 from bs4 import BeautifulSoup
@@ -51,13 +52,17 @@ def parse_results(body: str, base: str, query: str) -> list[SearchHit]:
     return hits
 
 
-def search(queries: list[str]) -> tuple[list[SearchHit], int]:
+def search(queries: list[str], *, deadline: float | None = None) -> tuple[list[SearchHit], int]:
     """Search serially with host spacing and a ten-query cap."""
     queries = queries[:10]
     hits = []
+    attempted = 0
     with HttpClient(max_requests=30, max_requests_per_host=12, timeout=4, max_bytes=1_000_000,
-                    min_interval_per_host=1.5, block_threshold=1) as client:
+                    min_interval_per_host=1.5, block_threshold=1, deadline=deadline) as client:
         for query in queries:
+            if deadline is not None and time.monotonic() >= deadline:
+                break
+            attempted += 1
             for base in _ENDPOINTS:
                 try:
                     status, final, body = client.get_text(f"{base}?{urlencode({'q': query})}", allowed_domains=DOMAINS)
@@ -67,4 +72,4 @@ def search(queries: list[str]) -> tuple[list[SearchHit], int]:
                 if results:
                     hits.extend(results)
                     break
-    return hits, len(queries)
+    return hits, attempted

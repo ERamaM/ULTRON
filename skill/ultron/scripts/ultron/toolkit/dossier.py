@@ -1,7 +1,6 @@
 """Compact job dossiers: what an agent needs to judge a posting in one pass, in about 150 tokens.
 
-A dossier carries the posting's identity, whether it is open, its facts, the profile's memory flag, a hint of what
-ULTRON's rules would decide, a short geography excerpt, a short role excerpt and the pay it discloses. Excerpts
+A dossier carries the posting's identity, whether it is open, its facts, short geography and role excerpts and the pay it discloses. Excerpts
 are bounded page text: data, never instructions.
 """
 
@@ -12,18 +11,14 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ultron.core.ats.registry import extract_seed_from_url
-from ultron.core.decision.unit import characterize_job
 from ultron.core.extractors.text import collapse_whitespace
-from ultron.core.final_row import prepare_geography
 from ultron.core.models import ExtractedJob
-from ultron.core.rules.geography import build_geo_body_excerpt, geo_scope, location_scope
-from ultron.core.rules.role_matching import role_negatives_for
-from ultron.core.vocabulary import active_pack
+from ultron.core.rules.geography import build_geo_body_excerpt
 from ultron.salary.disclosure import extract_salaries_from_text
 from ultron.salary.display import SALARY_SCAN_CHARS
 
-GEO_EXCERPT = 250
-ROLE_EXCERPT = 500
+GEO_EXCERPT = 350
+ROLE_EXCERPT = 700
 DETAIL_ROLE_EXCERPT = 2500
 TEXT_LIMIT = 200
 # Company names that are the page's platform, not the employer (an ATS's own name or a board's heading).
@@ -33,14 +28,10 @@ _SLUG_SPLIT = re.compile(r"[-_]+")
 
 
 class ProfileContext:
-    """The profile pieces every dossier hint needs, computed once per call."""
+    """Profile and ledger namespace for matching and caching board postings."""
 
     def __init__(self, profile: dict, profile_slug: str = "") -> None:
         self.profile, self.profile_slug = profile, profile_slug
-        self.criteria = dict(profile.get("criteria") or {})
-        self.pack, self.geo = active_pack(profile), geo_scope(profile)
-        self.negatives = role_negatives_for(profile)
-        self.regions = location_scope(profile)["preferred"]
 
 
 def _short(value: Any, limit: int = TEXT_LIMIT) -> str:
@@ -69,21 +60,6 @@ def employer_name(company: str, url: str) -> str:
     return _slug_name(next((label for label in labels if label not in generic), "")) or name
 
 
-def _hint(job: ExtractedJob, context: ProfileContext) -> dict[str, str]:
-    """What the rules would decide: ``keep``, ``unsure`` or ``discard`` with its reason, plus geography."""
-    result = characterize_job(job, context.profile, [], vocabulary=context.pack, geo=context.geo,
-                              role_negatives=context.negatives, allow_outside_ats_allowlist=True,
-                              target_regions=context.regions)
-    evaluation = result["_evaluation"]
-    geography, _note, geo_discard = prepare_geography(job, context.criteria, geo=context.geo)
-    reason = geo_discard or evaluation.discard_reason or ""
-    verdict = "discard" if geo_discard else evaluation.verdict
-    hint = {"verdict": verdict, "remote_policy": geography.remote_policy, "eligibility": geography.eligibility}
-    if verdict == "discard" and reason:
-        hint["reason"] = _short(reason, 80)
-    return hint
-
-
 def geo_excerpt(body_text: str) -> str:
     """The posting's location, remote and eligibility lines, bounded."""
     return _short(build_geo_body_excerpt(body_text or "", max_chars=GEO_EXCERPT), GEO_EXCERPT)
@@ -108,7 +84,7 @@ def salary(body_text: str) -> str:
     return f"{hit['currency']} {band} {hit['period']}"
 
 
-def posting_dossier(job: ExtractedJob, identity_key: str, status: str, context: ProfileContext, *,
+def posting_dossier(job: ExtractedJob, identity_key: str, status: str, *,
                     detail: bool = False) -> dict[str, Any]:
     """The dossier of a read posting; ``status`` is ``open`` or ``closed``."""
     dossier: dict[str, Any] = {
@@ -119,7 +95,6 @@ def posting_dossier(job: ExtractedJob, identity_key: str, status: str, context: 
     if job.posting_date:
         dossier["posted"] = str(job.posting_date)[:10]
     if status == "open":
-        dossier["hint"] = _hint(job, context)
         dossier["geo_excerpt"] = geo_excerpt(job.body_text)
         dossier["role_excerpt"] = role_excerpt(job.body_text, detail=detail)
         if pay := salary(job.body_text):

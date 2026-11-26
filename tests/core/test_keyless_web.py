@@ -195,3 +195,10 @@ def test_cascade_and_multi(monkeypatch):
     assert not cascade.search_web(["nurse"]).metadata()["fallback_to_agent_web_search"]
     with pytest.raises(ValueError):
         cascade.search_web(["nurse"], "unknown")
+
+
+def test_provider_deadlines_stop_queued_queries(monkeypatch):
+    monkeypatch.setattr(searxng, "read_json", lambda *_a, **_kw: pytest.fail("deadline was ignored"))
+    assert searxng.search(["nurse"], deadline=0) == ([], 0)
+    assert ddg_html.search(["nurse"], deadline=0) == ([], 0)
+    assert cascade.search_web(["nurse"], "searxng", deadline=0).metadata()["fallback_to_agent_web_search"]

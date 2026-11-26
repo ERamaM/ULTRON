@@ -166,3 +166,9 @@ Use these commands to manage a local SearXNG instance bound to IPv4 loopback:
 - `ultron searxng restart [--port 8888]` restarts the managed service.
 - `ultron searxng diagnose` returns health, Docker version and recent redacted logs.
 - `ultron searxng down` removes the managed container and retains its local configuration.
+
+## Gather candidates
+
+`ultron gather --profile <slug>` discovers and inspects postings with keyless web search, watch, ATS boards
+and feeds. It returns factual dossiers and caches them for `ultron shortlist save`. Use `--web-provider none`
+to skip web search.

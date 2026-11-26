@@ -105,11 +105,14 @@ def test_memory_flags():
             {"identity_key": "k-closed", "verdict": "discard", "discard_category": "closed_or_invalid"},
         ], criteria)
         conn.execute("INSERT INTO jobs (identity_key, canonical_url, first_seen, last_seen, review_state)"
-                     " VALUES ('k-applied', 'u', 'x', 'x', 'applied'), ('k-archived', 'u2', 'x', 'x', 'archived')")
+                     " VALUES ('k-applied', 'u', 'x', 'x', 'applied'), ('k-archived', 'u2', 'x', 'x', 'archived'),"
+                     " ('k-interview', 'u3', 'x', 'x', 'interview')")
         flags = scout_memory.flags(conn, "p1", ["k-keep", "k-drop", "k-closed", "k-applied", "k-archived", "k-new"])
         assert flags == {"k-keep": "seen", "k-drop": "rejected", "k-closed": "new", "k-applied": "applied",
                          "k-archived": "rejected", "k-new": "new"}
-        assert scout_memory.flags(conn, "p2", ["k-keep"]) == {"k-keep": "new"}
+        assert scout_memory.flags(conn, "p2", ["k-keep", "k-interview"]) == {
+            "k-keep": "new", "k-interview": "applied",
+        }
 
 
 def _yield(conn, profile, seed, run, kept):

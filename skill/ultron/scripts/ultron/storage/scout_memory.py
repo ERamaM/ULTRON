@@ -44,7 +44,7 @@ def flags(conn: sqlite3.Connection, profile_slug: str, keys: Iterable[str]) -> d
 
 def _flag(conn: sqlite3.Connection, profile_slug: str, key: str) -> Flag:
     review = conn.execute("SELECT review_state FROM jobs WHERE identity_key = ?", (key,)).fetchone()
-    if review and review[0] == "applied":
+    if review and review[0] in {"applied", "interview"}:
         return "applied"
     if review and review[0] in USER_REJECTED_STATES:
         return "rejected"

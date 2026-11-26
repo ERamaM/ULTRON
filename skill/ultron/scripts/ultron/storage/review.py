@@ -219,33 +219,39 @@ def add_note(identity_key: str, text: str, *, db_path: Path | None = None) -> st
 
 
 def set_feedback(
-    identity_key: str, relevance: str, reason_code: str = "", note: str = "", *, profile: str | None = None,
+    identity_key: str, relevance: str, reason_code: str | None = "", note: str | None = "", *,
+    profile: str | None = None,
     db_path: Path | None = None,
 ) -> str:
-    """Record relevance feedback and optional reason code/note on a job."""
+    """Record feedback, preserving an existing detail when its new value is None."""
     if relevance not in RELEVANCE:
         raise ValueError(f"invalid relevance {relevance!r}; expected one of {', '.join(RELEVANCE)}")
-    if reason_code not in REASON_CODES:
+    if reason_code is not None and reason_code not in REASON_CODES:
         valid = ", ".join(c for c in REASON_CODES if c)
         raise ValueError(f"invalid reason_code {reason_code!r}; expected one of {valid}")
     with closing(ledger.connect(db_path)) as conn, conn:
         key = resolve_key(identity_key, conn)
         _require(conn, key)
+        fields = {"key": key, "profile": profile, "relevance": relevance, "reason": reason_code, "note": note,
+                  "labeled_at": _now()}
         if profile:
             conn.execute(
                 "INSERT INTO profile_job_feedback (identity_key, profile_slug, relevance, reason_code, note, labeled_at)"
-                " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(identity_key, profile_slug) DO UPDATE SET"
-                " relevance = excluded.relevance, reason_code = excluded.reason_code,"
-                " note = excluded.note, labeled_at = excluded.labeled_at",
-                (key, profile, relevance, reason_code, note, _now()),
+                " VALUES (:key, :profile, :relevance, COALESCE(:reason, ''), COALESCE(:note, ''), :labeled_at)"
+                " ON CONFLICT(identity_key, profile_slug) DO UPDATE SET relevance = excluded.relevance,"
+                " reason_code = COALESCE(:reason, profile_job_feedback.reason_code),"
+                " note = COALESCE(:note, profile_job_feedback.note), labeled_at = excluded.labeled_at",
+                fields,
             )
-            return key
-        conn.execute(
-            "INSERT INTO job_feedback (identity_key, relevance, reason_code, note, labeled_at) VALUES (?, ?, ?, ?, ?)"
-            " ON CONFLICT(identity_key) DO UPDATE SET relevance = excluded.relevance,"
-            " reason_code = excluded.reason_code, note = excluded.note, labeled_at = excluded.labeled_at",
-            (key, relevance, reason_code, note, _now()),
-        )
+        else:
+            conn.execute(
+                "INSERT INTO job_feedback (identity_key, relevance, reason_code, note, labeled_at)"
+                " VALUES (:key, :relevance, COALESCE(:reason, ''), COALESCE(:note, ''), :labeled_at)"
+                " ON CONFLICT(identity_key) DO UPDATE SET relevance = excluded.relevance,"
+                " reason_code = COALESCE(:reason, job_feedback.reason_code),"
+                " note = COALESCE(:note, job_feedback.note), labeled_at = excluded.labeled_at",
+                fields,
+            )
     return key
 
 

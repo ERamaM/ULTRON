@@ -10,6 +10,7 @@ from email.message import Message
 from http import HTTPStatus
 from pathlib import Path
 from typing import BinaryIO
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -50,14 +51,14 @@ def valid_host(headers: Message, authority: str) -> bool:
     return host is not None and host.lower() == authority
 
 
-def authorize(headers: Message, authority: str, token: str) -> int:
+def authorize(headers: Message, origin: str, token: str) -> int:
     """Authorize an edit before reading its body and return the allowed byte count."""
     submitted = _header(headers, "X-ULTRON-Token") or ""
     if not hmac.compare_digest(submitted.encode("utf-8"), token.encode("ascii")):
         raise MutationError(HTTPStatus.FORBIDDEN, "forbidden")
-    if not valid_host(headers, authority):
+    if not valid_host(headers, urlsplit(origin).netloc):
         raise MutationError(HTTPStatus.FORBIDDEN, "forbidden")
-    if "Origin" in headers and _header(headers, "Origin") != f"http://{authority}":
+    if "Origin" in headers and _header(headers, "Origin") != origin:
         raise MutationError(HTTPStatus.FORBIDDEN, "forbidden")
     content_type = _header(headers, "Content-Type") or ""
     if content_type.split(";", 1)[0].strip().lower() != "application/json" or "Transfer-Encoding" in headers:
@@ -106,7 +107,7 @@ def _read_payload(path: str, reader: BinaryIO, length: int) -> dict[str, str]:
             raise MutationError(HTTPStatus.BAD_REQUEST, "invalid_fields")
         if key in required and not value.strip():
             raise MutationError(HTTPStatus.BAD_REQUEST, "invalid_fields")
-    return {**defaults, **fields}
+    return fields
 
 
 def _require_profile(profile: str, db_path: Path) -> None:
@@ -142,14 +143,22 @@ def _add_note(fields: dict[str, str], db_path: Path) -> dict:
 
 
 def _feedback(fields: dict[str, str], db_path: Path) -> dict:
-    profile = fields["profile"] or None
+    profile = fields.get("profile") or None
     if profile:
         _require_profile(profile, db_path)
-    note = sanitize.clean_multiline_text(fields["note"])
-    key = review.set_feedback(fields["identity_key"], fields["relevance"], fields["reason_code"],
+    note = sanitize.clean_multiline_text(fields["note"]) if "note" in fields else None
+    key = review.set_feedback(fields["identity_key"], fields["relevance"], fields.get("reason_code"),
                               note, profile=profile, db_path=db_path)
-    return {"identity_key": sanitize.clean_text(key), "profile": profile, "relevance": fields["relevance"],
-            "reason_code": fields["reason_code"], "note": note}
+    with closing(sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)) as conn:
+        if profile:
+            row = conn.execute("SELECT relevance, reason_code, note FROM profile_job_feedback"
+                               " WHERE identity_key = ? AND profile_slug = ?", (key, profile)).fetchone()
+        else:
+            row = conn.execute("SELECT relevance, reason_code, note FROM job_feedback WHERE identity_key = ?",
+                               (key,)).fetchone()
+    relevance, reason, current_note = row
+    return {"identity_key": sanitize.clean_text(key), "profile": profile, "relevance": relevance,
+            "reason_code": reason, "note": sanitize.clean_multiline_text(current_note)}
 
 
 def _watch_change(fields: dict[str, str], db_path: Path) -> dict:

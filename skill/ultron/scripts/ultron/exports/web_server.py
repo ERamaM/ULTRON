@@ -81,6 +81,7 @@ class LedgerHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+    origin: str
 
 
 class _IPv6LedgerServer(LedgerHTTPServer):
@@ -98,18 +99,16 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         static_routes: dict[str, tuple[str, bytes]],
         db_path: Path,
         token: str | None,
-        bind_host: str,
         **kwargs: Any,
     ) -> None:
         self._static_routes = static_routes
         self._db_path = db_path
         self._token = token
-        self._bind_host = bind_host
         super().__init__(*args, **kwargs)
 
     @property
     def _authority(self) -> str:
-        return f"{self._bind_host}:{self.server.server_address[1]}"
+        return urlsplit(self.server.origin).netloc
 
     def log_message(self, format: str, *args: Any) -> None:
         """Suppress default stderr request logs so CLI stdout stays machine-readable JSON."""
@@ -206,7 +205,7 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
             self._reject_method()
             return
         try:
-            length = web_api.authorize(self.headers, self._authority, self._token)
+            length = web_api.authorize(self.headers, self.server.origin, self._token)
         except web_api.MutationError as exc:
             self._send_json(exc.status, {"error": str(exc)}, head_only=False)
             self._drain_rejected_body()
@@ -253,12 +252,13 @@ def create_server(
     target = Path(db_path).absolute() if db_path is not None else web_data.default_db_path().absolute()
     formatted_host = f"[{clean_host}]" if ":" in clean_host else clean_host
     token = secrets.token_urlsafe(32) if editable else None
-    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token, bind_host=formatted_host)
+    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token)
     server_type = _IPv6LedgerServer if clean_host == "::1" else LedgerHTTPServer
     bound_host = "127.0.0.1" if clean_host == "localhost" else clean_host
     server = server_type((bound_host, clean_port), handler)
     actual_port = int(server.server_address[1])
-    return server, urlunsplit(("http", f"{formatted_host}:{actual_port}", "/", "", "")), actual_port
+    server.origin = urlunsplit(("http", f"{formatted_host}:{actual_port}", "", "", ""))
+    return server, server.origin + "/", actual_port
 
 
 def serve_ledger(

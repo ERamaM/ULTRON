@@ -116,6 +116,14 @@ def test_authenticated_mutations_use_selected_ledger(db):
             "identity_key": identity, "relevance": "relevant", "reason_code": "other", "profile": EXAMPLE_SLUG,
         })
         assert feedback["profile"] == EXAMPLE_SLUG
+        feedback = _submit(endpoint, token, "/api/jobs/feedback", {
+            "identity_key": identity, "relevance": "uncertain", "profile": EXAMPLE_SLUG, "note": "Prior evidence",
+        })
+        assert feedback["reason_code"] == "other"
+        feedback = _submit(endpoint, token, "/api/jobs/feedback", {
+            "identity_key": identity, "relevance": "relevant", "profile": EXAMPLE_SLUG,
+        })
+        assert feedback["reason_code"] == "other" and feedback["note"] == "Prior evidence"
         board = _submit(endpoint, token, "/api/watchlist/add", {"profile": EXAMPLE_SLUG, "board": "greenhouse:acme"})
         assert board["seed_key"] == "greenhouse:acme" and board["state"] == "watch"
         assert _submit(endpoint, token, "/api/watchlist/remove", {

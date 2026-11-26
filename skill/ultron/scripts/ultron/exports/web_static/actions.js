@@ -1,25 +1,35 @@
 import {$, STATES, button, el} from "./dom.js";
 
 let token;
-let pairedAccess;
-const currentAccess = () => new URLSearchParams(location.hash.slice(1)).get("access");
+let pairing;
 
-export async function pairLaunch() {
-  const access = currentAccess();
-  if (token && access === pairedAccess) return;
-  token = undefined;
-  pairedAccess = undefined;
-  if (!access) return;
+async function redeemLaunch(access) {
   try {
     const response = await fetch("/", {headers: {"X-ULTRON-Launch": access}, cache: "no-store"});
     if (!response.ok) return;
     const page = new DOMParser().parseFromString(await response.text(), "text/html");
-    if (access === currentAccess()) {
-      token = page.querySelector('meta[name="ultron-csrf"]')?.content;
-      pairedAccess = access;
-    }
+    const params = new URLSearchParams(location.hash.slice(1));
+    if (params.get("access") !== access) return;
+    token = page.querySelector('meta[name="ultron-csrf"]')?.content;
+    if (!token) return;
+    params.delete("access");
+    const hash = params.toString();
+    history.replaceState(null, "", location.pathname + location.search + (hash ? "#" + hash : ""));
   } catch {
     // Access remains read-only when the launch cannot be paired.
+  }
+}
+
+export async function pairLaunch() {
+  if (pairing) await pairing;
+  if (token) return;
+  const access = new URLSearchParams(location.hash.slice(1)).get("access");
+  if (!access) return;
+  pairing = redeemLaunch(access);
+  try {
+    await pairing;
+  } finally {
+    pairing = undefined;
   }
 }
 

@@ -74,5 +74,5 @@ def register(subparsers) -> None:
     web.add_argument("--run", default=None, help="pre-filter the dashboard to one run ID")
     web.add_argument("--profile", default=None, help="pre-filter the dashboard to one profile slug")
     web.add_argument("--no-open", action="store_true", help="do not open the browser automatically")
-    web.add_argument("--editable", action="store_true", help="enable local job and watchlist edits")
+    web.add_argument("--editable", action="store_true", help="enable local edits with a one-use URL to open manually")
     web.set_defaults(func=_web)

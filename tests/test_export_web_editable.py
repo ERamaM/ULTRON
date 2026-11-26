@@ -59,8 +59,11 @@ def _request(endpoint, method, path, body=None, headers=None):
 def _session(endpoint):
     assert b"ultron-csrf" not in _request(endpoint, "GET", "/")[2]
     assert b"ultron-csrf" not in _request(endpoint, "GET", "/", headers={"X-ULTRON-Launch": "bad"})[2]
-    status, headers, root = _request(endpoint, "GET", "/", headers={"X-ULTRON-Launch": endpoint[2]})
-    assert status == 200 and headers["Cache-Control"] == "no-store"
+    headers = {"X-ULTRON-Launch": endpoint[2]}
+    assert _request(endpoint, "HEAD", "/", headers=headers)[0] == 200
+    status, response, root = _request(endpoint, "GET", "/", headers=headers)
+    assert b"ultron-csrf" not in _request(endpoint, "GET", "/", headers=headers)[2]
+    assert status == 200 and response["Cache-Control"] == "no-store"
     match = re.search(rb'<meta name="ultron-csrf" content="([A-Za-z0-9_-]{43})">', root)
     assert match
     token = match.group(1).decode("ascii")
@@ -204,3 +207,15 @@ def test_editable_cli_delivers_private_access_only_in_launch_json(capsys, monkey
     result = capsys.readouterr()
     assert json.loads(result.out)["url"] == expected
     assert "launch-ticket" not in result.err
+
+
+
+def test_only_readonly_mode_auto_opens_a_browser(db, monkeypatch):
+    opened = []
+    monkeypatch.setattr(web_server.LedgerHTTPServer, "serve_forever", lambda self: None)
+    monkeypatch.setattr(web_server.webbrowser, "open", lambda url: opened.append(url) or True)
+    editable = web_server.serve_ledger(db_path=db, editable=True)
+    assert editable["opened_browser"] is False and urlsplit(editable["url"]).fragment
+    assert not opened
+    view = web_server.serve_ledger(db_path=db)
+    assert view["opened_browser"] is True and opened == [view["url"]]

@@ -42,4 +42,4 @@ The history survives run cleanup (see `references/data-maintenance.md`).
   inspect Watch & Salaries, or export the filtered jobs as CSV. The viewer binds to loopback and
   serves its assets locally until interrupted. Use `--editable` to persist states, notes, feedback,
   and watchlist changes from the browser. The first write to an older ledger backs it up before
-  upgrading it. Open the launch URL as printed, including its private access fragment in editable mode.
+  upgrading it. Paste the one-use launch URL into your browser. Start a new editable session if you close or reload the tab.

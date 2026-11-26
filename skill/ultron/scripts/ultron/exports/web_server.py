@@ -100,13 +100,13 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         static_routes: dict[str, tuple[str, bytes]],
         db_path: Path,
         token: str | None,
-        launch_capability: str | None,
+        launch_grant: web_api.LaunchGrant | None,
         **kwargs: Any,
     ) -> None:
         self._static_routes = static_routes
         self._db_path = db_path
         self._token = token
-        self._launch_capability = launch_capability
+        self._launch_grant = launch_grant
         super().__init__(*args, **kwargs)
 
     @property
@@ -151,8 +151,8 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         static = self._static_routes.get(path)
         if static is not None:
             content_type, body = static
-            if (path == "/" and self._token is not None and self._launch_capability is not None
-                    and web_api.authorized_launch(self.headers, self._launch_capability)):
+            if (path == "/" and not head_only and self._token is not None and self._launch_grant is not None
+                    and self._launch_grant.consume(self.headers)):
                 tag = f'<meta name="ultron-csrf" content="{self._token}">'.encode("ascii")
                 body = body.replace(b"</head>", tag + b"\n</head>", 1)
             self._send_bytes(HTTPStatus.OK, content_type, body, head_only=head_only)
@@ -258,7 +258,7 @@ def create_server(
     token = secrets.token_urlsafe(32) if editable else None
     capability = secrets.token_urlsafe(32) if editable else None
     handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token,
-                      launch_capability=capability)
+                      launch_grant=web_api.LaunchGrant(capability) if capability else None)
     server_type = _IPv6LedgerServer if clean_host == "::1" else LedgerHTTPServer
     bound_host = "127.0.0.1" if clean_host == "localhost" else clean_host
     server = server_type((bound_host, clean_port), handler)
@@ -286,7 +286,8 @@ def serve_ledger(
     url = build_dashboard_url(base_url, run_id=run_id, profile=profile)
     opened = False
     try:
-        if open_browser:
+        # Opening an editable URL through a launcher could expose its fragment in process arguments.
+        if open_browser and not editable:
             opened = bool(webbrowser.open(url))
         info = {
             "url": url,

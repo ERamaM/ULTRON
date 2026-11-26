@@ -9,6 +9,7 @@ from contextlib import closing
 from email.message import Message
 from http import HTTPStatus
 from pathlib import Path
+from threading import Lock
 from typing import BinaryIO
 from urllib.parse import urlsplit
 
@@ -51,10 +52,22 @@ def valid_host(headers: Message, authority: str) -> bool:
     return host is not None and host.lower() == authority
 
 
-def authorized_launch(headers: Message, capability: str) -> bool:
-    """Require the out-of-band launch capability before disclosing an edit token."""
-    supplied = _header(headers, "X-ULTRON-Launch") or ""
-    return hmac.compare_digest(supplied.encode("utf-8"), capability.encode("ascii"))
+class LaunchGrant:
+    """One-use bootstrap capability shared by all requests to one server."""
+
+    def __init__(self, capability: str) -> None:
+        """Retain the capability only in memory until the browser pairs."""
+        self._expected = capability.encode("ascii")
+        self._lock = Lock()
+
+    def consume(self, headers: Message) -> bool:
+        """Atomically consume a matching launch capability once."""
+        supplied = (_header(headers, "X-ULTRON-Launch") or "").encode("utf-8")
+        with self._lock:
+            if not self._expected or not hmac.compare_digest(supplied, self._expected):
+                return False
+            self._expected = b""
+            return True
 
 
 def authorize(headers: Message, origin: str, token: str) -> int:

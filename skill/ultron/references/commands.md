@@ -117,7 +117,7 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 - `ledger web`: `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open] [--editable]`.
   Starts a loopback-only viewer and prints its URL in JSON. It runs in read-only mode by default.
   Add `--editable` when the user requests saving review states, notes, feedback, or watchlist changes.
-  Use the complete launch URL, including the private access fragment for editable sessions.
+  Paste the one-use private launch URL into the browser for an editable session.
 
 ### system
 

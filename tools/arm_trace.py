@@ -103,10 +103,11 @@ class RunView:
         return "employer_queried_job_missing" if _fold(company) in self.companies else "employer_never_queried"
 
 
-def load_run_view(run_id: str, ultron_home: str | None) -> RunView:
+def load_run_view(run_id: str, ultron_home: str | None, *, require_postings: bool = True) -> RunView:
     """The trace view of ``run_id`` under ``ultron_home`` (the home the run was ingested from)."""
     try:
-        return RunView(read_run_files(run_id, extra=TRACE_FILES, ultron_home=ultron_home))
+        return RunView(read_run_files(run_id, extra=TRACE_FILES, ultron_home=ultron_home,
+                                      require_postings=require_postings))
     except (ReplayError, ValueError) as exc:
         raise ComparisonError(f"run {run_id} cannot be traced: {exc}") from exc
 

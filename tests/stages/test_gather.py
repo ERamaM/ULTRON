@@ -340,3 +340,34 @@ def test_web_filter_preserves_known_employer_posting_routes(route):
     url = f"https://example.org/{route}"
     assert gather._classify(f"{url}/financial-analyst", web_result=True) == "employer_page"
     assert gather._classify(url, web_result=True) == "rejected"
+
+
+@pytest.mark.parametrize(("tool", "limit"), [("gather_candidates", 5_500), ("search_jobs", 3_500)])
+def test_mcp_leaves_undelivered_watch_postings_pending(monkeypatch, tool, limit):
+    from ultron.toolkit import mcp_output
+
+    urls = [f"{WATCH}{letter}/" + letter * 1_200 for letter in ("a", "b")]
+
+    def handler(request):
+        if str(request.url) in urls:
+            return httpx.Response(200, text=EMPLOYER_PAGE.replace("Example Org", request.url.path[-1]))
+        return default_handler(request)
+
+    _setup_transport(monkeypatch, handler)
+    monkeypatch.setattr(mcp_output, "MAX_INLINE_BYTES", limit)
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [(gather._identity(url), {
+            "normalized_url": url, "ats_title": "Senior Machine Learning Engineer",
+            "ats_company": url[-1], "ats_location": "Spain", "ats_remote_hint": "Remote",
+        }) for url in urls])
+
+    arguments = {"profile": SLUG, "web_provider": "none"} if tool == "gather_candidates" else {"profile": SLUG}
+    result = call_tool(tool, arguments)
+    assert not result["isError"]
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["returned"] == payload["dossiers_omitted"] == 1 and payload["truncated"]
+    delivered, = payload["dossiers"]
+    assert delivered["source"] == "watch" and delivered["url"] in urls
+    with closing(ledger.connect()) as conn:
+        pending, = watchlist.pending(conn, SLUG)
+    assert pending["normalized_url"] == next(url for url in urls if url != delivered["url"])

@@ -17,6 +17,7 @@ host to one request at a time.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing
 from dataclasses import dataclass
@@ -253,7 +254,8 @@ def discover_sources(run: dict, terms: list[str], gate: HostGate, vendor_budget:
 
 
 def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, limit: int = DEFAULT_LIMIT,
-                preset: str = presets.DEFAULT_PRESET) -> dict[str, Any]:
+                preset: str = presets.DEFAULT_PRESET,
+                select_response: Callable[[dict], dict] | None = None) -> dict[str, Any]:
     """Postings for ``profile_slug`` from the watch, ATS boards and role-searchable job APIs.
 
     ``query`` replaces the profile's target titles as the role query. ``new_only`` keeps postings the profile has
@@ -273,6 +275,8 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     ranked = _rank(dossiers, terms)
     cache_postings(profile_slug, [listed_cache_row(d, found.boards) for d in ranked if d.get("url")])
     returned = ranked[:max(1, limit)]
-    mark_watch_served(profile_slug, returned)
-    return {"profile": profile_slug, "queries": terms, "sources": found.sources, "results": len(ranked),
-            "dossiers": returned}
+    payload = {"profile": profile_slug, "queries": terms, "sources": found.sources, "results": len(ranked),
+               "dossiers": returned}
+    response = select_response(payload) if select_response is not None else payload
+    mark_watch_served(profile_slug, response["dossiers"])
+    return response

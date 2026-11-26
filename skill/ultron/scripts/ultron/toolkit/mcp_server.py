@@ -19,6 +19,7 @@ from ultron.core.web_search.cascade import WEB_PROVIDERS
 from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
 from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
+from ultron.toolkit.mcp_output import compact_dossiers, compact_gather, encode_inline
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import MAX_ROWS, save_shortlist
 
@@ -32,7 +33,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "gather_candidates",
         "description": "Discover postings from keyless web search, watch, ATS boards and feeds. Inspect, rank and "
-                       "cache factual dossiers for judging and saving in one pass. " + UNTRUSTED,
+                       "cache factual dossiers for judging and saving in one pass. The inline result can shorten "
+                       "excerpts and reports any ranked dossiers omitted. " + UNTRUSTED,
         "inputSchema": {"type": "object", "required": ["profile"], "additionalProperties": False, "properties": {
             "profile": PROFILE,
             "query": {"type": "string", "description": "a role query instead of the profile's target titles"},
@@ -149,7 +151,8 @@ def _gather(arguments: dict) -> dict:
     if not isinstance(new_only, bool) or not isinstance(detail, bool):
         raise ToolInputError("new_only and detail must be booleans")
     return gather_candidates(_profile(arguments), query, limit=limit, max_queries=max_queries,
-                             web_provider=arguments.get("web_provider"), new_only=new_only, detail=detail)
+                             web_provider=arguments.get("web_provider"), new_only=new_only, detail=detail,
+                             select_response=compact_gather)
 
 
 def _search(arguments: dict) -> dict:
@@ -160,15 +163,16 @@ def _search(arguments: dict) -> dict:
     if not isinstance(query, str):
         raise ToolInputError("query must be a string")
     return search_jobs(_profile(arguments), query, new_only=bool(arguments.get("new_only")),
-                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET)
+                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET, select_response=compact_dossiers)
 
 
 def _inspect(arguments: dict) -> dict:
     urls, companies = _targets(arguments), _strings(arguments, "companies", MAX_COMPANIES)
     if not urls and not companies:
         raise ToolInputError("give urls or companies")
-    return inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
-                        show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
+    inspected = inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
+                             show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
+    return compact_dossiers(inspected)
 
 
 def _save(arguments: dict) -> dict:
@@ -183,7 +187,7 @@ HANDLERS: dict[str, Callable[[dict], dict]] = {"gather_candidates": _gather, "se
 
 
 def _text_result(payload: dict, *, error: bool = False) -> dict:
-    return {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}], "isError": error}
+    return {"content": [{"type": "text", "text": encode_inline(payload)}], "isError": error}
 
 
 def call_tool(name: str, arguments: Any) -> dict:

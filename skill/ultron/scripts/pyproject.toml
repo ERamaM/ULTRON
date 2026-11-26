@@ -1,6 +1,6 @@
 [project]
 name = "ultron"
-version = "1.0.0"
+version = "1.0.1"
 description = "ULTRON - Universal Locator & Triage of Roles, Openings and Niches"
 license = "MIT"
 authors = [{ name = "Efrén Rama" }]

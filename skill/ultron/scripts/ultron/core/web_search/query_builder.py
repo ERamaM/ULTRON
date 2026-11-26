@@ -36,6 +36,16 @@ def _interleave(broad: list[str], scoped: list[str]) -> list[str]:
     return result
 
 
+def work_mode_term(profile: dict) -> str:
+    """Convert the profile work-mode preference into a search term."""
+    criteria = profile.get("criteria") or {}
+    policy = criteria.get("remote_policy")
+    if isinstance(policy, dict) and policy.get("required") == "full_remote":
+        return "remote"
+    modes = _terms(criteria.get("work_mode"))
+    return modes[0] if len(modes) == 1 else ""
+
+
 def build_queries(profile: dict, max_queries: int, *, query: str | None = None) -> list[str]:
     """Build up to 40 queries from role, region and work mode preferences."""
     limit = min(40, max(0, max_queries))
@@ -44,8 +54,7 @@ def build_queries(profile: dict, max_queries: int, *, query: str | None = None) 
     titles = _terms(templates.get("core_titles"), criteria.get("target_titles"),
                     criteria.get("role_focus_terms"), templates.get("titles"))
     regions = _terms(location_scope(profile)["preferred"], templates.get("regions")) or ("",)
-    modes = _terms(criteria.get("work_mode"))
-    mode = modes[0] if len(modes) == 1 else ""
+    mode = work_mode_term(profile)
     phrases = (f'"{title}" {region} {mode}' for region, title in product(regions, titles))
     broad = [collapse_whitespace(phrase) for phrase in phrases] if query is None else [collapse_whitespace(query[:300])]
     broad = list(dict.fromkeys(phrase for phrase in broad if phrase))[:limit]

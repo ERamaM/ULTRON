@@ -25,8 +25,8 @@ def _parts(url: str):
         if (parts.scheme == "http" and parts.hostname in {"127.0.0.1", "localhost"}
                 and parts.port and parts.netloc.lower() == f"{parts.hostname}:{parts.port}"):
             return parts
-    except ValueError:
-        pass
+    except ValueError:  # malformed authority or port
+        return None
     return None
 
 

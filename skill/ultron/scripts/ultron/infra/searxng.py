@@ -34,10 +34,21 @@ class LifecycleError(RuntimeError):
     """The local service could not be safely managed."""
 
 
+def _saved_port() -> str:
+    try:
+        path = _managed_root() / "port"
+        if not is_link(path) and path.is_file() and path.stat().st_size <= 6:
+            with path.open("r", encoding="ascii") as file:
+                return file.read(6).strip()
+    except (OSError, ValueError, LifecycleError):
+        return ""
+    return ""
+
+
 def configured_port(port: int | None = None) -> int:
     """Choose and validate the local published port."""
     try:
-        value = int(os.environ.get("ULTRON_SEARXNG_PORT", "8888")) if port is None else port
+        value = int(os.environ.get("ULTRON_SEARXNG_PORT") or _saved_port() or "8888") if port is None else port
     except ValueError as error:
         raise LifecycleError("SearXNG port must be an integer from 1024 to 65535.") from error
     if not 1024 <= value <= 65535:
@@ -281,6 +292,8 @@ def manage(action: str, *, port: int | None = None) -> dict:
         elif container["state"] != "running" and _docker("container", "start", container["id"]).returncode:
             raise LifecycleError("Docker could not start the managed SearXNG container.")
         container = _inspect(root)
+        if container and container["url"] == desired:
+            atomic_write_bytes(root / "port", f"{urlsplit(desired).port}\n".encode("ascii"))
     payload = {"docker_available": True, "state": "absent", "json_healthy": False}
     if container:
         probe = _wait if action in {"up", "restart"} else json_health

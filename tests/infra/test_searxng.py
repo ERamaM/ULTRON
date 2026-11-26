@@ -153,6 +153,7 @@ def test_lifecycle(tmp_path, docker, compose, capsys):
     assert '"json_healthy": true' in capsys.readouterr().out
     key = root / "secret_key"
     assert key.read_text() == docker.secret
+    assert searxng.default_url() == "http://127.0.0.1:8889"
     if os.name != "nt":
         assert key.stat().st_mode & 0o777 == 0o600
     settings = (root / "config" / "settings.yml").read_text()
@@ -168,6 +169,7 @@ def test_lifecycle(tmp_path, docker, compose, capsys):
     old_key = docker.secret
     assert searxng.manage("restart", port=8890)["url"] == "http://127.0.0.1:8890"
     assert docker.secret == old_key
+    assert searxng.default_url() == "http://127.0.0.1:8890"
     assert searxng.manage("down")["state"] == "absent"
 
 

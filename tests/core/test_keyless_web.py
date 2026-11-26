@@ -34,6 +34,8 @@ def test_queries_follow_profile():
         "site:boards.greenhouse.io Nurse Practitioner", "site:job-boards.greenhouse.io Nurse Practitioner",
     )
     assert relaxed_queries("nurse") == ()
+    profile["criteria"]["remote_policy"] = {"required": "full_remote"}
+    assert all("remote" in item and "onsite" not in item for item in build_queries(profile, 8))
 
 
 def test_provider_urls_are_normalized():
@@ -57,7 +59,7 @@ def test_searxng_parallel_relaxation_and_pages(monkeypatch):
         if '"' in q:
             barrier.wait(timeout=5)
             return {"results": []}
-        if "boards.greenhouse.io" in q and "job-boards" not in q:
+        if q.split()[0] == "site:boards.greenhouse.io":
             return {"results": []}
         assert base == "http://localhost:8888"
         return {"results": [{"title": " A   title ", "url": f"https://example.org/job/{page}", "content": " Facts "}]}

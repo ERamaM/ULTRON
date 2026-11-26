@@ -334,3 +334,9 @@ def test_gather_reads_workday_hit_without_paginating_board(monkeypatch):
     assert any(path.startswith("/wday/cxs/") for path in requests)
     assert result["dossiers"][0]["url"] == url
     assert result["dossiers"][0]["status"] == "open"
+
+@pytest.mark.parametrize("route", ["positions", "vacancies", "openings", "apply", "join-us"])
+def test_web_filter_preserves_known_employer_posting_routes(route):
+    url = f"https://example.org/{route}"
+    assert gather._classify(f"{url}/financial-analyst", web_result=True) == "employer_page"
+    assert gather._classify(url, web_result=True) == "rejected"

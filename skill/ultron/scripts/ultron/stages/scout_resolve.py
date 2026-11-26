@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_host
 from ultron.core.discovery.url_filter import domain_of, normalize_url
-from ultron.core.feeds.urls import fetch_page_links, is_aggregator_host
+from ultron.core.feeds.urls import fetch_page_links, has_employer_job_path, is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.infra.net import HostBlocked, RequestBudgetExceeded, VendorBlocked
 from ultron.infra.urlpolicy import URLRejected, admit_url
@@ -86,8 +86,6 @@ def _pick_link(links: list[str], company: str) -> str | None:
     return matching[0] if len(matching) == 1 else None
 
 
-# A link to one opening on an employer's own site: a jobs or careers path with something after it.
-_EMPLOYER_JOB_PATH = re.compile(r"/(?:jobs?|careers?|positions?|vacanc(?:y|ies)|openings?|apply|join-us)/[^/?#]{3,}")
 _NOT_EMPLOYERS = frozenset({"linkedin.com", "facebook.com", "twitter.com", "x.com", "instagram.com", "youtube.com",
                             "google.com", "apple.com", "github.com", "medium.com", "t.me", "wa.me"})
 
@@ -105,7 +103,7 @@ def employer_links(links: list[str], page_url: str, company: str) -> list[str]:
         domain = registrable_domain(host) or host
         if domain == page_domain or domain in _NOT_EMPLOYERS or is_aggregator_host(host):
             continue
-        if not _EMPLOYER_JOB_PATH.search(link.split("?", 1)[0]):
+        if not has_employer_job_path(link):
             continue
         if wanted and wanted not in _company_key(host):
             continue

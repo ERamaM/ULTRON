@@ -7,7 +7,7 @@ from urllib.parse import parse_qsl, unquote, urlsplit
 
 from ultron.core import presets
 from ultron.core.discovery.url_filter import normalize_url
-from ultron.core.feeds.urls import looks_like_company_jobs_url
+from ultron.core.feeds.urls import has_employer_job_path, looks_like_company_jobs_url
 from ultron.core.ranker.lexical import LexicalRanker
 from ultron.core.web_search import searxng
 from ultron.core.web_search.cascade import provider_mode, search_web
@@ -61,7 +61,8 @@ _NOISE_PATHS = frozenset({"login", "signin", "sign-in", "privacy", "register", "
 
 _CAREER_INDEXES = frozenset({
     "career", "careers", "job", "jobs", "search", "job-search", "vacancies", "positions", "openings",
-    "opportunities", "all-jobs", "search-results", "emploi", "empleo", "vacantes", "ofertas", "trabaja-con-nosotros",
+    "opportunities", "all-jobs", "search-results", "apply", "join-us", "emploi", "empleo", "vacantes", "ofertas",
+    "trabaja-con-nosotros",
 })
 # Verified search-result routes on recruiting portals that also publish individual postings.
 _PORTAL_INDEX_PREFIXES = {"michaelpage.es": "/jobs/", "spainjobs.io": "/es/empleos/t/"}
@@ -90,8 +91,8 @@ def _classify(url: str, *, web_result: bool = False) -> str:
     if any(segment in _NOISE_PATHS for segment in segments):
         return "rejected"
     if web_result and kind == "employer_page":
-        career_url = (looks_like_company_jobs_url(url) or bool(_LOCAL_CAREER_PATHS.intersection(segments))
-                      or host.split(".")[0] in _LOCAL_CAREER_PATHS)
+        career_url = (looks_like_company_jobs_url(url) or has_employer_job_path(url)
+                      or bool(_LOCAL_CAREER_PATHS.intersection(segments)) or host.split(".")[0] in _LOCAL_CAREER_PATHS)
         posting_key = any(key.casefold() in _POSTING_KEYS and value for key, value in parse_qsl(parts.query))
         index = not segments[0] or segments[-1] in _CAREER_INDEXES
         prefix = _PORTAL_INDEX_PREFIXES.get(host.removeprefix("www."))

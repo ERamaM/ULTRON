@@ -104,6 +104,14 @@ SHORTENER_DOMAINS = {
 }
 
 
+_EMPLOYER_JOB_PATH = re.compile(r"/(?:jobs?|careers?|positions?|vacanc(?:y|ies)|openings?|apply|join-us)/[^/?#]{3}")
+
+
+def has_employer_job_path(url: str) -> bool:
+    """Recognize an individual opening route with a job identifier or slug."""
+    return bool(_EMPLOYER_JOB_PATH.search(urlparse(url).path.lower()))
+
+
 def looks_like_company_jobs_url(url: str) -> bool:
     """Return True if ``url`` appears to point to a company careers or job page."""
     parsed = urlparse(url)

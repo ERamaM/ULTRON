@@ -5,11 +5,13 @@ from itertools import product
 from ultron.core.extractors.text import collapse_whitespace
 from ultron.core.rules.geography import location_scope
 
+_WORKDAY_HOST = "myworkdayjobs.com"
 ATS_HOSTS = (
-    "boards.greenhouse.io", "jobs.ashbyhq.com", "jobs.lever.co", "apply.workable.com",
+    "boards.greenhouse.io", _WORKDAY_HOST, "jobs.ashbyhq.com", "jobs.lever.co", "apply.workable.com",
     "jobs.smartrecruiters.com", "recruitee.com", "teamtailor.com", "jobs.personio.de",
     "job-boards.greenhouse.io",
 )
+_JOB_INTENT = "(jobs OR careers OR apply OR empleo)"
 _ALIASES = {
     "boards.greenhouse.io": "job-boards.greenhouse.io",
     "job-boards.greenhouse.io": "boards.greenhouse.io",
@@ -46,6 +48,13 @@ def work_mode_term(profile: dict) -> str:
     return modes[0] if len(modes) == 1 else ""
 
 
+def _scoped_query(host: str, phrase: str) -> str:
+    # Workday indexes the role title in several localized forms.
+    if host == _WORKDAY_HOST:
+        phrase = phrase.replace('"', "")
+    return f"site:{host} {phrase}"
+
+
 def build_queries(profile: dict, max_queries: int, *, query: str | None = None) -> list[str]:
     """Build up to 40 queries from role, region and work mode preferences."""
     limit = min(40, max(0, max_queries))
@@ -62,11 +71,13 @@ def build_queries(profile: dict, max_queries: int, *, query: str | None = None) 
         return []
     scopes = _terms(templates.get("site_scopes"), ATS_HOSTS)
     hosts = tuple(dict.fromkeys(scope.removeprefix("site:") for scope in scopes if scope.removeprefix("site:")))
-    scoped = [f"site:{host} {broad[(index + rotation) % len(broad)]}"
+    scoped = [_scoped_query(host, broad[(index + rotation) % len(broad)])
               for rotation in range(len(broad)) for index, host in enumerate(hosts)]
-    plan = _interleave(broad, scoped[:limit])
+    job_queries = [f"{phrase} {_JOB_INTENT}" if not any(word.startswith("site:") for word in phrase.split()) else phrase
+                   for phrase in broad]
+    plan = _interleave(job_queries, scoped[:limit])
     if query is not None:
-        plan = [*broad, *(item for item in plan if item not in broad)]
+        plan = [*job_queries, *(item for item in plan if item not in job_queries)]
     return plan[:limit]
 
 

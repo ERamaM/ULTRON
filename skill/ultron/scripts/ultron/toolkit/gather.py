@@ -3,10 +3,11 @@
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from ultron.core import presets
 from ultron.core.discovery.url_filter import normalize_url
+from ultron.core.feeds.urls import has_employer_job_path, looks_like_company_jobs_url
 from ultron.core.ranker.lexical import LexicalRanker
 from ultron.core.web_search import searxng
 from ultron.core.web_search.cascade import provider_mode, search_web
@@ -51,9 +52,23 @@ MAX_AGGREGATOR_HOST_TARGETS = 3
 _SOURCE_ORDER = {"ats_posting": 0, "listed": 1, "employer_page": 2, "aggregator": 3}
 _NOISE_HOSTS = frozenset({
     "linkedin.com", "facebook.com", "instagram.com", "youtube.com", "twitter.com", "x.com", "indeed.com",
-    "glassdoor.com", "ziprecruiter.com", "jooble.org", "monster.com", "google.com",
+    "glassdoor.com", "glassdoor.es", "ziprecruiter.com", "jooble.org", "monster.com", "google.com",
+    "wikipedia.org", "wiktionary.org", "dictionary.com", "dictionary.cambridge.org", "collinsdictionary.com",
+    "rae.es", "fundeu.es", "payscale.com",
 })
 _NOISE_PATHS = frozenset({"login", "signin", "sign-in", "privacy", "register", "signup", "search", "auth", "oauth"})
+
+
+_CAREER_INDEXES = frozenset({
+    "career", "careers", "job", "jobs", "search", "job-search", "vacancies", "positions", "openings",
+    "opportunities", "all-jobs", "search-results", "apply", "join-us", "emploi", "empleo", "vacantes", "ofertas",
+    "trabaja-con-nosotros",
+})
+# Verified search-result routes on recruiting portals that also publish individual postings.
+_PORTAL_INDEX_PREFIXES = {"michaelpage.es": "/jobs/", "spainjobs.io": "/es/empleos/t/"}
+_EDITORIAL_PATHS = frozenset({"news", "blog", "articles", "press", "noticias", "actualidad"})
+_LOCAL_CAREER_PATHS = frozenset({"empleo", "trabajo", "vacantes", "emploi", "stellenangebote"})
+_POSTING_KEYS = frozenset({"jobid", "job_id", "job", "gh_jid", "req", "requisitionid", "postingid", "vacancyid"})
 
 
 def _blocked(memo: str, *, new_only: bool) -> bool:
@@ -64,24 +79,33 @@ def _identity(url: str, aliases: dict[str, str] | None = None) -> str:
     return candidate_identity(inspection_candidate(url, "web_search", aliases or {}).model_dump())
 
 
-def _classify(url: str) -> str:
+def _classify(url: str, *, web_result: bool = False) -> str:
     kind = classify_find(url).outcome
     if kind == "rejected":
         return kind
     parts = urlsplit(url)
-    host = parts.hostname or ""
-    segments = parts.path.lower().strip("/").split("/")
+    host = (parts.hostname or "").rstrip(".")
+    segments = unquote(parts.path).lower().strip("/").split("/")
     if any(host == blocked or host.endswith("." + blocked) for blocked in _NOISE_HOSTS):
         return "rejected"
     if any(segment in _NOISE_PATHS for segment in segments):
         return "rejected"
+    if web_result and kind == "employer_page":
+        career_url = (looks_like_company_jobs_url(url) or has_employer_job_path(url)
+                      or bool(_LOCAL_CAREER_PATHS.intersection(segments)) or host.split(".")[0] in _LOCAL_CAREER_PATHS)
+        posting_key = any(key.casefold() in _POSTING_KEYS and value for key, value in parse_qsl(parts.query))
+        index = not segments[0] or segments[-1] in _CAREER_INDEXES
+        prefix = _PORTAL_INDEX_PREFIXES.get(host.removeprefix("www."))
+        if (prefix and parts.path.lower().startswith(prefix)) or _EDITORIAL_PATHS.intersection(segments):
+            return "rejected"
+        return kind if career_url and (not index or posting_key) else "rejected"
     return kind if kind == "ats_posting" or parts.path.strip("/") else "rejected"
 
 
 def _web_candidates(web: WebSearchResult) -> list[dict]:
     return [{"url": hit.url, "title": hit.title, "snippet": hit.snippet,
              "company": aggregator_company(hit.url) or title_company(hit.title), "source": "web",
-             "status": "unread"} for hit in web.hits if _classify(hit.url) != "rejected"]
+             "status": "unread"} for hit in web.hits if _classify(hit.url, web_result=True) != "rejected"]
 
 
 def _candidate_pool(local: list[dict], web: WebSearchResult, aliases: dict[str, str]) -> tuple[list[dict], list[dict]]:
@@ -253,7 +277,8 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
 
     deadline = start + TOTAL_SECONDS
     inspector = InspectionSession(run, detail, aliases, gate=gate, vendor_budget=budget,
-                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline)
+                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline,
+                                  expand_workday=False)
     origins = {row["target"]: row for row in targets}
     locations = [(url, row["company"]) for url, row in origins.items()]
     result = inspector.inspect(locations)

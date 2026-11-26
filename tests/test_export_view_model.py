@@ -70,3 +70,8 @@ def test_salary_summary_keeps_currencies_separate():
     }}
     assert view_model.parse_salary_midpoint("EUR 120,000-90,000 per year") is None
     assert view_model.parse_salary_midpoint("EUR 95,000 / year or USD 90,000 / year") is None
+
+
+
+def test_salary_display_caps_its_scan():
+    assert view_model.format_salary_disclosure("x" * 20_000 + "Salary: EUR 120,000 per year") == ""

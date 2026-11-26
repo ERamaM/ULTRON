@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ultron.salary.disclosure import extract_salaries_from_text
 
+SALARY_SCAN_CHARS = 20_000
+
 _PERIOD_LABEL = {"annual": "year", "monthly": "month", "daily": "day", "hourly": "hour"}
 
 
@@ -13,7 +15,7 @@ def _amount(value: float) -> str:
 
 def format_salary_disclosure(body_text: str) -> str:
     """Format the first usable disclosure in its stated period."""
-    hits = extract_salaries_from_text(body_text)
+    hits = extract_salaries_from_text((body_text or "")[:SALARY_SCAN_CHARS])
     if not hits:
         return ""
     hit = hits[0]

@@ -22,6 +22,7 @@ from ultron.core.discovery.prefilter import is_clearly_ineligible_at_discovery, 
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.feeds.urls import is_aggregator_host
+from ultron.core.job_identity import canonical_job_identity
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import escape_markdown_cell
 from ultron.core.rules.geography import geo_scope, location_scope
@@ -47,6 +48,7 @@ from ultron.stages.scout_finds import web_candidate
 from ultron.stages.scout_resolve import resolve_aggregator
 from ultron.stages.watch_boards import WATCH_PASS, watch_seeds
 from ultron.storage import ledger, runs, scout_memory, watchlist
+from ultron.storage.watch_digests import latest_closures
 
 WATCH_DIR = "watch"
 RECHECK_MAX = 25
@@ -136,10 +138,10 @@ def latest_shortlist(profile_slug: str) -> list[dict]:
     return []
 
 
-def recheck_closed(profile_slug: str, client) -> list[dict]:
-    """Postings of the latest shortlist that no longer read as open (at most ``RECHECK_MAX`` re-read)."""
+def recheck_closed(profile_slug: str, client) -> tuple[list[dict], set[str]]:
+    """Return confirmed closures and canonical URLs that could not be confirmed either way."""
     allowed = load_allowed_domains()
-    closed = []
+    closed, unconfirmed = [], set()
     for row in latest_shortlist(profile_slug)[:RECHECK_MAX]:
         url = str(row.get("apply_url") or "")
         if not url:
@@ -147,16 +149,35 @@ def recheck_closed(profile_slug: str, client) -> list[dict]:
         try:
             status = posting_status(fetch_posting(web_candidate(url, {}, "recheck"), client, allowed))
         except (HostBlocked, RequestBudgetExceeded):
-            continue
+            status = "unconfirmed"
         if status == "closed":
             closed.append({"title": row.get("title", ""), "company": row.get("company", ""), "apply_url": url})
-    return closed
+        elif status != "open":
+            unconfirmed.add(canonical_job_identity(url).canonical_url)
+    return closed, unconfirmed
 
 
-def _write_digest(profile_slug: str, found: list[dict], stamp: str, closed: list[dict] | None = None) -> str | None:
+def _closure_snapshot(folder, profile_slug: str, closed: list[dict], unconfirmed: set[str]) -> list[dict]:
+    if not unconfirmed:
+        return closed
+    stamp, previous = latest_closures(folder, profile_slug).get(profile_slug, ("", []))
+    carry = [
+        {**row, "detected_at": row.get("detected_at") or stamp}
+        for row in previous
+        if isinstance(row, dict) and isinstance(url := row.get("apply_url"), str)
+        and canonical_job_identity(url).canonical_url in unconfirmed
+    ]
+    return [*closed, *carry]
+
+
+def _write_digest(
+    profile_slug: str, found: list[dict], stamp: str, closed: list[dict] | None = None, *,
+    unconfirmed: set[str] | None = None,
+) -> str | None:
     folder = home.ultron_home() / WATCH_DIR
     folder.mkdir(parents=True, exist_ok=True)
-    atomic_write_text(folder / f"{profile_slug}-{stamp}.closed.json", json.dumps(closed or [], ensure_ascii=False))
+    closure_rows = _closure_snapshot(folder, profile_slug, closed or [], unconfirmed or set())
+    atomic_write_text(folder / f"{profile_slug}-{stamp}.closed.json", json.dumps(closure_rows, ensure_ascii=False))
     if not found and not closed:
         return None
     by_company: dict[str, list[dict]] = {}
@@ -205,7 +226,7 @@ def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET, overrides: di
                 matched.append(candidate.model_dump(mode="json"))
     role_matched, sources = _role_candidates(run, client, timeout)
     matched.extend(role_matched)
-    closed = recheck_closed(profile_slug, client)
+    closed, unconfirmed = recheck_closed(profile_slug, client)
     with closing(ledger.connect()) as conn:
         flags = scout_memory.flags(conn, profile_slug, [candidate_identity(c) for c in matched])
         pending = watchlist.known_pending(conn, profile_slug)
@@ -225,7 +246,7 @@ def watch(profile_slug: str, preset: str = presets.DEFAULT_PRESET, overrides: di
         "matched": len(matched),
         "new_postings": len(found),
         "closed": closed,
-        "digest": _write_digest(profile_slug, found, stamp, closed),
+        "digest": _write_digest(profile_slug, found, stamp, closed, unconfirmed=unconfirmed),
         "requests": client.requests_made,
         "requests_by_domain": top_hosts(client.requests_by_host()),
     }

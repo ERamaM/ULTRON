@@ -276,7 +276,8 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
 
     deadline = start + TOTAL_SECONDS
     inspector = InspectionSession(run, detail, aliases, gate=gate, vendor_budget=budget,
-                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline)
+                                  skip_identity=skip, max_fallbacks=MAX_COMPANY_PROBES, deadline=deadline,
+                                  expand_workday=False)
     origins = {row["target"]: row for row in targets}
     locations = [(url, row["company"]) for url, row in origins.items()]
     result = inspector.inspect(locations)

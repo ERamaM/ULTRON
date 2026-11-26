@@ -313,3 +313,24 @@ def test_gather_prepares_only_the_managed_provider_and_reports_docker(monkeypatc
 ])
 def test_web_results_require_vacancy_intent(url, kind):
     assert gather._classify(url, web_result=True) == kind
+
+def test_gather_reads_workday_hit_without_paginating_board(monkeypatch):
+    url = "https://demo.wd5.myworkdayjobs.com/en-US/External/job/Madrid/ML-Engineer_R42"
+    requests = []
+
+    def handler(request):
+        requests.append(request.url.path)
+        assert request.method == "GET"
+        if request.url.path.startswith("/wday/cxs/"):
+            return httpx.Response(200, json={"jobPostingInfo": {"title": "Senior ML Engineer",
+                                  "location": "Madrid", "jobDescription": "<p>Build new models.</p>"}})
+        return httpx.Response(200, text=EMPLOYER_PAGE)
+
+    _setup_transport(monkeypatch, handler)
+    search = WebSearchResult("ok", "searxng", 1, 1, (hit(url, "Senior ML Engineer at Demo"),))
+    monkeypatch.setattr(gather, "search_web", lambda *args, **kwargs: search)
+    monkeypatch.setattr(gather, "discover_sources", lambda *args, **kwargs: gather_empty_sources())
+    result = gather.gather_candidates(SLUG)
+    assert any(path.startswith("/wday/cxs/") for path in requests)
+    assert result["dossiers"][0]["url"] == url
+    assert result["dossiers"][0]["status"] == "open"

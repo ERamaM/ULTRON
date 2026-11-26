@@ -155,11 +155,13 @@ class InspectionSession:
     def __init__(self, run: dict, detail: bool, boards: dict[str, str], *,
                  gate: HostGate | None = None, vendor_budget: VendorBudget | None = None,
                  skip_identity: Callable[[str], bool] | None = None,
-                 max_fallbacks: int | None = None, deadline: float | None = None) -> None:
+                 max_fallbacks: int | None = None, deadline: float | None = None,
+                 expand_workday: bool = True) -> None:
         self.run, self.detail = run, detail
         self.context = ProfileContext(run["profile_snapshot"], run["profile_slug"])
         self.skip_identity = skip_identity
         self.max_fallbacks, self.deadline = max_fallbacks, deadline
+        self.expand_workday = expand_workday
         self.timeout = run["settings"]["ats_api_timeout"]
         self.allowed = load_allowed_domains()
         self.boards = boards  # normalized posting URL -> the "vendor:board" a board listed it on
@@ -208,6 +210,9 @@ class InspectionSession:
         postings first and list the board once for its other matching postings.
         """
         seed = unit.seed
+        if seed.ats == "workday" and not self.expand_workday:
+            # Workday job detail can be read directly. Paginating the board delays unrelated reads.
+            return self._postings(unit.items, client)
         postings: list = []
         try:
             postings = list_board(seed, client, self.timeout)

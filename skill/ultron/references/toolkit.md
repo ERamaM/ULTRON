@@ -87,9 +87,13 @@ An `open` dossier was read. It adds `geo_excerpt` (location, remote work and eli
 (the start of the role text; `--detail` returns more) and `salary` when the posting discloses pay. Judge the facts
 against the profile. A `listed` dossier is open at its source and has not been read; inspect it if you need more facts.
 
+MCP inspection returns completed dossiers and sets `partial: true` when its request budget runs out.
+
 ## Saving the shortlist
 
 One JSON object per line, best first: the shortlist keeps your order (keeps first, then by your priority).
+Use the work-mode and eligibility values below. For an ambiguous work mode or eligibility claim,
+use `unknown` and put the supporting text in `eligibility_evidence`.
 A row names a posting by the `id` of its dossier, or by `url` with `title` and `company`:
 
 | Field | Rule |
@@ -97,7 +101,7 @@ A row names a posting by the `id` of its dossier, or by `url` with `title` and `
 | `id` or `url` | Required: an inspected posting's `id` fills in its URL, title, company and location |
 | `verdict` | `keep`, `unsure` or `discard` |
 | `priority` | `1` (apply first), `2` or `3` (apply last); default `2` |
-| `remote_policy` | `remote_spain`, `remote_eu`, `remote_europe`, `remote_emea`, `remote_other` or `unknown` (default) |
+| `remote_policy` | `remote_spain`, `remote_eu`, `remote_europe`, `remote_emea`, `remote_other`, `hybrid`, `onsite` or `unknown` (default) |
 | `eligibility` | `confirmed`, `high`, `medium` or `unknown`; default `high` for `keep`, `unknown` for `unsure` |
 | `eligibility_evidence` | Optional: the posting text that shows the user is eligible |
 | `fit_signals` | Optional: up to 8 short reasons it fits |

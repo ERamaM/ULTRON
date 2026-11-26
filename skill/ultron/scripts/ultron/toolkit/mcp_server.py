@@ -16,8 +16,9 @@ from typing import IO, Any
 from ultron import __version__
 from ultron.core import presets
 from ultron.core.web_search.cascade import WEB_PROVIDERS
+from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
-from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, inspect_jobs
+from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import MAX_ROWS, save_shortlist
 
@@ -80,7 +81,7 @@ TOOLS: list[dict[str, Any]] = [
         "description": "Save the judged postings as the profile's shortlist, best first: results files, history, "
                        "memory (discards are never shown again) and the watchlist. Each row names an inspected "
                        "posting by 'id', or gives 'url', 'title' and 'company'; 'verdict' is keep, unsure or "
-                       "discard; 'priority' 1 (apply first) to 3.",
+                       "discard; 'priority' 1 (apply first) to 3. Use the work-mode and eligibility enum values, or unknown when the evidence is insufficient.",
         "inputSchema": {"type": "object", "required": ["profile", "rows"], "additionalProperties": False,
                         "properties": {
             "profile": PROFILE,
@@ -90,7 +91,11 @@ TOOLS: list[dict[str, Any]] = [
                     "company": {"type": "string"}, "location": {"type": "string"},
                     "verdict": {"enum": ["keep", "unsure", "discard"]},
                     "priority": {"type": "integer", "minimum": 1, "maximum": 3},
-                    "remote_policy": {"type": "string"}, "eligibility": {"type": "string"},
+                    "remote_policy": {"type": "string", "enum": sorted(REMOTE_POLICIES),
+                                      "description": "Use a remote region only when the posting supports it. "
+                                                     "Use hybrid, onsite or unknown as appropriate."},
+                    "eligibility": {"type": "string", "enum": sorted(ELIGIBILITIES),
+                                    "description": "Evidence: confirmed, high, medium or unknown."},
                     "eligibility_evidence": {"type": "string"},
                     "fit_signals": {"type": "array", "items": {"type": "string"}},
                     "discard_reason": {"type": "string"},
@@ -163,7 +168,7 @@ def _inspect(arguments: dict) -> dict:
     if not urls and not companies:
         raise ToolInputError("give urls or companies")
     return inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
-                        show_all=bool(arguments.get("all")))
+                        show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
 
 
 def _save(arguments: dict) -> dict:

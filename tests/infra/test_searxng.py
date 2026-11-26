@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+import yaml
 
 from ultron.cli import main
 from ultron.diagnostics import doctor
@@ -165,7 +166,13 @@ def test_lifecycle(tmp_path, docker, compose, capsys):
     if os.name != "nt":
         assert key.stat().st_mode & 0o777 == 0o600
     settings = (root / "config" / "settings.yml").read_text()
-    assert "formats: [html, json]" in settings
+    config = yaml.safe_load(settings)
+    assert config["search"]["formats"] == ["html", "json"]
+    enabled = {entry["name"]: not entry["disabled"] for entry in config["engines"]}
+    assert all(enabled[name] for name in ("bing", "brave", "yahoo", "google", "qwant"))
+    assert enabled["duckduckgo"] is False
+    assert set(enabled) == set(config["use_default_settings"]["engines"]["keep_only"])
+    assert config["outgoing"] == {"request_timeout": 5.0, "max_request_timeout": 7.0}
     assert docker.secret not in settings
     with pytest.raises(searxng.LifecycleError, match="restart"):
         searxng.manage("up", port=8890)

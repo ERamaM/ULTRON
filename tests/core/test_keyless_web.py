@@ -202,3 +202,19 @@ def test_provider_deadlines_stop_queued_queries(monkeypatch):
     assert searxng.search(["nurse"], deadline=0) == ([], 0)
     assert ddg_html.search(["nurse"], deadline=0) == ([], 0)
     assert cascade.search_web(["nurse"], "searxng", deadline=0).metadata()["fallback_to_agent_web_search"]
+
+def test_searxng_runs_initial_queries_before_relaxing(monkeypatch):
+    from urllib.parse import parse_qs, urlsplit
+
+    calls = []
+    queries = [f'"position {i}"' for i in range(12)]
+
+    def read(_base, path, **_options):
+        q = parse_qs(urlsplit(path).query)["q"][0]
+        calls.append(q)
+        return {"results": []}
+
+    monkeypatch.setattr(searxng, "read_json", read)
+    assert searxng.search(queries) == ([], len(queries))
+    assert set(calls[:len(queries)]) == set(queries)
+    assert len(calls) == 2 * len(queries)

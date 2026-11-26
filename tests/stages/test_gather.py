@@ -245,3 +245,21 @@ def test_listed_fallback_reuses_canonical_ats_memory(monkeypatch):
     result = gather.gather_candidates(SLUG, web_provider="none", new_only=True)
     assert result["returned"] == 0
     assert result["inspected"]["skipped_memory"] == 1 and result["inspected"]["attempted"] == 0
+
+def test_gather_limits_unresolved_aggregator_targets():
+    from ultron.core.ranker.lexical import LexicalRanker
+    listings = [
+        {"id": f"{host}/{index}", "url": f"https://{host}/jobs/{index}", "title": "ML Engineer",
+         "kind": "aggregator", "status": "listed"}
+        for host in ("arbeitnow.com", "www.arbeitnow.com", "himalayas.app", "jobicy.com", "remotive.com")
+        for index in range(10)
+    ]
+    ats = {"id": "ats", "url": POSTING, "kind": "ats_posting", "status": "unread", "title": "ML Engineer"}
+    mapped = "https://jobs.example.org/positions/12345"
+    selected = gather._target_plan([*listings, ats], LexicalRanker({}, query="ML Engineer"), 40,
+                                   {listings[9]["url"]: mapped})
+    assert selected[0]["target"] == POSTING
+    assert selected[1]["target"] == mapped
+    aggregators = [item for item in selected if item["kind"] == "aggregator"]
+    assert len(aggregators) == 12
+    assert sum("arbeitnow" in item["id"] for item in aggregators) == 3

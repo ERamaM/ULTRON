@@ -131,7 +131,8 @@ def _attributes(job: dict) -> str:
         "salary-mid": job["midpoint"], "currency": job["currency"], "date": job["date"].get("iso", ""),
         "remote": job["remote"], "tags": "\n".join(tag.lower() for tag in job["signals"]),
         "search": " ".join([job["title"], job["company"], job["location"], job["salary"], job["remote_label"],
-                            job["evidence"], *job["signals"]]).lower(),
+                            job["evidence"], job["eligibility"], *job["signals"],
+                            *(text for _, text in job["requirements"])]).lower(),
     }
     return " ".join(f'data-{key}="{html.escape(str(value), quote=True)}"' for key, value in tokens.items())
 

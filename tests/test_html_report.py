@@ -202,3 +202,15 @@ def test_toolkit_hero_priority_salary_and_shared_triage_views():
     assert re.search(r'<tr data-id="key">', page)
     assert malicious not in page and '&lt;script&gt;alert(&quot;bad&quot;)&lt;/script&gt;' in page
     assert "ultron jobs mark -- " in page and "ultron jobs note -- " in page
+
+
+
+def test_search_index_includes_requirement_text():
+    from ultron.exports.html_report import render_html
+
+    page = render_html({}, {"rows": [
+        _row(fit_signals=[], matched_requirements=["Java"], missing_requirements=["Italian"],
+             uncertain_requirements=["German"]),
+    ]}, [])
+    [match] = re.findall(r'data-search="([^"]*)"', page)
+    assert all(term in match for term in ("java", "italian", "german"))

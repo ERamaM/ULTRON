@@ -72,11 +72,9 @@ known, and `memory`:
 | `rejected` | The user rejected it, or you discarded it before: skip it |
 | `applied` | The user applied: skip it |
 
-An `open` dossier was read: it adds `hint`, `geo_excerpt` (the location, remote and eligibility lines),
-`role_excerpt` (the start of the role text; `--detail` returns more) and `salary` when the posting discloses pay.
-Judge from them; open the page yourself only when they are not enough. A `listed` dossier is open on its board
-but not read: inspect its URL to read it. `hint` is what ULTRON's rules would decide (`verdict`, with `reason` for
-a discard, plus `remote_policy` and `eligibility`). It is only a hint and it can be wrong: you decide.
+An `open` dossier was read. It adds `geo_excerpt` (location, remote work and eligibility lines), `role_excerpt`
+(the start of the role text; `--detail` returns more) and `salary` when the posting discloses pay. Judge the facts
+against the profile. A `listed` dossier is open at its source and has not been read; inspect it if you need more facts.
 
 ## Saving the shortlist
 

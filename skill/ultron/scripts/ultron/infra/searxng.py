@@ -66,7 +66,7 @@ def default_url(port: int | None = None) -> str:
     return f"http://127.0.0.1:{configured_port(port)}"
 
 
-def _read(base: str, path: str, timeout: float) -> tuple[int, dict]:
+def _read(base: str, path: str, timeout: float, deadline: float | None = None) -> tuple[int, dict]:
     local = explicit_loopback_origin(base)
     if not path.startswith("/") or path.startswith("//"):
         raise ValueError("SearXNG request path must be relative to its origin")
@@ -83,7 +83,7 @@ def _read(base: str, path: str, timeout: float) -> tuple[int, dict]:
             raise ValueError("SearXNG URL must be an explicit loopback HTTP origin or public HTTPS origin")
         origin = admit_url(base)
         with HttpClient(max_requests=2, max_requests_per_host=2, max_bytes=2_000_000,
-                        min_interval_per_host=0, block_threshold=1, timeout=timeout) as client:
+                        min_interval_per_host=0, block_threshold=1, timeout=timeout, deadline=deadline) as client:
             status, _, payload = client.get_text(url, allowed_domains=(origin.hostname,))
     if status not in {200, 400}:
         raise HttpError("SearXNG service error", status_code=status)
@@ -93,9 +93,9 @@ def _read(base: str, path: str, timeout: float) -> tuple[int, dict]:
     return status, value
 
 
-def read_json(base: str, path: str, *, timeout: float) -> dict:
+def read_json(base: str, path: str, *, timeout: float, deadline: float | None = None) -> dict:
     """Read a JSON result from the configured SearXNG origin."""
-    status, value = _read(base, path, timeout)
+    status, value = _read(base, path, timeout, deadline)
     if status != 200:
         raise HttpError("SearXNG returned an error", status_code=status)
     return value
@@ -105,7 +105,7 @@ def json_health(base: str | None = None, *, timeout: float = 1.5) -> bool:
     """Check that the JSON API is enabled without making a metasearch query."""
     try:
         base = base or os.environ.get("ULTRON_SEARXNG_URL") or default_url()
-        status, value = _read(base, _HEALTH_CHECK, timeout)
+        status, value = _read(base, _HEALTH_CHECK, timeout, time.monotonic() + timeout)
         return status == 400 and value.get("error") == "No query"
     except (ValueError, LifecycleError, HttpError, RequestBudgetExceeded):
         return False

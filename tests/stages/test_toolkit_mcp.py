@@ -52,7 +52,7 @@ def test_handshake_lists_exactly_three_tools():
         {"jsonrpc": "2.0", "id": 3, "method": "ping"},
     )
     assert init["result"]["protocolVersion"] == "2025-06-18" and init["result"]["capabilities"]["tools"]
-    assert [t["name"] for t in tools["result"]["tools"]] == ["search_jobs", "inspect_jobs", "save_shortlist"]
+    assert [t["name"] for t in tools["result"]["tools"]] == ["gather_candidates", "search_jobs", "inspect_jobs", "save_shortlist"]
     assert all("inputSchema" in t for t in tools["result"]["tools"]) and ping["result"] == {}
 
 
@@ -127,4 +127,4 @@ def test_cli_server_speaks_only_protocol_on_stdout(tmp_path):
                           encoding="utf-8", env=env, timeout=60, check=False)
     lines = [json.loads(line) for line in done.stdout.splitlines()]
     assert done.returncode == 0 and [line["id"] for line in lines] == [1, 2]
-    assert lines[1]["result"]["tools"][0]["name"] == "search_jobs"
+    assert lines[1]["result"]["tools"][0]["name"] == "gather_candidates"

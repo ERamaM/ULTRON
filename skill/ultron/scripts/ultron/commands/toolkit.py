@@ -9,8 +9,10 @@ from pathlib import Path
 
 from ultron.commands.output import emit, fail
 from ultron.core import presets
+from ultron.core.web_search.cascade import WEB_PROVIDERS
 from ultron.profiles import store as profile_store
 from ultron.storage import runs
+from ultron.toolkit.gather import DEFAULT_QUERIES, gather_candidates
 from ultron.toolkit.inspect import inspect_jobs
 from ultron.toolkit.mcp_server import serve
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
@@ -72,6 +74,19 @@ def _search(args: argparse.Namespace) -> int:
     return 0
 
 
+def _gather(args: argparse.Namespace) -> int:
+    if (code := _check(args.profile, args.preset)) is not None:
+        return code
+    try:
+        result = gather_candidates(args.profile, args.query, limit=args.limit, max_queries=args.max_queries,
+                                   web_provider=args.web_provider, new_only=args.new_only, detail=args.detail,
+                                   preset=args.preset)
+    except ValueError as error:
+        return fail("invalid_input", str(error))
+    emit(result)
+    return 0
+
+
 def _save(args: argparse.Namespace) -> int:
     if (code := _check(args.profile, args.preset)) is not None:
         return code
@@ -96,8 +111,19 @@ def _mcp(_args: argparse.Namespace) -> int:
 
 def register(subparsers) -> None:
     """Register ``search``, ``inspect``, ``shortlist save`` and ``mcp``."""
-    mcp = subparsers.add_parser("mcp", help="serve search, inspect and save as MCP tools over stdio")
+    mcp = subparsers.add_parser("mcp", help="serve gather, search, inspect and save as MCP tools over stdio")
     mcp.set_defaults(func=_mcp)
+
+    gather = subparsers.add_parser("gather", help="discover and inspect candidates for one round of judging")
+    gather.add_argument("--profile", required=True)
+    gather.add_argument("--query", default="", help="a role query instead of the profile's target titles")
+    gather.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="maximum dossiers to return (1-100)")
+    gather.add_argument("--max-queries", type=int, default=DEFAULT_QUERIES, help="maximum web queries (1-40)")
+    gather.add_argument("--web-provider", choices=WEB_PROVIDERS, help="keyless web provider, or none")
+    gather.add_argument("--new-only", action="store_true", help="only postings the profile has never seen")
+    gather.add_argument("--detail", action="store_true", help="longer role excerpts")
+    gather.add_argument("--preset", default=presets.DEFAULT_PRESET)
+    gather.set_defaults(func=_gather)
 
     search = subparsers.add_parser("search", help="postings from the watch, watched boards and role job APIs")
     search.add_argument("--profile", required=True)

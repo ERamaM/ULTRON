@@ -1,5 +1,6 @@
 """Bounded HTTP reads for an explicitly configured IPv4 loopback service."""
 
+import time
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
@@ -47,6 +48,7 @@ def read_loopback(
         raise URLRejected("loopback_origin_mismatch")
     target = urlunsplit(parts._replace(netloc=f"127.0.0.1:{origin.port}"))
     headers = {"Host": parts.netloc, "Accept-Encoding": "identity"}
+    deadline = time.monotonic() + timeout
     with (
         httpx.Client(trust_env=False, follow_redirects=False, timeout=timeout) as client,
         client.stream("GET", target, headers=headers) as response,
@@ -56,7 +58,9 @@ def read_loopback(
         if response.headers.get("content-encoding", "identity").lower() != "identity":
             raise URLRejected("loopback_content_encoding")
         body = bytearray()
-        for chunk in response.iter_raw(chunk_size=65536):
+        for chunk in response.iter_raw():
+            if time.monotonic() >= deadline:
+                raise httpx.ReadTimeout("Loopback request exceeded its time budget")
             if len(body) + len(chunk) > max_bytes:
                 raise URLRejected("response_too_large")
             body.extend(chunk)

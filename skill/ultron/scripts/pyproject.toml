@@ -1,6 +1,6 @@
 [project]
 name = "ultron"
-version = "0.4.1"
+version = "1.0.0"
 description = "ULTRON - Universal Locator & Triage of Roles, Openings and Niches"
 license = "MIT"
 authors = [{ name = "Efrén Rama" }]
@@ -15,7 +15,7 @@ keywords = [
     "antigravity",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",

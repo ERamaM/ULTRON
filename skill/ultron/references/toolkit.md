@@ -145,9 +145,14 @@ profile's watchlist.
 
 `ultron mcp` serves four tools over stdio: `gather_candidates` for discovery, `inspect_jobs` for more detail
 or extra `urls` and `companies`, `search_jobs` for watch, boards and feeds, and `save_shortlist` with `rows`.
-Pass data inline. The JSON response matches the CLI. For `gather_candidates`, use `profile` and optional
+Pass data inline. For `gather_candidates`, use `profile` and optional
 `query`, `limit`, `max_queries`, `web_provider`, `new_only` and `detail`. Register the command `ultron mcp`, using the executable path from
 `RUNTIME.md`, in the platform's MCP settings only when the user asks for it.
+
+The MCP gather response keeps ranked dossiers inline within a 36,000-byte UTF-8 budget. It omits empty fields
+and query strings, and may shorten excerpts as the batch grows. If some dossiers exceed the budget,
+`truncated: true` and `dossiers_omitted` flag the omitted tail. Judge the returned dossiers and use
+`inspect_jobs` with `detail: true` when a returned posting needs more evidence.
 
 ## Later days
 

@@ -19,6 +19,7 @@ from ultron.core.web_search.cascade import WEB_PROVIDERS
 from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
 from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
+from ultron.toolkit.mcp_gather import gather_text
 from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
 from ultron.toolkit.shortlist import MAX_ROWS, save_shortlist
 
@@ -32,7 +33,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "gather_candidates",
         "description": "Discover postings from keyless web search, watch, ATS boards and feeds. Inspect, rank and "
-                       "cache factual dossiers for judging and saving in one pass. " + UNTRUSTED,
+                       "cache factual dossiers for judging and saving in one pass. The inline result can shorten "
+                       "excerpts and reports any ranked dossiers omitted. " + UNTRUSTED,
         "inputSchema": {"type": "object", "required": ["profile"], "additionalProperties": False, "properties": {
             "profile": PROFILE,
             "query": {"type": "string", "description": "a role query instead of the profile's target titles"},
@@ -182,8 +184,9 @@ HANDLERS: dict[str, Callable[[dict], dict]] = {"gather_candidates": _gather, "se
                                                "save_shortlist": _save}
 
 
-def _text_result(payload: dict, *, error: bool = False) -> dict:
-    return {"content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}], "isError": error}
+def _text_result(payload: dict, *, error: bool = False, compact_gather: bool = False) -> dict:
+    text = gather_text(payload) if compact_gather else json.dumps(payload, ensure_ascii=False)
+    return {"content": [{"type": "text", "text": text}], "isError": error}
 
 
 def call_tool(name: str, arguments: Any) -> dict:
@@ -194,7 +197,7 @@ def call_tool(name: str, arguments: Any) -> dict:
     if not isinstance(arguments, dict):
         return _text_result({"error": "invalid_arguments", "message": "arguments must be an object"}, error=True)
     try:
-        return _text_result(handler(arguments))
+        return _text_result(handler(arguments), compact_gather=name == "gather_candidates")
     except FileNotFoundError:
         return _text_result({"error": "profile_not_found", "message": "profile not found"}, error=True)
     except (ToolInputError, ValueError, KeyError) as exc:

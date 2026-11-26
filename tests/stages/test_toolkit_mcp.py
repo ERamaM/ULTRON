@@ -163,3 +163,59 @@ def test_cli_server_speaks_only_protocol_on_stdout(tmp_path):
     lines = [json.loads(line) for line in done.stdout.splitlines()]
     assert done.returncode == 0 and [line["id"] for line in lines] == [1, 2]
     assert lines[1]["result"]["tools"][0]["name"] == "gather_candidates"
+
+
+def _gather_fixture(count: int) -> dict:
+    return {
+        "profile": SLUG, "queries": ["site:example.test senior engineer"] * 20,
+        "web_search": {"queries_run": 20, "fallback_to_agent_web_search": False},
+        "sources": {"feeds": 8}, "inspected": {"open": count, "unresolved_aggregator": 2},
+        "returned": count, "dossiers": [
+            {"id": f"vendor:company:{i}", "url": f"https://jobs.example.test/company/job/{i}",
+             "title": "Senior Machine Learning Engineer", "company": "Example Company",
+             "location": "Spain", "status": "open", "remote": "", "salary": None,
+             "geo_excerpt": 'Remoto desde España. Find out about "híbrido" or fully remote. ' * 6,
+             "role_excerpt": "Implement models and evaluate machine learning systems at scale. " * 12}
+            for i in range(count)
+        ],
+        "unresolved": [{"url": "https://aggregator.example.test/" + "ü" * 20_000, "company": ""}],
+    }
+
+
+def test_gather_mcp_keeps_sixty_ranked_dossiers_inline(monkeypatch):
+    gathered = _gather_fixture(60)
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, **kwargs: gathered)
+    (response,) = _session(_call("gather_candidates", {"profile": SLUG}))
+    text = response["result"]["content"][0]["text"]
+    payload = _payload(response)
+    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 36_000
+    assert payload["returned"] == 60 and not payload.get("truncated")
+    assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"]]
+    assert "queries" not in payload and "unresolved" not in payload
+    assert payload["web_search"] == gathered["web_search"] and payload["inspected"] == gathered["inspected"]
+    first = payload["dossiers"][0]
+    assert "remote" not in first and "salary" not in first
+    assert 0 < len(first["geo_excerpt"]) <= 290 and 0 < len(first["role_excerpt"]) <= 380
+    assert gathered["dossiers"][0]["remote"] == "" and len(gathered["dossiers"][0]["role_excerpt"]) > 700
+
+
+def test_gather_reports_a_ranked_prefix_with_large_multibyte_urls(monkeypatch):
+    gathered = _gather_fixture(10)
+    gathered["sources"]["large"] = "x" * 40_000
+    for row in gathered["dossiers"]:
+        row["url"] += "/" + "職" * 4_000
+    monkeypatch.setattr(mcp_server, "gather_candidates", lambda *args, **kwargs: gathered)
+    (response,) = _session(_call("gather_candidates", {"profile": SLUG, "detail": True}))
+    text = response["result"]["content"][0]["text"]
+    payload = _payload(response)
+    assert not response["result"]["isError"] and len(text.encode("utf-8")) <= 36_000
+    assert payload["truncated"] and payload["returned"] == 2 and payload["dossiers_omitted"] == 8
+    assert [row["id"] for row in payload["dossiers"]] == [row["id"] for row in gathered["dossiers"][:2]]
+    assert payload["web_search"] == gathered["web_search"] and "sources" not in payload
+
+
+def test_inspect_mcp_detail_keeps_full_excerpts(monkeypatch):
+    result = _gather_fixture(1)
+    monkeypatch.setattr(mcp_server, "inspect_jobs", lambda *args, **kwargs: result)
+    (response,) = _session(_call("inspect_jobs", {"profile": SLUG, "urls": [POSTING], "detail": True}))
+    assert _payload(response) == result

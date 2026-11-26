@@ -20,11 +20,17 @@ def _safe(search: Callable, queries: list[str], deadline: float | None) -> tuple
         return [], 0
 
 
-def search_web(queries: list[str], provider: str | None = None, *, deadline: float | None = None) -> WebSearchResult:
-    """Search with the configured provider or auto cascade, without requiring credentials."""
+def provider_mode(provider: str | None) -> str:
+    """Resolve explicit and environment provider selection before launching a search."""
     mode = provider or os.environ.get("ULTRON_WEB_SEARCH_PROVIDER") or "auto"
     if mode not in WEB_PROVIDERS:
         raise ValueError("Unknown web search provider")
+    return mode
+
+
+def search_web(queries: list[str], provider: str | None = None, *, deadline: float | None = None) -> WebSearchResult:
+    """Search with the configured provider or auto cascade, without requiring credentials."""
+    mode = provider_mode(provider)
     queries = queries[:40]
     if mode == "none" or not queries:
         return WebSearchResult("disabled", "none", 0, 0, ())

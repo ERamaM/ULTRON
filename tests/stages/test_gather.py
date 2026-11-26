@@ -245,3 +245,46 @@ def test_listed_fallback_reuses_canonical_ats_memory(monkeypatch):
     result = gather.gather_candidates(SLUG, web_provider="none", new_only=True)
     assert result["returned"] == 0
     assert result["inspected"]["skipped_memory"] == 1 and result["inspected"]["attempted"] == 0
+
+def test_gather_limits_unresolved_aggregator_targets():
+    from ultron.core.ranker.lexical import LexicalRanker
+    listings = [
+        {"id": f"{host}/{index}", "url": f"https://{host}/jobs/{index}", "title": "ML Engineer",
+         "kind": "aggregator", "status": "listed"}
+        for host in ("arbeitnow.com", "www.arbeitnow.com", "himalayas.app", "jobicy.com", "remotive.com")
+        for index in range(10)
+    ]
+    ats = {"id": "ats", "url": POSTING, "kind": "ats_posting", "status": "unread", "title": "ML Engineer"}
+    mapped = "https://jobs.example.org/positions/12345"
+    selected = gather._target_plan([*listings, ats], LexicalRanker({}, query="ML Engineer"), 40,
+                                   {listings[9]["url"]: mapped})
+    assert selected[0]["target"] == POSTING
+    assert selected[1]["target"] == mapped
+    aggregators = [item for item in selected if item["kind"] == "aggregator"]
+    assert len(aggregators) == 12
+    assert sum("arbeitnow" in item["id"] for item in aggregators) == 3
+
+@pytest.mark.parametrize("mode", ["auto", "searxng", "ddg_html"])
+def test_gather_prepares_only_the_managed_provider_and_reports_docker(monkeypatch, mode):
+    order = []
+
+    def prepare():
+        order.append("prepare")
+        return {"docker_available": False, "install_hint": "Install Docker for this OS"}
+
+    def search(_queries, provider, **_options):
+        order.append(provider)
+        return WebSearchResult("unavailable", provider, 0, 0, ())
+
+    monkeypatch.setenv("ULTRON_WEB_SEARCH_PROVIDER", mode)
+    monkeypatch.setattr(gather, "prepare_search", prepare)
+    monkeypatch.setattr(gather, "search_web", search)
+    monkeypatch.setattr(gather, "discover_sources", lambda *a, **k: gather_empty_sources())
+    result = gather.gather_candidates(SLUG)
+    if mode in {"auto", "searxng"}:
+        assert order == ["prepare", mode]
+        assert result["web_search"]["docker_available"] is False
+        assert result["web_search"]["install_hint"]
+    else:
+        assert order == [mode]
+        assert "install_hint" not in result["web_search"]

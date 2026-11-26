@@ -36,17 +36,21 @@ def _page(base: str, query: str, page: int, deadline: float | None) -> list[Sear
     return []
 
 
-def _query(base: str, query: str, max_pages: int, deadline: float | None) -> tuple[list[SearchHit], int]:
+def _initial(base: str, query: str, deadline: float | None) -> tuple[list[SearchHit], int]:
     if deadline is not None and time.monotonic() >= deadline:
         return [], 0
-    for variant in (query, *relaxed_queries(query)):
-        hits = _page(base, variant, 1, deadline)
-        if hits:
+    return _page(base, query, 1, deadline), 1
+
+
+def _extend(base: str, query: str, first: list[SearchHit], max_pages: int, deadline: float | None) -> list[SearchHit]:
+    if first:
+        return [*first, *_page(base, query, 2, deadline)] if max_pages == 2 else first
+    for variant in relaxed_queries(query):
+        if hits := _page(base, variant, 1, deadline):
             if max_pages == 2:
                 hits.extend(_page(base, variant, 2, deadline))
-            return hits, 1
-    return [], 1
-
+            return hits
+    return []
 
 def search(queries: list[str], *, max_pages: int = 1, deadline: float | None = None) -> tuple[list[SearchHit], int]:
     """Run SearXNG queries with four workers and at most two pages per variant."""
@@ -58,9 +62,12 @@ def search(queries: list[str], *, max_pages: int = 1, deadline: float | None = N
     if endpoint.path not in {"", "/"}:
         raise ValueError("SearXNG URL must be an origin")
     with ThreadPoolExecutor(max_workers=4) as workers:
-        runs = workers.map(lambda query: _query(base, query, min(2, max_pages), deadline), queries)
-        hits, count = [], 0
-        for batch, attempted in runs:
-            hits.extend(batch)
-            count += attempted
-        return hits, count
+        # Give every original query a chance before spending the remaining budget on variants or page two.
+        first = list(workers.map(lambda query: _initial(base, query, deadline), queries))
+
+        def extend(item: tuple[str, tuple[list[SearchHit], int]]) -> list[SearchHit]:
+            query, (hits, attempted) = item
+            return _extend(base, query, hits, min(2, max_pages), deadline) if attempted else []
+
+        batches = workers.map(extend, zip(queries, first, strict=True))
+        return [hit for batch in batches for hit in batch], sum(attempted for _, attempted in first)

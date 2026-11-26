@@ -30,6 +30,27 @@ Use an `open` dossier for judging. Inspect a promising `listed` dossier if more 
 - `--detail` requests longer role excerpts. The response includes provider status, source and inspection
   counts, and unresolved aggregator listings. Dossiers use the employer's posting URL.
 
+## Set up local SearXNG
+
+SearXNG is the preferred local provider for broader web coverage without third-party API keys.
+`auto` and `searxng` can start installed Docker software, then start the ULTRON container and check
+that its JSON endpoint is healthy. `ultron searxng status` reports whether Docker is installed,
+whether its daemon can be reached, and the container state and JSON health when it can.
+
+1. If status or `web_search` reports `docker_available: false`, explain why SearXNG uses Docker.
+   Show the installation steps from `install_hint` for the user's operating system. On Windows,
+   mention WSL 2 and the possible restart. Ask before installing any system software.
+2. Ask the user to confirm once Docker is installed and any first-run setup is complete. Run
+   `ultron searxng up` and retry the search when `json_healthy` is true. If the daemon still
+   cannot be reached, follow `start_hint` where available.
+3. If the user wants to continue without Docker, run gather with `--web-provider ddg` (optional
+   extra with built-in fallback) or `--web-provider ddg_html` (built in). Both also use the
+   watch, feeds and boards.
+
+If the user asks to stop SearXNG, run `ultron searxng down` to remove the managed container.
+Set `ULTRON_SEARXNG_AUTO_START=0` to prevent automatic Docker and SearXNG startup during gathering,
+for example in CI. An explicit `ULTRON_SEARXNG_URL` uses the instance configured by the user.
+
 ## Searching
 
 `ultron search --profile <slug>` returns dossiers ranked by how closely the title fits the profile, each with
@@ -87,9 +108,13 @@ An `open` dossier was read. It adds `geo_excerpt` (location, remote work and eli
 (the start of the role text; `--detail` returns more) and `salary` when the posting discloses pay. Judge the facts
 against the profile. A `listed` dossier is open at its source and has not been read; inspect it if you need more facts.
 
+MCP inspection returns completed dossiers and sets `partial: true` when its request budget runs out.
+
 ## Saving the shortlist
 
 One JSON object per line, best first: the shortlist keeps your order (keeps first, then by your priority).
+Use the work-mode and eligibility values below. For an ambiguous work mode or eligibility claim,
+use `unknown` and put the supporting text in `eligibility_evidence`.
 A row names a posting by the `id` of its dossier, or by `url` with `title` and `company`:
 
 | Field | Rule |
@@ -97,7 +122,7 @@ A row names a posting by the `id` of its dossier, or by `url` with `title` and `
 | `id` or `url` | Required: an inspected posting's `id` fills in its URL, title, company and location |
 | `verdict` | `keep`, `unsure` or `discard` |
 | `priority` | `1` (apply first), `2` or `3` (apply last); default `2` |
-| `remote_policy` | `remote_spain`, `remote_eu`, `remote_europe`, `remote_emea`, `remote_other` or `unknown` (default) |
+| `remote_policy` | `remote_spain`, `remote_eu`, `remote_europe`, `remote_emea`, `remote_other`, `hybrid`, `onsite` or `unknown` (default) |
 | `eligibility` | `confirmed`, `high`, `medium` or `unknown`; default `high` for `keep`, `unknown` for `unsure` |
 | `eligibility_evidence` | Optional: the posting text that shows the user is eligible |
 | `fit_signals` | Optional: up to 8 short reasons it fits |

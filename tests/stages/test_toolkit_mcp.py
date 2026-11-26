@@ -44,7 +44,7 @@ def _payload(response: dict) -> dict:
     return json.loads(response["result"]["content"][0]["text"])
 
 
-def test_handshake_lists_exactly_three_tools():
+def test_handshake_lists_all_tools():
     init, tools, ping = _session(
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}},
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
@@ -72,6 +72,41 @@ def test_inspect_then_save_through_the_tools():
     assert not inspected["result"]["isError"]
     result = _payload(saved)
     assert result["saved"]["keep"] == 1 and result["roles"] == 1
+
+
+@pytest.mark.parametrize(("work_mode", "eligibility", "stored_mode", "stored_eligibility"), [
+    ("hybrid", "confirmed", "hybrid", "confirmed"),
+    ("on-site", "high", "onsite", "high"),
+    ("full_remote", "Eligible from Spain", "unknown", "unknown"),
+    ("remote", "eligible", "unknown", "unknown"),
+])
+def test_save_mcp_keeps_work_mode_and_unknown_aliases(work_mode, eligibility, stored_mode, stored_eligibility):
+    from ultron.stages.scout_verified import load_verified
+    from ultron.storage import runs
+
+    listed, _, saved = _session(
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        _call("inspect_jobs", {"profile": SLUG, "urls": [POSTING]}, 2),
+        _call("save_shortlist", {"profile": SLUG, "rows": [{"id": "greenhouse:acme:4012345", "verdict": "keep",
+              "remote_policy": work_mode, "eligibility": eligibility, "eligibility_evidence": "Work in Spain"}]}, 3),
+    )
+    tool = next(item for item in listed["result"]["tools"] if item["name"] == "save_shortlist")
+    fields = tool["inputSchema"]["properties"]["rows"]["items"]["properties"]
+    assert {"hybrid", "onsite", "unknown"} <= set(fields["remote_policy"]["enum"])
+    assert set(fields["eligibility"]["enum"]) == {"confirmed", "high", "medium", "unknown"}
+    result = _payload(saved)
+    assert result["saved"]["keep"] == 1 and result["not_saved"] == []
+    row, = load_verified(runs.run_dir(result["run_id"])).values()
+    assert (row["remote_policy"], row["eligibility"], row["eligibility_evidence"]) == (
+        stored_mode, stored_eligibility, "Work in Spain")
+
+
+def test_mcp_inspection_reports_an_exhausted_budget(monkeypatch):
+    monkeypatch.setattr(mcp_server, "MCP_INSPECTION_SECONDS", 0.0)
+    response, = _session(_call("inspect_jobs", {"profile": SLUG, "urls": [POSTING], "detail": True}))
+    assert not response["result"]["isError"]
+    result = _payload(response)
+    assert result["partial"] and result["requests"] == 0
 
 
 def test_search_through_the_tool():

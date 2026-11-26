@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from ultron.core.sectors import Sector
 
 # ``remote_other``: full remote outside Europe, only produced for non-European profile scopes.
-RemotePolicy = Literal["remote_spain", "remote_eu", "remote_europe", "remote_emea", "remote_other", "unknown"]
+RemotePolicy = Literal["remote_spain", "remote_eu", "remote_europe", "remote_emea", "remote_other", "hybrid", "onsite", "unknown"]
 # Profile geographic scope: European rules apply only to ``"eu"`` (see ``rules/geography.py``).
 GeoScope = Literal["eu", "other", "global"]
 Eligibility = Literal["confirmed", "high", "medium", "unknown"]

@@ -17,13 +17,29 @@ from ultron.stages.discover import SEED_ATTEMPTS_FILE
 from ultron.stages.final_helpers import row_board_key
 from ultron.stages.scout_finalize import finalize_scout
 from ultron.stages.scout_finds import add_scout_finds
-from ultron.stages.scout_verified import EXPORTED_VERDICTS, final_row, load_verified
+from ultron.stages.scout_verified import ELIGIBILITIES, EXPORTED_VERDICTS, REMOTE_POLICIES, final_row, load_verified
 from ultron.storage import runs
 from ultron.toolkit.dossier import employer_name
 from ultron.toolkit.inspect import board_aliases, cached_postings
 
 MAX_ROWS = 200
 FILLED_FIELDS = ("title", "company", "location")
+
+
+_WORK_MODE_ALIASES = {"on_site": "onsite", "on_premises": "onsite", "in_office": "onsite",
+                      "hybrid_remote": "hybrid"}
+
+
+def _judgment_fields(row: dict) -> dict:
+    """Normalize optional work-mode and eligibility strings without inventing evidence."""
+    fields = {}
+    for name, allowed in (("remote_policy", REMOTE_POLICIES), ("eligibility", ELIGIBILITIES)):
+        if isinstance(value := row.get(name), str):
+            token = "_".join(value[:100].strip().casefold().replace("-", " ").split())
+            if name == "remote_policy":
+                token = _WORK_MODE_ALIASES.get(token, token)
+            fields[name] = token if token in allowed else "unknown"
+    return {**row, **fields}
 
 
 class EmptyShortlist(ValueError):
@@ -79,7 +95,8 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     over = [{"row": number, "outcome": "over_limit", "reason": f"only the first {MAX_ROWS} rows are saved per call"}
             for number in range(MAX_ROWS + 1, len(rows) + 1)]
     cache = cached_postings(profile_slug)
-    rows = _with_cache(rows[:MAX_ROWS], cache)
+    rows = [_judgment_fields(row) if isinstance(row, dict) else row for row in rows[:MAX_ROWS]]
+    rows = _with_cache(rows, cache)
     run_id = runs.new_run(profile_slug, preset, mode="scout")
     run = runs.load_run(run_id)
     # Board context comes only from ULTRON's own cache, never from the rows, so a row cannot claim an identity.

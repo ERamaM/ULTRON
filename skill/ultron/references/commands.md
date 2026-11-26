@@ -97,7 +97,7 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 ### jobs
 
 - `jobs [filter]`: `ultron jobs list` with the options that match the filter words: a state (`unreviewed`,
-  `shortlisted`, `applied`, `rejected`, `archived`) → `--state`; a profile → `--profile`; a number → `--limit`;
+  `shortlisted`, `applied`, `interview`, `rejected`, `archived`) → `--state`; a profile → `--profile`; a number → `--limit`;
   `new` alone means the `jobs new` command below.
 - `jobs new`: take the latest finished run before the most recent one from `ultron runs list` and run
   `ultron jobs new-since <run_id>`; with a single run, show `ultron jobs list --new`.
@@ -114,7 +114,9 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
   repeat it).
 - `runs excel [run]`: `ultron export xlsx --run <run_id>` (latest finished run by default); give the file path.
 - `runs html [run]`: `ultron export html --run <run_id>` (latest finished run by default); give the file path.
-- `ledger web`: `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open]`; starts a loopback-only read-only local web viewer over `ultron.sqlite3` without writing any output file, prints the URL in JSON, and runs until interrupted.
+- `ledger web`: `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open] [--editable]`.
+  Starts a loopback-only viewer and prints its URL in JSON. It runs in read-only mode by default.
+  Add `--editable` when the user requests saving review states, notes, feedback, or watchlist changes.
 
 ### system
 

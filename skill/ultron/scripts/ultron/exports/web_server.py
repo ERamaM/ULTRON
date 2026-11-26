@@ -1,20 +1,24 @@
-"""Lightweight loopback HTTP server rendering ``ultron.sqlite3`` without writing files."""
+"""Lightweight loopback HTTP server rendering ``ultron.sqlite3`` with optional local review edits."""
 
 from __future__ import annotations
 
 import contextlib
 import json
+import secrets
+import socket
+import sqlite3
 import webbrowser
 from collections.abc import Callable
 from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from time import monotonic
 from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
 import ultron
-from ultron.exports import web_data
+from ultron.exports import web_api, web_data
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
@@ -39,15 +43,14 @@ def _static_dir() -> Path:
 
 def _load_static_routes() -> dict[str, tuple[str, bytes]]:
     folder = _static_dir()
-    index_bytes = (folder / "index.html").read_bytes()
-    css_bytes = (folder / "app.css").read_bytes()
-    js_bytes = (folder / "app.js").read_bytes()
-    return {
-        "/": ("text/html; charset=utf-8", index_bytes),
-        "/index.html": ("text/html; charset=utf-8", index_bytes),
-        "/assets/app.css": ("text/css; charset=utf-8", css_bytes),
-        "/assets/app.js": ("application/javascript; charset=utf-8", js_bytes),
-    }
+    index = ("text/html; charset=utf-8", (folder / "index.html").read_bytes())
+    routes = {"/": index, "/index.html": index}
+    for name in ("app.css", "views.css", "kanban.css"):
+        routes[f"/assets/{name}"] = ("text/css; charset=utf-8", (folder / name).read_bytes())
+    scripts = ("app.js", "views.js", "kanban.js", "actions.js", "charts.js", "dom.js", "history.js")
+    for name in scripts:
+        routes[f"/assets/{name}"] = ("application/javascript; charset=utf-8", (folder / name).read_bytes())
+    return routes
 
 
 def validate_bind_target(host: str, port: int) -> tuple[str, int]:
@@ -80,8 +83,12 @@ class LedgerHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
 
 
+class _IPv6LedgerServer(LedgerHTTPServer):
+    address_family = socket.AF_INET6
+
+
 class _LedgerRequestHandler(BaseHTTPRequestHandler):
-    """Read-only HTTP handler serving static dashboard assets and live SQLite JSON."""
+    """Serve dashboard assets, live SQLite JSON and authorized edits."""
 
     protocol_version = "HTTP/1.1"
 
@@ -89,12 +96,20 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         self,
         *args: Any,
         static_routes: dict[str, tuple[str, bytes]],
-        db_path: Path | None,
+        db_path: Path,
+        token: str | None,
+        bind_host: str,
         **kwargs: Any,
     ) -> None:
         self._static_routes = static_routes
         self._db_path = db_path
+        self._token = token
+        self._bind_host = bind_host
         super().__init__(*args, **kwargs)
+
+    @property
+    def _authority(self) -> str:
+        return f"{self._bind_host}:{self.server.server_address[1]}"
 
     def log_message(self, format: str, *args: Any) -> None:
         """Suppress default stderr request logs so CLI stdout stays machine-readable JSON."""
@@ -116,6 +131,8 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
             self.send_header(name, value)
         for name, value in extra_headers:
             self.send_header(name, value)
+        if self.close_connection and not any(name == "Connection" for name, _ in extra_headers):
+            self.send_header("Connection", "close")
         self.end_headers()
         if not head_only and payload:
             self.wfile.write(payload)
@@ -125,10 +142,16 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         self._send_bytes(status, "application/json; charset=utf-8", encoded, head_only=head_only)
 
     def _serve_get_or_head(self, *, head_only: bool) -> None:
+        if not web_api.valid_host(self.headers, self._authority):
+            self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"}, head_only=head_only)
+            return
         path = urlsplit(self.path).path
         static = self._static_routes.get(path)
         if static is not None:
             content_type, body = static
+            if path == "/" and self._token is not None:
+                tag = f'<meta name="ultron-csrf" content="{self._token}">'.encode("ascii")
+                body = body.replace(b"</head>", tag + b"\n</head>", 1)
             self._send_bytes(HTTPStatus.OK, content_type, body, head_only=head_only)
             return
         if path == "/api/health":
@@ -136,18 +159,37 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/ledger":
             snapshot = web_data.build_ledger_snapshot(self._db_path)
+            snapshot["meta"]["editable"] = self._token is not None
             self._send_json(HTTPStatus.OK, snapshot, head_only=head_only)
             return
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"}, head_only=head_only)
 
+    def _drain_rejected_body(self) -> None:
+        # A close with unread bytes can reset the socket before clients see the status.
+        values = self.headers.get_all("Content-Length") or []
+        length = values[0] if len(values) == 1 else ""
+        if not 0 < len(length) <= 9 or not length.isascii() or not length.isdecimal():
+            return
+        remaining = min(int(length), web_api.MAX_BODY + 1)
+        deadline = monotonic() + 0.25
+        with contextlib.suppress(OSError):
+            while remaining and (timeout := deadline - monotonic()) > 0:
+                self.connection.settimeout(timeout)
+                data = self.rfile.read1(remaining)
+                if not data:
+                    break
+                remaining -= len(data)
+
     def _reject_method(self) -> None:
+        self.close_connection = True
         self._send_bytes(
             HTTPStatus.METHOD_NOT_ALLOWED,
             "application/json; charset=utf-8",
             b'{"error":"method_not_allowed"}',
             head_only=False,
-            extra_headers=(("Allow", "GET, HEAD"),),
+            extra_headers=(("Allow", "GET, HEAD, POST" if self._token else "GET, HEAD"),),
         )
+        self._drain_rejected_body()
 
     def do_GET(self) -> None:
         """Handle read-only ``GET`` requests for static assets and ledger JSON."""
@@ -158,8 +200,28 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         self._serve_get_or_head(head_only=True)
 
     def do_POST(self) -> None:
-        """Reject mutating ``POST`` requests with ``405 Method Not Allowed``."""
-        self._reject_method()
+        """Apply an authenticated browser edit only in editable mode."""
+        self.close_connection = True
+        if self._token is None:
+            self._reject_method()
+            return
+        try:
+            length = web_api.authorize(self.headers, self._authority, self._token)
+        except web_api.MutationError as exc:
+            self._send_json(exc.status, {"error": str(exc)}, head_only=False)
+            self._drain_rejected_body()
+            return
+        try:
+            self.connection.settimeout(10)
+            data = web_api.apply_mutation(urlsplit(self.path).path, self.rfile, length, self._db_path)
+        except web_api.MutationError as exc:
+            self._send_json(exc.status, {"error": str(exc)}, head_only=False)
+        except TimeoutError:
+            self._send_json(HTTPStatus.REQUEST_TIMEOUT, {"error": "request_timeout"}, head_only=False)
+        except (OSError, sqlite3.Error):
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "ledger_write_failed"}, head_only=False)
+        else:
+            self._send_json(HTTPStatus.OK, data, head_only=False)
 
     def do_PUT(self) -> None:
         """Reject mutating ``PUT`` requests with ``405 Method Not Allowed``."""
@@ -183,14 +245,19 @@ def create_server(
     host: str = "127.0.0.1",
     port: int = 0,
     db_path: Path | None = None,
+    editable: bool = False,
 ) -> tuple[LedgerHTTPServer, str, int]:
     """Bind a loopback ``LedgerHTTPServer`` and return ``(server, base_url, actual_port)``."""
     clean_host, clean_port = validate_bind_target(host, port)
     routes = _load_static_routes()
-    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=db_path)
-    server = LedgerHTTPServer((clean_host, clean_port), handler)
-    actual_port = int(server.server_address[1])
+    target = Path(db_path).absolute() if db_path is not None else web_data.default_db_path().absolute()
     formatted_host = f"[{clean_host}]" if ":" in clean_host else clean_host
+    token = secrets.token_urlsafe(32) if editable else None
+    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token, bind_host=formatted_host)
+    server_type = _IPv6LedgerServer if clean_host == "::1" else LedgerHTTPServer
+    bound_host = "127.0.0.1" if clean_host == "localhost" else clean_host
+    server = server_type((bound_host, clean_port), handler)
+    actual_port = int(server.server_address[1])
     return server, urlunsplit(("http", f"{formatted_host}:{actual_port}", "/", "", "")), actual_port
 
 
@@ -202,11 +269,12 @@ def serve_ledger(
     run_id: str | None = None,
     profile: str | None = None,
     db_path: Path | None = None,
+    editable: bool = False,
     on_ready: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Start the local web viewer server and serve ``ultron.sqlite3`` until interrupted."""
     clean_host, _ = validate_bind_target(host, port)
-    server, base_url, actual_port = create_server(host=clean_host, port=port, db_path=db_path)
+    server, base_url, actual_port = create_server(host=clean_host, port=port, db_path=db_path, editable=editable)
     target = Path(db_path) if db_path is not None else web_data.default_db_path()
     url = build_dashboard_url(base_url, run_id=run_id, profile=profile)
     opened = False
@@ -219,6 +287,7 @@ def serve_ledger(
             "port": actual_port,
             "db_exists": target.is_file(),
             "opened_browser": opened,
+            "editable": editable,
         }
         if on_ready is not None:
             on_ready(info)

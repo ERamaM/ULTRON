@@ -2,7 +2,7 @@
 
 Every finished run records its jobs in the ledger (`ultron.sqlite3`). A job is identified by a canonical identity key
 (tracking parameters are ignored), so the same posting seen in several runs is one row with `times_seen`. Review
-states: `unreviewed` (default), `shortlisted`, `applied`, `rejected`, `archived`. Relevance labels: `relevant`,
+states: `unreviewed` (default), `shortlisted`, `applied`, `interview`, `rejected`, `archived`. Relevance labels: `relevant`,
 `not_relevant`, `uncertain`.
 
 ## Commands
@@ -37,7 +37,9 @@ The history survives run cleanup (see `references/data-maintenance.md`).
   report (default `results.html` in the run folder) that opens offline in any browser and loads nothing from the
   network. Use it when the user wants to save or share a single-run snapshot. The CLI owns the layout, escaping,
   and links (`http(s)` job links only); do not edit the file or build your own HTML.
-- `ultron export web [--host 127.0.0.1] [--port 0] [--run <run_id>] [--profile <slug>] [--no-open]` starts a
-  lightweight, read-only local web server straight over `ultron.sqlite3` without writing any file to disk. It binds
-  strictly to loopback interfaces, opens the ledger read-only (`?mode=ro`), redacts sensitive tokens, and stays up
-  until `Ctrl+C`. Use it whenever the user wants an interactive web dashboard without generating extra report files.
+- `ultron export web [--host 127.0.0.1] [--port 0] [--run <run_id>] [--profile <slug>] [--no-open] [--editable]`
+  opens the local dashboard in read-only mode by default. Switch among Cards, Table, and Kanban,
+  inspect Watch & Salaries, or export the filtered jobs as CSV. The viewer binds to loopback and
+  serves its assets locally until interrupted. Use `--editable` to persist states, notes, feedback,
+  and watchlist changes from the browser. The first write to an older ledger backs it up before
+  upgrading it. Use the URL printed when the viewer starts.

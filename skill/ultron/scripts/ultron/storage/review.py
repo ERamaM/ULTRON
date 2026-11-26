@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from contextlib import closing
 from datetime import UTC, datetime
+from pathlib import Path
 
 from ultron.core.job_identity import canonical_job_identity
 from ultron.storage import ledger
 
-STATES = ("unreviewed", "shortlisted", "applied", "rejected", "archived")
+STATES = ("unreviewed", "shortlisted", "applied", "interview", "rejected", "archived")
 RELEVANCE = ("relevant", "not_relevant", "uncertain")
 REASON_CODES = ("", "wrong_role", "seniority", "location", "remote", "eligibility", "closed", "duplicate", "other")
 
@@ -190,11 +191,11 @@ def list_jobs(
         return _rows(conn, sql, (*params, max(0, limit)))
 
 
-def set_state(identity_key: str, state: str) -> str:
+def set_state(identity_key: str, state: str, *, db_path: Path | None = None) -> str:
     """Set the review state; returns the resolved identity key."""
     if state not in STATES:
         raise ValueError(f"invalid state {state!r}; expected one of {', '.join(STATES)}")
-    with closing(ledger.connect()) as conn, conn:
+    with closing(ledger.connect(db_path)) as conn, conn:
         key = resolve_key(identity_key, conn)
         _require(conn, key)
         conn.execute(
@@ -203,10 +204,10 @@ def set_state(identity_key: str, state: str) -> str:
     return key
 
 
-def add_note(identity_key: str, text: str) -> str:
+def add_note(identity_key: str, text: str, *, db_path: Path | None = None) -> str:
     """Append a timestamped note; returns the resolved identity key."""
     line = f"[{_now()}] {text}"
-    with closing(ledger.connect()) as conn, conn:
+    with closing(ledger.connect(db_path)) as conn, conn:
         key = resolve_key(identity_key, conn)
         _require(conn, key)
         conn.execute(
@@ -219,6 +220,7 @@ def add_note(identity_key: str, text: str) -> str:
 
 def set_feedback(
     identity_key: str, relevance: str, reason_code: str = "", note: str = "", *, profile: str | None = None,
+    db_path: Path | None = None,
 ) -> str:
     """Record relevance feedback and optional reason code/note on a job."""
     if relevance not in RELEVANCE:
@@ -226,7 +228,7 @@ def set_feedback(
     if reason_code not in REASON_CODES:
         valid = ", ".join(c for c in REASON_CODES if c)
         raise ValueError(f"invalid reason_code {reason_code!r}; expected one of {valid}")
-    with closing(ledger.connect()) as conn, conn:
+    with closing(ledger.connect(db_path)) as conn, conn:
         key = resolve_key(identity_key, conn)
         _require(conn, key)
         if profile:

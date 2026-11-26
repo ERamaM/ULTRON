@@ -1,0 +1,57 @@
+/* Pipeline, dense layouts and interactive controls for the ledger. */
+.kanban{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(13rem,1fr);gap:.7rem;overflow:auto;padding:.2rem .15rem .9rem;align-items:start}
+.lane{min-width:0;padding:.75rem;background:var(--surface-2,var(--surface));border:1px solid var(--line);border-radius:.6rem}
+.lane-title{font-size:.87rem;font-variant-numeric:tabular-nums;letter-spacing:.01em;margin:0 0 .65rem}
+.lane-card{background:var(--surface);border:1px solid var(--line);border-radius:.45rem;padding:.65rem;margin-bottom:.5rem;overflow-wrap:anywhere}
+.lane-card:last-child{margin-bottom:0}.lane-card[draggable=true]{cursor:grab}
+.lane-card .state-select{display:block;margin-top:.5rem;width:100%}
+.view-tools,.view-toggle,.quick-actions,.fit-tags,.watch-form{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.view-tools{margin:.5rem 0 .85rem}.view-tools .result-meta{margin:0 0 0 auto}
+.view-toggle button[aria-pressed=true],.quick-actions button[aria-pressed=true]{color:var(--accent);border-color:var(--accent)}
+.job-heading{display:flex;align-items:flex-start;gap:.7rem;margin-bottom:.35rem}
+.avatar{width:2.2rem;height:2.2rem;display:inline-grid;place-items:center;border-radius:.45rem;flex:none;
+background:var(--pill-bg,var(--surface-2));color:var(--text);border:1px solid var(--line);font-weight:750}
+.tone-0,.tone-4{color:#10478b;background:#dce9fa}.tone-1,.tone-5{color:#644201;background:#fff1cc}
+.tone-2,.tone-6{color:#265850;background:#d8f0eb}.tone-3,.tone-7{color:#473475;background:#eae0f8}
+.job-side .salary-callout{max-width:13rem;overflow-wrap:anywhere;text-align:right}
+.salary-callout{font-size:.92rem}.fit-tags:not(:empty),.quick-actions:not(:empty){margin-top:.5rem}
+.priority-badge{display:inline-block;padding:.28rem .5rem;border-radius:.35rem;font-size:.78rem;font-weight:700;white-space:nowrap}
+.priority-1,.band-p1{background:#1f5fad;color:#fff}.priority-2,.band-p2{background:#dce9fa;color:#0b3d73}
+.priority-3,.band-p3,.band-unset{background:#e5e7eb;color:#374151}
+.pill-warning{background:#fff0c4;color:#603b00}.is-current{outline:2px solid var(--accent);outline-offset:-2px}
+.segment{border:0;border-radius:0;min-width:0;padding:0;cursor:pointer}
+.segment[aria-pressed=true],.segment:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
+.remote-heading{font-size:.76rem;margin:.7rem 0 .35rem;color:var(--muted)}
+.bar-row-btn{grid-template-columns:auto minmax(0,1fr) minmax(3rem,1fr) auto!important}
+.bar-row-btn .avatar{width:1.6rem;height:1.6rem;font-size:.73rem}
+.bar-label{overflow:hidden;text-overflow:ellipsis}
+.company-progress{display:block;width:100%;height:.55rem;accent-color:var(--accent)}
+.watch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
+.watch-panel h2{font-size:1.05rem;margin:0 0 .65rem}
+.watch-items{list-style:none;margin:0;padding:0}
+.watch-items li{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;overflow-wrap:anywhere;
+padding:.5rem 0;border-bottom:1px solid var(--line)}
+.watch-items li .btn{margin-left:auto}
+.watch-form{margin-top:.7rem}.watch-form input{min-width:0;flex:1}
+.salary-range{margin:0 0 .75rem}.salary-track{position:relative;background:var(--line);height:.5rem;border-radius:1rem;margin:.35rem 0}
+.salary-band{position:absolute;right:0;min-width:2px;height:100%;background:var(--accent);border-radius:1rem}
+.salary-median{position:absolute;width:.18rem;height:.75rem;top:-.1rem;background:var(--text);transform:translateX(-50%)}
+.supplement{width:min(34rem,calc(100% - 2rem));background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:.7rem;padding:1rem 1.25rem}
+dialog::backdrop{background:#0f172a8f}dialog:not([open]){display:none}
+.drawer{margin:0 0 0 auto;max-width:100%;max-height:100%;border:0;color:var(--text)}
+.supplement h2{margin:0 0 .65rem;font-size:1.15rem}.supplement textarea,.drawer textarea{width:100%;resize:vertical}
+.shortcuts-list{display:grid;grid-template-columns:auto 1fr;gap:.35rem .75rem}.shortcuts-list dd{margin:0}
+.toast{position:fixed;z-index:20;bottom:1rem;right:1rem;display:flex;align-items:center;gap:.5rem;max-width:calc(100% - 2rem);
+padding:.65rem .8rem;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;box-shadow:0 .35rem 1.4rem #0002}
+.compact-density .job-card,.compact-density .data-table th,.compact-density .data-table td{padding:.35rem .55rem}
+@media(max-width:42rem){.watch-grid{grid-template-columns:minmax(0,1fr)}.job-side .salary-callout{text-align:left}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+
+.ledger-overview>summary{display:none}
+@media(max-width:44rem){
+  .ledger-overview>summary{display:list-item;cursor:pointer;padding:.5rem .7rem;margin:0 0 .65rem;
+  border:1px solid var(--line);border-radius:.55rem;background:var(--surface);font-weight:650}
+  .ledger-overview .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+  .ledger-overview .kpi-card{padding:.55rem .65rem;min-height:0}
+}

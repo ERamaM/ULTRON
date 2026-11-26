@@ -11,7 +11,7 @@ enforces the rules below on every import.
 | `cli.py` | Entry point: builds the argument parser from `commands/` and dispatches. |
 | `commands/` | One module per command group (`ultron cv`, `ultron runs`, ...) plus `output` (JSON output and errors). A command parses arguments, calls domain code and prints the result. |
 | `infra/` | Network and host plumbing with no ULTRON domain knowledge: the HTTP client (`net`), SSRF guard (`urlpolicy`), pinned DNS transport, atomic filesystem & link helpers (`fs`), OOXML builders (`ooxml`), data folders (`home`), agent platform paths (`platforms`) and a read-only view of installs (`installs`). |
-| `core/` | Domain logic that reads no run state: models, run presets, ATS clients and identity, extractors, feeds, rules, decisions, ranking and Markdown rendering. |
+| `core/` | Domain logic that reads no run state: models, run presets, ATS clients, identity and board-key resolution (`ats/board_key`), extractors, feeds, rules, decisions, ranking and Markdown rendering. |
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`), shared watch role families (`families`), and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`, `ats_target`, `ats_requirements`), experience timeline (`experience`, `experience_terms`), truthfulness and claim attribution (`truth`, `claim_attribution`) and the `.docx` writer. |
 | `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
@@ -20,10 +20,15 @@ enforces the rules below on every import.
 | `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |
 | `stages/` | The search pipeline (discover, feeds, fetch, filter, evaluate, finalize, with `final_helpers` shared by both finalize paths), the unattended run, the per-run HTTP client factory, and what the agent toolkit builds on: find resolution (`scout_resolve`), recording judged postings (`scout_finds`, `scout_verified`) and finalizing a saved shortlist (`scout_finalize`), the role-searchable job APIs and keyless feeds with their cache (`role_feeds`), the watched boards (`watch_boards`) and the agent-free day-2 watch (`watch`). |
 | `toolkit/` | The agent toolkit: compact posting dossiers (`dossier`), ATS board listing and the fast company board lookup (`boards`), `inspect` (many postings, boards and companies at once, cached for saving) `shortlist save` (the agent's judged rows finalized with memory, history and exports) (`shortlist`) `search` (the watch's pending postings, watched boards and role-searchable job APIs) (`search`) and the stdio MCP server exposing them (`mcp_server`). |
-| `exports/` | Read/view exports: shared export sanitization (`sanitize`) and display rules (`view_model`), the Excel workbook (`xlsx`, `xlsx_dashboard`, `xlsx_styles`), the offline HTML report (`html_report`, `html_assets`), and the local read-only SQLite web viewer (`web_data`, `web_queries`, `web_watch`, `web_server`, `web_static`). |
+| `exports/` | Read/view exports: shared export sanitization (`sanitize`) and display rules (`view_model`), the Excel workbook (`xlsx`, `xlsx_dashboard`, `xlsx_styles`), the offline HTML report (`html_report`, `html_assets`), and the loopback SQLite viewer (`web_data`, `web_queries`, `web_watch`, `web_server`) with optional edits (`web_api`). |
 | `diagnostics/` | `doctor` (installation checks) and `diagnose` (run diagnostics). |
 | `update/` | Release lookup and notices (`notice`), installed copies (`copies`), the installer command lines (`installer`), the release archive download (`archive`) and the orchestration (`prepare`). |
 | `migrations/` | One-off imports from older projects (MARK III). |
+
+The viewer's `exports/web_static/` assets use ES modules with no build step. `app.js` owns state, filters, tabs, and keyboard shortcuts.
+`views.js` renders Cards, Table, and details, and exports CSV and URLs. `kanban.js` renders the review pipeline.
+`actions.js` sends authenticated edits, `charts.js` renders the summary and Watch & Salaries, and `history.js` renders the other ledger tabs.
+`dom.js` holds shared DOM primitives. Styling is split across `app.css`, `views.css`, and `kanban.css`.
 
 ## Rules
 

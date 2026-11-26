@@ -12,7 +12,7 @@ from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 from ultron.infra import home
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _SCHEMA_V1 = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -154,7 +154,8 @@ def _version(conn: sqlite3.Connection) -> int:
 
 def _backup(conn: sqlite3.Connection, target_version: int) -> Path:
     """Copy the ledger to ``backups/`` and verify the copy; raises if it is not sound."""
-    folder = home.ultron_home() / "backups"
+    filename = conn.execute("PRAGMA database_list").fetchone()[2]
+    folder = (Path(filename).parent if filename else home.ultron_home()) / "backups"
     folder.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f")
     target = folder / f"ultron-{stamp}-pre-v{target_version}.sqlite3"
@@ -282,7 +283,39 @@ def _apply_search_scope(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS runs_profile ON run_scopes(profile_slug, created_at)")
 
 
+def _apply_v9(conn: sqlite3.Connection) -> None:
+    """Rebuild jobs with the interview state, preserving columns and explicit indexes."""
+    indexes = [row[0] for row in conn.execute(
+        "SELECT sql FROM sqlite_schema WHERE tbl_name = 'jobs' AND type = 'index' AND sql IS NOT NULL ORDER BY name"
+    )]
+    date_columns = ",\n    ".join(f"{column} TEXT" for column in _JOB_DATE_DETAILS)
+    schema = _JOBS_V2.replace("jobs_v2", "jobs_v9", 1).replace("'applied', 'rejected'", "'applied', 'interview', 'rejected'")
+    conn.execute(schema.rstrip()[:-1].rstrip() + ",\n    " + date_columns + "\n)")
+    columns = ", ".join(row[1] for row in conn.execute("PRAGMA table_info(jobs_v9)"))
+    conn.execute(f"INSERT INTO jobs_v9 ({columns}) SELECT {columns} FROM jobs")
+    conn.execute("DROP TABLE jobs")
+    conn.execute("ALTER TABLE jobs_v9 RENAME TO jobs")
+    for statement in indexes:
+        conn.execute(statement)
+
+
 def migrate(conn: sqlite3.Connection) -> int:
+    """Upgrade the ledger in one locked transaction, retaining foreign-key enforcement."""
+    conn.commit()
+    if _version(conn) >= SCHEMA_VERSION:
+        return _version(conn)
+    checks_foreign_keys = bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    # SQLite's table-rebuild procedure requires disabling foreign keys before BEGIN.
+    if checks_foreign_keys:
+        conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        return _migrate_locked(conn, checks_foreign_keys)
+    finally:
+        if checks_foreign_keys:
+            conn.execute("PRAGMA foreign_keys = ON")
+
+
+def _migrate_locked(conn: sqlite3.Connection, check_foreign_keys: bool) -> int:
     """Bring the ledger up to ``SCHEMA_VERSION`` (forward only); backs up first. Returns the final version.
 
     Creation and every upgrade run in one ``BEGIN IMMEDIATE`` transaction; the version is re-read after the
@@ -327,7 +360,12 @@ def migrate(conn: sqlite3.Connection) -> int:
             if version == 7:
                 _apply_v8(conn)
                 version = 8
+            if version == 8:
+                _apply_v9(conn)
+                version = 9
                 conn.execute(f"PRAGMA user_version = {version}")
+            if check_foreign_keys and conn.execute("PRAGMA foreign_key_check").fetchone():
+                raise sqlite3.IntegrityError("ledger migration failed foreign key validation")
             conn.execute("COMMIT")
         except BaseException:
             if conn.in_transaction:
@@ -336,9 +374,9 @@ def migrate(conn: sqlite3.Connection) -> int:
         return version
 
 
-def connect() -> sqlite3.Connection:
-    """Open (and create/migrate if needed) the ledger. Callers must close it (``contextlib.closing``)."""
-    conn = sqlite3.connect(home.ultron_home() / "ultron.sqlite3")
+def connect(path: Path | None = None) -> sqlite3.Connection:
+    """Open (and create/migrate if needed) a ledger. Callers must close it (``contextlib.closing``)."""
+    conn = sqlite3.connect(path if path is not None else home.ultron_home() / "ultron.sqlite3")
     try:
         migrate(conn)
     except BaseException:

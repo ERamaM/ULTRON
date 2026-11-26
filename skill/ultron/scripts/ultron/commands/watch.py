@@ -7,24 +7,11 @@ from contextlib import closing
 
 from ultron.commands.output import emit, fail
 from ultron.core import presets
-from ultron.core.ats.identity import seed_identity
-from ultron.core.ats.registry import extract_seed_from_url, get_vendor_spec
+from ultron.core.ats.board_key import resolve_board_key
 from ultron.profiles import store as profile_store
 from ultron.stages.watch import watch
 from ultron.stages.watch_boards import siblings
 from ultron.storage import ledger, watchlist
-
-
-def _board_key(raw: str) -> tuple[str, str] | None:
-    """``(seed key, company)`` of a board URL or a ``vendor:board`` key; ``None`` when it names no board."""
-    text = str(raw or "").strip()
-    if "://" in text:
-        seed = extract_seed_from_url(text, "")
-        return (":".join(seed_identity(seed.ats, seed.board_identifier)), seed.company) if seed else None
-    vendor, sep, board = text.partition(":")
-    if not sep or not board.strip() or get_vendor_spec(vendor.strip().lower()) is None:
-        return None
-    return ":".join(seed_identity(vendor.strip().lower(), board.strip())), ""
 
 
 def _profile(slug: str) -> dict | None:
@@ -59,7 +46,7 @@ def _list(args: argparse.Namespace) -> int:
 def _change(args: argparse.Namespace) -> int:
     if _profile(args.profile) is None:
         return fail("profile_not_found", f"profile not found: {args.profile}")
-    board = _board_key(args.board)
+    board = resolve_board_key(args.board)
     if board is None:
         return fail("invalid_board", "give a board URL on a supported ATS or a <vendor>:<board> key")
     with closing(ledger.connect()) as conn:

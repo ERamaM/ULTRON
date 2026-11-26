@@ -22,6 +22,7 @@ from ultron.infra.platforms import (
     global_skill_dirs,
     project_skill_dirs,
 )
+from ultron.infra.searxng import docker_available, json_health
 from ultron.stages import http_factory
 from ultron.storage import ledger
 
@@ -202,9 +203,18 @@ def check_network_https(env: Mapping[str, str]) -> Check:
     return Check("network_https", True, f"GET {NETWORK_HOST} ok")
 
 
+def check_web_search(*, network: bool) -> Check:
+    """Report the best available keyless search path without failing doctor."""
+    if network and json_health():
+        return Check("web_search", True, "SearXNG JSON is available.")
+    fix = "Run ultron searxng up to enable the local service." if docker_available() else None
+    return Check("web_search", True, "Built-in DuckDuckGo HTML search is available.", fix)
+
+
 def run_checks(*, network: bool = True) -> list[Check]:
     """Run environment, storage, installation, and optional network checks."""
-    checks = [check_python(), check_home_writable(), check_db_schema(), check_extras(), check_skill_installed()]
+    checks = [check_python(), check_home_writable(), check_db_schema(), check_extras(), check_skill_installed(),
+              check_web_search(network=network)]
     if network:
         checks.append(check_network_dns(os.environ, http_factory.TEST_OVERRIDES.get("resolver")))
         checks.append(check_network_https(os.environ))

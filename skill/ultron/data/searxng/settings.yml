@@ -1,0 +1,32 @@
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - bing
+      - duckduckgo
+      - startpage
+      - brave
+      - qwant
+      - yahoo
+      - mojeek
+
+general:
+  instance_name: ULTRON SearXNG
+  enable_metrics: false
+
+search:
+  formats: [html, json]
+  suspended_times:
+    SearxEngineTooManyRequests: 180
+    SearxEngineCaptcha: 3600
+    SearxEngineAccessDenied: 180
+
+server:
+  limiter: false
+  image_proxy: false
+  public_instance: false
+  # The container receives its per-install key in SEARXNG_SECRET.
+
+outgoing:
+  request_timeout: 8.0
+  max_request_timeout: 12.0

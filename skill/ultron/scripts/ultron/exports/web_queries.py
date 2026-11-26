@@ -5,13 +5,12 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import defaultdict
-from pathlib import Path
 from typing import Any, get_args
 
 from ultron.core.extractors.posting_date import iso_vacancy_date
 from ultron.core.models import Eligibility, RemotePolicy
 from ultron.exports import sanitize, view_model
-from ultron.profiles.families import load_profile_families, related_profiles
+from ultron.profiles.families import Family, related_profiles
 from ultron.storage.watchlist import watched
 
 RELEVANCE = ("relevant", "not_relevant", "uncertain")
@@ -60,6 +59,8 @@ def enrich_job(job: dict[str, Any], judgment: dict, feedback: dict, profile: str
     remote = sanitize.normalize_token(judgment.get("remote_policy"), get_args(RemotePolicy), default="unknown")
     dates = {key: iso_vacancy_date(job[key]) or iso_vacancy_date(judgment.get(key))
              for key in ("published_at", "updated_at", "unverified_date")}
+    salary = sanitize.clean_text(judgment.get("salary"))[:120]
+    currency, midpoint = view_model.parse_salary_midpoint(salary) or ("", None)
     job.update(
         dates,
         priority=view_model.normalize_priority(judgment.get("priority")),
@@ -69,7 +70,9 @@ def enrich_job(job: dict[str, Any], judgment: dict, feedback: dict, profile: str
         eligibility=sanitize.normalize_token(judgment.get("eligibility"), get_args(Eligibility), default=""),
         eligibility_evidence=sanitize.clean_text(judgment.get("eligibility_evidence"))[:300],
         fit_signals=view_model.split_fit_signals(judgment.get("fit_signals")),
-        salary=sanitize.clean_text(judgment.get("salary"))[:120],
+        salary=salary,
+        salary_currency=currency,
+        salary_midpoint=midpoint,
         found_by=sanitize.clean_text(judgment.get("found_by"))[:60],
         profile_feedback={sanitize.clean_text(key): value for key, value in feedback.items()},
         best_date=view_model.best_vacancy_date({**job, **dates, "freshness": judgment.get("freshness")}),
@@ -80,7 +83,7 @@ def enrich_job(job: dict[str, Any], judgment: dict, feedback: dict, profile: str
                    feedback_note=scoped["note"], feedback_at=scoped["labeled_at"])
 
 
-def read_watchlist(conn: sqlite3.Connection, tables: set[str], profiles_dir: Path) -> list[dict[str, Any]]:
+def read_watchlist(conn: sqlite3.Connection, tables: set[str], families: dict[str, Family]) -> list[dict[str, Any]]:
     """Read explicit board settings and the effective history-backed watchlist."""
     if "watchlist" not in tables:
         return []
@@ -88,16 +91,26 @@ def read_watchlist(conn: sqlite3.Connection, tables: set[str], profiles_dir: Pat
         "SELECT profile_slug, seed_key, company, state, added_by, added_at FROM watchlist"
         " ORDER BY profile_slug, seed_key"
     )]
-    if "seed_yield_runs" in tables:
-        families = load_profile_families(profiles_dir)
-        profiles = {row[0] for row in conn.execute("SELECT DISTINCT profile_slug FROM seed_yield_runs")}
-        profiles.update(row["profile_slug"] for row in items)
-        for profile in sorted(profiles | families.keys()):
-            siblings = related_profiles(profile, families.get(profile, ("", set())), families)
-            items.extend({"profile_slug": profile, "seed_key": board["seed_key"], "company": board["company"],
-                          "state": "watch", "added_by": "history", "added_at": ""}
-                         for board in watched(conn, profile, siblings) if board["source"] == "history")
-    return [{field: sanitize.clean_text(value) for field, value in row.items()} for row in items]
+    if "seed_yield_runs" not in tables:
+        return [_watch_record(row) for row in items]
+    profiles = {row[0] for row in conn.execute("SELECT DISTINCT profile_slug FROM seed_yield_runs")}
+    profiles.update(row["profile_slug"] for row in items)
+    explicit = {(row["profile_slug"], row["seed_key"]): row for row in items}
+    for profile in sorted(profiles | families.keys()):
+        siblings = related_profiles(profile, families.get(profile, ("", set())), families)
+        for board in watched(conn, profile, siblings):
+            if row := explicit.get((profile, board["seed_key"])):
+                row["keeps"] = board["keeps"]
+            else:
+                items.append({"profile_slug": profile, "seed_key": board["seed_key"], "company": board["company"],
+                              "state": "watch", "added_by": "history", "added_at": "", "keeps": board["keeps"]})
+    return [_watch_record(row) for row in items]
+
+
+def _watch_record(row: dict) -> dict:
+    return {**{field: sanitize.clean_text(value) for field, value in row.items() if field != "keeps"},
+            "keeps": row.get("keeps", 0)}
+
 
 
 def read_watch_pending(conn: sqlite3.Connection, tables: set[str]) -> list[dict[str, Any]]:

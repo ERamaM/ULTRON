@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ULTRON — Ledger Explorer</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/assets/app.css">
-  <script defer src="/assets/app.js"></script>
+  <link rel="stylesheet" href="/assets/views.css">
+  <link rel="stylesheet" href="/assets/kanban.css">
+  <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -16,26 +19,30 @@
         <div class="brand-mark" aria-hidden="true">U</div>
         <div>
           <h1>ULTRON Ledger</h1>
-          <p class="subtitle">Zero-write live SQLite explorer</p>
+          <p id="snapshot-time" class="subtitle"></p>
         </div>
       </div>
 
       <div class="topbar-actions">
         <span id="db-status" class="status-pill" aria-live="polite">Loading ledger…</span>
         <button id="refresh-btn" class="btn btn-secondary" type="button" title="Reload snapshot from ultron.sqlite3">Refresh</button>
+        <button id="density-btn" class="btn btn-secondary" type="button" aria-pressed="false">Compact</button>
+        <button id="show-shortcuts" class="btn btn-secondary" type="button">Shortcuts</button>
         <button id="theme-btn" class="btn btn-secondary" type="button" aria-label="Toggle color theme">Theme</button>
       </div>
     </div>
   </header>
 
   <main id="main-content" class="container">
-    <section id="kpi-grid" class="kpi-grid" aria-label="Ledger summary"></section>
+    <details id="ledger-overview" class="ledger-overview" open>
+      <summary>Ledger overview</summary>
+      <section id="kpi-grid" class="kpi-grid" aria-label="Ledger summary"></section>
 
     <section id="charts-strip" class="charts-grid" aria-label="Visual breakdown">
       <article class="panel">
         <div class="panel-head">
-          <h2>Match Bands</h2>
-          <span class="panel-hint">Click a pill to filter</span>
+          <h2 id="band-heading">Match Bands</h2>
+          <button id="rank-switch" class="btn btn-ghost" type="button" hidden>Priority</button>
         </div>
         <div id="band-bar" class="stacked-bar" aria-label="Match band distribution"></div>
         <ul id="band-legend" class="pill-list"></ul>
@@ -44,25 +51,28 @@
       <article class="panel">
         <div class="panel-head">
           <h2>Review Pipeline</h2>
-          <span class="panel-hint">Click a state to filter</span>
         </div>
         <ul id="state-pills" class="pill-list"></ul>
+        <h3 class="remote-heading">Remote policy</h3>
+        <ul id="remote-pills" class="pill-list"></ul>
       </article>
 
       <article class="panel">
         <div class="panel-head">
           <h2>Top Companies</h2>
-          <span class="panel-hint">Click to filter search</span>
         </div>
         <ul id="top-companies" class="bars-list"></ul>
       </article>
     </section>
+
+    </details>
 
     <nav class="tabs" role="tablist" aria-label="Ledger views">
       <button id="tab-jobs" class="tab is-active" type="button" role="tab" aria-selected="true" data-tab="jobs">Jobs <span id="tab-count-jobs" class="tab-count">0</span></button>
       <button id="tab-runs" class="tab" type="button" role="tab" aria-selected="false" data-tab="runs">Runs <span id="tab-count-runs" class="tab-count">0</span></button>
       <button id="tab-seeds" class="tab" type="button" role="tab" aria-selected="false" data-tab="seeds">Seed Yield <span id="tab-count-seeds" class="tab-count">0</span></button>
       <button id="tab-ops" class="tab" type="button" role="tab" aria-selected="false" data-tab="ops">Saved &amp; Diagnostics <span id="tab-count-ops" class="tab-count">0</span></button>
+      <button id="tab-watch" class="tab" type="button" role="tab" aria-selected="false" data-tab="watch">Watch &amp; Salaries <span id="tab-count-watch" class="tab-count">0</span></button>
     </nav>
 
     <section id="view-jobs" class="tab-panel" aria-labelledby="tab-jobs">
@@ -91,6 +101,7 @@
           <option value="unreviewed">Unreviewed</option>
           <option value="shortlisted">Shortlisted</option>
           <option value="applied">Applied</option>
+          <option value="interview">Interview</option>
           <option value="rejected">Rejected</option>
           <option value="archived">Archived</option>
         </select>
@@ -103,6 +114,12 @@
         <select id="filter-sort" aria-label="Sort jobs">
           <option value="last_seen">Newest seen</option>
           <option value="score">Highest score</option>
+          <option value="priority">Priority</option>
+          <option value="salary">Annual salary</option>
+          <option value="posted">Posted date</option>
+          <option value="title">Title</option>
+          <option value="status">Review state</option>
+          <option value="remote">Remote policy</option>
           <option value="times_seen">Most seen</option>
           <option value="company">Company (A–Z)</option>
         </select>
@@ -112,11 +129,19 @@
           <span>New only</span>
         </label>
 
-        <button id="view-mode-btn" class="btn btn-secondary" type="button">Table view</button>
         <button id="clear-filters-btn" class="btn btn-ghost" type="button">Reset</button>
       </div>
 
-      <p id="jobs-meta" class="result-meta"></p>
+      <div class="view-tools">
+        <div class="view-toggle" role="group" aria-label="Job layout">
+          <button class="btn btn-secondary" type="button" aria-pressed="true" data-view="cards">Cards</button>
+          <button class="btn btn-secondary" type="button" aria-pressed="false" data-view="table">Table</button>
+          <button class="btn btn-secondary" type="button" aria-pressed="false" data-view="kanban">Kanban</button>
+        </div>
+        <button id="export-csv" class="btn btn-secondary" type="button" disabled>Export CSV</button>
+        <button id="copy-urls" class="btn btn-secondary" type="button" disabled>Copy URLs</button>
+        <p id="jobs-meta" class="result-meta" aria-live="polite"></p>
+      </div>
       <div id="jobs-container"></div>
     </section>
 
@@ -131,10 +156,12 @@
     <section id="view-ops" class="tab-panel" aria-labelledby="tab-ops" hidden>
       <div id="ops-container"></div>
     </section>
+    <section id="view-watch" class="tab-panel" aria-labelledby="tab-watch" hidden>
+      <div id="watch-container" class="watch-grid"></div>
+    </section>
   </main>
 
-  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
-  <aside id="detail-drawer" class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <dialog id="detail-drawer" class="drawer" aria-labelledby="drawer-title">
     <div class="drawer-head">
       <div id="drawer-title-wrap">
         <p id="drawer-company" class="drawer-kicker"></p>
@@ -143,6 +170,29 @@
       <button id="drawer-close" class="btn btn-secondary" type="button" aria-label="Close job details">Close</button>
     </div>
     <div id="drawer-body" class="drawer-body"></div>
-  </aside>
+  </dialog>
+  <dialog id="shortcuts" class="supplement" aria-labelledby="shortcuts-title">
+    <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+    <dl class="shortcuts-list">
+      <dt>J / K</dt><dd>Next or previous job</dd>
+      <dt>Enter</dt><dd>Open or close details</dd>
+      <dt>O</dt><dd>Open posting</dd>
+      <dt>/</dt><dd>Search</dd>
+      <dt>V</dt><dd>Cycle views</dd>
+      <dt>?</dt><dd>Toggle shortcuts</dd>
+      <dt>S / A / I</dt><dd>Shortlist, applied, interview (editable)</dd>
+      <dt>X / U / Z</dt><dd>Reject, unreviewed, undo (editable)</dd>
+    </dl>
+    <button id="close-shortcuts" class="btn btn-secondary" type="button">Close</button>
+  </dialog>
+  <dialog id="copy-dialog" class="supplement" aria-labelledby="copy-title">
+    <h2 id="copy-title">Copy posting URLs</h2>
+    <textarea id="url-list" aria-label="Posting URLs" rows="8" readonly></textarea>
+    <button id="close-copy" class="btn btn-secondary" type="button">Close</button>
+  </dialog>
+  <div id="toast" class="toast" hidden>
+    <span id="toast-text" role="status"></span>
+    <button id="undo-btn" class="btn btn-secondary" type="button">Undo</button>
+  </div>
 </body>
 </html>

@@ -15,8 +15,9 @@ from ultron.exports import sanitize, web_queries
 from ultron.exports.view_model import MATCH_BANDS, summarize_job_display
 from ultron.exports.web_watch import read_closed_watch
 from ultron.infra import home
+from ultron.profiles.families import load_profile_families
+from ultron.storage.review import STATES
 
-_STATES = ("unreviewed", "shortlisted", "applied", "rejected", "archived")
 _DIAGNOSTIC_LIMIT = 200
 
 
@@ -158,7 +159,7 @@ def _read_jobs(
                 **{field: sanitize.clean_text(row[field]) or None
                    for field in ("published_at", "updated_at", "unverified_date")},
                 "times_seen": max(0, int(row["times_seen"] or 0)),
-                "review_state": sanitize.normalize_token(row["review_state"], _STATES, default="unreviewed"),
+                "review_state": sanitize.normalize_token(row["review_state"], STATES, default="unreviewed"),
                 "review_changed_at": sanitize.clean_text(row["review_changed_at"]) or None,
                 "first_seen_run_id": sanitize.clean_text(row["first_seen_run_id"]) or None,
                 "last_seen_run_id": sanitize.clean_text(row["last_seen_run_id"]) or None,
@@ -284,7 +285,7 @@ def _build_summary(
     *, watchlist: list, pending: list, closed: list,
 ) -> dict[str, Any]:
     band_counts = _empty_counts(MATCH_BANDS, extra="unscored")
-    state_counts = _empty_counts(_STATES)
+    state_counts = _empty_counts(STATES)
     feedback_counts = _empty_counts(web_queries.RELEVANCE)
     companies: Counter[str] = Counter()
     sources: Counter[str] = Counter()
@@ -339,6 +340,8 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
     """Read ``$ULTRON_HOME/ultron.sqlite3`` strictly read-only into a sanitized snapshot."""
     target = Path(db_path) if db_path is not None else default_db_path()
     now_iso = datetime.now(UTC).isoformat()
+    families = load_profile_families(target.parent / "profiles")
+    watch_profiles = sorted(sanitize.clean_text(slug) for slug in families)
     if not target.is_file():
         return {
             "meta": {
@@ -355,6 +358,7 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
             "seed_yields": [],
             "saved_searches": [],
             "diagnostics": [],
+            "watch_profiles": watch_profiles,
             **_watch_display([], [], []),
         }
 
@@ -368,7 +372,7 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
         seed_yields = _read_seed_yields(conn, tables)
         saved_searches = _read_saved_searches(conn, tables)
         diagnostics = _read_diagnostics(conn, tables)
-        watchlist = web_queries.read_watchlist(conn, tables, target.parent / "profiles")
+        watchlist = web_queries.read_watchlist(conn, tables, families)
         pending = web_queries.read_watch_pending(conn, tables)
 
     closed = read_closed_watch(target.parent / "watch", jobs)
@@ -388,5 +392,6 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
         "seed_yields": seed_yields,
         "saved_searches": saved_searches,
         "diagnostics": diagnostics,
+        "watch_profiles": watch_profiles,
         **_watch_display(watchlist, pending, closed),
     }

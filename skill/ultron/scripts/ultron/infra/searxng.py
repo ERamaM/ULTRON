@@ -28,6 +28,11 @@ _CONTAINER_PORT = "8080/tcp"
 _SECRET_VAR = "SEARXNG_SECRET"
 _ID = re.compile(r"[0-9a-f]{12,64}")
 _HEALTH_CHECK = "/search?format=json"
+_RESOURCES = {"cpus": 1.0, "mem_limit": "512m", "pids_limit": 128}
+_CONTAINER_ENV = (
+    _SECRET_VAR, "FORCE_OWNERSHIP=false", "GRANIAN_WORKERS=1", "GRANIAN_BLOCKING_THREADS=4",
+    "GRANIAN_BACKPRESSURE=12", "GRANIAN_BACKLOG=128", "GRANIAN_HTTP1_HEADER_READ_TIMEOUT=3000",
+)
 
 
 class LifecycleError(RuntimeError):
@@ -212,12 +217,12 @@ def _launch(root: Path, port: int) -> None:
     owner = _owner(root)
     publish = f"127.0.0.1:{port}:8080"
     target = "/etc/searxng/settings.yml"
-    env = [_SECRET_VAR, "FORCE_OWNERSHIP=false"]
     compose = _docker("compose", "version")
     if compose.returncode == 0:
         # JSON is valid Compose YAML. Escape Compose interpolation in user-selected paths.
         config = {"services": {"searxng": {
-            "image": IMAGE, "container_name": CONTAINER, "ports": [publish], "environment": env,
+            "image": IMAGE, "container_name": CONTAINER, "ports": [publish], "environment": _CONTAINER_ENV,
+            **_RESOURCES,
             "labels": {_OWNER_LABEL: owner},
             "volumes": [{"type": "bind", "source": str(settings).replace("$", "$$"), "target": target,
                          "read_only": True, "bind": {"create_host_path": False}}],
@@ -230,9 +235,12 @@ def _launch(root: Path, port: int) -> None:
         source = str(settings)
         if "," in source or '"' in source:
             raise LifecycleError("SearXNG requires a Docker Compose install for this configuration path.")
+        environment_args = [arg for value in _CONTAINER_ENV for arg in ("--env", value)]
         result = _docker("run", "--detach", "--name", CONTAINER, "--label", f"{_OWNER_LABEL}={owner}",
                          "--publish", publish, "--mount", f"type=bind,source={source},target={target},readonly",
-                         "--env", env[0], "--env", env[1], IMAGE, timeout=180, secret=secret)
+                         "--cpus", str(_RESOURCES["cpus"]), "--memory", _RESOURCES["mem_limit"],
+                         "--pids-limit", str(_RESOURCES["pids_limit"]),
+                         *environment_args, IMAGE, timeout=180, secret=secret)
     if result.returncode:
         raise LifecycleError("Docker could not launch SearXNG. Verify the daemon, port and file sharing.")
 

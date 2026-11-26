@@ -114,6 +114,10 @@ def docker(monkeypatch, tmp_path):
                 owner = args[args.index("--label") + 1].split("=")[1]
                 assert "readonly" in args[args.index("--mount") + 1]
                 assert searxng.IMAGE in args
+                assert args[args.index("--cpus") + 1] == "1.0"
+                assert args[args.index("--memory") + 1] == "512m"
+                assert args[args.index("--pids-limit") + 1] == "128"
+                assert "GRANIAN_BACKPRESSURE=12" in args
             else:
                 settings = json.loads(Path(args[args.index("--file") + 1]).read_text(encoding="utf-8"))
                 service = settings["services"]["searxng"]
@@ -121,6 +125,10 @@ def docker(monkeypatch, tmp_path):
                 binding, = service["ports"]
                 assert cwd == tmp_path / "ULTRON state" / "searxng"
                 assert service["image"] == searxng.IMAGE
+                assert service["cpus"] == 1.0
+                assert service["mem_limit"] == "512m"
+                assert service["pids_limit"] == 128
+                assert "GRANIAN_BACKPRESSURE=12" in service["environment"]
                 assert service["volumes"][0]["read_only"]
             assert binding.startswith("127.0.0.1:")
             host, port, _ = binding.split(":")

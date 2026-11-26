@@ -16,6 +16,8 @@ from typing import IO, Any
 from ultron import __version__
 from ultron.core import presets
 from ultron.core.web_search.cascade import WEB_PROVIDERS
+from ultron.infra.net import VendorBudget
+from ultron.stages.http_factory import load_vendor_budget
 from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
 from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
@@ -134,7 +136,7 @@ def _profile(arguments: dict) -> str:
     return profile.strip()
 
 
-def _gather(arguments: dict) -> dict:
+def _gather(arguments: dict, budget: VendorBudget | None) -> dict:
     allowed = {"profile", "query", "limit", "max_queries", "web_provider", "new_only", "detail"}
     if unknown := set(arguments) - allowed:
         raise ToolInputError(f"unsupported gather argument: {min(unknown)}")
@@ -152,10 +154,10 @@ def _gather(arguments: dict) -> dict:
         raise ToolInputError("new_only and detail must be booleans")
     return gather_candidates(_profile(arguments), query, limit=limit, max_queries=max_queries,
                              web_provider=arguments.get("web_provider"), new_only=new_only, detail=detail,
-                             select_response=compact_gather)
+                             select_response=compact_gather, vendor_budget=budget)
 
 
-def _search(arguments: dict) -> dict:
+def _search(arguments: dict, budget: VendorBudget | None) -> dict:
     limit = arguments.get("limit", DEFAULT_LIMIT)
     if isinstance(limit, bool) or not isinstance(limit, int):
         raise ToolInputError("limit must be an integer")
@@ -163,26 +165,27 @@ def _search(arguments: dict) -> dict:
     if not isinstance(query, str):
         raise ToolInputError("query must be a string")
     return search_jobs(_profile(arguments), query, new_only=bool(arguments.get("new_only")),
-                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET, select_response=compact_dossiers)
+                       limit=max(1, min(limit, 200)), preset=presets.DEFAULT_PRESET, select_response=compact_dossiers,
+                       vendor_budget=budget)
 
 
-def _inspect(arguments: dict) -> dict:
+def _inspect(arguments: dict, budget: VendorBudget | None) -> dict:
     urls, companies = _targets(arguments), _strings(arguments, "companies", MAX_COMPANIES)
     if not urls and not companies:
         raise ToolInputError("give urls or companies")
     inspected = inspect_jobs(_profile(arguments), urls, companies, detail=bool(arguments.get("detail")),
-                             show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS)
+                             show_all=bool(arguments.get("all")), time_budget=MCP_INSPECTION_SECONDS, vendor_budget=budget)
     return compact_dossiers(inspected)
 
 
-def _save(arguments: dict) -> dict:
+def _save(arguments: dict, _budget: VendorBudget | None) -> dict:
     rows = arguments.get("rows")
     if not isinstance(rows, list) or not rows:
         raise ToolInputError("rows must be a non-empty list")
     return save_shortlist(_profile(arguments), rows[:MAX_ROWS])
 
 
-HANDLERS: dict[str, Callable[[dict], dict]] = {"gather_candidates": _gather, "search_jobs": _search, "inspect_jobs": _inspect,
+HANDLERS: dict[str, Callable[[dict, VendorBudget | None], dict]] = {"gather_candidates": _gather, "search_jobs": _search, "inspect_jobs": _inspect,
                                                "save_shortlist": _save}
 
 
@@ -190,7 +193,7 @@ def _text_result(payload: dict, *, error: bool = False) -> dict:
     return {"content": [{"type": "text", "text": encode_inline(payload)}], "isError": error}
 
 
-def call_tool(name: str, arguments: Any) -> dict:
+def call_tool(name: str, arguments: Any, *, budgets: dict[str, VendorBudget] | None = None) -> dict:
     """Run one tool; argument and domain errors come back as a tool result with ``isError``."""
     handler = HANDLERS.get(name)
     if handler is None:
@@ -198,7 +201,18 @@ def call_tool(name: str, arguments: Any) -> dict:
     if not isinstance(arguments, dict):
         return _text_result({"error": "invalid_arguments", "message": "arguments must be an object"}, error=True)
     try:
-        return _text_result(handler(arguments))
+        if budgets is None:
+            return _text_result(handler(arguments, None))
+        profile = _profile(arguments)
+        if name == "save_shortlist":
+            payload = handler(arguments, None)
+            if any(payload["saved"].values()):
+                budgets.pop(profile, None)
+        else:
+            budget = budgets.get(profile) or load_vendor_budget({"preset": presets.DEFAULT_PRESET})
+            payload = handler(arguments, budget)
+            budgets[profile] = budget
+        return _text_result(payload)
     except FileNotFoundError:
         return _text_result({"error": "profile_not_found", "message": "profile not found"}, error=True)
     except (ToolInputError, ValueError, KeyError) as exc:
@@ -222,7 +236,7 @@ def _error(message_id: Any, code: int, text: str) -> dict:
     return {"jsonrpc": "2.0", "id": message_id, "error": {"code": code, "message": text}}
 
 
-def handle_message(message: Any) -> dict | None:
+def handle_message(message: Any, *, budgets: dict[str, VendorBudget] | None = None) -> dict | None:
     """The response to one JSON-RPC message, or ``None`` for a notification."""
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
         return _error(message.get("id") if isinstance(message, dict) else None, INVALID_REQUEST, "invalid request")
@@ -239,13 +253,14 @@ def handle_message(message: Any) -> dict | None:
     if method == "tools/call":
         if not isinstance(params, dict) or not isinstance(params.get("name"), str):
             return _error(message_id, INVALID_PARAMS, "tools/call needs a tool name")
-        return {"jsonrpc": "2.0", "id": message_id, "result": call_tool(params["name"], params.get("arguments", {}))}
+        return {"jsonrpc": "2.0", "id": message_id, "result": call_tool(params["name"], params.get("arguments", {}), budgets=budgets)}
     return _error(message_id, METHOD_NOT_FOUND, f"method not found: {method}")
 
 
 def serve(stdin: IO[str] | None = None, stdout: IO[str] | None = None) -> int:
     """Answer JSON-RPC messages read line by line from ``stdin`` until it closes."""
     stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
+    budgets: dict[str, VendorBudget] = {}
     for line in stdin:
         if not line.strip():
             continue
@@ -254,7 +269,7 @@ def serve(stdin: IO[str] | None = None, stdout: IO[str] | None = None) -> int:
         except ValueError:
             response: dict | None = _error(None, PARSE_ERROR, "parse error")
         else:
-            response = handle_message(message)
+            response = handle_message(message, budgets=budgets)
         if response is not None:
             stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             stdout.flush()

@@ -58,8 +58,8 @@ def test_rate_limited_vendor_host_is_blocked_for_the_rest_of_the_stage(pack_dir)
     errors = [json.loads(line) for line in
               (runs.run_dir(run_id) / "seed_errors.jsonl").read_text(encoding="utf-8").splitlines()]
     by_seed = {e["seed_id"]: e for e in errors}
-    # Once the host is blocked, later boards on it are skipped without a request, and other hosts still run.
-    assert hits["apply.workable.com"] <= 3
+    # The second 429 blocks the vendor while other vendors still run.
+    assert hits["apply.workable.com"] == 2
     assert hits["api.lever.co"] >= 1
-    blocked = [s for s, e in by_seed.items() if e.get("error") == "host_blocked"]
+    blocked = [s for s, e in by_seed.items() if e.get("error") == "vendor_blocked"]
     assert len(blocked) >= 5 and all(by_seed[s].get("skipped") for s in blocked)

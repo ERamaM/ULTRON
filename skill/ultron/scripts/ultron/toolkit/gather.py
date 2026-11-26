@@ -15,7 +15,7 @@ from ultron.core.web_search.cascade import provider_mode, search_web
 from ultron.core.web_search.dedup import deduplicate_hits
 from ultron.core.web_search.models import WebSearchResult
 from ultron.core.web_search.query_builder import build_queries, relaxed_queries
-from ultron.infra.net import HostGate
+from ultron.infra.net import HostGate, VendorBudget
 from ultron.infra.searxng import prepare_search
 from ultron.stages.candidates import candidate_identity
 from ultron.stages.http_factory import load_vendor_budget
@@ -244,7 +244,8 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
                       max_queries: int = DEFAULT_QUERIES, web_provider: str | None = None,
                       new_only: bool = False, detail: bool = False,
                       preset: str = presets.DEFAULT_PRESET,
-                      select_response: Callable[[dict], dict] | None = None) -> dict:
+                      select_response: Callable[[dict], dict] | None = None,
+                      vendor_budget: VendorBudget | None = None) -> dict:
     """Cache ranked dossiers and mark only the watch postings selected for the response as served."""
     if not 1 <= limit <= MAX_LIMIT or not 1 <= max_queries <= MAX_QUERIES:
         raise ValueError("limit must be 1-100 and max_queries must be 1-40")
@@ -257,7 +258,7 @@ def gather_candidates(profile_slug: str, query: str = "", *, limit: int = DEFAUL
     mode = provider_mode(web_provider)
     docker_status = prepare_search() if queries and mode in {"auto", "searxng"} else {}
     start = time.monotonic()
-    gate, budget = HostGate(), load_vendor_budget(run)
+    gate, budget = HostGate(), vendor_budget or load_vendor_budget(run)
     discovery_deadline = start + DISCOVERY_SECONDS
     with ThreadPoolExecutor(max_workers=2) as pool:
         web_task = pool.submit(search_web, queries, mode, deadline=discovery_deadline)

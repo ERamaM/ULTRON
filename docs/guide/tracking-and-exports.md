@@ -59,9 +59,13 @@ Every finished run writes `results.md` and `results.json` inside `$ULTRON_HOME/r
 | --- | --- | --- |
 | **Markdown** | Automatic on finalize | `$ULTRON_HOME/runs/<run_id>/results.md` concise shortlist table & summaries |
 | **JSON** | Automatic on finalize | `$ULTRON_HOME/runs/<run_id>/results.json` structured output with redacted secrets |
-| **Excel (`.xlsx`)** | `ultron export xlsx --run <run_id> [--out file.xlsx]` | Multi-sheet workbook (`openpyxl`) with styled columns, filters, and safe clickable job URLs |
+| **Excel (`.xlsx`)** | `ultron export xlsx --run <run_id> [--out file.xlsx]` | Multi-sheet workbook (`openpyxl`) with a live dashboard, a filterable Roles table, and an employer rollup |
 | **Offline HTML** | `ultron export html --run <run_id> [--out file.html]` | Single self-contained `results.html` file viewable offline in any browser with zero network requests and strict HTML escaping |
 | **Live Web Viewer** | `ultron export web [--port <n>] [--run <run_id>] [--profile <slug>] [--no-open]` | Zero-file-write local loopback web server (`127.0.0.1`) serving a live read-only dashboard straight from `$ULTRON_HOME/ultron.sqlite3` |
+
+The Excel Summary shows live counts as you change **My Status** in the Roles table. Pick **To Review**,
+**Shortlisted**, **Applied**, **Interview**, or **Rejected**, and add comments in **My Notes**. The
+Companies sheet groups open roles by employer. These edits stay in your workbook.
 
 All exports sanitize formula injections, redact credentials, and restrict hyperlinks strictly to `http`/`https` schemes. The live web viewer binds strictly to loopback addresses, opens the database read-only (`?mode=ro`), enforces a strict Content Security Policy with zero external assets, and updates immediately when clicking **Refresh**.
 

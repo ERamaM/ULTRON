@@ -59,6 +59,7 @@ def _setup_transport(monkeypatch, handler):
 
 def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch):
     barrier = Barrier(2)
+    noise = ("https://en.wikipedia.org/wiki/Financial_analyst", "https://careers.example.org/jobs")
     requests = []
     resolution_queries = []
     feed_calls = []
@@ -92,6 +93,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
             hit(NO_COMPANY, "Senior ML Engineer"),
             hit(REJECTED, "Senior ML Engineer"), hit(APPLIED, "Senior ML Engineer"),
             hit(SOCIAL, "Senior ML Engineer"), hit("https://example.org", "Root"),
+            *(hit(url, "Senior ML Engineer") for url in noise),
         )
         return WebSearchResult("ok", "searxng", len(hits), len(queries), hits)
 
@@ -115,10 +117,10 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
         })])
 
     result = gather.gather_candidates(SLUG, max_queries=5, web_provider="auto", detail=True)
-    assert result["web_search"]["provider"] == "searxng" and result["web_search"]["unique_urls"] == 8
+    assert result["web_search"]["provider"] == "searxng" and result["web_search"]["unique_urls"] == 10
     assert result["sources"]["watch"]["results"] == 1 and result["sources"]["himalayas"]["results"] >= 1
     assert result["inspected"]["skipped_memory"] == 2
-    assert not {REJECTED, APPLIED, SOCIAL}.intersection(requests)
+    assert not {REJECTED, APPLIED, SOCIAL, *noise}.intersection(requests)
     assert any("extra" in query for query in resolution_queries)
     assert any(row["url"] == NO_COMPANY for row in result["unresolved"])
     assert all("hint" not in row and "snippet" not in row for row in result["dossiers"])
@@ -152,7 +154,7 @@ def test_cli_and_mcp_gather(monkeypatch, capsys):
     monkeypatch.setattr(gather, "discover_sources", lambda *args, **kwargs: gather_empty_sources())
     code = main(["gather", "--profile", SLUG, "--query", "Nurse", "--max-queries", "2", "--new-only"])
     cli = json.loads(capsys.readouterr().out)
-    assert code == 0 and cli["queries"][0] == "Nurse"
+    assert code == 0 and cli["queries"][0].startswith("Nurse (jobs OR careers")
     assert cli["web_search"]["status"] == "disabled" and cli["inspected"]["attempted"] == 0
     result = call_tool("gather_candidates", {"profile": SLUG, "web_provider": "none"})
     assert not result["isError"]
@@ -288,3 +290,26 @@ def test_gather_prepares_only_the_managed_provider_and_reports_docker(monkeypatc
     else:
         assert order == [mode]
         assert "install_hint" not in result["web_search"]
+
+@pytest.mark.parametrize(("url", "kind"), [
+    ("https://en.wikipedia.org/wiki/Financial_analyst", "rejected"),
+    ("https://dictionary.cambridge.org/dictionary/english/job", "rejected"),
+    ("https://dle.rae.es/trabajo", "rejected"),
+    ("https://www.comunidad.madrid/servicios/vivienda", "rejected"),
+    ("https://news.example.org/finance/market-analysis", "rejected"),
+    ("https://example.org/news/finance-jobs-market-analysis", "rejected"),
+    ("https://careers.example.org/jobs", "rejected"),
+    ("https://www.michaelpage.es/jobs/analista-financiero", "rejected"),
+    ("https://www.michaelpage.es/job-detail/analista-financiero/ref/123", "employer_page"),
+    ("https://www.spainjobs.io/es/empleos/t/analista-financiero", "rejected"),
+    ("https://example.org/careers/vacancies", "rejected"),
+    ("https://careers.example.org/jobs/financial-analyst-181", "employer_page"),
+    ("https://empleo.example.org/ofertas/analista-financiero", "employer_page"),
+    ("https://example.org/empleo/analista-financiero-182", "employer_page"),
+    ("https://jobs.example.org/jobs?jobId=123", "employer_page"),
+    ("https://hp.wd5.myworkdayjobs.com/en-US/ExternalCareerSite/job/Madrid/Financial-Analyst_42", "ats_posting"),
+    ("https://boards.greenhouse.io/acme", "ats_posting"),
+    ("https://jobicy.com/jobs/7", "aggregator"),
+])
+def test_web_results_require_vacancy_intent(url, kind):
+    assert gather._classify(url, web_result=True) == kind

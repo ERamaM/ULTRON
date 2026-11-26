@@ -25,9 +25,11 @@ def test_queries_follow_profile():
     queries = build_queries(profile, 10)
     assert len(queries) == 10
     assert sum(query.startswith("site:") for query in queries) == 6
+    assert all("(jobs OR careers OR apply OR empleo)" in query for query in queries if not query.startswith("site:"))
+    assert any(query.startswith("site:myworkdayjobs.com ") for query in queries)
     assert all("onsite" in query and "Remote" not in query for query in queries)
     assert all(any(region in query for region in ("Queensland", "Brisbane", "Australia")) for query in queries)
-    assert build_queries({}, 3, query=" clinic manager ")[0] == "clinic manager"
+    assert build_queries({}, 3, query=" clinic manager ")[0].startswith("clinic manager (jobs OR careers")
     assert build_queries({}, 5) == []
     assert build_queries(profile, -1) == []
     assert relaxed_queries('site:boards.greenhouse.io "Nurse Practitioner"') == (
@@ -36,6 +38,14 @@ def test_queries_follow_profile():
     assert relaxed_queries("nurse") == ()
     profile["criteria"]["remote_policy"] = {"required": "full_remote"}
     assert all("remote" in item and "onsite" not in item for item in build_queries(profile, 8))
+
+
+def test_finance_plan_gives_workday_two_role_queries():
+    profile = {"criteria": {"target_titles": ["Financial Analyst", "Analista Financiero", "FP&A Analyst"],
+                            "location_scope": {"preferred": ["Spain", "Madrid"]}}}
+    plan = build_queries(profile, 20)
+    workday = [query for query in plan if query.startswith("site:myworkdayjobs.com ")]
+    assert workday == ["site:myworkdayjobs.com Analista Financiero Spain", "site:myworkdayjobs.com FP&A Analyst Spain"]
 
 
 def test_provider_urls_are_normalized():

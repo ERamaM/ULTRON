@@ -186,7 +186,7 @@ def ingest_ultron(
     if spec["kind"] != "ultron":
         raise ComparisonError(f"arm {arm} is an agent arm: import it with ingest-agent")
     try:
-        texts = read_run_files(run_id)
+        texts = read_run_files(run_id, require_postings=spec["mode"] == "sweep")
     except ReplayError as exc:
         raise ComparisonError(str(exc)) from exc
     run = json_object(texts["run.json"], f"run {run_id}: run.json")
@@ -374,14 +374,16 @@ def build_report(session: str, *, allow_partial: bool = False) -> dict[str, Any]
 def trace(session: str, arm: str, output: str | None = None) -> dict[str, Any]:
     """Outcome of every relevant job the first phase of ULTRON ``arm`` missed, per repetition."""
     state = load_state(session)
-    if arm_spec(state, arm)["kind"] != "ultron":
+    spec = arm_spec(state, arm)
+    if spec["kind"] != "ultron":
         raise ComparisonError(f"arm {arm} is an agent arm: only ULTRON arms have run folders to trace")
     reps = state["arms"].get(arm) or {}
     if not reps:
         raise ComparisonError(f"arm {arm} has no repetitions to trace")
     labels = scoring_labels(load_labels(session))
     pooled = assign_ids(state)
-    views = {rep: load_run_view(entry["source"], entry.get("ultron_home")) for rep, entry in reps.items()}
+    views = {rep: load_run_view(entry["source"], entry.get("ultron_home"), require_postings=spec["mode"] == "sweep")
+             for rep, entry in reps.items()}
     result = trace_arm(state, arm, pooled, labels, views)
     if not output:
         return result

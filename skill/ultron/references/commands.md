@@ -50,7 +50,7 @@ the JSON as a short table or list in the user's language; never paste raw JSON u
 ### search
 
 - `search [profile]`: follow the profile selection steps in SKILL.md, then `references/toolkit.md`
-  (`ultron search`, web search, `ultron inspect`, `ultron shortlist save`).
+  (`gather_candidates` or `ultron gather --profile <slug> --new-only`, judge, then `ultron shortlist save`).
 - `search planned [profile] [preset]`: the planned board sweep, the table of the search loop in SKILL.md.
   Preset defaults to `balanced`. Other presets are `fast`, `deep`, and `seed_boost`.
 - `search quick [profile] [preset]`: follow the same profile selection steps. Once the profile is

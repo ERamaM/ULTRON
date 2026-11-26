@@ -46,13 +46,14 @@ class ReplayError(ValueError):
 
 def read_run_files(
     run_id: str, *, extra: tuple[str, ...] = (), ultron_home: str | None = None,
+    require_postings: bool = True,
 ) -> dict[str, str | None]:
     """Text of every file the replay needs from ``ULTRON_HOME/runs/<run_id>`` (``None`` when absent).
 
     The run id must fully match the run-id pattern, the folder is rebuilt from ``ULTRON_HOME`` (or
     ``ultron_home`` when given) here, and only the fixed file names above plus ``extra`` (plain names from
     the caller, never from user input) are read. A file that resolves outside the run folder (a symlink to
-    elsewhere) is rejected. Nothing is created under ``ULTRON_HOME``.
+    elsewhere) is rejected. A scout shortlist may omit the sweep postings file. Nothing is created under ``ULTRON_HOME``.
     """
     if not isinstance(run_id, str) or not runs.RUN_ID_RE.fullmatch(run_id):
         raise ReplayError(f"invalid run id: {run_id!r} (run ids look like YYYYMMDD-HHMMSS-xxxxxx)")
@@ -83,9 +84,10 @@ def read_run_files(
                 texts[name] = handle.read()
         except (OSError, ValueError) as exc:
             raise ReplayError(f"{run_id}: {name} is unreadable: {exc}") from exc
-    missing = [name for name in REQUIRED_FILES if texts[name] is None]
-    if missing:
+    if require_postings and any(texts[name] is None for name in REQUIRED_FILES):
         raise ReplayError(f"{run_id}: run.json and postings.jsonl are required")
+    if texts["run.json"] is None:
+        raise ReplayError(f"{run_id}: run.json is required")
     return texts
 
 

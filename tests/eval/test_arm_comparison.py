@@ -606,6 +606,7 @@ def test_trace_explains_missed_jobs(three_arms, home, reports_dir):
 
 def test_cli_three_arms(three_arms, home, reports_dir, capsys):
     run_id = _make_run(home, RUN_IDS[0], [_row(1)], mode="scout")
+    (home / "runs" / run_id / "postings.jsonl").unlink()  # Scout saves final rows without a sweep postings file.
     args = ["ingest-ultron", "--session", three_arms, "--rep", "1", "--run", run_id, "--arm", "scout", "--phase", "2"]
     assert ac.main(args) == 0
     capsys.readouterr()

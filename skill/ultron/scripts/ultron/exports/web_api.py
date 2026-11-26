@@ -51,6 +51,12 @@ def valid_host(headers: Message, authority: str) -> bool:
     return host is not None and host.lower() == authority
 
 
+def authorized_launch(headers: Message, capability: str) -> bool:
+    """Require the out-of-band launch capability before disclosing an edit token."""
+    supplied = _header(headers, "X-ULTRON-Launch") or ""
+    return hmac.compare_digest(supplied.encode("utf-8"), capability.encode("ascii"))
+
+
 def authorize(headers: Message, origin: str, token: str) -> int:
     """Authorize an edit before reading its body and return the allowed byte count."""
     submitted = _header(headers, "X-ULTRON-Token") or ""

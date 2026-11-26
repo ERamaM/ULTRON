@@ -76,7 +76,7 @@ your shell, copy the commands, and run them to record decisions in the ledger.
 All exports neutralize formula prefixes, redact credentials, and validate links. The web viewer binds
 to loopback and serves all assets locally. In read-only mode, it opens the ledger without migrating it.
 With `ultron export web --editable`, you can update statuses, add notes and feedback, and manage
-watched boards. Use the launch URL printed by the CLI. Press **?** for shortcuts. A status change
+watched boards. Use the launch URL printed by the CLI, including its private access fragment. Press **?** for shortcuts. A status change
 offers **Undo** for five seconds. The first edit on an older ledger backs it up before upgrading.
 Use **Export CSV** or **Copy URLs** to export the currently filtered jobs.
 

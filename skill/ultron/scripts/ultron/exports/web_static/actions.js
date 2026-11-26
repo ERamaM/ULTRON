@@ -1,6 +1,27 @@
 import {$, STATES, button, el} from "./dom.js";
 
-const token = document.querySelector('meta[name="ultron-csrf"]')?.content;
+let token;
+let pairedAccess;
+const currentAccess = () => new URLSearchParams(location.hash.slice(1)).get("access");
+
+export async function pairLaunch() {
+  const access = currentAccess();
+  if (token && access === pairedAccess) return;
+  token = undefined;
+  pairedAccess = undefined;
+  if (!access) return;
+  try {
+    const response = await fetch("/", {headers: {"X-ULTRON-Launch": access}, cache: "no-store"});
+    if (!response.ok) return;
+    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    if (access === currentAccess()) {
+      token = page.querySelector('meta[name="ultron-csrf"]')?.content;
+      pairedAccess = access;
+    }
+  } catch {
+    // Access remains read-only when the launch cannot be paired.
+  }
+}
 
 async function post(path, body) {
   if (!token) throw new Error("This ledger is read-only.");

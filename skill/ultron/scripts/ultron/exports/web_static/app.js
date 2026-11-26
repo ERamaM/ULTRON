@@ -1,5 +1,5 @@
 import {$, el, empty, formatDate, safeHttpUrl} from "./dom.js";
-import {createActions} from "./actions.js";
+import {createActions, pairLaunch} from "./actions.js";
 import {renderCharts, renderWatch} from "./charts.js";
 import {renderRuns, renderSeeds, renderOps} from "./history.js";
 import {renderKanban} from "./kanban.js";
@@ -65,8 +65,9 @@ function readHashFilters() {
 }
 
 function writeHashFilters() {
-  const params = new URLSearchParams();
+  const params = new URLSearchParams(location.hash.slice(1));
   for (const key of ["run", "profile"]) {
+    params.delete(key);
     if (state.filters[key]) params.set(key, state.filters[key]);
   }
   const hash = params.toString();
@@ -367,7 +368,7 @@ function bindEvents() {
   globalThis.addEventListener("hashchange", () => {
     readHashFilters();
     syncControls();
-    renderJobs();
+    void pairLaunch().then(loadSnapshot);
   });
 }
 
@@ -381,4 +382,4 @@ configureOverview();
 initTheme();
 readHashFilters();
 bindEvents();
-void loadSnapshot();
+void pairLaunch().then(loadSnapshot);

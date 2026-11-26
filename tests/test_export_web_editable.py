@@ -9,10 +9,11 @@ import sqlite3
 import threading
 from contextlib import closing, contextmanager
 from datetime import UTC, datetime
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
+from ultron.cli import main
 from ultron.core.models import FinalRow, RunSummary
 from ultron.exports import web_server
 from ultron.profiles.store import EXAMPLE_SLUG
@@ -38,9 +39,10 @@ def _running(db, **kwargs):
     server, base, port = web_server.create_server(db_path=db, **kwargs)
     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.03}, daemon=True)
     thread.start()
-    host = urlsplit(base).hostname
+    url = urlsplit(base)
+    access = parse_qs(url.fragment).get("access", [""])[0]
     try:
-        yield host, port
+        yield url.hostname, port, access
     finally:
         server.shutdown()
         server.server_close()
@@ -48,18 +50,22 @@ def _running(db, **kwargs):
 
 
 def _request(endpoint, method, path, body=None, headers=None):
-    with closing(http.client.HTTPConnection(*endpoint, timeout=5)) as conn:
+    with closing(http.client.HTTPConnection(*endpoint[:2], timeout=5)) as conn:
         conn.request(method, path, body, headers or {})
         response = conn.getresponse()
         return response.status, response.headers, response.read()
 
 
 def _session(endpoint):
-    status, headers, root = _request(endpoint, "GET", "/")
+    assert b"ultron-csrf" not in _request(endpoint, "GET", "/")[2]
+    assert b"ultron-csrf" not in _request(endpoint, "GET", "/", headers={"X-ULTRON-Launch": "bad"})[2]
+    status, headers, root = _request(endpoint, "GET", "/", headers={"X-ULTRON-Launch": endpoint[2]})
     assert status == 200 and headers["Cache-Control"] == "no-store"
     match = re.search(rb'<meta name="ultron-csrf" content="([A-Za-z0-9_-]{43})">', root)
     assert match
-    return match.group(1).decode("ascii")
+    token = match.group(1).decode("ascii")
+    assert token != endpoint[2]
+    return token
 
 
 def _submit(endpoint, token, route, fields):
@@ -88,6 +94,7 @@ def test_editable_validates_transport_and_payload_before_writing(db):
         auth = {"Content-Type": "application/json", "X-ULTRON-Token": token}
         for payload, headers, status in (
             (body, {}, 403), (body, {**auth, "X-ULTRON-Token": "wrong"}, 403),
+            (body, {**auth, "X-ULTRON-Token": endpoint[2]}, 403),
             (body, {**auth, "Host": "example.com"}, 403), (body, {**auth, "Origin": "https://example.com"}, 403),
             (body, {**auth, "Content-Type": "text/plain"}, 415), (" " * 16_385, auth, 413),
             ('{"state":"interview"}', auth, 400), (body[:-1] + ',"extra":"value"}', auth, 400),
@@ -179,3 +186,21 @@ def test_migration_preserves_v8_data_and_references(tmp_path):
         assert saved.execute("PRAGMA user_version").fetchone() == (8,)
         assert saved.execute("SELECT review_state FROM jobs").fetchone() == ("applied",)
     assert review.set_state("k", "interview", db_path=path) == "k"
+
+
+
+def test_editable_cli_delivers_private_access_only_in_launch_json(capsys, monkeypatch):
+    expected = "http://127.0.0.1:8877/#access=launch-ticket&run=example-run&profile=example"
+
+    def serve(**kwargs):
+        assert kwargs["editable"] is True and kwargs["open_browser"] is False
+        url = web_server.build_dashboard_url(
+            "http://127.0.0.1:8877/#access=launch-ticket", run_id=kwargs["run_id"], profile=kwargs["profile"],
+        )
+        kwargs["on_ready"]({"url": url})
+
+    monkeypatch.setattr(web_server, "serve_ledger", serve)
+    assert main(["export", "web", "--editable", "--no-open", "--run", "example-run", "--profile", "example"]) == 0
+    result = capsys.readouterr()
+    assert json.loads(result.out)["url"] == expected
+    assert "launch-ticket" not in result.err

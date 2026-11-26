@@ -38,7 +38,8 @@ def _web(args: argparse.Namespace) -> int:
     def _on_ready(info: dict) -> None:
         emit(info)
         sys.stdout.flush()
-        print(f"Serving ULTRON ledger on {info['url']} (Ctrl+C to stop)", file=sys.stderr, flush=True)
+        origin = info["url"].split("#", 1)[0]
+        print(f"Serving ULTRON ledger on {origin} (Ctrl+C to stop)", file=sys.stderr, flush=True)
 
     try:
         web_server.serve_ledger(

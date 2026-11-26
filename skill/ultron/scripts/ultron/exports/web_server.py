@@ -66,14 +66,15 @@ def validate_bind_target(host: str, port: int) -> tuple[str, int]:
 
 def build_dashboard_url(base_url: str, *, run_id: str | None = None, profile: str | None = None) -> str:
     """Append optional hash filter parameters for ``run_id`` or ``profile`` to ``base_url``."""
-    params: list[str] = []
+    location = urlsplit(base_url)
+    params = [location.fragment] if location.fragment else []
     if run_id:
         params.append(f"run={quote(str(run_id).strip(), safe='')}")
     if profile:
         params.append(f"profile={quote(str(profile).strip(), safe='')}")
     if not params:
         return base_url
-    return f"{base_url}#{'&'.join(params)}"
+    return urlunsplit(location._replace(fragment="&".join(params)))
 
 
 class LedgerHTTPServer(ThreadingHTTPServer):
@@ -99,11 +100,13 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         static_routes: dict[str, tuple[str, bytes]],
         db_path: Path,
         token: str | None,
+        launch_capability: str | None,
         **kwargs: Any,
     ) -> None:
         self._static_routes = static_routes
         self._db_path = db_path
         self._token = token
+        self._launch_capability = launch_capability
         super().__init__(*args, **kwargs)
 
     @property
@@ -148,7 +151,8 @@ class _LedgerRequestHandler(BaseHTTPRequestHandler):
         static = self._static_routes.get(path)
         if static is not None:
             content_type, body = static
-            if path == "/" and self._token is not None:
+            if (path == "/" and self._token is not None and self._launch_capability is not None
+                    and web_api.authorized_launch(self.headers, self._launch_capability)):
                 tag = f'<meta name="ultron-csrf" content="{self._token}">'.encode("ascii")
                 body = body.replace(b"</head>", tag + b"\n</head>", 1)
             self._send_bytes(HTTPStatus.OK, content_type, body, head_only=head_only)
@@ -252,13 +256,16 @@ def create_server(
     target = Path(db_path).absolute() if db_path is not None else web_data.default_db_path().absolute()
     formatted_host = f"[{clean_host}]" if ":" in clean_host else clean_host
     token = secrets.token_urlsafe(32) if editable else None
-    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token)
+    capability = secrets.token_urlsafe(32) if editable else None
+    handler = partial(_LedgerRequestHandler, static_routes=routes, db_path=target, token=token,
+                      launch_capability=capability)
     server_type = _IPv6LedgerServer if clean_host == "::1" else LedgerHTTPServer
     bound_host = "127.0.0.1" if clean_host == "localhost" else clean_host
     server = server_type((bound_host, clean_port), handler)
     actual_port = int(server.server_address[1])
     server.origin = urlunsplit(("http", f"{formatted_host}:{actual_port}", "", "", ""))
-    return server, server.origin + "/", actual_port
+    launch = f"#access={capability}" if capability else ""
+    return server, server.origin + "/" + launch, actual_port
 
 
 def serve_ledger(

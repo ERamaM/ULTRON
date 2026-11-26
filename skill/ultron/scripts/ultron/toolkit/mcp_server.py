@@ -204,7 +204,9 @@ def _initialize(params: dict) -> dict:
     version = requested if requested in PROTOCOL_VERSIONS else PROTOCOL_VERSIONS[0]
     return {"protocolVersion": version, "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": "ultron", "version": __version__},
-            "instructions": "Job search tools: search_jobs, then inspect_jobs, judge, then save_shortlist. " + UNTRUSTED}
+            "instructions": "Job search tools: gather_candidates (one-shot discovery and dossiers), "
+                            "inspect_jobs (detail or extra URLs/companies), search_jobs (watch/boards/feeds only), "
+                            "judge, then save_shortlist. " + UNTRUSTED}
 
 
 def _error(message_id: Any, code: int, text: str) -> dict:

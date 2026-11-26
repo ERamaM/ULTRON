@@ -211,3 +211,5 @@ def test_docker_missing_and_doctor(monkeypatch):
     assert doctor.check_web_search(network=False).fix
     monkeypatch.setattr(doctor, "docker_available", lambda: False)
     assert doctor.check_web_search(network=False).ok
+    monkeypatch.setattr(doctor, "ddgs_available", lambda: True)
+    assert doctor.check_web_search(network=False).detail == "Optional ddgs search is available."

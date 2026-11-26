@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import ultron
+from ultron.core.web_search.ddgs_client import available as ddgs_available
 from ultron.infra import installs
 from ultron.infra.net import HttpClient
 from ultron.infra.platforms import (
@@ -208,7 +209,8 @@ def check_web_search(*, network: bool) -> Check:
     if network and json_health():
         return Check("web_search", True, "SearXNG JSON is available.")
     fix = "Run ultron searxng up to enable the local service." if docker_available() else None
-    return Check("web_search", True, "Built-in DuckDuckGo HTML search is available.", fix)
+    provider = "Optional ddgs search is available." if ddgs_available() else "Built-in DuckDuckGo HTML search is available."
+    return Check("web_search", True, provider, fix)
 
 
 def run_checks(*, network: bool = True) -> list[Check]:

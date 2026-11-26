@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 
 import pytest
 from openpyxl import load_workbook
@@ -10,12 +11,6 @@ from openpyxl import load_workbook
 from ultron.exports import xlsx
 from ultron.profiles import store as profiles
 from ultron.storage import runs
-
-OLD_ROLE_HEADERS = [
-    "Company", "Title", "Location", "Remote", "Eligibility", "Eligibility Evidence", "Freshness", "Fit Signals",
-    "Verdict", "Source Type", "Source", "Match Score", "Match Band", "Matched", "Missing", "Uncertain",
-    "Apply URL", "New",
-]
 
 
 def _row(title="Engineer", url="https://example.com/job/1", band="strong", score=82, is_new=True, elig="confirmed"):
@@ -67,20 +62,26 @@ def _wb(run_id):
     return load_workbook(xlsx.export_run_to_excel(run_id))
 
 
-def test_existing_columns_kept_in_order_and_apply_link_appended(run_id):
+def test_scored_layout_and_action_links(run_id):
     ws = _wb(run_id)["Roles (3)"]
-    assert _headers(ws) == [*OLD_ROLE_HEADERS, "Apply"]
+    assert _headers(ws) == [
+        "#", "New", "Company", "Title", "Location", "Remote", "Salary", "Posted", "Eligibility",
+        "Eligibility Evidence", "Fit Signals", "Verdict", "Match Score", "Match Band", "Freshness",
+        "My Status", "My Notes", "Apply", "Apply URL",
+    ]
+    assert ws["D2"].hyperlink.target == "https://example.com/job/1"
+    assert ws["D3"].hyperlink is None
     url_col, apply_col = _col(ws, "Apply URL"), _col(ws, "Apply")
     assert ws[f"{url_col}2"].value == "https://example.com/job/1"
     assert ws[f"{url_col}2"].hyperlink.target == "https://example.com/job/1"
-    assert ws[f"{apply_col}2"].value == "Open"
+    assert ws[f"{apply_col}2"].value == "Apply \u2197"
     assert ws[f"{apply_col}2"].hyperlink.target == "https://example.com/job/1"
     assert ws[f"{apply_col}2"].data_type == "s"  # a plain cell hyperlink, never a HYPERLINK() formula
     # Unsafe schemes are neither linked nor offered as "Open".
     assert ws[f"{apply_col}3"].value is None and ws[f"{apply_col}3"].hyperlink is None
     assert ws[f"{url_col}3"].hyperlink is None
     # Formula neutralization is unchanged.
-    assert ws["B3"].value.startswith("'=cmd")
+    assert ws["D3"].value.startswith("'=cmd")
 
 
 def test_header_row_is_styled_and_panes_frozen(run_id):
@@ -91,17 +92,23 @@ def test_header_row_is_styled_and_panes_frozen(run_id):
         assert cell.font.bold
         assert cell.fill.fill_type == "solid"
         assert cell.alignment.wrap_text
-        assert ws.freeze_panes == "B2"  # header row and the first identifying column
-        assert ws.auto_filter.ref == f"A1:{ws.cell(row=1, column=ws.max_column).column_letter}{ws.max_row}"
+        assert ws.freeze_panes == ("D2" if name.startswith("Roles") else "A2")
+        table = ws.tables["RolesTable" if name.startswith("Roles") else "DiscardsTable"]
+        assert table.autoFilter.ref == f"A1:{ws.cell(row=1, column=ws.max_column).column_letter}{ws.max_row}"
 
 
-def test_data_rows_wrap_with_consistent_height(run_id):
+def test_data_rows_wrap_with_dynamic_height(run_id):
+    path = runs.run_dir(run_id) / "results.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["rows"][0]["eligibility_evidence"] = "Long evidence " * 25
+    path.write_text(json.dumps(data), encoding="utf-8")
     ws = _wb(run_id)["Roles (3)"]
     evidence = _col(ws, "Eligibility Evidence")
     assert ws[f"{evidence}2"].alignment.wrap_text
     heights = {ws.row_dimensions[r].height for r in range(2, ws.max_row + 1)}
-    assert len(heights) == 1
-    assert all(heights)
+    assert ws.row_dimensions[2].height == 96
+    assert len(heights) > 1
+    assert all(22 <= height <= 96 for height in heights)
 
 
 def test_conditional_formatting_cues(run_id):
@@ -137,11 +144,12 @@ def test_summary_sheet_first_with_band_and_new_counts(run_id):
         for idx in range(len(row) - 1):
             if isinstance(row[idx].value, str):
                 pairs.setdefault(row[idx].value, row[idx + 1].value)
-    assert pairs["New since last run"] == 2
     assert pairs["Strong"] == 1 and pairs["Good"] == 1 and pairs["Borderline"] == 1 and pairs["Ineligible"] == 0
-    assert pairs["Roles kept"] == 3
-    # Existing layout rows stay where they are.
-    assert ws["A4"].value == "Run ID" and ws["A17"].value == "stale"
+    assert ws["A6"].value == "=COUNTA('Roles (3)'!D2:D4)"
+    assert ws["B6"].value == '=COUNTIF(\'Roles (3)\'!B2:B4,"New")'
+    status = _col(wb["Roles (3)"], "My Status")
+    assert ws["G6"].value == f'=COUNTIF(\'Roles (3)\'!{status}2:{status}4,"Interview")'
+    assert len(ws._charts) == 3
 
 
 def test_print_setup(run_id):
@@ -161,14 +169,15 @@ def test_empty_workbook_has_no_broken_ranges(run_id):
     wb = _wb(run_id)
     ws = wb["Roles (0)"]
     assert _rules(ws) == []
-    assert wb["Summary"]["E5"].value is not None
+    assert wb["Summary"]["E6"].value == 0
+    assert wb["Summary"]._charts == []
 
 
 def test_new_column_uses_a_locale_independent_label(run_id):
     ws = _wb(run_id)["Roles (3)"]
     new_col = _col(ws, "New")
     assert [ws[f"{new_col}{r}"].value for r in (2, 3, 4)] == ["New", None, "New"]
-    assert ws.column_dimensions[new_col].width >= 10
+    assert ws.column_dimensions[new_col].width == 8
 
 
 def test_new_row_highlight_skips_the_verdict_column(run_id):
@@ -181,3 +190,38 @@ def test_new_row_highlight_skips_the_verdict_column(run_id):
             start, end = part.split(":")
             first, last = start.rstrip("0123456789"), end.rstrip("0123456789")
             assert not (first <= verdict <= last and len(first) == len(verdict) == len(last))
+
+
+
+def test_toolkit_workbook_has_adaptive_table_and_employer_rollup(run_id):
+    path = runs.run_dir(run_id) / "results.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for priority, row in enumerate(data["rows"], start=1):
+        row.update(priority=priority, match_score=None, match_band=None, freshness="", source_label="Agent find")
+    data["rows"][0].update(salary="EUR 90,000 / year", published_at="2026-11-01")
+    data["rows"][1].update(salary="", unverified_date="2026-11-03")
+    data["rows"][2].update(company="Beta", published_at="=invalid")
+    path.write_text(json.dumps(data), encoding="utf-8")
+    wb = _wb(run_id)
+    roles = wb["Roles (3)"]
+    assert _headers(roles)[:5] == ["#", "Priority", "New", "Company", "Title"]
+    assert {"Priority", "Salary", "Posted", "My Status", "My Notes"} <= set(_headers(roles))
+    assert not {"Match Score", "Match Band", "Matched", "Missing", "Uncertain", "Freshness", "Source"} & set(_headers(roles))
+    assert roles.freeze_panes == "E2"
+    posted = _col(roles, "Posted")
+    assert roles[f"{posted}2"].value == date(2026, 11, 1)
+    assert roles[f"{posted}2"].number_format == "yyyy-mm-dd"
+    assert roles[f"{posted}3"].value == date(2026, 11, 3)
+    assert roles[f"{posted}4"].value == "'=invalid"
+    status = _col(roles, "My Status")
+    [validation] = roles.data_validations.dataValidation
+    assert str(validation.sqref) == f"{status}2:{status}4"
+    assert validation.formula1 == '"To Review,Shortlisted,Applied,Interview,Rejected"'
+    assert all(roles[f"{status}{row}"].value == "To Review" for row in range(2, 5))
+    assert any(rule.dxf.font.strike for _, rule in _rules(roles) if rule.dxf and rule.dxf.font)
+    assert wb["Summary"]["C6"].value == '=COUNTIF(\'Roles (3)\'!B2:B4,"P1")'
+    companies = wb["Companies (2)"]
+    assert list(companies.tables) == ["CompaniesTable"]
+    assert [item.value for item in companies[2]][:4] == ["Acme", 2, 1, "P1"]
+    assert companies["H2"].hyperlink.target == "https://example.com/job/1"
+    assert wb["Vacancy Dates"]["F3"].value == "2026-11-03"

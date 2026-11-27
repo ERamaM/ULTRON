@@ -136,10 +136,11 @@ def _rep_key(rep: int) -> str:
     return str(rep)
 
 
-def _check_source_unused(reps: dict[str, Any], rep: str, source: str) -> None:
-    for other_rep, entry in reps.items():
-        if entry.get("source") == source and other_rep != rep:
-            raise ComparisonError(f"{source} is already repetition {other_rep}")
+def _check_source_unused(arms: dict[str, Any], arm: str, rep: str, source: str) -> None:
+    for other_arm, reps in arms.items():
+        for other_rep, entry in reps.items():
+            if entry.get("source") == source and (other_arm, other_rep) != (arm, rep):
+                raise ComparisonError(f"{source} is already repetition {other_rep} of {other_arm}")
 
 
 def store_rows(state: dict[str, Any], arm: str, rep: int, rows: list[Any], **extra: Any) -> dict[str, Any]:
@@ -147,12 +148,13 @@ def store_rows(state: dict[str, Any], arm: str, rep: int, rows: list[Any], **ext
 
     Rows below the top N are never scored, so they are neither validated nor kept.
     """
+    key = _rep_key(rep)
+    _check_source_unused(state["arms"], arm, key, extra["source"])
     reps = state["arms"].setdefault(arm, {})
-    _check_source_unused(reps, _rep_key(rep), extra["source"])
     cleaned = [clean_row(raw, index) for index, raw in enumerate(rows[: state["top_n"]], start=1)]
-    previous = reps.get(_rep_key(rep), {})
+    previous = reps.get(key, {})
     same_source = previous.get("source") == extra.get("source")
-    reps[_rep_key(rep)] = {
+    reps[key] = {
         "rows": cleaned,
         "ingested_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "cost": previous.get("cost", {}) if same_source else {},

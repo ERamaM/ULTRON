@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -245,3 +246,35 @@ def test_real_dev_checkout_detection(monkeypatch, tmp_path):
     assert installs.in_dev_checkout(copy / "scripts" / "ultron") is False
     (copy / ".ultron-install.json").unlink()
     assert installs.in_dev_checkout(copy / "scripts" / "ultron") is False  # no install.py above
+
+
+@pytest.mark.parametrize("kind", ["symlink", pytest.param("junction", marks=pytest.mark.skipif(
+    os.name != "nt", reason="Windows junctions only"
+))])
+def test_only_registered_link_must_point_to_a_live_directory(tmp_path, _clean_env, capsys, kind):
+    import subprocess
+
+    source = tmp_path / "checkout"
+    source.mkdir()
+    link = _clean_env / ".claude" / "skills" / "ultron"
+    link.parent.mkdir(parents=True)
+    if kind == "junction":
+        process = subprocess.run(
+            ["cmd.exe", "/c", "mklink", "/J", str(link), str(source)], capture_output=True, check=False
+        )
+        if process.returncode:
+            pytest.skip("junction creation is unavailable")
+    else:
+        try:
+            link.symlink_to(source, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation is unavailable")
+    state = installs.home_path()
+    state.mkdir()
+    (state / "installs.json").write_text(json.dumps({"links": {str(link): str(source)}}), encoding="utf-8")
+    assert _by_id(doctor.run_checks(network=False))["skill_installed"].ok
+    source.rmdir()
+    for options in ([], ["--public"]):
+        main(["doctor", "--no-network", *options])
+        checks = json.loads(capsys.readouterr().out)["checks"]
+        assert next(check for check in checks if check["id"] == "skill_installed")["ok"] is False

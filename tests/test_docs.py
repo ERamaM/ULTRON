@@ -123,14 +123,14 @@ def test_user_guide_completeness_and_sync_wiki(tmp_path: Path, monkeypatch, caps
     assert (out_dir / ".git").is_dir()
 
     staged = tmp_path / "staged"
-    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", staged)
+    monkeypatch.setattr(sync_wiki, "_export_dir", lambda: staged)
     assert sync_wiki.main(["--export", "--clean"]) == 0
     assert str(staged) in capsys.readouterr().out
     assert (staged / "Home.md").is_file()
 
     bad_stage = tmp_path / "not-a-dir"
     bad_stage.write_text("file", encoding="utf-8")
-    monkeypatch.setattr(sync_wiki, "EXPORT_DIR", bad_stage)
+    monkeypatch.setattr(sync_wiki, "_export_dir", lambda: bad_stage)
     with pytest.raises(sync_wiki.UnsafeExportDirError, match="not a plain folder"):
         sync_wiki.main(["--export"])
 
@@ -189,3 +189,19 @@ def test_sync_wiki_transform_and_error_paths(tmp_path: Path):
         sync_wiki.main([])
     # Cover importlib check import cleanly
     assert importlib.util.find_spec("sync_wiki") is not None
+
+
+def test_check_needs_no_writable_temp_directory(monkeypatch, capsys):
+    import tempfile
+
+    def unavailable():
+        raise FileNotFoundError("no writable temporary directory")
+
+    monkeypatch.setattr(tempfile, "gettempdir", unavailable)
+    spec = importlib.util.spec_from_file_location("read_only_sync_wiki", ROOT / "tools" / "sync_wiki.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.main(["--check"]) == 0
+    assert "Validated 8 guide pages" in capsys.readouterr().out
+    with pytest.raises(FileNotFoundError, match="no writable temporary directory"):
+        module.main(["--export"])

@@ -9,7 +9,7 @@ What it does:
 1. Creates a temporary folder with ``project/`` (the agent's working directory) and
    ``project/.ultron-home`` (``ULTRON_HOME``, inside the project so sandboxed agents can write it).
 2. Runs ``install.py --project project`` with that ``ULTRON_HOME``.
-3. Runs the agent non-interactively in ``project/`` with the prompt in ``smoke_prompt.md`` and an
+3. Seeds a synthetic search profile and runs the agent non-interactively in ``project/`` with the prompt in ``smoke_prompt.md`` and an
    environment built from an allowlist (OS basics, home folders for the agents' own logins, proxies, and only
    the credentials that agent needs).
 4. Validates with the installed CLI (``ultron runs list``) and the run folder: a run whose
@@ -256,7 +256,27 @@ def _ultron_exe(ultron_home: Path) -> Path:
     return ultron_home.joinpath("venv", *sub)
 
 
+def _seed_profile(home: Path) -> None:
+    profile = {
+        "slug": "backend-latam",
+        "name": "Senior Backend Engineer, remote LATAM",
+        "enabled": True,
+        "criteria": {
+            "target_titles": ["Senior Backend Engineer", "Senior Backend Developer"],
+            "role_focus_terms": ["backend", "back-end"],
+            "seniority": {"required": True, "preferred_terms": ["senior"]},
+            "remote_policy": {"required": "full_remote", "positive_terms": ["remote", "remoto"]},
+            "location_scope": {"preferred": ["LATAM", "Latin America", "Am?rica Latina"]},
+        },
+    }
+    profiles = home / "profiles"
+    profiles.mkdir(parents=True, exist_ok=True)
+    # JSON is valid YAML, so the harness can seed the CLI's profile store using the standard library.
+    (profiles / "backend-latam.yaml").write_text(json.dumps(profile, indent=2), encoding="utf-8")
+
+
 def smoke(platform: str, *, keep: bool, timeout_min: float, model: str | None, workroot: Path | None) -> dict:
+    """Install the skill and validate a headless planned sweep in an isolated project."""
     root = Path(tempfile.mkdtemp(prefix=f"ultron-smoke-{platform}-", dir=workroot))
     project = root / "project"
     home = project / ".ultron-home"
@@ -274,6 +294,7 @@ def smoke(platform: str, *, keep: bool, timeout_min: float, model: str | None, w
         if inst.returncode != 0:
             result["failures"].append(f"install.py failed with exit {inst.returncode} (see install.log)")
             return result
+        _seed_profile(home)
         prompt = PROMPT_FILE.read_text(encoding="utf-8").strip()
         cmd = build_command(platform, prompt, project, model=model)
         result["command"] = [c if c != prompt else "<smoke_prompt.md>" for c in cmd]

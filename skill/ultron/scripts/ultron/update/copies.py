@@ -175,6 +175,48 @@ def split_mixed_antigravity(groups: list[dict], home: Path) -> tuple[list[dict],
     return out, manual
 
 
+def _different_state_home(path: Path, state_home: Path) -> bool:
+    if not _is_copy_install(path):
+        return False
+    try:
+        marker = json.loads((path / ".ultron-install.json").read_text(encoding="utf-8"))
+        if "ultron_home" not in marker:
+            return False  # older markers do not identify a state home
+        owner = Path(marker["ultron_home"])
+        # The recorded path is untrusted. Compare names without visiting that location.
+        return not owner.is_absolute() or Path(os.path.normpath(owner)) != state_home
+    except (OSError, ValueError, TypeError):
+        return True
+
+
+def exclude_other_homes(groups: list[dict], home: Path, state_home: Path) -> tuple[list[dict], list[dict]]:
+    """Omit installer flags whose full target set includes a copy bound to a different state home."""
+    state_home = Path(os.path.normpath(state_home))
+    groups_to_update, manual = [], []
+    for group in groups:
+        targets = _scope_targets(group, home)
+        platforms = []
+        for name in group["platforms"]:
+            excluded = [str(path) for path in targets[name] if _different_state_home(path, state_home)]
+            if excluded:
+                manual.append({"platform": name, "paths": excluded, "detail": "copy uses another ULTRON state home"})
+            else:
+                platforms.append(name)
+        if platforms:
+            groups_to_update.append({**group, "platforms": platforms})
+    return groups_to_update, manual
+
+
+def _scope_targets(group: dict, home: Path) -> dict[str, list[Path]]:
+    if group["scope"] == "project":
+        return {name: [path] for names, path in _project_skill_dirs(Path(group["project"])).items() for name in names}
+    dirs = global_skill_dirs(home)
+    targets = {name: [dirs[name]] for name in PLATFORM_NAMES}
+    if legacy := dirs.get("antigravity-legacy"):
+        targets["antigravity"].append(legacy)
+    return targets
+
+
 def discover_installs(*, home: Path, cwd: Path, projects: list[Path]) -> list[dict]:
     """Installer scopes to refresh (see ``find_copies``)."""
     return group_scopes(find_copies(home=home, cwd=cwd, projects=projects))

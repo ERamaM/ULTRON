@@ -397,3 +397,26 @@ def test_update_baseline_writes_only_the_committed_file(tmp_path, monkeypatch, r
 
 def test_run_output_must_be_json_so_the_summary_cannot_overwrite_it():
     assert qb.main(["run", "--output", "candidate.md"]) == 2
+
+
+@pytest.mark.parametrize("invalid", ["missing", "nonnumeric", "nan", "infinite", "bad-slice", "bad-case"])
+def test_compare_reports_invalid_metrics_as_invalid_input(tmp_path, monkeypatch, reports_dir, capsys, invalid):
+    baseline = _synthetic_report(BASE)
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(qb.dump_report(baseline), encoding="utf-8")
+    monkeypatch.setattr(qb, "BASELINE_PATH", baseline_path)
+    candidate = copy.deepcopy(baseline)
+    if invalid == "missing":
+        candidate["metrics"] = {}
+    elif invalid == "bad-slice":
+        candidate["metrics"]["slices"]["vendor"]["greenhouse"]["sample_size"] = "many"
+    elif invalid == "bad-case":
+        candidate["cases"][0]["prediction"] = []
+    else:
+        candidate["metrics"]["classification"]["precision"] = {
+            "nonnumeric": "unknown", "nan": float("nan"), "infinite": float("inf"),
+        }[invalid]
+    reports_dir.mkdir()
+    (reports_dir / "candidate.json").write_text(qb.dump_report(candidate), encoding="utf-8")
+    assert qb.main(["compare", "candidate.json"]) == 2
+    assert json.loads(capsys.readouterr().out)["valid"] is False

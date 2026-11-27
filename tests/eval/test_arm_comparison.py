@@ -612,3 +612,27 @@ def test_cli_three_arms(three_arms, home, reports_dir, capsys):
     capsys.readouterr()
     assert ac.main(["trace", "--session", three_arms, "--arm", "scout"]) == 2
     assert "no repetitions" in capsys.readouterr().out
+
+
+def test_shortlist_source_cannot_be_reused_across_arms_or_phases(monkeypatch, reports_dir):
+    monkeypatch.setattr(ac, "load_profile", lambda slug: dict(PROFILE))
+    ac.prepare("synthetic", "s1", top_n=3, arms="baseline,other")
+    _write_jsonl(reports_dir, "same.jsonl", [_row(1)])
+    ac.ingest_agent("s1", 1, "same.jsonl")
+    ac.record_cost("s1", "baseline", 1, tokens=42)
+    ac.ingest_agent("s1", 1, "same.jsonl")
+    assert ac.load_state("s1")["arms"]["baseline"]["1"]["cost"] == {"tokens": 42}
+    for arm, phase in (("other", 1), ("baseline", 2)):
+        with pytest.raises(ac.ComparisonError, match="already repetition"):
+            ac.ingest_agent("s1", 1, "same.jsonl", arm=arm, phase=phase)
+    _write_jsonl(reports_dir, "independent.jsonl", [_row(1)])
+    assert ac.ingest_agent("s1", 1, "independent.jsonl", arm="other")["rows"] == 1
+
+
+def test_ultron_run_cannot_be_reused_in_phase_two(session, home):
+    first = _make_run(home, RUN_IDS[0], [_row(1)])
+    ac.ingest_ultron(session, 1, first)
+    with pytest.raises(ac.ComparisonError, match="already repetition"):
+        ac.ingest_ultron(session, 1, first, phase=2)
+    later = _make_run(home, RUN_IDS[1], [_row(1)])
+    assert ac.ingest_ultron(session, 1, later, phase=2)["rows"] == 1

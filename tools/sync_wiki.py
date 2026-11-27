@@ -27,7 +27,6 @@ def _safe_user_label() -> str:
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE_DIR = ROOT / "docs" / "guide"
-EXPORT_DIR = Path(os.path.realpath(tempfile.gettempdir())) / f"ultron-wiki-export-{_safe_user_label()}"
 DEFAULT_BLOB_BASE = "https://github.com/ERamaM/ULTRON/blob/main"
 REPO_HOME_URL = "https://github.com/ERamaM/ULTRON#readme"
 
@@ -223,9 +222,13 @@ def sync_wiki(
     return written
 
 
+def _export_dir() -> Path:
+    return Path(tempfile.gettempdir()).resolve() / f"ultron-wiki-export-{_safe_user_label()}"
+
+
 def _ensure_private_export_dir(export_dir: Path | None = None) -> Path:
     """Create the fixed staging directory 0700 and refuse symlinks or non-directory targets."""
-    target = EXPORT_DIR if export_dir is None else export_dir
+    target = _export_dir() if export_dir is None else export_dir
     if os.path.lexists(target):
         info = os.lstat(target)
         if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):

@@ -1,3 +1,5 @@
-Usa la skill ULTRON para buscar ofertas de Senior Backend Engineer remoto en LATAM con el preset fast; genera al menos 5 empresas nuevas; al terminar indica el run_id.
+Use the ULTRON skill to run an agent-guided planned sweep for the existing profile `backend-latam` with the
+`fast` preset. Propose at least five new companies, verify seeds, and run the ATS discovery, fetch, filter,
+and finalization stages. Report the completed `run_id`.
 
-Trabajas en modo no interactivo: nadie puede responder preguntas, así que no preguntes y continúa hasta terminar la búsqueda. No hay CV: crea un perfil nuevo para ese puesto con datos genéricos.
+This is a non-interactive session. Use the existing profile as-is and continue through the planned sweep.

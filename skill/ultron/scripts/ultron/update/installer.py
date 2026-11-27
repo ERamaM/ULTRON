@@ -7,6 +7,8 @@ import shlex
 import sys
 from pathlib import Path
 
+from ultron.infra.home import home_path
+
 # ------------------------------------------------------------------------------------------- commands
 
 
@@ -73,13 +75,12 @@ def _display(argv: list[str], env: dict[str, str]) -> str:
 
 def installer_env() -> dict[str, str]:
     """Build environment variables preserved when generating update commands."""
-    home = os.environ.get("ULTRON_HOME")
-    return {"ULTRON_HOME": str(Path(home).expanduser())} if home else {}
+    return {"ULTRON_HOME": str(home_path())}
 
 
-def installer_commands(install_py: Path, installs: list[dict]) -> list[dict]:
+def installer_commands(install_py: Path, installs: list[dict], *, env: dict[str, str] | None = None) -> list[dict]:
     """One ``install.py --update`` per scope (``--global`` and ``--project`` are mutually exclusive)."""
-    env = installer_env()
+    env = installer_env() if env is None else env
     commands = []
     for install in installs:
         scope_args = ["--global"] if install["scope"] == "global" else ["--project", install["project"]]

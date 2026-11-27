@@ -224,3 +224,36 @@ def test_build_command_shapes(tmp_path):
     assert "run" in oc and "--auto" in oc and any(a.endswith("-free") for a in oc)
     agy = rs.build_command("antigravity", "hi", project, model=None)
     assert "--print" in agy or "-p" in agy
+
+
+def test_smoke_prompt_and_existing_profile_match_sweep_contract(tmp_path, monkeypatch):
+    import subprocess
+
+    import yaml
+
+    from ultron.profiles.store import validate_profile
+
+    monkeypatch.setattr(rs, "_grant_current_user", lambda root: None)
+    monkeypatch.setattr(rs, "tool_version", lambda platform: "offline agent")
+    monkeypatch.setattr(rs, "child_env", lambda platform, home, **kwargs: {"ULTRON_HOME": str(home)})
+    monkeypatch.setattr(rs.subprocess, "run", lambda *args, **kwargs: subprocess.CompletedProcess([], 0, "", ""))
+    monkeypatch.setattr(rs, "build_command", lambda platform, prompt, project, **kwargs: [prompt])
+    monkeypatch.setattr(rs, "list_runs_via_cli", lambda cmd, env: _listing(Path(env["ULTRON_HOME"])))
+
+    def fake_agent(cmd, *, env, log, **kwargs):
+        prompt = cmd[0]
+        assert "planned sweep" in prompt.lower()
+        assert "backend-latam" in prompt
+        assert "existing" in prompt.lower()
+        home = Path(env["ULTRON_HOME"])
+        profile = yaml.safe_load((home / "profiles" / "backend-latam.yaml").read_text(encoding="utf-8"))
+        assert profile["slug"] == "backend-latam"
+        assert not validate_profile(profile)
+        _make_run(home, RUN_A, FULL)
+        log.write_text(f"Completed {RUN_A}", encoding="utf-8")
+        return 0, False
+
+    monkeypatch.setattr(rs, "run_agent", fake_agent)
+    report = rs.smoke("claude", keep=False, timeout_min=1, model=None, workroot=tmp_path)
+    assert report["ok"], report["failures"]
+    assert report["run_id"] == RUN_A

@@ -133,7 +133,9 @@ def check_extras() -> Check:
 
 def _skill_state(path: Path) -> str:
     if path.is_symlink() or (os.name == "nt" and path.is_junction()):
-        return "installed (dev link)" if installs.registered_link(path) else "foreign"
+        if not path.exists():
+            return "dangling dev link"
+        return "installed (dev link)" if path.is_dir() and installs.registered_link(path) else "foreign"
     if not path.exists():
         return "missing"
     return "installed" if path.is_dir() and installs.marker_valid(path) else "foreign"

@@ -1,7 +1,7 @@
 """One-time import of profiles, seeds and job history from a MARK III installation.
 
 The MARK III database is never opened in place (a WAL database would grow -shm/-wal sidecars even
-read-only): it is copied, with any -wal/-shm, to a temp folder and the copy is opened with ``?mode=ro``.
+read-only): the database and WAL are copied to a temp folder if stable and queried there.
 
 Column mapping for ``jobs`` (MARK III -> ULTRON): ``first_seen_at`` -> ``first_seen`` and
 ``last_seen_at`` -> ``last_seen``; ``identity_key``, ``canonical_url``, ``title``, ``company``,
@@ -20,7 +20,7 @@ import re
 import shutil
 import sqlite3
 import tempfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 from ultron import seeds
@@ -123,7 +123,7 @@ def _import_profiles(src: sqlite3.Connection, dry_run: bool, missing: list[str])
         errors = profiles.validate_profile(data)
         if errors:
             out["invalid"].append({"slug": slug, "errors": errors})
-        elif (profiles._user_dir() / f"{slug}.yaml").exists():
+        elif (home.home_path() / "profiles" / f"{slug}.yaml").exists():
             out["skipped"] += 1
             out["skipped_slugs"].append(slug)
         else:
@@ -137,7 +137,8 @@ def _import_profiles(src: sqlite3.Connection, dry_run: bool, missing: list[str])
 
 def _import_seeds(data_dir: Path, dry_run: bool) -> dict:
     found = seeds.read_yaml_seeds(data_dir / SEEDS_FILE)
-    existing = {seed_identity(s.ats, s.board_identifier) for s in seeds.read_yaml_seeds(seeds.auto_seeds_path())}
+    seed_path = home.home_path() / "seeds" / "auto_seeds.yaml"
+    existing = {seed_identity(s.ats, s.board_identifier) for s in seeds.read_yaml_seeds(seed_path)}
     keys = {seed_identity(s.ats, s.board_identifier) for s in found}
     new = keys - existing
     if not dry_run:
@@ -149,10 +150,10 @@ def _import_seeds(data_dir: Path, dry_run: bool) -> dict:
 
 def _known_keys() -> tuple[set[str], set[str]]:
     """Identity keys already in the ULTRON ledger (read-only peek; used by dry runs)."""
-    path = home.ultron_home() / "ultron.sqlite3"
+    path = home.home_path() / "ultron.sqlite3"
     if not path.is_file():
         return set(), set()
-    with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as peek:
+    with _snapshot(path) as peek:
         try:
             return (
                 {r[0] for r in peek.execute("SELECT identity_key FROM jobs")},
@@ -217,31 +218,67 @@ def import_mark3(source: Path, *, dry_run: bool = False) -> dict:
     data_dir, db_path = _locate(Path(source))
     missing: list[str] = []
     result: dict = {"source": str(db_path), "dry_run": dry_run}
-    with tempfile.TemporaryDirectory(prefix="ultron-mark3-", ignore_cleanup_errors=True) as tmp:
-        copy = Path(tmp) / db_path.name
-        for suffix in ("", "-wal", "-shm"):
-            side = db_path.with_name(db_path.name + suffix)
-            if side.is_file():
-                shutil.copyfile(side, copy.with_name(copy.name + suffix))
-        result.update(_import_from(copy, data_dir, dry_run, missing))
+    with _snapshot(db_path) as src:
+        result.update(_import_from(src, data_dir, dry_run, missing))
     result["missing_tables"] = missing
     return result
 
 
-def _import_from(copy: Path, data_dir: Path, dry_run: bool, missing: list[str]) -> dict:
+def _file_stamp(path: Path) -> tuple[int, ...] | None:
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return None
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+
+
+def _has_active_journal(path: Path) -> bool:
+    # SQLite may leave a truncated or zeroed journal after a clean commit.
+    try:
+        with path.open("rb") as journal:
+            return journal.read(1) not in (b"", b"\x00")
+    except FileNotFoundError:
+        return False
+
+
+@contextmanager
+def _snapshot(db_path: Path):
+    """Read a stable copy without opening or creating SQLite sidecars at the original path."""
+    sources = (db_path, db_path.with_name(db_path.name + "-wal"))
+    journal = db_path.with_name(db_path.name + "-journal")
+    message = "database changed during snapshot or has a rollback journal; retry when the database is idle"
+    before = [_file_stamp(path) for path in sources]
+    if before[0] is None or _has_active_journal(journal):
+        raise sqlite3.OperationalError(message)
+    with tempfile.TemporaryDirectory(prefix="ultron-mark3-", ignore_cleanup_errors=True) as tmp:
+        folder = Path(tmp)
+        try:
+            for path, stamp in zip(sources, before, strict=True):
+                if stamp is not None:
+                    shutil.copyfile(path, folder / path.name)
+        except FileNotFoundError as exc:
+            raise sqlite3.OperationalError(message) from exc
+        if before != [_file_stamp(path) for path in sources] or _has_active_journal(journal):
+            raise sqlite3.OperationalError(message)
+        # SQLite may rebuild SHM beside the private copy, with the database opened read-only.
+        uri = (folder / db_path.name).as_uri()
+        with closing(sqlite3.connect(f"{uri}?mode=ro", uri=True)) as conn:
+            yield conn
+
+
+def _import_from(src: sqlite3.Connection, data_dir: Path, dry_run: bool, missing: list[str]) -> dict:
     empty = {"imported": 0, "skipped": 0}
     result: dict = {}
-    with closing(sqlite3.connect(f"{copy.as_uri()}?mode=ro", uri=True)) as src:
-        tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        if "search_profiles" in tables:
-            result["profiles"] = _import_profiles(src, dry_run, missing)
-        else:
-            missing.append("search_profiles")
-            result["profiles"] = {**empty, "skipped_slugs": [], "invalid": [], "vocabulary_pack_added": []}
-        result["seeds"] = _import_seeds(data_dir, dry_run)
-        if "jobs" in tables:
-            result["jobs"], result["feedback"] = _import_history(src, dry_run, missing)
-        else:
-            missing.append("jobs")
-            result["jobs"], result["feedback"] = dict(empty), dict(empty)
+    tables = {r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "search_profiles" in tables:
+        result["profiles"] = _import_profiles(src, dry_run, missing)
+    else:
+        missing.append("search_profiles")
+        result["profiles"] = {**empty, "skipped_slugs": [], "invalid": [], "vocabulary_pack_added": []}
+    result["seeds"] = _import_seeds(data_dir, dry_run)
+    if "jobs" in tables:
+        result["jobs"], result["feedback"] = _import_history(src, dry_run, missing)
+    else:
+        missing.append("jobs")
+        result["jobs"], result["feedback"] = dict(empty), dict(empty)
     return result

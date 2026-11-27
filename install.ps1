@@ -120,6 +120,12 @@ if (Test-UltronSourceDir $scriptDir) {
     $sourceDir = (Get-Location).Path
 }
 
+# Editable runtimes and dev links need a source that survives bootstrap cleanup.
+if (-not $sourceDir -and ('--dev' -cin $InstallerArgs -or '--de' -cin $InstallerArgs)) {
+    Write-Output '{"error":"usage","detail":"--dev needs a local ULTRON checkout. Run install.ps1 from that checkout."}'
+    exit 2
+}
+
 $tempDir = $null
 try {
     if (-not $sourceDir) {

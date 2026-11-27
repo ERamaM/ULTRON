@@ -101,8 +101,10 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
                       detail="running from a source checkout: update it with git, then run install.py --dev --update")
         return result
     installs, manual = install_copies.split_mixed_antigravity(install_copies.group_scopes(copies), home)
-    if manual:
-        result["manual"] = manual
+    env = installer.installer_env()
+    installs, other_homes = install_copies.exclude_other_homes(installs, home, Path(env["ULTRON_HOME"]))
+    if manual or other_homes:
+        result["manual"] = [*manual, *other_homes]
     links = install_copies.dev_links(home=home, cwd=cwd, projects=projects)
     if links:
         result["dev_links"] = links
@@ -128,9 +130,8 @@ def prepare_update(*, to: tuple[int, int, int] | None = None, projects: list[Pat
         source=str(source),
         cleanup=str(temp),
         installs=installs,
-        commands=installer.installer_commands(source / "install.py", installs),
+        commands=installer.installer_commands(source / "install.py", installs, env=env),
+        env=env,
         next_steps=NEXT_STEPS,
     )
-    if env := installer.installer_env():
-        result["env"] = env
     return result

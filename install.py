@@ -40,6 +40,7 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
@@ -73,7 +74,7 @@ def ultron_home() -> Path:
     """Resolve the ULTRON home directory from ``ULTRON_HOME`` or ``~/.ultron``."""
     # Intentionally standalone (cannot import ultron.infra.home before installation).
     env = os.environ.get("ULTRON_HOME")
-    return Path(env).expanduser() if env else Path.home() / ".ultron"
+    return Path(env).expanduser().absolute() if env else Path.home() / ".ultron"
 
 
 def ultron_executable(venv: Path) -> Path:
@@ -337,8 +338,8 @@ def runtime_text(executable: Path, home: Path, version: str | None = None, insta
 #   reads it next to ``SKILL.md`` and the source copy is git-ignored (phase-1 behaviour).
 # - Unmarked phase-1 folders are never deleted: install moves them to ``$ULTRON_HOME/backups/legacy-skill-*``.
 
-STAGING_RE = re.compile(r"^\.ultron-new-[A-Za-z0-9_]+$")
 REGISTRY = "installs.json"
+REGISTRY_LOCK = ".ultron-installs.lock"
 HOME_MARKER = ".ultron-home"
 
 
@@ -430,18 +431,29 @@ def _save_registry_file(data: dict) -> None:
         raise
 
 
-def _write_registry(links: dict) -> None:
-    data = _read_registry_file()
-    data["links"] = links
-    _save_registry_file(data)
+@contextmanager
+def _registry_edit():
+    """Serialize registry writers using a lock released by the OS when the writer exits."""
+    path = _registry_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with (path.parent / REGISTRY_LOCK).open("ab") as lock:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        data = _read_registry_file()
+        yield data
+        _save_registry_file(data)
 
 
 def _record_install(dst: Path, *, scope: str, project: Path | None, platforms: list[str], version: str) -> None:
     """Record an install (scope, path, platforms, version, mode, time) so ``ultron update`` can find it."""
-    data = _read_registry_file()
-    installs = data.setdefault("installs", {})
     key = str(_real_location(dst))
-    installs[key] = {
+    record = {
         "scope": scope,
         "project": str(project) if scope == "project" and project is not None else None,
         "path": key,
@@ -450,25 +462,23 @@ def _record_install(dst: Path, *, scope: str, project: Path | None, platforms: l
         "mode": "link" if _is_link(dst) else "copy",
         "installed_at": datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat(),
     }
-    _save_registry_file(data)
+    with _registry_edit() as data:
+        data.setdefault("installs", {})[key] = record
 
 
 def _forget_install(dst: Path) -> None:
-    data = _read_registry_file()
-    if data.get("installs", {}).pop(str(_real_location(dst)), None) is not None:
-        _save_registry_file(data)
+    with _registry_edit() as data:
+        data.get("installs", {}).pop(str(_real_location(dst)), None)
 
 
 def _register_link(dst: Path, target: Path) -> None:
-    links = _read_registry()
-    links[str(_real_location(dst))] = str(Path(target).resolve())
-    _write_registry(links)
+    with _registry_edit() as data:
+        data.setdefault("links", {})[str(_real_location(dst))] = str(Path(target).resolve())
 
 
 def _forget_link(dst: Path) -> None:
-    links = _read_registry()
-    if links.pop(str(_real_location(dst)), None) is not None:
-        _write_registry(links)
+    with _registry_edit() as data:
+        data.get("links", {}).pop(str(_real_location(dst)), None)
 
 
 def _has_marker(path: Path) -> bool:
@@ -560,7 +570,7 @@ def _write_utf8_in_dir(base_dir: Path, filename: str, content: str) -> None:
         handle.write(content)
 
 
-def _write_runtime(dst: Path, runtime: dict, src: Path) -> None:
+def _write_runtime(dst: Path, runtime: dict, src: Path, *, final_path: Path | None = None) -> None:
     executable, home = Path(runtime["executable"]), Path(runtime["home"])
     text = runtime_text(executable, home, runtime.get("version"), runtime.get("installed_at"))
     (dst / "RUNTIME.md").write_text(text, encoding="utf-8")
@@ -573,7 +583,7 @@ def _write_runtime(dst: Path, runtime: dict, src: Path) -> None:
         "version": runtime.get("version"),
         "installed_at": runtime.get("installed_at"),
         "mode": "copy",
-        "path": str(dst),
+        "path": str(final_path or dst),
         "source": str(src),
         "ultron": str(executable),
         "ultron_home": str(home),
@@ -623,15 +633,6 @@ def _move_legacy(dst: Path, label: str) -> Path:
     return backup
 
 
-def _clean_stale_staging(parent: Path) -> None:
-    """Remove ``.ultron-new-*`` folders left by an interrupted install (exact pattern, real folders only)."""
-    if not parent.is_dir():
-        return
-    for child in parent.iterdir():
-        if STAGING_RE.fullmatch(child.name) and child.is_dir() and not _is_link(child):
-            shutil.rmtree(child, ignore_errors=True)
-
-
 def _make_staging(parent: Path) -> Path:
     """Create ``parent/.ultron-new-<random>`` with default permissions.
 
@@ -674,7 +675,6 @@ def install_copy(src: Path, dst: Path, runtime: dict, *, label: str | None = Non
         raise error
     status = STATUS_FOR_STATE[state]
     dst.parent.mkdir(parents=True, exist_ok=True)
-    _clean_stale_staging(dst.parent)
     if state == "legacy":
         backup = _move_legacy(dst, label or dst.parent.parent.name.lstrip(".") or "skill")
         if info is not None:
@@ -692,6 +692,7 @@ def install_copy(src: Path, dst: Path, runtime: dict, *, label: str | None = Non
     staged, old = staging / "ultron", staging / "old"
     try:
         shutil.copytree(src, staged, ignore=COPY_IGNORE, copy_function=_copy_skill_file)
+        _write_runtime(staged, runtime, src, final_path=dst)
         if state == "link":
             _unlink(dst)
             _forget_link(dst)
@@ -711,7 +712,6 @@ def install_copy(src: Path, dst: Path, runtime: dict, *, label: str | None = Non
         shutil.rmtree(staging, ignore_errors=True)
         raise
     shutil.rmtree(staging, ignore_errors=True)  # our staging folder, now holding only the old copy
-    _write_runtime(dst, runtime, src)
     return status
 
 
@@ -890,13 +890,14 @@ def _home_refusal(home: Path) -> str | None:
 # Entries of $ULTRON_HOME that ULTRON creates; ``--purge-data`` deletes only these (C1).
 OWNED_HOME_ENTRIES = frozenset({
     "venv", "runs", "profiles", "seeds", "backups", "cv", "ultron.sqlite3", "ultron.sqlite3-wal",
-    "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices", REGISTRY, HOME_MARKER,
+    "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices", REGISTRY, REGISTRY_LOCK, HOME_MARKER,
+    "cover-letters", "salary", "watch", "toolkit",
 })
 # Without HOME_MARKER the folder existed before ULTRON used it (the CLI creates the ledger in any folder
 # ULTRON_HOME points at), so generic names like venv/ or cv/ may be the user's: only these are deleted.
 SPECIFIC_HOME_ENTRIES = frozenset({
     "ultron.sqlite3", "ultron.sqlite3-wal", "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices",
-    REGISTRY,
+    REGISTRY, REGISTRY_LOCK,
 })
 
 

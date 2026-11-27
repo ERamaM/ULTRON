@@ -124,12 +124,14 @@ def _serve(monkeypatch, payload: bytes, tag="v0.2.0"):
     return seen
 
 
-def _install(path: Path, version: str | None = None):
+def _install(path: Path, version: str | None = None, *, state: Path | None = None):
     path.mkdir(parents=True)
     (path / "SKILL.md").write_text("---\nname: ultron\n---\n", encoding="utf-8")
     marker = {"name": "ultron", "installer": "install.py", "path": str(path)}
     if version:
         marker["version"] = version
+    if state is not None:
+        marker["ultron_home"] = str(state)
     (path / ".ultron-install.json").write_text(json.dumps(marker), encoding="utf-8")
 
 
@@ -680,3 +682,43 @@ def test_repository_override_is_honoured(monkeypatch, capsys):
     calls = _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
     _run(capsys, "--check")
     assert calls == ["https://api.github.com/repos/someone/ULTRON-fork/releases/latest"]
+
+
+@pytest.mark.parametrize("other_platform", ["opencode", "antigravity-legacy"])
+def test_update_commands_never_refresh_a_copy_owned_by_another_home(
+    _env, tmp_path, monkeypatch, capsys, other_platform,
+):
+    ours, theirs = tmp_path / "state-a", tmp_path / "state-b"
+    monkeypatch.setenv("ULTRON_HOME", str(ours))
+    (_env / ".gemini" / "antigravity").mkdir(parents=True)
+    paths = update_copies.global_skill_dirs(_env)
+    _install(paths["claude"], state=ours)
+    _install(paths[other_platform], state=theirs)
+    if other_platform == "antigravity-legacy":
+        _install(paths["antigravity"], state=ours)
+    _serve(monkeypatch, _zip(_source_zip()))
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    code, out = _run(capsys)
+    assert code == 0 and out["status"] == "ready"
+    [command] = out["commands"]
+    assert command["argv"][-2:] == ["--platforms", "claude"]
+    assert out["env"] == {"ULTRON_HOME": str(ours)}
+    assert any(str(paths[other_platform]) in item["paths"] for item in out["manual"])
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_prepared_installers_keep_absolute_home_when_agent_changes_directory(tmp_path, monkeypatch, relative):
+    _install(Path.home() / ".claude" / "skills" / "ultron")
+    invocation_dir = Path.cwd()
+    if relative:
+        monkeypatch.setenv("ULTRON_HOME", "relative-state")
+        expected = invocation_dir / "relative-state"
+    else:
+        monkeypatch.delenv("ULTRON_HOME")
+        expected = Path.home() / ".ultron"
+    _serve(monkeypatch, _zip(_source_zip()))
+    _api(monkeypatch, {"v0.2.0": _release("v0.2.0")}, latest="v0.2.0")
+    result = update.prepare_update()
+    monkeypatch.chdir(tmp_path)
+    assert result["env"] == {"ULTRON_HOME": str(expected)}
+    assert str(expected) in result["commands"][0]["display"]

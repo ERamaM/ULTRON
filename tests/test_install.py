@@ -724,17 +724,21 @@ def test_installed_skill_inherits_the_parent_permissions(inst, fake_home, tmp_pa
         assert (dest.stat().st_mode & 0o777) == (sibling.stat().st_mode & 0o777)
 
 
-def test_stale_staging_folders_are_cleaned_exact_pattern_only(inst, fake_home, tmp_path):
+def test_unrelated_staging_folders_are_preserved(inst, fake_home, tmp_path):
     src = _fake_source(tmp_path)
     parent = fake_home / "skills"
     stale = parent / ".ultron-new-abc_123"
     (stale / "ultron").mkdir(parents=True)
+    (stale / "ultron" / "sentinel").write_text("unowned", encoding="utf-8")
+    active = inst._make_staging(parent)
+    (active / "sentinel").write_text("in progress", encoding="utf-8")
     lookalike = parent / ".ultron-new-abc.keep"
     lookalike.mkdir()
     other = parent / "ultron-new-x"
     other.mkdir()
     inst.install_copy(src, parent / "ultron", inst.runtime_info())
-    assert not stale.exists()
+    assert (stale / "ultron" / "sentinel").read_text(encoding="utf-8") == "unowned"
+    assert (active / "sentinel").read_text(encoding="utf-8") == "in progress"
     assert lookalike.is_dir() and other.is_dir()
 
 
@@ -838,9 +842,15 @@ def test_purge_with_marker_keeps_foreign_entries(inst, fake_home, capsys, monkey
     (home / ".ultron-home").write_text("x", encoding="utf-8")
     (home / "thesis.docx").write_bytes(b"precious")
     (home / "photos").mkdir()
+    owned = {"cover-letters", "salary", "watch", "toolkit"}
+    for folder in owned:
+        (home / folder).mkdir()
+        (home / folder / "synthetic.txt").write_text("report", encoding="utf-8")
     monkeypatch.setenv("ULTRON_HOME", str(home))
     code, report = _run_main(inst, capsys, "--uninstall", "--purge-data", "--dry-run")
-    assert code == 0 and report["ultron_home"]["kept_foreign_entries"] == ["photos", "thesis.docx"]
+    assert code == 0
+    assert owned <= set(report["ultron_home"]["would_delete"])
+    assert report["ultron_home"]["kept_foreign_entries"] == ["photos", "thesis.docx"]
     assert (home / "ultron.sqlite3").is_file()
     code, report = _run_main(inst, capsys, "--uninstall", "--purge-data")
     assert code == 0 and report["ok"] is True
@@ -1240,3 +1250,111 @@ def test_signal_right_after_marking_the_step_still_stops_it(installer, monkeypat
     with pytest.raises(installer.Terminated):
         installer._run(["pip", "install"])
     assert len(stopped) == 1
+
+
+@pytest.mark.parametrize("metadata", ["runtime", "marker"])
+def test_metadata_failure_preserves_previous_copy(inst, tmp_path, monkeypatch, metadata):
+    src = _fake_source(tmp_path)
+    dst = tmp_path / "skills" / "ultron"
+    runtime = inst.runtime_info()
+    inst.install_copy(src, dst, runtime)
+    (dst / "old-only.md").write_text("old", encoding="utf-8")
+    marker = (dst / inst.MARKER).read_bytes()
+    real_write = Path.write_text
+    real_marker = inst._write_utf8_in_dir
+
+    def write_text(path, *args, **kwargs):
+        if path.name == "RUNTIME.md" and metadata == "runtime":
+            raise OSError("metadata write failed")
+        return real_write(path, *args, **kwargs)
+
+    def write_marker(*args):
+        if metadata == "marker":
+            raise OSError("metadata write failed")
+        return real_marker(*args)
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    monkeypatch.setattr(inst, "_write_utf8_in_dir", write_marker)
+    with pytest.raises(OSError, match="metadata write failed"):
+        inst.install_copy(src, dst, runtime)
+    assert (dst / "old-only.md").read_text(encoding="utf-8") == "old"
+    assert (dst / inst.MARKER).read_bytes() == marker
+    assert inst._has_marker(dst)
+
+
+def test_relative_runtime_paths_are_stable(inst, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ULTRON_HOME", "relative-state")
+    dst = tmp_path / "skills" / "ultron"
+    runtime = inst.runtime_info()
+    inst.install_copy(_fake_source(tmp_path), dst, runtime)
+    monkeypatch.chdir(dst)
+    expected_home = tmp_path / "relative-state"
+    assert Path(runtime["home"]) == expected_home
+    assert Path(runtime["executable"]) == inst.ultron_executable(expected_home / "venv")
+    text = (dst / "RUNTIME.md").read_text(encoding="utf-8")
+    assert str(expected_home) in text and str(runtime["executable"]) in text
+
+
+def test_retry_preserves_failed_rollback_copy(inst, tmp_path, monkeypatch):
+    src = _fake_source(tmp_path)
+    dst = tmp_path / "skills" / "ultron"
+    runtime = inst.runtime_info()
+    inst.install_copy(src, dst, runtime)
+    (dst / "old-only.md").write_text("recover me", encoding="utf-8")
+    rename = Path.rename
+
+    def fail_activation_and_restore(path, target):
+        if path.parent.name.startswith(".ultron-new-"):
+            raise OSError("simulated rename failure")
+        return rename(path, target)
+
+    with monkeypatch.context() as mp:
+        mp.setattr(Path, "rename", fail_activation_and_restore)
+        with pytest.raises(inst.InstallError, match="previous install kept"):
+            inst.install_copy(src, dst, runtime)
+    [recovery] = dst.parent.glob(".ultron-new-*/old/old-only.md")
+    inst.install_copy(src, dst, runtime)
+    assert recovery.read_text(encoding="utf-8") == "recover me"
+
+
+@pytest.mark.parametrize("kind", ["installs", "links"])
+def test_concurrent_registry_updates_keep_both_records(inst, tmp_path, monkeypatch, kind):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, current_thread
+
+    folders = [tmp_path / name for name in ("first", "second")]
+    for folder in folders:
+        folder.mkdir()
+    first_read, second_started, second_read = Event(), Event(), Event()
+    read = inst._read_registry_file
+
+    def read_snapshot():
+        snapshot = read()
+        if current_thread().name == "first_0":
+            first_read.set()
+            assert second_started.wait(5)
+            second_read.wait(0.5)
+        elif current_thread().name == "second_0":
+            second_read.set()
+        return snapshot
+
+    def write(folder):
+        if kind == "links":
+            inst._register_link(folder, tmp_path)
+        else:
+            inst._record_install(folder, scope="project", project=folder, platforms=["claude"], version="1.0.0")
+
+    def second_write():
+        second_started.set()
+        write(folders[1])
+
+    monkeypatch.setattr(inst, "_read_registry_file", read_snapshot)
+    with ThreadPoolExecutor(1, thread_name_prefix="first") as first:
+        pending_first = first.submit(write, folders[0])
+        assert first_read.wait(5)
+        with ThreadPoolExecutor(1, thread_name_prefix="second") as second:
+            pending_second = second.submit(second_write)
+            pending_first.result(timeout=10)
+            pending_second.result(timeout=10)
+    assert set(read()[kind]) == set(map(str, folders))

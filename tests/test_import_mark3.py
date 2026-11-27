@@ -7,7 +7,6 @@ import pytest
 import yaml
 
 from ultron import seeds
-from ultron.infra import home
 from ultron.migrations import mark3 as import_mark3
 from ultron.profiles import store as profiles
 from ultron.storage.ledger import connect
@@ -139,13 +138,13 @@ def test_non_ai_profile_has_no_pack(tmp_path):
     assert "vocabulary_packs" not in profiles.load_profile("ml-eu")["criteria"]
 
 
-def test_dry_run_writes_nothing_and_checkout_uses_data(tmp_path):
+def test_dry_run_writes_nothing_and_checkout_uses_data(tmp_path, monkeypatch):
+    destination = tmp_path / "new-home"
+    monkeypatch.setenv("ULTRON_HOME", str(destination))
     make_mark3(tmp_path / "checkout" / "data")
     res = import_mark3.import_mark3(tmp_path / "checkout", dry_run=True)
     assert res["profiles"]["imported"] == 1 and res["jobs"]["imported"] == 2 and res["seeds"]["imported"] == 2
-    assert not (home.ultron_home() / "ultron.sqlite3").exists()
-    assert not list((home.ultron_home() / "profiles").glob("*.yaml"))
-    assert not seeds.auto_seeds_path().exists()
+    assert not destination.exists()
 
 
 def test_no_database_raises(tmp_path):
@@ -213,3 +212,69 @@ def test_empty_source_cv_profile_is_omitted(tmp_path):
     make_mark3(tmp_path / "m3")
     import_mark3.import_mark3(tmp_path / "m3")
     assert "source_cv" not in profiles.load_profile("ml-eu")
+
+
+def test_checkpoint_during_source_copy_requires_retry_before_writes(tmp_path, monkeypatch):
+    import shutil
+
+    db = make_mark3(tmp_path / "source")
+    writer = sqlite3.connect(db)
+    destination = tmp_path / "new-home"
+    monkeypatch.setenv("ULTRON_HOME", str(destination))
+    copyfile = shutil.copyfile
+
+    def copy_then_checkpoint(source, target):
+        result = copyfile(source, target)
+        if source == db:
+            writer.close()
+        return result
+
+    try:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("UPDATE jobs SET title = 'committed while in WAL'")
+        writer.commit()
+        monkeypatch.setattr(shutil, "copyfile", copy_then_checkpoint)
+        with pytest.raises(sqlite3.OperationalError, match="retry"):
+            import_mark3.import_mark3(db.parent)
+        assert not destination.exists()
+    finally:
+        writer.close()
+
+
+def test_dry_run_counts_existing_destination_entries(tmp_path):
+    db = make_mark3(tmp_path / "source")
+    import_mark3.import_mark3(db.parent)
+    report = import_mark3.import_mark3(db.parent, dry_run=True)
+    assert report["profiles"]["skipped"] == 1
+    assert report["seeds"] == report["jobs"] == {"imported": 0, "skipped": 2}
+    assert report["feedback"] == {"imported": 0, "skipped": 1}
+
+
+def test_committed_wal_rows_are_imported_without_touching_live_source(tmp_path):
+    db = make_mark3(tmp_path / "source")
+    wal = db.with_name(db.name + "-wal")
+    shm = db.with_name(db.name + "-shm")
+    with closing(sqlite3.connect(db)) as writer:
+        writer.execute("PRAGMA journal_mode=WAL")
+        writer.execute("UPDATE jobs SET title = 'committed while in WAL' WHERE identity_key = 'k1'")
+        writer.commit()
+        before = {path: path.read_bytes() for path in (db, wal, shm)}
+        result = import_mark3.import_mark3(db.parent)
+        assert result["jobs"]["imported"] == 2
+        assert {path: path.read_bytes() for path in before} == before
+    with closing(connect()) as ledger:
+        assert ledger.execute("SELECT title FROM jobs WHERE identity_key = 'k1'").fetchone() == ("committed while in WAL",)
+
+
+def test_stable_database_with_inactive_rollback_journal_can_be_imported(tmp_path):
+    db = make_mark3(tmp_path / "source")
+    with closing(sqlite3.connect(db)) as writer:
+        writer.execute("PRAGMA journal_mode=PERSIST")
+        writer.execute("UPDATE jobs SET title = 'committed with persistent journal'")
+        writer.commit()
+    journal = db.with_name(db.name + "-journal")
+    assert journal.is_file()
+    before = journal.read_bytes()
+    assert before and before[0] == 0
+    assert import_mark3.import_mark3(db.parent)["jobs"]["imported"] == 2
+    assert journal.read_bytes() == before

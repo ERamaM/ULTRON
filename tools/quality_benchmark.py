@@ -443,6 +443,37 @@ def _check_report(report: Any, label: str) -> None:
         raise CorpusError(f"{label} report must use schema_version {REPORT_SCHEMA_VERSION}")
     if report.get("mode") != "replay" or not isinstance(report.get("metrics"), dict):
         raise CorpusError(f"{label} report is not a replay report")
+    metrics = report["metrics"]
+    try:
+        _check_gated_metrics(metrics["classification"])
+        for groups in metrics["slices"].values():
+            for values in groups.values():
+                sample_size = values["sample_size"]
+                if not isinstance(sample_size, int) or isinstance(sample_size, bool) or sample_size < 0:
+                    raise ValueError("invalid sample size")
+                _check_gated_metrics(values)
+        cases = report.get("cases", [])
+        if not isinstance(cases, list):
+            raise TypeError("cases must be a list")
+        for case in cases:
+            _check_report_case(case)
+    except (KeyError, AttributeError, TypeError, ValueError, OverflowError) as exc:
+        raise CorpusError(f"{label} report has invalid metrics or cases: {exc}") from exc
+
+
+def _check_report_case(case: dict[str, Any]) -> None:
+    if not isinstance(case["id"], str) or case["prediction"]["status"] not in _STATUS_ORDER:
+        raise ValueError("invalid case id or prediction status")
+    relevance = case["truth"]["relevant"]
+    if relevance is not None and not isinstance(relevance, bool):
+        raise ValueError("invalid case relevance")
+
+
+def _check_gated_metrics(values: dict[str, Any]) -> None:
+    for name in GATED_METRICS:
+        value = values[name]
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError(f"{name} must be a finite number")
 
 
 def _declines(base: dict[str, Any], candidate: dict[str, Any], tolerance: float, label: str) -> list[str]:

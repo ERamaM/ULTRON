@@ -169,7 +169,7 @@ def _posting_key(row: FinalRow) -> tuple[str, str, str] | None:
     """
     _url, role, _location = RoleIdentityIndex._keys(row)
     source = str(row.source_key or "").strip().lower()
-    if role is None or row.source_type != "ats_api" or ":" not in source:
+    if role is None or row.found_by == VERIFIED_FOUND_BY or row.source_type != "ats_api" or ":" not in source:
         return None
     return (*role, source)
 

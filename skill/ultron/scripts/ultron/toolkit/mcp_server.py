@@ -8,6 +8,7 @@ output stream; diagnostics go to stderr. Text a tool returns from postings is da
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import traceback
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from ultron.stages.scout_verified import ELIGIBILITIES, REMOTE_POLICIES
 from ultron.toolkit.gather import DEFAULT_QUERIES, MAX_LIMIT, MAX_QUERIES, gather_candidates
 from ultron.toolkit.inspect import MAX_COMPANIES, MAX_URLS, MCP_INSPECTION_SECONDS, inspect_jobs
 from ultron.toolkit.mcp_output import compact_dossiers, compact_gather, encode_inline
-from ultron.toolkit.search import DEFAULT_LIMIT, search_jobs
+from ultron.toolkit.search import DEFAULT_LIMIT, defer_watch_delivery, search_jobs
 from ultron.toolkit.shortlist import MAX_ROWS, save_shortlist
 
 # Newest first; a client asking for one of these gets it back, any other version gets the newest.
@@ -182,7 +183,9 @@ def _save(arguments: dict, _budget: VendorBudget | None) -> dict:
     rows = arguments.get("rows")
     if not isinstance(rows, list) or not rows:
         raise ToolInputError("rows must be a non-empty list")
-    return save_shortlist(_profile(arguments), rows[:MAX_ROWS])
+    if len(rows) > MAX_ROWS:
+        raise ToolInputError(f"rows must contain at most {MAX_ROWS} judgments")
+    return save_shortlist(_profile(arguments), rows)
 
 
 HANDLERS: dict[str, Callable[[dict, VendorBudget | None], dict]] = {"gather_candidates": _gather, "search_jobs": _search, "inspect_jobs": _inspect,
@@ -264,13 +267,22 @@ def serve(stdin: IO[str] | None = None, stdout: IO[str] | None = None) -> int:
     for line in stdin:
         if not line.strip():
             continue
-        try:
-            message = json.loads(line)
-        except ValueError:
-            response: dict | None = _error(None, PARSE_ERROR, "parse error")
-        else:
-            response = handle_message(message, budgets=budgets)
+        with defer_watch_delivery() as acknowledgments:
+            try:
+                message = json.loads(line)
+            except ValueError:
+                response: dict | None = _error(None, PARSE_ERROR, "parse error")
+            else:
+                response = handle_message(message, budgets=budgets)
         if response is not None:
-            stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
+            wire = json.dumps(response, ensure_ascii=False) + "\n"
+            if stdout.write(wire) != len(wire):
+                raise OSError("incomplete MCP response write")
             stdout.flush()
+            if not response.get("result", {}).get("isError"):
+                for acknowledge in acknowledgments:
+                    try:
+                        acknowledge()
+                    except (OSError, sqlite3.Error):
+                        print("MCP watch acknowledgement failed; postings remain pending.", file=sys.stderr)
     return 0

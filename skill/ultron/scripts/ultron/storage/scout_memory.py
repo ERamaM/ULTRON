@@ -10,6 +10,7 @@ import hashlib
 import json
 import sqlite3
 from collections.abc import Iterable
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -57,7 +58,7 @@ def _flag(conn: sqlite3.Connection, profile_slug: str, key: str) -> Flag:
     if verdict and verdict[0] in {"keep", "unsure"}:
         return "seen"
     exported = conn.execute(
-        "SELECT 1 FROM job_occurrences o JOIN runs r ON r.run_id = o.run_id"
+        "SELECT 1 FROM job_occurrences o JOIN run_scopes r ON r.run_id = o.run_id"
         " WHERE o.identity_key = ? AND r.profile_slug = ? LIMIT 1",
         (key, profile_slug),
     ).fetchone()
@@ -70,6 +71,7 @@ def _flag(conn: sqlite3.Connection, profile_slug: str, key: str) -> Flag:
 
 def record_verdicts(
     conn: sqlite3.Connection, profile_slug: str, run_id: str, verdicts: Iterable[dict], criteria_digest: str = "",
+    *, commit: bool = True,
 ) -> int:
     """Store the agent verdicts of a finalized scout run; each later verdict replaces the earlier one.
 
@@ -84,7 +86,7 @@ def record_verdicts(
          run_id, _now())
         for item in verdicts
     ]
-    with conn:
+    with conn if commit else nullcontext():
         conn.executemany(
             "INSERT INTO scout_verdicts (profile_slug, identity_key, verdict, discard_category, priority,"
             " content_hash, profile_hash, company, row_json, run_id, recorded_at)"

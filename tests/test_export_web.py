@@ -458,3 +458,63 @@ def test_snapshot_includes_sibling_watch_boards_for_a_profile_without_history(tm
     assert {row["seed_key"] for row in snapshot["watchlist"] if row["profile_slug"] == "sibling"} == {
         "greenhouse:acme", "lever:beta",
     }
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "::1"])
+def test_viewer_uses_browser_authority_on_default_http_port(host, monkeypatch):
+    from email.message import Message
+    from types import SimpleNamespace
+    from urllib.parse import urlsplit
+
+    from ultron.exports import web_api
+
+    def bind(address, handler):
+        return SimpleNamespace(server_address=(address[0], 80))
+
+    monkeypatch.setattr(web_server, "LedgerHTTPServer", bind)
+    monkeypatch.setattr(web_server, "_IPv6LedgerServer", bind)
+    server, url, port = web_server.create_server(host=host, port=80)
+    authority = "[::1]" if host == "::1" else host
+    assert port == 80 and url == f"http://{authority}/"
+    headers = Message()
+    headers["Host"] = authority
+    headers["Origin"] = url.rstrip("/")
+    headers["X-ULTRON-Token"] = "synthetic"
+    headers["Content-Type"] = "application/json"
+    headers["Content-Length"] = "2"
+    assert web_api.valid_host(headers, urlsplit(server.origin).netloc)
+    assert web_api.authorize(headers, server.origin, "synthetic") == 2
+    headers.replace_header("Origin", "http://other.example")
+    with pytest.raises(web_api.MutationError):
+        web_api.authorize(headers, server.origin, "synthetic")
+
+
+
+def test_viewer_reads_occurrences_and_jobs_from_a_single_snapshot(tmp_path, monkeypatch):
+    db_path = _seed_full_ledger(tmp_path, monkeypatch)
+    with closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("PRAGMA journal_mode=WAL").fetchone()[0] == "wal"
+    original = web_data._read_occurrences
+    run_id = "20261122-100000-aaaaaa"
+    now = datetime(2026, 11, 22, 12, tzinfo=UTC)
+    row = FinalRow(title="New Engineer", company="New Labs", apply_url="https://example.com/jobs/31",
+                   location="Madrid", remote_policy="remote_eu", eligibility="confirmed",
+                   eligibility_evidence="Madrid", fit_signals=[], freshness="")
+    summary = RunSummary(run_id=run_id, started_at=now, ended_at=now, roles_kept=1,
+                         ats_pages_opened=1, discard_counts={}, full_query_log=[])
+
+    def occurrences(conn, tables):
+        assert conn.execute("PRAGMA query_only").fetchone()[0] == 1
+        result = original(conn, tables)
+        with closing(ledger.connect(db_path)) as writer:
+            ledger.record_finalized_run(writer, summary, [row], profile_slug="other", preset="balanced")
+        return result
+
+    monkeypatch.setattr(web_data, "_read_occurrences", occurrences)
+    data = web_data.build_ledger_snapshot(db_path)
+    assert not any(run["run_id"] == run_id for run in data["runs"])
+    assert not any(job["title"] == row.title for job in data["jobs"])
+    monkeypatch.setattr(web_data, "_read_occurrences", original)
+    after = web_data.build_ledger_snapshot(db_path)
+    assert any(run["run_id"] == run_id for run in after["runs"])
+    assert any(job["title"] == row.title and run_id in job["run_ids"] for job in after["jobs"])

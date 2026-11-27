@@ -758,6 +758,8 @@ def fetch(run_id: str) -> dict:
         postings.append({"candidate": candidate.model_dump(mode="json"), "job": result.job.model_dump(mode="json"),
                          "identity_key": identity, "ats_fingerprint": result.ats_fingerprint})
 
+    runs.invalidate_stages(run_id, "fetch", "filter", "evaluate", "finalize")
+    (out_dir / "evaluations.jsonl").unlink(missing_ok=True)
     # Written even when empty, so ``diagnose`` can tell a capped candidate from one added after fetch ran.
     runs.write_jsonl(out_dir / "fetch_capped.jsonl", [
         {"url": candidate.normalized_url, "identity_key": identity, "source_key": candidate.source_key,

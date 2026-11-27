@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ultron.infra import home
+from ultron.infra.file_lock import open_file_lock
 from ultron.infra.fs import is_link as _is_link
 from ultron.storage import ledger
 from ultron.storage.runs import RUN_ID_RE
@@ -231,7 +232,20 @@ def restore(path: Path, *, yes: bool) -> dict:
         raise MaintenanceError("unsafe_path", "cannot restore the live database onto itself")
     if not yes:
         return {"preview": True, "would_replace": str(db), "from": str(path), "schema_version": version}
+    _safe_target(db, root)
+    lock = _safe_target(ledger.lock_path(db), root)
+    try:
+        lease = open_file_lock(lock, exclusive=True, timeout=5)
+    except sqlite3.OperationalError as exc:
+        raise MaintenanceError("ledger_busy", "close concurrent ledger operations and retry the restore") from exc
+    with closing(lease):
+        previous = _restore_locked(path, db, root)
+    return {"preview": False, "restored": str(db), "from": str(path), "previous_backup": str(previous) if previous else None}
+
+
+def _restore_locked(path: Path, db: Path, root: Path) -> Path | None:
     previous = None
+    corrupt = False
     if db.exists():
         folder = root / "backups"
         folder.mkdir(parents=True, exist_ok=True)
@@ -239,19 +253,27 @@ def restore(path: Path, *, yes: bool) -> dict:
         try:
             with closing(_readonly(db)) as conn:
                 _copy_db(conn, previous)
-        except sqlite3.DatabaseError:
+        except sqlite3.DatabaseError as exc:
+            if exc.sqlite_errorcode not in {sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}:
+                raise
             shutil.copy2(db, previous)  # current DB unreadable: keep the raw bytes
+            corrupt = True
     fd, tmp = tempfile.mkstemp(dir=root, prefix="restore-", suffix=".tmp")
     os.close(fd)
     try:
         with closing(_readonly(path)) as src:
             _copy_db(src, Path(tmp))
-        for suffix in _DB_SIDECARS[1:]:
-            Path(str(db) + suffix).unlink(missing_ok=True)
-        os.replace(tmp, db)
+        if corrupt or not db.exists():
+            if any(Path(str(db) + suffix).exists() for suffix in _DB_SIDECARS[1:]):
+                raise MaintenanceError("ledger_busy", "ledger recovery files are present")
+            os.replace(tmp, db)
+        else:
+            # SQLite publishes into the same file even when another connection is reading it.
+            with closing(_readonly(Path(tmp))) as src:
+                _copy_db(src, db)
     finally:
         Path(tmp).unlink(missing_ok=True)
-    return {"preview": False, "restored": str(db), "from": str(path), "previous_backup": str(previous) if previous else None}
+    return previous
 
 
 # ---------------------------------------------------------------- run deletion

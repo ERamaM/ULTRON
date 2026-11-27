@@ -456,3 +456,10 @@ def test_workable_null_title_or_url_is_skipped():
     }
     out = fetch("workable", "acme", FakeClient(payload))
     assert [(p.title, p.apply_url) for p in out] == [("Analyst", "https://apply.workable.com/acme/j/EF")]
+
+
+@pytest.mark.parametrize("link", ["/careersection/careers/jobdetail.ftl?job=42", "jobdetail.ftl?job=42"])
+def test_taleo_resolves_links_against_explicit_listing_page(link):
+    html = f'<a class="jobTitle-link" href="{link}">Developer</a>'
+    out = fetch("taleo", "acme.taleo.net/careersection/careers/jobsearch.ftl", FakeClient(text_value=html))
+    assert out[0].apply_url == "https://acme.taleo.net/careersection/careers/jobdetail.ftl?job=42"

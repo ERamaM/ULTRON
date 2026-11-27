@@ -153,9 +153,11 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
         _record_search_result(conn, "tuesday", 3, slug, [])
         _record_search_result(conn, "wednesday", 4, slug, [], search_id=search_id)
         _record_search_result(conn, "thursday", 5, slug, [posting], search_id=search_id)
-        _record_search_result(conn, "friday", 6, slug, [posting.model_copy(update={"match_score": 81})],
+        _record_search_result(conn, "friday", 6, slug, [posting.model_copy(update={"match_score": 81, "unverified_date": "2026-10-01"})],
                               search_id=search_id)
-        _record_search_result(conn, "saturday", 7, "management", [posting.model_copy(update={"match_score": 27})])
+        _record_search_result(conn, "saturday", 7, "management", [posting.model_copy(update={
+            "match_score": 27, "published_at": "2026-10-10", "updated_at": "2026-10-12",
+        })])
 
     def call(*args):
         assert main(list(args)) == 0
@@ -172,6 +174,8 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
         assert job["review_state"] == "applied"
         assert job["profile_slug"] == profile_slug
         assert job["match_score"] == (81 if profile_slug == slug else 27)
+        dates = (job["published_at"], job["updated_at"], job["unverified_date"])
+        assert dates == ((None, None, "2026-10-01") if profile_slug == slug else ("2026-10-10", "2026-10-12", None))
         assert job["last_seen_run_id"] == ("friday" if profile_slug == slug else "saturday")
         assert job["unscoped_feedback_relevance"] == "uncertain"
     assert call("jobs", "list")["jobs"][0]["feedback_scope"] == "unscoped"
@@ -186,6 +190,8 @@ def test_feedback_scope_and_novelty_use_recorded_occurrences(capsys):
     assert legacy["scope"]["requested_search"] == "daily"
     actual = call("jobs", "new-since", "wednesday", "--saved-search", "daily")
     assert actual["scope"]["kind"] == "saved_search" and actual["count"] == 1
+    result, = actual["jobs"]
+    assert (result["published_at"], result["updated_at"], result["unverified_date"]) == (None, None, "2026-10-01")
     assert call("jobs", "new-since", "thursday", "--saved-search", "daily")["count"] == 0
     assert call("jobs", "new-since", "tuesday")["count"] == 0
     assert main(["jobs", "new-since", "monday", "--saved-search", "daily"]) != 0
@@ -227,3 +233,30 @@ def test_cleaning_run_artifacts_preserves_novelty_and_scoped_labels(capsys):
         ledger.record_occurrences(conn, newer, [])
         assert conn.execute("SELECT times_seen FROM jobs WHERE identity_key = ?", (key,)).fetchone() == (0,)
     assert review.set_feedback(key, "uncertain", profile=slug) == key
+
+
+def test_cleaned_runs_remain_in_unscoped_history_and_scout_memory(capsys):
+    from contextlib import closing
+
+    from ultron.core.models import FinalRow
+    from ultron.storage import ledger, review, scout_memory
+
+    profiles.install_example()
+    slug = profiles.EXAMPLE_SLUG
+    earlier, baseline, first = [runs.new_run(slug, "balanced") for _ in range(3)]
+    row = FinalRow(title="Engineer", company="Acme", apply_url="https://boards.greenhouse.io/acme/jobs/31",
+                   location="Spain", remote_policy="remote_eu", eligibility="confirmed",
+                   eligibility_evidence="Spain", fit_signals=[], freshness="")
+    with closing(ledger.connect()) as conn:
+        _record_search_result(conn, earlier, 1, slug, [])
+        _record_search_result(conn, baseline, 2, slug, [])
+        _record_search_result(conn, first, 3, slug, [row])
+        key = conn.execute("SELECT identity_key FROM jobs").fetchone()[0]
+    for run in (baseline, first):
+        assert main(["data", "delete-run", run, "--yes"]) == 0
+        capsys.readouterr()
+    assert [job["identity_key"] for job in review.new_since(earlier)] == [key]
+    assert [job["identity_key"] for job in review.new_since(baseline)] == [key]
+    assert [job["identity_key"] for job in review.list_jobs(since_run=baseline)] == [key]
+    with closing(ledger.connect()) as conn:
+        assert scout_memory.flags(conn, slug, [key]) == {key: "seen"}

@@ -118,6 +118,7 @@ def test_jobvite_eu_host_retry_and_exhaustion():
     jobs = jobvite.fetch_jobvite_jobs("acme", client=c)
     assert len(jobs) == 1 and jobs[0].title == "Engineer"
     assert urlsplit(c.calls[-1]).hostname == "jobs.eu.jobvite.com"
+    assert jobs[0].apply_url == "https://jobs.eu.jobvite.com/jobs/1"
     with pytest.raises(RuntimeError, match="down"):
         jobvite.fetch_jobvite_jobs("acme", client=FC(text_fn=boom("down")))
     assert jobvite._extract_text_between('data-title="unterminated', 'data-title="') == ""
@@ -162,6 +163,17 @@ def test_icims_html():
 def test_taleo_html():
     t = '<a class="jobTitle-link" href="/career/1">Taleo role</a>'
     assert taleo.fetch_taleo_jobs("acme.taleo.net", client=FC(text_fn=lambda u: t))[0].apply_url.endswith("/career/1")
+
+
+@pytest.mark.parametrize("locator", [
+    "acme.taleo.net/careersection/ext",
+    "acme.taleo.net/careersection/ext/",
+    "acme.taleo.net/careersection/ext/joblist.ftl?lang=en",
+])
+def test_taleo_resolves_relative_jobs_in_the_career_section(locator):
+    html = '<a class="jobTitle-link" href="jobdetail.ftl?job=42">Taleo role</a>'
+    result = taleo.fetch_taleo_jobs(locator, client=FC(text_fn=lambda _url: html))
+    assert result[0].apply_url == "https://acme.taleo.net/careersection/ext/jobdetail.ftl?job=42"
 
 
 def test_comeet_html():

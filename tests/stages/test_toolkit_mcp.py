@@ -292,3 +292,87 @@ def test_workable_breaker_stops_retries_and_follow_up_calls_in_one_mcp_session(m
     assert len(hits) == 2
     _session(_call("inspect_jobs", {"profile": SLUG, "urls": [workable], "all": True}, 3))
     assert len(hits) == 4
+
+
+def test_mcp_save_rejects_oversized_batch_without_saving(monkeypatch):
+    from ultron.toolkit.shortlist import MAX_ROWS
+
+    def unexpected_save(*args, **kwargs):
+        pytest.fail("oversized batch reached shortlist persistence")
+
+    monkeypatch.setattr(mcp_server, "save_shortlist", unexpected_save)
+    response, = _session(_call("save_shortlist", {"profile": SLUG, "rows": [{}] * (MAX_ROWS + 1)}))
+    assert response["result"]["isError"]
+    assert str(MAX_ROWS) in str(response["result"]["content"])
+
+
+
+@pytest.mark.parametrize("name", ["gather_candidates", "search_jobs"])
+@pytest.mark.parametrize("failure", ["write", "flush", "short_write"])
+def test_failed_stdio_write_keeps_watch_results_pending(name, failure):
+    from contextlib import closing
+
+    from ultron.core.job_identity import canonical_job_identity
+    from ultron.storage import ledger, watchlist
+
+    identity = canonical_job_identity(POSTING).identity_key
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [(identity, {
+            "identity_key": identity, "normalized_url": POSTING, "ats_title": "Senior Machine Learning Engineer",
+            "ats_company": "Acme", "ats_location": "Spain",
+        })])
+
+    class BrokenOutput(io.StringIO):
+        def write(self, text):
+            if failure == "write":
+                raise BrokenPipeError("synthetic disconnect")
+            if failure == "short_write":
+                return super().write(text[:1])
+            return super().write(text)
+
+        def flush(self):
+            if failure == "flush":
+                raise BrokenPipeError("synthetic disconnect")
+            super().flush()
+
+    arguments = {"profile": SLUG}
+    if name == "gather_candidates":
+        arguments["web_provider"] = "none"
+    call = _call(name, arguments)
+    with pytest.raises(OSError):
+        mcp_server.serve(io.StringIO(json.dumps(call) + "\n"), BrokenOutput())
+    with closing(ledger.connect()) as conn:
+        assert [row["identity_key"] for row in watchlist.pending(conn, SLUG)] == [identity]
+    result, = _session(call)
+    assert any(row["id"] == identity and row["source"] == "watch" for row in _payload(result)["dossiers"])
+    with closing(ledger.connect()) as conn:
+        assert not watchlist.pending(conn, SLUG)
+
+
+def test_failed_watch_acknowledgement_keeps_the_mcp_session_alive(monkeypatch, capsys):
+    import sqlite3
+    from contextlib import closing
+
+    from ultron.core.job_identity import canonical_job_identity
+    from ultron.storage import ledger, watchlist
+
+    identity = canonical_job_identity(POSTING).identity_key
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [(identity, {
+            "identity_key": identity, "normalized_url": POSTING, "ats_title": "Senior Machine Learning Engineer",
+            "ats_company": "Acme", "ats_location": "Spain",
+        })])
+
+    def busy(*_args):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(watchlist, "mark_queued", busy)
+    delivered, ping = _session(
+        _call("search_jobs", {"profile": SLUG}),
+        {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+    )
+    assert any(row["id"] == identity and row["source"] == "watch" for row in _payload(delivered)["dossiers"])
+    assert ping["result"] == {}
+    assert "acknowledgement failed" in capsys.readouterr().err
+    with closing(ledger.connect()) as conn:
+        assert [row["identity_key"] for row in watchlist.pending(conn, SLUG)] == [identity]

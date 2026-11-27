@@ -139,7 +139,9 @@ def fetch_workday_jobs(
     if not host:
         raise AtsClientError(f"workday_locator_missing={board_identifier}")
     base_url = locator_url(host, path)
-    api_path = f"wday/cxs/{host.split('.')[0]}/{path.split('/')[-1] if path else 'External'}"
+    tenant_path = f"/{path}".partition("/recruiting/")[2]
+    tenant = tenant_path.split("/", 1)[0] or host.split(".")[0]
+    api_path = f"wday/cxs/{tenant}/{path.split('/')[-1] if path else 'External'}"
     api_url = locator_url(host, api_path, "jobs")
     _WD_PAGE_LIMIT = 20
     _WD_MAX_PAGES = 100  # Safety cap: max 2000 jobs per board

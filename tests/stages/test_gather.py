@@ -8,6 +8,7 @@ import pytest
 from toolkit_helpers import (
     EMPLOYER,
     EMPLOYER_PAGE,
+    GH_BOARD,
     GH_PAGE,
     POSTING,
     offline,
@@ -57,7 +58,8 @@ def _setup_transport(monkeypatch, handler):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch):
+@pytest.mark.parametrize("lookup_host", ["boards.greenhouse.io", "job-boards.greenhouse.io"])
+def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch, lookup_host):
     barrier = Barrier(2)
     noise = ("https://en.wikipedia.org/wiki/Financial_analyst", "https://careers.example.org/jobs")
     requests = []
@@ -79,7 +81,13 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
             return httpx.Response(200, text="<html><body>No links here</body></html>")
         if str(request.url) in {WATCH, FEED}:
             return httpx.Response(200, text=EMPLOYER_PAGE.replace("Example Org", "Watched" if host == "watch.example" else "Hico"))
-        if str(request.url) == LOOKUP_TARGET:
+        if path == "/v1/boards/extra/jobs" and lookup_host.startswith("job-") and resolution_queries:
+            board = json.loads(GH_BOARD)
+            posting = board["jobs"][0]
+            posting.update(id=188, title="Senior ML Engineer", absolute_url=LOOKUP_TARGET,
+                           content="<p>Develop machine learning models and pipelines. Remote within Spain.</p>")
+            return httpx.Response(200, json={"jobs": [posting]})
+        if str(request.url) == LOOKUP_TARGET and not lookup_host.startswith("job-"):
             return httpx.Response(200, text=GH_PAGE.replace("Acme", "Extra"))
         return default_handler(request)
 
@@ -99,7 +107,10 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
 
     def lookup(queries, *, deadline):
         resolution_queries.extend(queries)
-        return [hit(LOOKUP_TARGET, "Senior ML Engineer", query=query)
+        target = LOOKUP_TARGET if lookup_host == "boards.greenhouse.io" else (
+            f"https://{lookup_host}/extra/jobs/188?utm_source=test"
+        )
+        return [hit(target, "Senior ML Engineer", query=query)
                 for query in queries if "extra" in query], len(queries)
 
     _setup_transport(monkeypatch, handler)
@@ -134,6 +145,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
     with closing(ledger.connect()) as conn:
         assert not watchlist.pending(conn, SLUG)
     cache = cached_postings(SLUG)
+    assert cache[by_url[LOOKUP_TARGET]["id"]]["job"]["body_text"]
     assert by_url[WATCH]["id"] in cache
     assert cache[by_url[WATCH]["id"]]["job"]["body_text"]
     saved = save_shortlist(SLUG, [{"id": by_url[WATCH]["id"], "verdict": "keep", "priority": 1}])
@@ -371,3 +383,39 @@ def test_mcp_leaves_undelivered_watch_postings_pending(monkeypatch, tool, limit)
     with closing(ledger.connect()) as conn:
         pending, = watchlist.pending(conn, SLUG)
     assert pending["normalized_url"] == next(url for url in urls if url != delivered["url"])
+
+
+def test_gather_marks_delivered_watch_identity_despite_board_host_alias():
+    canonical = "https://boards.greenhouse.io/acme/jobs/731"
+    alias = canonical.replace("boards.greenhouse.io", "job-boards.greenhouse.io")
+    identity = gather._identity(canonical)
+    other = gather._identity(WATCH)
+    pending = {"id": identity, "source": "watch", "url": alias}
+    omitted = {"id": other, "source": "watch", "url": WATCH}
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [
+            (row["id"], {"identity_key": row["id"], "normalized_url": row["url"]}) for row in (pending, omitted)
+        ])
+    gather._mark_gather_watch(SLUG, [{**pending, "url": canonical}], [pending, omitted])
+    with closing(ledger.connect()) as conn:
+        remaining = watchlist.pending(conn, SLUG)
+    assert [row["identity_key"] for row in remaining] == [other]
+
+
+def test_gather_excludes_target_whose_fetched_title_fails_verification(monkeypatch):
+    web = WebSearchResult("ok", "searxng", 1, 1, (hit(LOOKUP, "Senior ML Engineer at Extra"),))
+    monkeypatch.setattr(gather, "search_web", lambda *args, **kwargs: web)
+    monkeypatch.setattr(gather, "discover_sources", lambda *args, **kwargs: gather_empty_sources())
+    monkeypatch.setattr(gather.searxng, "search",
+                        lambda queries, **kwargs: ([hit(LOOKUP_TARGET, "Senior ML Engineer", query=queries[0])], 1))
+
+    def handler(request):
+        if str(request.url) == LOOKUP_TARGET:
+            return httpx.Response(200, text="<html><h1>Payroll Specialist</h1><p>Apply now</p></html>")
+        return httpx.Response(200, text="<html>No links</html>")
+
+    _setup_transport(monkeypatch, handler)
+    result = gather.gather_candidates(SLUG)
+    assert LOOKUP in {row["url"] for row in result["unresolved"]}
+    assert LOOKUP_TARGET not in {row["url"] for row in result["dossiers"]}
+    assert gather._identity(LOOKUP_TARGET) not in cached_postings(SLUG)

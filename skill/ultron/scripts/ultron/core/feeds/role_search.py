@@ -79,7 +79,10 @@ def _himalayas_rows(payload: object) -> list[dict]:
         location = ", ".join(str(p) for p in places if p) if isinstance(places, list) else ""
         posted = item.get("pubDate")
         if isinstance(posted, int | float):
-            posted = datetime.fromtimestamp(posted, UTC).date().isoformat()
+            try:
+                posted = datetime.fromtimestamp(posted, UTC).date().isoformat()
+            except (OverflowError, OSError, ValueError):
+                posted = None
         if r := _row("himalayas", item.get("title"), item.get("companyName"),
                      item.get("applicationLink") or item.get("guid"), location or "Worldwide",
                      item.get("excerpt") or item.get("description"), posted):

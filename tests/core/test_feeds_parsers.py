@@ -131,3 +131,66 @@ def test_arbeitnow_null_next_link_stops_pagination():
     c = FakeClient({"data": [{"title": "ML Engineer", "url": "https://a/jobs/1"}], "links": {"next": None}})
     rows, discards = collectors.collect_arbeitnow_urls(1, 3, api_url="https://a/api", request_json=c.request_json)
     assert len(rows) == 1 and discards == [] and c.requested == ["https://a/api"]
+
+
+def test_himalayas_continues_after_a_full_page_with_a_skipped_row():
+    jobs = [{"title": "Engineer", "url": f"https://example.com/jobs/{i}"} for i in range(49)]
+    client = FakeClient({"jobs": [*jobs, {}]}, {"jobs": [{"title": "Second page", "url": "https://example.com/jobs/50"}]})
+    rows, discards = collectors.collect_himalayas_urls(
+        1, 3, api_url="https://himalayas.app/jobs/api", request_json=client.request_json,
+    )
+    assert not discards
+    assert len(client.requested) == 2 and client.requested[1].endswith("offset=50")
+    assert rows[-1]["title"] == "Second page"
+
+
+def test_redirect_preserves_the_destinations_encoded_query_value():
+    from urllib.parse import urlencode
+
+    target = "https://example.com/jobs/1?req=team%26level"
+    wrapper = "https://feed.example/jobs?" + urlencode({"url": target})
+
+    class Client:
+        def get_text(self, url):
+            return 200, url, f'<a href="{wrapper}">Employer</a>'
+
+    assert urls.candidate_urls_from_row({"url": wrapper}) == [wrapper, target]
+    assert target in urls.fetch_page_links("https://feed.example", 1, client=Client())
+
+
+def test_invalid_feed_link_does_not_hide_valid_sibling_links():
+    valid = "https://boards.greenhouse.io/acme/jobs/1"
+    assert valid in urls.candidate_urls_from_row({"url": valid, "description": "Apply via https://[invalid.example/path"})
+
+
+
+@pytest.mark.parametrize("continuation", ["next_link", "redirect"])
+def test_arbeitnow_keeps_earlier_rows_and_scopes_continuations(continuation):
+    import httpx
+
+    from ultron.infra.net import HttpClient
+
+    api = "https://feed.example/api"
+    outside = "https://other.example/page"
+    requests = []
+
+    def handler(request):
+        requests.append(str(request.url))
+        if request.url.host != "feed.example":
+            return httpx.Response(200, json={"data": []})
+        if request.url.path == "/api":
+            return httpx.Response(200, json={
+                "data": [{"title": "First"}],
+                "links": {"next": "https://feed.example/page2"},
+            })
+        if request.url.path == "/page2":
+            next_url = outside if continuation == "next_link" else "https://feed.example/page3"
+            return httpx.Response(200, json={"data": [{"title": "Second"}], "links": {"next": next_url}})
+        return httpx.Response(302, headers={"Location": outside})
+
+    client = HttpClient(max_requests=10, max_requests_per_host=10, transport=httpx.MockTransport(handler),
+                        resolver=lambda h, p: ["93.184.216.34"], min_interval_per_host=0)
+    rows, discards = collectors.COLLECTORS["arbeitnow"](client, {"url": api}, 1)
+    assert [row["title"] for row in rows] == ["First", "Second"]
+    assert outside not in requests
+    assert discards

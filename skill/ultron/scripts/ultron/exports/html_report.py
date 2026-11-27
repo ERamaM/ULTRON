@@ -19,6 +19,7 @@ from typing import Any
 from ultron.core.job_identity import canonical_job_identity
 from ultron.exports import sanitize, view_model
 from ultron.exports.html_assets import CSP, REPORT_CSS, REPORT_JS
+from ultron.infra.fs import atomic_write_text
 from ultron.storage import runs
 
 MATCH_BANDS = view_model.MATCH_BANDS
@@ -361,7 +362,5 @@ def export_run_to_html(run_id: str, out_path: Path | str | None = None) -> Path:
         raise ValueError(f"results.json for run {run_id} is not an object")  # noqa: TRY004 - maps to export_failed
     discards = [*runs.read_jsonl(out_dir / "discarded.jsonl"), *runs.read_jsonl(out_dir / "finalize_discards.jsonl")]
     target = (Path(out_path) if out_path else out_dir / "results.html").absolute()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(render_html(run, results, discards))
+    atomic_write_text(target, render_html(run, results, discards))
     return target

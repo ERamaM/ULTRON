@@ -270,3 +270,99 @@ def test_save_shortlist_propagates_disclosed_salary_and_date(verified, overrides
     assert row["salary"] == salary
     assert row["published_at"] == date
     assert row["unverified_date"] == ("2026-02-28" if not verified and not overrides else None)
+
+
+def test_inspect_jsonl_preserves_a_unicode_separator_in_company(tmp_path, monkeypatch):
+    from ultron.commands import toolkit
+
+    records = [{"company": "North\u2028Labs"}, {"company": "South Labs"}]
+    source = tmp_path / "inputs.jsonl"
+    source.write_text("# Companies\n" + "\n".join(json.dumps(row, ensure_ascii=False) for row in records), encoding="utf-8")
+    captured = []
+
+    def inspect_stub(profile, urls, companies, **kwargs):
+        captured.extend(companies)
+        return {}
+
+    monkeypatch.setattr(toolkit, "inspect_jobs", inspect_stub)
+    assert main(["inspect", "--profile", SLUG, "--from", str(source)]) == 0
+    assert captured == [row["company"] for row in records]
+
+
+
+def test_board_first_published_survives_save_by_id():
+    from ultron.core.ats.clients.base import AtsPosting
+    from ultron.core.models import AtsBoardSeed
+    from ultron.storage import runs
+    from ultron.toolkit import boards
+
+    seed = AtsBoardSeed(seed_id="greenhouse:acme", company="Acme", ats="greenhouse", board_identifier="acme")
+    date = "2026-11-20T10:00:00Z"
+    postings = [
+        AtsPosting(title=title, apply_url=f"https://boards.greenhouse.io/acme/jobs/{index}",
+                   description="Build machine learning systems.", raw_payload=payload)
+        for index, title, payload in (
+            (91, "Machine Learning Engineer", {"first_published": date}),
+            (92, "Data Scientist", {"updated_at": date}),
+        )
+    ]
+    for posting in postings:
+        job = boards.board_job(seed, posting)
+        identity = "greenhouse:acme:" + job.apply_url.rsplit("/", 1)[1]
+        row = {"identity_key": identity, "status": "open", "url": job.apply_url,
+               "source_key": seed.seed_id, "source_type": "ats_api", "job": job.model_dump(mode="json")}
+        inspect.cache_postings(SLUG, [row])
+    result = shortlist.save_shortlist(SLUG, [{"id": f"greenhouse:acme:{i}", "verdict": "keep"} for i in (91, 92)])
+    rows = json.loads((runs.run_dir(result["run_id"]) / "results.json").read_text(encoding="utf-8"))["rows"]
+    by_title = {row["title"]: row for row in rows}
+    assert by_title["Machine Learning Engineer"]["published_at"] == "2026-11-20"
+    assert not by_title["Data Scientist"]["published_at"]
+
+
+
+def test_remote_shortlist_keeps_separately_verified_board_postings():
+    from ultron.storage import runs
+
+    urls = [f"https://boards.greenhouse.io/acme/jobs/{index}" for index in (91, 92)]
+    ids = [f"greenhouse:acme:{index}" for index in (91, 92)]
+    inspect.cache_postings(SLUG, [
+        {"identity_key": identity, "status": "open", "url": url, "source_key": "greenhouse:acme",
+         "source_type": "ats_api", "job": {"apply_url": url, "title": "ML Engineer", "company": "Acme", "location": city}}
+        for identity, url, city in zip(ids, urls, ("Madrid", "Paris"), strict=True)
+    ])
+    result = shortlist.save_shortlist(SLUG, [{"id": identity, "verdict": "keep"} for identity in ids])
+    rows = json.loads((runs.run_dir(result["run_id"]) / "results.json").read_text(encoding="utf-8"))["rows"]
+    assert {row["apply_url"] for row in rows} == set(urls)
+
+
+
+def test_failed_shortlist_report_does_not_record_scout_verdict(monkeypatch):
+    from contextlib import closing
+
+    from ultron.stages import scout_finalize
+    from ultron.storage import ledger
+
+    def fail(*args, **kwargs):
+        raise OSError("report unavailable")
+
+    monkeypatch.setattr(scout_finalize, "write_outputs", fail)
+    with pytest.raises(OSError, match="report unavailable"):
+        shortlist.save_shortlist(SLUG, [{"url": POSTING, "title": "ML Engineer", "company": "Acme", "verdict": "keep"}])
+    with closing(ledger.connect()) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM scout_verdicts").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM job_occurrences").fetchone()[0] == 0
+
+
+def test_empty_verified_shortlist_keeps_the_previous_report_without_leaving_a_run():
+    from ultron.storage import runs
+
+    previous = shortlist.save_shortlist(SLUG, [
+        {"url": POSTING, "title": "ML Engineer", "company": "Acme", "verdict": "keep"}
+    ])
+    report_path = runs.run_dir(previous["run_id"]) / "results.json"
+    prior = report_path.read_bytes()
+    previous_runs = runs.list_runs()
+    result = shortlist.save_shortlist(SLUG, [{"id": "missing", "verdict": "keep"}])
+    assert result["run_id"] is None and result["outputs"] == {}
+    assert result["not_saved"] and runs.list_runs() == previous_runs
+    assert report_path.read_bytes() == prior

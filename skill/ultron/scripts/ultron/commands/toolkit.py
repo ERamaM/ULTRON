@@ -36,7 +36,7 @@ def read_inputs(path: str) -> tuple[list[str | dict], list[str]]:
     """URLs and company names from a file: one URL per line, or JSONL rows with ``url`` (and its ``company``) or
     ``company`` alone."""
     urls, companies = [], []
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
+    for line in Path(path).read_text(encoding="utf-8").split("\n"):
         text = line.strip()
         if not text or text.startswith("#"):
             continue

@@ -3,7 +3,7 @@ import {createActions, pairLaunch} from "./actions.js";
 import {renderCharts, renderWatch} from "./charts.js";
 import {renderRuns, renderSeeds, renderOps} from "./history.js";
 import {renderKanban} from "./kanban.js";
-import {renderCards, renderTable, showDetails, closeDetails, downloadCsv, copyUrls} from "./views.js";
+import {renderCards, renderTable, showDetails, closeDetails, downloadCsv, copyUrls, updateDrawerStatus} from "./views.js";
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -99,8 +99,12 @@ function matchesJob(job) {
   const f = state.filters;
   const scopedFeedback = f.profile ? (job.profile_feedback?.[f.profile]?.relevance || job.feedback_relevance)
     : job.feedback_relevance;
-  if (f.profile && job.profile_slug !== f.profile) return false;
   if (f.run && !job.run_ids.includes(f.run)) return false;
+  if (f.profile) {
+    const occurrences = (job.occurrences || []).filter(occ => !f.run || occ.run_id === f.run);
+    const hasProfile = occurrences.some(occ => occ.profile_slug);
+    if (hasProfile ? !occurrences.some(occ => occ.profile_slug === f.profile) : job.profile_slug !== f.profile) return false;
+  }
   if (f.band && job.match_band !== f.band) return false;
   if (f.priority && (job.priority ? "p" + job.priority : "unset") !== f.priority) return false;
   if (f.remote && job.remote_policy !== f.remote) return false;
@@ -187,8 +191,9 @@ function renderJobs() {
   paintSelection();
 }
 
-function renderJobsAndCharts() {
+function renderJobsAndCharts(editedIdentity) {
   if (!state.snapshot) return;
+  if (editedIdentity) updateDrawerStatus(getJob(editedIdentity));
   renderCharts(state.snapshot, state, {filter: toggleFilter, rank: selectRanking});
   renderJobs();
 }

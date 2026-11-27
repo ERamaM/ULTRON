@@ -17,9 +17,10 @@ host to one request at a time.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import closing
+from contextlib import closing, contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -50,6 +51,7 @@ from ultron.toolkit.inspect import cache_postings, run_context
 DEFAULT_LIMIT = 60
 WORKERS = 8
 DAY_ONE_BOARDS = 40
+_WATCH_AFTER_DELIVERY: ContextVar[list[Callable[[], None]] | None] = ContextVar("watch_after_delivery", default=None)
 
 
 def listed(identity: str, row: dict, source: str) -> dict[str, Any]:
@@ -145,19 +147,40 @@ def _pending(profile_slug: str, profile: dict) -> list[dict]:
         dossier = {"id": row.get("identity_key") or candidate_identity(row), "url": url,
                    "status": "listed", "title": row.get("ats_title", ""),
                    "company": employer_name(row.get("ats_company", ""), url),
-                   "location": row.get("ats_location", ""), "source": "watch"}
+                   "location": row.get("ats_location", ""), "remote": row.get("ats_remote_hint", ""),
+                   "source": "watch"}
         if row.get("source_type") == "ats_api" and row.get("source_key"):
             dossier["board"] = row["source_key"]
         out.append(dossier)
     return out
 
 
+@contextmanager
+def defer_watch_delivery() -> Iterator[list[Callable[[], None]]]:
+    """Collect pending queue acknowledgments until the transport delivers its reply."""
+    acknowledgments: list[Callable[[], None]] = []
+    token = _WATCH_AFTER_DELIVERY.set(acknowledgments)
+    try:
+        yield acknowledgments
+    finally:
+        _WATCH_AFTER_DELIVERY.reset(token)
+
+
 def mark_watch_served(profile_slug: str, dossiers: list[dict], *, origin: str = "search") -> None:
     """Mark as queued only the watch postings this answer returns; the rest stay pending."""
     keys = [d["id"] for d in dossiers if d["source"] == "watch"]
-    if keys and _ledger_ready():
+    if not keys or not _ledger_ready():
+        return
+
+    def acknowledge() -> None:
         with closing(ledger.connect()) as conn:
             watchlist.mark_queued(conn, profile_slug, keys, origin)
+
+    pending = _WATCH_AFTER_DELIVERY.get()
+    if pending is None:
+        acknowledge()
+    else:
+        pending.append(acknowledge)
 
 
 def profile_for_query(profile: dict, terms: list[str]) -> dict:
@@ -274,7 +297,11 @@ def search_jobs(profile_slug: str, query: str = "", *, new_only: bool = False, l
     if new_only:
         dossiers = [d for d in dossiers if d["memory"] == "new"]
     ranked = _rank(dossiers, terms)
-    cache_postings(profile_slug, [listed_cache_row(d, found.boards) for d in ranked if d.get("url")])
+    board_rows = {(row["identity_key"], row["status"]): row for row in found.cache}
+    cache_postings(profile_slug, [
+        board_rows.get((d["id"], d["status"])) or listed_cache_row(d, found.boards)
+        for d in ranked if d.get("url")
+    ])
     returned = ranked[:max(1, limit)]
     payload = {"profile": profile_slug, "queries": terms, "sources": found.sources, "results": len(ranked),
                "dossiers": returned}

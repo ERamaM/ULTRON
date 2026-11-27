@@ -83,6 +83,10 @@ def _read_occurrences(conn: sqlite3.Connection, tables: set[str]) -> tuple[dict[
     cols = _columns(conn, "job_occurrences")
     select_is_new = "is_new" if "is_new" in cols else "0 AS is_new"
     select_seen_at = "seen_at" if "seen_at" in cols else "NULL AS seen_at"
+    scope_table = "run_scopes" if "run_scopes" in tables else "runs"
+    profiles_by_run = {}
+    if scope_table in tables and "profile_slug" in _columns(conn, scope_table):
+        profiles_by_run = dict(conn.execute(f"SELECT run_id, profile_slug FROM {scope_table}"))
     sql = f"SELECT identity_key, run_id, {select_is_new}, {select_seen_at} FROM job_occurrences ORDER BY rowid DESC"
     for row in conn.execute(sql):
         key = sanitize.clean_text(row["identity_key"])
@@ -93,6 +97,7 @@ def _read_occurrences(conn: sqlite3.Connection, tables: set[str]) -> tuple[dict[
         by_job.setdefault(key, []).append(
             {
                 "run_id": run_id,
+                "profile_slug": sanitize.clean_text(profiles_by_run.get(row["run_id"])) or None,
                 "is_new": is_new,
                 "seen_at": sanitize.clean_text(row["seen_at"]) or None,
             }
@@ -364,6 +369,7 @@ def build_ledger_snapshot(db_path: Path | None = None) -> dict[str, Any]:
 
     db_updated_at = datetime.fromtimestamp(target.stat().st_mtime, tz=UTC).isoformat()
     with closing(_connect_readonly(target)) as conn:
+        conn.execute("BEGIN")
         tables = _tables(conn)
         schema_version = int(conn.execute("PRAGMA user_version").fetchone()[0])
         occurrences_by_job, new_per_run = _read_occurrences(conn, tables)

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from ultron.core.ats.registry import extract_seed_from_url, infer_vendor_from_host
 from ultron.core.discovery.url_filter import domain_of, normalize_url
-from ultron.core.feeds.urls import fetch_page_links, has_employer_job_path, is_aggregator_host
+from ultron.core.feeds.urls import PageLinksUnavailable, fetch_page_links, has_employer_job_path, is_aggregator_host
 from ultron.core.job_identity import canonical_job_identity
 from ultron.infra.net import HostBlocked, RequestBudgetExceeded, VendorBlocked
 from ultron.infra.urlpolicy import URLRejected, admit_url
@@ -121,8 +121,8 @@ def resolve_aggregator(url: str, client, timeout: int, company: str = "") -> Res
     page). A blocked host or an exhausted budget leaves the find unresolved with that reason.
     """
     try:
-        links = fetch_page_links(url, timeout, client=client)[:MAX_AGGREGATOR_LINKS]
-    except (RequestBudgetExceeded, HostBlocked, VendorBlocked) as exc:
+        links = fetch_page_links(url, timeout, client=client, require_completed=True)[:MAX_AGGREGATOR_LINKS]
+    except (RequestBudgetExceeded, HostBlocked, VendorBlocked, PageLinksUnavailable) as exc:
         return Resolution("unresolved_aggregator", reason=type(exc).__name__)
     postings = []
     for link in links:

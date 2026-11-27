@@ -22,7 +22,13 @@ from ultron.core.discovery.prefilter import (
 from ultron.core.discovery.title_vocabulary import build_title_vocabulary
 from ultron.core.discovery.url_filter import domain_of, normalize_url
 from ultron.core.feeds.collectors import COLLECTORS
-from ultron.core.feeds.urls import SHORTENER_DOMAINS, candidate_urls_from_row, is_aggregator_host, redirect_targets
+from ultron.core.feeds.urls import (
+    SHORTENER_DOMAINS,
+    candidate_urls_from_row,
+    is_aggregator_host,
+    parse_feed_url,
+    redirect_targets,
+)
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import AtsBoardSeed, CandidateUrl
 from ultron.core.remote_requirement import is_remote_required
@@ -122,8 +128,8 @@ def _label_matches_company(label: str, company: str) -> bool:
 
 def _company_domain_from_url(url: str, company: str = "") -> str:
     """Return a company's own domain from ``url``, or ``""`` for generic, third-party, or mismatched hosts."""
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"}:
+    parsed = parse_feed_url(url)
+    if parsed is None:
         return ""
     host = (parsed.hostname or "").lower().rstrip(".")
     if not host or "." not in host or ":" in host:
@@ -203,27 +209,27 @@ def _is_listing_link(url: str) -> bool:
     return feed_link_kind(url) in {"board_root", "company_page"}
 
 
-def _direct_ats_url(row: dict) -> str:
+def _direct_ats_url(row: dict, *, urls: list[str] | None = None) -> str:
     """The row's first ATS posting URL (MARK III ``harvest_ats_urls_from_rows``), else ``""``.
 
     Board roots are skipped: the seed loop already turns them into seeds for ``discover ats``.
     """
-    for url in candidate_urls_from_row(row):
+    for url in candidate_urls_from_row(row) if urls is None else urls:
         host = urlparse(url).netloc.lower()
         if host and is_direct_supported_ats_host(host) and not _is_listing_link(url):
             return url
     return ""
 
 
-def _candidate(source: dict, row: dict, posting: SimpleNamespace) -> CandidateUrl | None:
+def _candidate(source: dict, row: dict, posting: SimpleNamespace, *, urls: list[str] | None = None) -> CandidateUrl | None:
     """Candidate for a feed posting: its direct ATS URL when the row has one, else its own URL.
 
     A row with no direct ATS URL whose URL is an aggregator's page gives no candidate (MARK III only
     harvests direct ATS URLs from feeds; such pages are outside the allowlist and never kept).
     """
-    url = _direct_ats_url(row) or posting.apply_url.strip()
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or is_aggregator_host(parsed.netloc):
+    url = _direct_ats_url(row, urls=urls) or posting.apply_url.strip()
+    parsed = parse_feed_url(url)
+    if parsed is None or is_aggregator_host(parsed.netloc):
         return None
     normalized = normalize_url(url)
     key = f"{FEED_PREFIX}{source['id']}"
@@ -332,7 +338,10 @@ def discover_feeds(run_id: str) -> dict:
             posting = _posting_like(row)
             relevant = passes_coarse_prefilter(posting, title_vocabulary=title_vocabulary, vocabulary=pack)
             ats_hit = False
-            for url in candidate_urls_from_row(row):
+            urls = candidate_urls_from_row(
+                row, on_invalid=lambda source=source: errors.append(_error(source, "invalid_feed_url")),
+            )
+            for url in urls:
                 for link in (url, *redirect_targets(url)):
                     seed = extract_seed_from_url(link, company)
                     if seed is None:
@@ -358,7 +367,7 @@ def discover_feeds(run_id: str) -> dict:
                     posting, geo=geo, remote_required=remote_required, excluded_location_terms=scope["excluded_terms"],
                 )
             ):
-                candidate = _candidate(source, row, posting)
+                candidate = _candidate(source, row, posting, urls=urls)
                 if candidate is not None and _is_listing_link(candidate.source_url):
                     # A board root or company page is not one posting: its board became a seed above and
                     # its company a hint below, so it is not fetched as a posting.
@@ -383,7 +392,7 @@ def discover_feeds(run_id: str) -> dict:
                     url = str(row.get("url") or "").strip()
                     domain = _company_domain_from_url(url, company)
                     if low not in proposals:
-                        source_url = url if urlparse(url).scheme in {"http", "https"} else ""
+                        source_url = url if parse_feed_url(url) else ""
                         proposals[low] = Proposal(company=company, domain=domain, source_url=source_url)
                     elif domain and not proposals[low].domain:
                         proposals[low].domain = domain  # a later row may name the company's own site

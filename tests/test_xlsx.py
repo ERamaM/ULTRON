@@ -159,3 +159,18 @@ def test_control_characters_are_stripped(run_id, capsys, tmp_path):
 def test_control_characters_cannot_unmask_a_formula():
     assert xlsx_styles.cell_value("\x08=1+1") == "'=1+1"
     assert xlsx_styles.cell_value(["\x1b@cmd", "x"]) == "'@cmd | x"
+
+
+def test_reexport_leaves_an_edited_workbook_intact(run_id):
+    path = xlsx.export_run_to_excel(run_id)
+    wb = load_workbook(path)
+    roles = wb["Roles (2)"]
+    columns = {cell.value: cell.column for cell in roles[1]}
+    roles.cell(2, columns["My Status"], "Applied")
+    roles.cell(2, columns["My Notes"], "Synthetic note")
+    wb.save(path)
+    wb.close()
+    original = path.read_bytes()
+    with pytest.raises(FileExistsError):
+        xlsx.export_run_to_excel(run_id)
+    assert path.read_bytes() == original

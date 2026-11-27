@@ -114,7 +114,9 @@ def _role_candidates(run: dict, client, timeout: int) -> tuple[list[dict], dict[
                     continue
                 resolved += 1
                 found = resolve_aggregator(url, client, timeout, company[url])
-                known[url] = learned[url] = found.url if found.outcome == "resolved_aggregator" else ""
+                known[url] = found.url if found.outcome == "resolved_aggregator" else ""
+                if known[url] or found.reason in {"no_employer_posting_link", "ambiguous_posting_links"}:
+                    learned[url] = known[url]
             if not known[url]:
                 continue
             url = known[url]

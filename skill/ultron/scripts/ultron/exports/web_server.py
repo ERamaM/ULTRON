@@ -263,7 +263,8 @@ def create_server(
     bound_host = "127.0.0.1" if clean_host == "localhost" else clean_host
     server = server_type((bound_host, clean_port), handler)
     actual_port = int(server.server_address[1])
-    server.origin = urlunsplit(("http", f"{formatted_host}:{actual_port}", "", "", ""))
+    authority = formatted_host if actual_port == 80 else f"{formatted_host}:{actual_port}"
+    server.origin = urlunsplit(("http", authority, "", "", ""))
     launch = f"#access={capability}" if capability else ""
     return server, server.origin + "/" + launch, actual_port
 

@@ -25,7 +25,7 @@ def _extract_text_between(text: str, marker: str) -> str:
     return text[start:end].strip()
 
 
-def _parse_jobvite_html(html: str) -> list[AtsPosting]:
+def _parse_jobvite_html(html: str, host: str) -> list[AtsPosting]:
     jobs: list[AtsPosting] = []
     chunks = html.split("jv-job-list")
     for chunk in chunks[1:]:
@@ -33,7 +33,8 @@ def _parse_jobvite_html(html: str) -> list[AtsPosting]:
         href = _extract_text_between(chunk, 'href="')
         location = _extract_text_between(chunk, 'data-location="')
         if title and href:
-            jobs.append(AtsPosting(title=title, apply_url=href, location=location))
+            apply_url = href if href.startswith(("http://", "https://")) else locator_url(host, href)
+            jobs.append(AtsPosting(title=title, apply_url=apply_url, location=location))
     return jobs
 
 
@@ -77,7 +78,7 @@ def fetch_jobvite_jobs(
             continue
         fetched = True
         career_page = career_page or any(marker in (html or "") for marker in _CAREER_PAGE_MARKERS)
-        jobs = _parse_jobvite_table(html, host) or _parse_jobvite_html(html)
+        jobs = _parse_jobvite_table(html, host) or _parse_jobvite_html(html, host)
         if jobs:
             return jobs
     if not fetched and last_exc is not None:

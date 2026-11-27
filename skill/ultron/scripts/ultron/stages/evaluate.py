@@ -7,12 +7,14 @@ otherwise); ``evaluate`` itself has no declared prerequisite in ``runs.STAGE_REQ
 from __future__ import annotations
 
 import json
+from contextlib import closing
 from pathlib import Path
 
 from pydantic import ValidationError
 
 from ultron.core.models import JobEvaluation
 from ultron.core.rules.geography import build_geo_body_excerpt
+from ultron.infra.file_lock import open_file_lock
 from ultron.storage import runs
 
 EXCERPT_CHARS = 1500
@@ -63,12 +65,13 @@ def record_evaluations(run_id: str, path: Path) -> dict:
         evaluation.evaluation_source = "agent"
         parsed.append((key, evaluation.model_dump(mode="json")))
 
-    merged = {r["identity_key"]: r for r in runs.read_jsonl(out_dir / "evaluations.jsonl")}
-    for key, evaluation in parsed:
-        merged.pop(key, None)  # re-insert so file order follows the last write
-        merged[key] = {"identity_key": key, "evaluation": evaluation}
-    runs.write_jsonl(out_dir / "evaluations.jsonl", merged.values())
-    runs.mark_stage(run_id, "evaluate")
+    with closing(open_file_lock(out_dir / ".evaluations.lock", exclusive=True)):
+        merged = {r["identity_key"]: r for r in runs.read_jsonl(out_dir / "evaluations.jsonl")}
+        for key, evaluation in parsed:
+            merged.pop(key, None)  # re-insert so file order follows the last write
+            merged[key] = {"identity_key": key, "evaluation": evaluation}
+        runs.write_jsonl(out_dir / "evaluations.jsonl", merged.values())
+        runs.mark_stage(run_id, "evaluate")
 
     return {
         "recorded": len(parsed),

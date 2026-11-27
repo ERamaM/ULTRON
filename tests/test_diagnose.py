@@ -196,3 +196,18 @@ def test_kept_after_fetch_switched_to_the_ats_canonical_url(run_dir):
                                                           "source_key": "web_search"}]}), encoding="utf-8")
     assert _diag(run_id, url=custom).first_failed_stage == "kept"  # the original URL
     assert _diag(run_id, url=URL).first_failed_stage == "kept"  # the canonical URL fetch switched to
+
+
+def test_diagnose_saved_shortlist_reports_kept_and_final_cap(monkeypatch):
+    from ultron.core import presets
+    from ultron.toolkit.shortlist import save_shortlist
+
+    profiles.install_example()
+    resolve = presets.resolve
+    monkeypatch.setattr(presets, "resolve", lambda preset: {**resolve(preset), "max_roles": 1})
+    urls = [URL, URL.rsplit("/", 1)[0] + "/2"]
+    result = save_shortlist(profiles.EXAMPLE_SLUG, [
+        {"url": url, "title": title, "company": "Acme", "verdict": "keep", "priority": priority}
+        for priority, (url, title) in enumerate(zip(urls, ("Backend Engineer", "Data Scientist"), strict=True), 1)
+    ])
+    assert [_diag(result["run_id"], url).first_failed_stage for url in urls] == ["kept", "final_cap"]

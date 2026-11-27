@@ -18,7 +18,7 @@ from ultron.stages.final_helpers import row_board_key
 from ultron.stages.scout_finalize import finalize_scout
 from ultron.stages.scout_finds import add_scout_finds
 from ultron.stages.scout_verified import ELIGIBILITIES, EXPORTED_VERDICTS, REMOTE_POLICIES, final_row, load_verified
-from ultron.storage import runs
+from ultron.storage import maintenance, runs
 from ultron.toolkit.dossier import employer_name
 from ultron.toolkit.inspect import board_aliases, cached_postings
 
@@ -87,7 +87,7 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     """Save ``rows`` (the agent's judged postings) as a finalized shortlist for ``profile_slug``.
 
     Returns the run ID, the rows that were not saved (``invalid``, ``already_rejected``...) and the finalize
-    summary with the output files.
+    summary with the output files. An all-invalid submission leaves no run and returns a null run ID.
     """
     if not rows:
         raise EmptyShortlist("the shortlist has no rows")
@@ -101,9 +101,14 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     run = runs.load_run(run_id)
     # Board context comes only from ULTRON's own cache, never from the rows, so a row cannot claim an identity.
     added = add_scout_finds(run_id, run, rows, boards=board_aliases(cache))
+    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"] + over
+    if not sum(added["verified"].values()):
+        maintenance.delete_run(run_id, yes=True)
+        return {"run_id": None, "saved": added["verified"], "not_saved": not_saved,
+                "roles": 0, "new_roles": 0, "unsure": 0, "discarded": 0,
+                "final_cap": 0, "verified_finds": 0, "outputs": {}, "top": []}
     _credit_boards(run_id)
     for stage in ("fetch", "filter"):
         runs.mark_stage(run_id, stage)
     result = finalize_scout(run_id, runs.load_run(run_id))
-    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"] + over
     return {"run_id": run_id, "saved": added["verified"], "not_saved": not_saved, **result}

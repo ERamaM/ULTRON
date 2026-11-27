@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -170,14 +170,6 @@ def valid_through_expired(value: str, *, now: datetime | None = None) -> bool:
     return deadline <= (now or datetime.now(UTC))
 
 
-def _comparable_page_url(url: str) -> str:
-    raw = str(url or "").strip()
-    if not raw:
-        return ""
-    parsed = urlparse(raw)
-    if not parsed.scheme or not parsed.netloc:
-        return raw.split("#", 1)[0].split("?", 1)[0].rstrip("/")
-    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}{parsed.path.rstrip('/')}"
 
 
 _MAX_IDENTITY_URL_CHARS = 2048  # posting URLs come from untrusted pages; longer ones are never parsed
@@ -203,48 +195,29 @@ _MAX_IDENTITY_CHECKS = 50
 
 
 def extract_structured_fields(soup: BeautifulSoup, page_url: str | None = None) -> dict[str, str]:
-    """Pick the JobPosting of the evaluated page; fall back to the first titled one.
-
-    Only a node that identifies this very posting (same job identity after resolving a relative ``url``), or a
-    node without a ``url``, keeps its ``valid_through``: another posting's deadline (a recommendation, say) is
-    never evidence that this page has expired, even when it is used to fill in other fields.
-    """
-    first_fields: dict[str, str] | None = None
-    urlless: dict[str, str] | None = None
-    path_match: dict[str, str] | None = None
-    page_key = _comparable_page_url(page_url or "")
-    page_identity = _posting_identity(page_url or "") if page_key else ""
+    """Read structured facts from this posting or a JobPosting without a URL."""
+    fallback: dict[str, str] = {}
+    page_identity = _posting_identity(page_url) if page_url else ""
     identity_checks = 0
     for job in _iter_jobposting_nodes(soup):
-        fields = _structured_fields_from_node(job)
         node_url = job.get("url")
-        has_url = isinstance(node_url, str) and bool(node_url.strip())
-        if page_key and has_url:
-            resolved = urljoin(page_url or "", node_url.strip())
-            if page_identity and identity_checks < _MAX_IDENTITY_CHECKS:
-                identity_checks += 1
+        if page_url and isinstance(node_url, str) and node_url.strip():
+            identity_checks += 1
+            if page_identity and identity_checks <= _MAX_IDENTITY_CHECKS:
+                try:
+                    resolved = urljoin(page_url, node_url.strip())
+                except ValueError:
+                    continue
                 if _posting_identity(resolved) == page_identity:
-                    return fields
-            elif page_identity:
-                identity_checks += 1  # over the cap: no more canonicalization, no deadline evidence
-            fields = {**fields, "valid_through": ""}
-            if _comparable_page_url(resolved) == page_key:
-                if path_match is None:
-                    path_match = fields  # same path, different job id (e.g. ?gh_jid=...): fields only
-                continue
-        elif page_key and (urlless is None or (fields.get("title") and not urlless.get("title"))):
-            urlless = fields  # may describe this page; preferred over a node that names another posting
-        if fields.get("title"):
-            if not page_key:
-                return fields
-            if first_fields is None or not first_fields.get("title"):
-                first_fields = fields
+                    return _structured_fields_from_node(job)
             continue
-        if first_fields is None:
-            first_fields = fields
-    # Exact identity first (returned above), then a node without url, then the same path with another job id.
-    chosen = urlless or path_match or first_fields or {}
-    if identity_checks > _MAX_IDENTITY_CHECKS and chosen.get("valid_through"):
-        chosen = {**chosen, "valid_through": ""}  # too many postings to tell which deadline is this page's
-    return chosen
+        if not fallback.get("title"):
+            fields = _structured_fields_from_node(job)
+            if fields.get("title") or not fallback:
+                fallback = fields
+            if not page_url and fields.get("title"):
+                return fields
+    if identity_checks > _MAX_IDENTITY_CHECKS and fallback.get("valid_through"):
+        fallback["valid_through"] = ""  # too many postings to tell which deadline belongs to the page
+    return fallback
 

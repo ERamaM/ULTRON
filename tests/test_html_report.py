@@ -214,3 +214,36 @@ def test_search_index_includes_requirement_text():
     ]}, [])
     [match] = re.findall(r'data-search="([^"]*)"', page)
     assert all(term in match for term in ("java", "italian", "german"))
+
+
+def test_render_failure_preserves_previous_html_report(run_id, tmp_path, monkeypatch):
+    from ultron.exports import html_report
+
+    target = tmp_path / "report.html"
+    target.write_bytes(b"previous report")
+
+    def fail(*args):
+        raise OSError("render failure")
+
+    monkeypatch.setattr(html_report, "render_html", fail)
+    with pytest.raises(OSError, match="render failure"):
+        html_report.export_run_to_html(run_id, target)
+    assert target.read_bytes() == b"previous report"
+
+
+
+def test_atomic_publish_failure_preserves_previous_html_report(run_id, tmp_path, monkeypatch):
+    from ultron.exports import html_report
+    from ultron.infra import fs
+
+    target = tmp_path / "report.html"
+    target.write_bytes(b"previous report")
+
+    def fail(source, destination):
+        assert destination == target
+        raise OSError("replace unavailable")
+
+    monkeypatch.setattr(fs.os, "replace", fail)
+    with pytest.raises(OSError, match="replace unavailable"):
+        html_report.export_run_to_html(run_id, target)
+    assert target.read_bytes() == b"previous report"

@@ -145,6 +145,8 @@ def _has_closed_status_with_context(text: str) -> bool:
     low = normalize_text(text)
     for term in ("closed", "expired"):
         for match in word_boundary_pattern(term).finditer(low):
+            if signals.closure_is_conditional(low, match.start()):
+                continue
             if term == "closed" and signals.closed_match_is_technical_or_negated(low, match):
                 continue
             if (

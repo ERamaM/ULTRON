@@ -415,3 +415,23 @@ def test_discover_feeds_skips_clearly_ineligible_and_ranks_preferred_region():
         "https://boards.greenhouse.io/latamco/jobs/4",
         "https://boards.greenhouse.io/globalco/jobs/3",
     ]
+
+
+def test_invalid_feed_description_link_preserves_valid_rows(capsys):
+    first = "https://boards.greenhouse.io/demo/jobs/801"
+    sibling = "https://boards.greenhouse.io/demo/jobs/802"
+    second = "https://boards.greenhouse.io/demo/jobs/803"
+    rows = [
+        {"title": "ML Engineer", "url": first, "description": "Apply at https://[invalid.example/path"},
+        {"title": "ML Engineer", "url": sibling},
+    ]
+    run_id = _new_run(make_handler(overrides={
+        "www.arbeitnow.com": lambda r: httpx.Response(200, json={"data": rows}),
+        "remotive.com": lambda r: httpx.Response(200, json={"jobs": [{"title": "ML Engineer", "url": second}]}),
+    }))
+    assert main(["discover", "feeds", "--run", run_id]) == 0
+    capsys.readouterr()
+    candidates = runs.read_jsonl(runs.run_dir(run_id) / "candidates.jsonl")
+    assert {first, sibling, second} <= {row["normalized_url"] for row in candidates}
+    errors = runs.read_jsonl(runs.run_dir(run_id) / "feed_errors.jsonl")
+    assert any(row["error"] == "invalid_feed_url" and row["source"] == "arbeitnow" for row in errors)

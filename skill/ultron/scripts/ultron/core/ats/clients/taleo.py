@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -45,11 +46,18 @@ def fetch_taleo_jobs(
         raise
     except Exception:
         refuse_browser_fallback()
+    section = urlsplit(board_url)
+    if re.fullmatch(r"/careersection/[^/]+", section.path, re.IGNORECASE) and not section.path.lower().endswith(".ftl"):
+        section = section._replace(path=section.path + "/")
+    base = urlunsplit(section)
     postings: list[AtsPosting] = []
     for listing in parse_card_listings(html, "jobTitle-link"):
-        apply_url = listing["href"]
+        try:
+            apply_url = urljoin(base, listing["href"])
+        except ValueError:
+            continue
         if not apply_url.startswith(("http://", "https://")):
-            apply_url = locator_url(board_identifier, apply_url)
+            continue
         postings.append(
             AtsPosting(
                 title=listing["title"],

@@ -18,7 +18,7 @@ function jobPills(job, context) {
     list.append(item);
   };
   if (job.match_score !== null) add(job.match_band, "band-" + job.match_band);
-  add(job.review_state);
+  add(job.review_state, "pill-review-state");
   if (context.isNew(job)) add("New", "pill-new");
   if (job.is_closed_watch) add("Closed", "pill-warning");
   add(job.remote_label);
@@ -125,6 +125,7 @@ function detailDates(job) {
 
 export function showDetails(job, context) {
   const drawer = $("detail-drawer");
+  drawer.dataset.jobKey = job.identity_key;
   const body = $("drawer-body");
   $("drawer-company").textContent = [job.company, job.location].filter(Boolean).join(" \u00b7 ");
   $("drawer-title").textContent = job.title;
@@ -156,6 +157,16 @@ export function showDetails(job, context) {
   history.append(el("p", "mono", "Key: " + job.identity_key));
   body.append(history);
   if (!drawer.open) drawer.showModal();
+}
+
+export function updateDrawerStatus(job) {
+  const drawer = $("detail-drawer");
+  if (!job || !drawer.open || drawer.dataset.jobKey !== job.identity_key) return;
+  const body = $("drawer-body");
+  const badge = body.querySelector(".pill-review-state");
+  const select = body.querySelector(".state-select");
+  if (badge) badge.textContent = job.review_state;
+  if (select) select.value = job.review_state;
 }
 
 export function closeDetails() {

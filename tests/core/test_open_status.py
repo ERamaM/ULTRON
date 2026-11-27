@@ -152,3 +152,9 @@ def test_introductory_clause_does_not_exempt_a_closure():
         assert is_open_status_ok(body, True, True) is False, body
     # A condition in the same clause still describes the future.
     assert is_open_status_ok("Applications accepted until the position has been filled.", True, True) is True
+
+
+def test_contextual_closure_respects_conditions_and_clause_boundaries():
+    assert is_open_status_ok("Applications remain open until the posting is closed.", True, True)
+    assert not is_open_status_ok("This posting is closed.", True, True)
+    assert not is_open_status_ok("When you read this, the posting is closed.", True, True)

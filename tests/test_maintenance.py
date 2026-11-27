@@ -377,3 +377,41 @@ def test_purge_with_only_ledger_still_removes_run_folders(tmp_path, monkeypatch)
     maintenance.purge(yes=True)
     assert not (shared / "runs" / rid).exists()
     assert (shared / "runs" / "x").is_file() and (shared / "cv" / "mine" / "resume.pdf").is_file()
+
+
+def test_restore_retains_a_note_acknowledged_during_safety_backup(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from ultron.storage import review
+
+    _mk_run()
+    source = maintenance.backup()
+    copy = maintenance._copy_db
+    writing, acknowledged = Event(), Event()
+
+    def note():
+        writing.set()
+        review.add_note("k1", "synthetic committed edit")
+        acknowledged.set()
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        submissions = []
+
+        def racing_copy(conn, target):
+            copy(conn, target)
+            if target.name.endswith("-pre-restore.sqlite3"):
+                submissions.append(executor.submit(note))
+                assert writing.wait(timeout=5)
+                acknowledged.wait(timeout=0.5)
+
+        monkeypatch.setattr(maintenance, "_copy_db", racing_copy)
+        result = maintenance.restore(source, yes=True)
+        for submission in submissions:
+            submission.result(timeout=5)
+
+    assert submissions and acknowledged.is_set()
+    with closing(ledger.connect()) as live, closing(sqlite3.connect(result["previous_backup"])) as backup:
+        observed = [conn.execute("SELECT notes FROM jobs WHERE identity_key = 'k1'").fetchone()[0]
+                    for conn in (live, backup)]
+    assert any("synthetic committed edit" in notes for notes in observed)

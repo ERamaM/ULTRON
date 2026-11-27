@@ -229,8 +229,11 @@ class InspectionSession:
             key = url_ids.get(normalize_url(url)) or canonical_job_identity(url).identity_key
             hit = by_id.pop(key, None)
             if hit is not None and hit[0]["status"] == "open":
-                dossiers.append(hit[0])
-                cache.append(hit[1])
+                dossier, cached = hit
+                if url != dossier["url"]:
+                    dossier["found_at"] = url
+                dossiers.append(dossier)
+                cache.append(cached)
             else:
                 unread.append((url, company))
         read, read_cache = self._postings(unread, client)
@@ -353,10 +356,17 @@ def cache_postings(profile_slug: str, rows: list[dict]) -> None:
 
 
 def cached_postings(profile_slug: str) -> dict[str, dict]:
-    """The postings ``inspect`` read for ``profile_slug``, by identity key, the latest read winning."""
+    """Read the latest posting evidence by identity, keeping full reads over listings."""
     path = home.ultron_home() / CACHE_DIR / profile_slug / CACHE_FILE
     # read_jsonl splits on newlines only: posting text may hold U+2028 and other line separators.
-    return {row["identity_key"]: row for row in runs.read_jsonl(path)}
+    cached = {}
+    for row in runs.read_jsonl(path):
+        identity = row["identity_key"]
+        previous = cached.get(identity)
+        if row.get("status") == "listed" and previous and previous.get("status") in {None, "open"}:
+            continue
+        cached[identity] = row
+    return cached
 
 
 def _flag(dossiers: list[dict], profile_slug: str) -> None:

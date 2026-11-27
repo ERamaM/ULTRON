@@ -51,3 +51,41 @@ def test_detect_a4_pdf_with_font_mapping(font, expected):
         b"", file_type="pdf", format_meta={"page_width_pt": 595, "page_height_pt": 842, "fonts": [font]},
     )
     assert (style["page_size"], style["font"]) == ("a4", expected)
+
+
+
+def test_only_applied_styles_and_their_bases_contribute_cues():
+    import io
+    import zipfile
+
+    from ultron.cv.docx_layout import WORD_NS
+
+    def document(section_style):
+        raw = io.BytesIO()
+        with zipfile.ZipFile(raw, "w") as archive:
+            archive.writestr("word/document.xml", f"""
+                <w:document xmlns:w="{WORD_NS}"><w:body>
+                <w:p><w:pPr><w:pStyle w:val="Header"/></w:pPr><w:r><w:t>Jane Example</w:t></w:r></w:p>
+                <w:p><w:pPr>{section_style}</w:pPr><w:r><w:t>Experience</w:t></w:r></w:p>
+                </w:body></w:document>
+            """)
+            archive.writestr("word/styles.xml", f"""
+                <w:styles xmlns:w="{WORD_NS}">
+                  <w:style w:styleId="Header"><w:basedOn w:val="Centered"/></w:style>
+                  <w:style w:styleId="Centered"><w:pPr><w:jc w:val="center"/></w:pPr></w:style>
+                  <w:style w:styleId="Heading2"><w:basedOn w:val="CycleA"/><w:pPr><w:pBdr/></w:pPr></w:style>
+                  <w:style w:styleId="CycleA"><w:basedOn w:val="Heading2"/>
+                    <w:pPr><w:tabs><w:tab w:val="right"/></w:tabs></w:pPr>
+                    <w:rPr><w:color w:val="2B4C7E"/><w:rFonts w:ascii="Arial"/></w:rPr>
+                  </w:style>
+                  <w:style w:styleId="Custom"><w:basedOn w:val="Heading2"/></w:style>
+                </w:styles>
+            """)
+        return raw.getvalue()
+
+    unused = layout_profile.extract_layout_profile(document(""), file_type="docx")
+    assert (unused["header_align"], unused["section_style"], unused["date_layout"]) == ("center", "clean", "below")
+    assert unused["font"] == "Calibri"
+    used = layout_profile.extract_layout_profile(document('<w:pStyle w:val="Custom"/>'), file_type="docx")
+    assert (used["section_style"], used["date_layout"], used["accent_color"]) == ("rule", "right_tab", "2B4C7E")
+    assert used["font"] == "Arial"

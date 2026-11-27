@@ -24,6 +24,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from xml.parsers import expat
 
+from ultron.cv.docx_layout import WORD_NS, DocxLayoutMetrics
+
 MAX_ARCHIVE_ENTRIES = 2_000
 MAX_DOCUMENT_XML_BYTES = 25_000_000
 MAX_AUX_XML_BYTES = 1_000_000
@@ -41,7 +43,7 @@ _APP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/extended-proper
 _APP_PAGES = f"{_APP_NS}Pages"
 _STYLES = "word/styles.xml"
 _COMMENTS = "word/comments.xml"
-_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
+_W = WORD_NS + " "
 _A = "http://schemas.openxmlformats.org/drawingml/2006/main "
 _V = "urn:schemas-microsoft-com:vml "
 _MC_FALLBACK = "http://schemas.openxmlformats.org/markup-compatibility/2006 Fallback"
@@ -162,7 +164,7 @@ def _xml_page_count(body: _BodyText, app_pages: int | None) -> int:
 class _BodyText:
     """Streaming expat handlers: no tree is built, so memory stays bounded by the nesting depth."""
 
-    def __init__(self, max_chars: int) -> None:
+    def __init__(self, max_chars: int, layout: DocxLayoutMetrics | None = None) -> None:
         self.max_chars = max_chars  # raw text budget, enforced while parsing (before any normalization)
         self.chars = 0
         self.lines: list[str] = []
@@ -171,18 +173,7 @@ class _BodyText:
         self.explicit_page_breaks = 0
         self.rendered_page_breaks = 0
         self.heading_paragraph_count = 0
-        self.page_width_twips: int | None = None
-        self.page_height_twips: int | None = None
-        self.margin_twips: int | None = None
-        self.header_align = "left"
-        self.accent_color = ""
-        self.has_section_borders = False
-        self.has_shaded_headings = False
-        self.has_caps_headings = False
-        self.has_right_tabs = False
-        self._first_paragraph = False
-        self._section_depth: int | None = None
-        self._section_text: list[str] | None = None
+        self.layout = layout
         self.app_pages: int | None = None
         self._app_page_parts: list[str] | None = None
         self.elements = 0
@@ -252,38 +243,6 @@ class _BodyText:
                     self.fonts.append(font)
                 self.font_frequency[font] += 1
 
-    def _record_layout(self, name: str, attributes: dict[str, str]) -> None:
-        val = attributes.get(f"{_W}val", "")
-        if name == f"{_W}pgSz" and self.page_width_twips is None:
-            self.page_width_twips = _positive_twips(attributes.get(f"{_W}w", ""))
-            self.page_height_twips = _positive_twips(attributes.get(f"{_W}h", ""))
-        elif name == f"{_W}pgMar" and self.margin_twips is None:
-            left = _positive_twips(attributes.get(f"{_W}left", ""))
-            right = _positive_twips(attributes.get(f"{_W}right", ""))
-            if left is not None and right is not None:
-                self.margin_twips = (left + right) // 2
-        elif name == f"{_W}jc" and self._first_paragraph and val == "center":
-            self.header_align = "center"
-        elif name == f"{_W}tab" and val == "right":
-            self.has_right_tabs = True
-        elif name == f"{_W}style" and attributes.get(f"{_W}styleId", "").casefold() == "heading2":
-            self._section_depth = self.depth
-        elif name == f"{_W}pStyle" and val.casefold() == "heading2":
-            self._section_text = []
-        elif self._section_depth is not None or self._section_text is not None:
-            self._record_heading_layout(name, attributes)
-
-    def _record_heading_layout(self, name: str, attributes: dict[str, str]) -> None:
-        if name == f"{_W}pBdr":
-            self.has_section_borders = True
-        elif name == f"{_W}shd":
-            self.has_shaded_headings = True
-        elif name == f"{_W}caps":
-            self.has_caps_headings = True
-        color = attributes.get(f"{_W}val" if name == f"{_W}color" else f"{_W}color", "").upper()
-        if not self.accent_color and re.fullmatch(r"[0-9A-F]{6}", color) and color not in {"000000", "FFFFFF"}:
-            self.accent_color = color
-
     def start(self, name: str, attributes: dict[str, str]) -> None:
         self.elements += 1
         self.depth += 1
@@ -294,9 +253,9 @@ class _BodyText:
         if self.skipped:
             return
         self._record_structure(name, attributes)
-        self._record_layout(name, attributes)
+        if self.layout is not None:
+            self.layout.start(name, attributes)
         if name == _W_P:
-            self._first_paragraph = not self.lines and not self.stack
             # A paragraph nested in another (a text box) ends the outer paragraph's text so far.
             if self.stack and self.stack[-1]:
                 self._line(self.stack[-1])
@@ -332,13 +291,9 @@ class _BodyText:
                 if 0 < pages <= 2_147_483_647:
                     self.app_pages = pages
             self._app_page_parts = None
-        if name == f"{_W}style" and self._section_depth == self.depth + 1:
-            self._section_depth = None
+        if self.layout is not None:
+            self.layout.end(name)
         if name == _W_P and self.stack:
-            self._first_paragraph = False
-            if self._section_text is not None:
-                self.has_caps_headings |= "".join(self._section_text).isupper()
-                self._section_text = None
             self._line(self.stack.pop())
         elif name == _W_T:
             self.in_text -= 1
@@ -348,17 +303,13 @@ class _BodyText:
             self._count(len(data))
             self._app_page_parts.append(data)
         if self.in_text and not self.skipped:
-            if self._section_text is not None:
-                self._section_text.append(data)
+            if self.layout is not None:
+                self.layout.characters(data)
             for ch in data:
                 code = ord(ch)
                 if 0xE000 <= code <= 0xF8FF or 0xFB00 <= code <= 0xFB06 or ch in _ZERO_WIDTH_CHARS:
                     self.non_standard_char_count += 1
             self._append(data)
-
-
-def _positive_twips(value: str) -> int | None:
-    return int(value) if len(value) <= 6 and value.isascii() and value.isdecimal() else None
 
 
 def _reject_declaration(*_args) -> None:
@@ -391,7 +342,9 @@ def _check_tag_sizes(body: bytes) -> None:
         raise _error("The Word document body has an oversized tag", code="too_long")
 
 
-def _parse_xml_body(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, _BodyText]:
+def _parse_xml_body(
+    body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS, *, layout: DocxLayoutMetrics | None = None,
+) -> tuple[str, _BodyText]:
     """Parse one OOXML part with bounded streaming expat handlers."""
     # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
     if b"\x00" in body or body.startswith((b"\xff\xfe", b"\xfe\xff")):
@@ -399,7 +352,7 @@ def _parse_xml_body(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[s
     if _DOCTYPE.search(body):
         _reject_declaration()
     _check_tag_sizes(body)
-    handlers = _BodyText(max_chars)
+    handlers = _BodyText(max_chars, layout)
     parser = expat.ParserCreate(encoding="UTF-8", namespace_separator=" ")
     parser.StartElementHandler = handlers.start
     parser.EndElementHandler = handlers.end
@@ -430,17 +383,13 @@ def extract_docx_text(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tu
         return text, _xml_page_count(body, _read_app_pages(archive))
 
 
-def _dominant_font(body: _BodyText, styles: _BodyText) -> str:
-    fonts = body.font_frequency or styles.font_frequency
-    return fonts.most_common(1)[0][0] if fonts else ""
-
-
 def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStructureReport:
     """Extract raw body text plus bounded ATS structural indicators from a ``.docx`` archive."""
     archive, entries = _open_archive(content)
     with archive:
         body_bytes = _read_member(archive, _BODY, MAX_DOCUMENT_XML_BYTES)
-        text, body_handlers = _parse_xml_body(body_bytes, max_chars)
+        body_layout = DocxLayoutMetrics()
+        text, body_handlers = _parse_xml_body(body_bytes, max_chars, layout=body_layout)
 
         app_pages = _read_app_pages(archive)
         entry_names = [entry.filename for entry in entries]
@@ -448,11 +397,11 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         has_comments = any(name.lower() == _COMMENTS for name in entry_names)
         hf_names = sorted(name for name in entry_names if _HEADER_FOOTER_RE.match(name))[:MAX_HEADER_FOOTER_PARTS]
 
-        style_handlers = _BodyText(0)
+        style_layout = DocxLayoutMetrics()
         fonts = list(body_handlers.fonts)
         if _STYLES in entry_names:
             styles_bytes = _read_member(archive, _STYLES, MAX_AUX_XML_BYTES)
-            _styles_text, style_handlers = _parse_xml_body(styles_bytes, MAX_AUX_XML_BYTES)
+            _styles_text, style_handlers = _parse_xml_body(styles_bytes, MAX_AUX_XML_BYTES, layout=style_layout)
             for font in style_handlers.fonts:
                 if len(fonts) >= MAX_FONTS:
                     break
@@ -469,6 +418,9 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
             if stripped and _CONTACT_RE.search(stripped):
                 hf_has_contact = True
 
+    layout_fields = body_layout.report_fields(style_layout)
+    if body_handlers.font_frequency:
+        layout_fields["dominant_font"] = body_handlers.font_frequency.most_common(1)[0][0]
     return DocxStructureReport(
         text=text,
         pages=_xml_page_count(body_handlers, app_pages),
@@ -489,14 +441,5 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         rendered_page_breaks=body_handlers.rendered_page_breaks,
         app_pages=app_pages,
         heading_paragraph_count=body_handlers.heading_paragraph_count,
-        page_width_twips=body_handlers.page_width_twips,
-        page_height_twips=body_handlers.page_height_twips,
-        margin_twips=body_handlers.margin_twips,
-        header_align=body_handlers.header_align,
-        accent_color=body_handlers.accent_color or style_handlers.accent_color,
-        has_section_borders=body_handlers.has_section_borders or style_handlers.has_section_borders,
-        has_shaded_headings=body_handlers.has_shaded_headings or style_handlers.has_shaded_headings,
-        has_caps_headings=body_handlers.has_caps_headings or style_handlers.has_caps_headings,
-        has_right_tabs=body_handlers.has_right_tabs or style_handlers.has_right_tabs,
-        dominant_font=_dominant_font(body_handlers, style_handlers),
+        **layout_fields,
     )

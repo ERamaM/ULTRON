@@ -143,7 +143,7 @@ def _docx_style(meta: dict[str, Any]) -> CvLayoutStyle:
     return CvLayoutStyle(
         page_size=_closest_page(meta.get("page_width_twips"), meta.get("page_height_twips")),
         margins=min(MARGINS, key=lambda key: abs(MARGINS[key] - margin)) if isinstance(margin, int) else "normal",
-        font=_font(meta.get("dominant_font") or fonts[0]),
+        font=_font(meta.get("dominant_font", fonts[0])),
         header_align="center" if meta.get("header_align") == "center" else "left",
         accent_color=accent,
         section_style=style,

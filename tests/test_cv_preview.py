@@ -183,3 +183,29 @@ def test_source_preview_rejects_unsupported_and_oversized_input(tmp_path, capsys
     original.write_bytes(b"%PDF-synthetic")
     assert main(["cv", "preview", str(original)]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "too_long"
+
+
+
+def test_preview_preserves_unrelated_or_edited_pdf_and_refreshes_its_own(tmp_path, capsys, mock_render):
+    reference, _ = mock_render
+    source = tmp_path / "cv.docx"
+    source.write_bytes(docx_writer.render_docx_bytes(docx_writer.parse_markdown_cv(_DRAFT)))
+    unrelated = source.with_suffix(".pdf")
+    unrelated.write_bytes(b"existing user PDF")
+    argv = ["cv", "preview", str(source), "--out-dir", str(tmp_path)]
+
+    assert main(argv) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["pdf_path"] is None and "existing PDF" in payload["warnings"][0]
+    assert unrelated.read_bytes() == b"existing user PDF"
+
+    unrelated.unlink()
+    for _ in range(2):
+        assert main(argv) == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert Path(payload["pdf_path"]) == unrelated and unrelated.read_bytes() == reference
+    unrelated.write_bytes(b"edited preview PDF")
+    assert main(argv) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["pdf_path"] is None and "existing PDF" in payload["warnings"][0]
+    assert unrelated.read_bytes() == b"edited preview PDF"

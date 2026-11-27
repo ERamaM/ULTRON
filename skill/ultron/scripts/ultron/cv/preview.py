@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import sqlite3
 from contextlib import closing
@@ -29,6 +30,29 @@ def validate_preview_options(dpi: int, max_pages: int = extract.MAX_CV_PAGES) ->
         raise ValueError(f"Preview max-pages must be between 1 and {extract.MAX_CV_PAGES}.")
 
 
+def _publish_pdf(source: Path, target: Path, pdf: bytes) -> None:
+    if fs.is_link(target) or (target.exists() and not target.is_file()):
+        raise ValueError("Preview PDF target is not a regular file.")
+    if target.resolve() == source.resolve():
+        return
+    marker = target.with_name(f".{target.name}.ultron-preview")
+    if fs.is_link(marker) or (marker.exists() and not marker.is_file()):
+        raise ValueError("Preview PDF ownership marker is not a regular file.")
+    if target.exists():
+        if not marker.is_file():
+            raise ValueError("Preview would overwrite an existing PDF.")
+        with marker.open("rb") as stream:
+            recorded = stream.read(65)
+        with target.open("rb") as stream:
+            original = stream.read(pdf_raster.MAX_PDF_BYTES + 1)
+        if len(original) > pdf_raster.MAX_PDF_BYTES or hashlib.sha256(original).hexdigest().encode("ascii") != recorded:
+            raise ValueError("Preview would overwrite an existing PDF.")
+        fs.atomic_write_bytes(target, pdf)
+    elif not fs.atomic_create_bytes(target, pdf):
+        raise ValueError("Preview would overwrite an existing PDF.")
+    fs.atomic_write_text(marker, hashlib.sha256(pdf).hexdigest())
+
+
 def write_reference_preview(
     source: Path, pdf: bytes | None, *, pages: int, out_dir: Path | None = None,
     category: str = "cv", dpi: int = 144, max_pages: int = extract.MAX_CV_PAGES, warning: str = "",
@@ -50,15 +74,15 @@ def write_reference_preview(
         if fs.is_link(lock_path) or (lock_path.exists() and not lock_path.is_file()):
             raise ValueError("Preview lock must be a regular file.")
         with closing(open_file_lock(lock_path, exclusive=True)):
-            if fs.is_link(target) or (target.exists() and not target.is_file()):
-                raise ValueError("Preview PDF target is not a regular file.")
-            if target.resolve() != source.resolve():
-                fs.atomic_write_bytes(target, pdf)
+            _publish_pdf(source, target, pdf)
             payload["pdf_path"] = str(target)
             # A fallback count can underestimate the actual number of rendered pages.
             raster_limit = min(max_pages, pages) if rendered_pages_verified else max_pages
             raster = pdf_raster.render_pdf_to_pngs(pdf, folder, dpi=dpi, max_pages=raster_limit)
-    except (OSError, ValueError, sqlite3.Error):
+    except ValueError as exc:
+        payload["warnings"].append(str(exc))
+        return payload
+    except (OSError, sqlite3.Error):
         payload["warnings"].append("Choose a writable preview directory without symbolic links.")
         return payload
     payload.update(images=[str(path) for path in raster.images], rasterizer=raster.rasterizer)

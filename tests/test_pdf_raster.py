@@ -30,9 +30,13 @@ def test_cli_isolation_and_normalized_page_names(monkeypatch, tmp_path, backend,
 
     def convert(args, **kwargs):
         folder = kwargs["cwd"]
+        if backend == "gs" and "-c" in args:
+            assert {"-E", "-s", "-P"} <= set(args)
+            assert kwargs["timeout"] == 5.0
+            return subprocess.CompletedProcess(args, 0)
         scratch.append(folder)
         assert (folder / "input.pdf").read_bytes() == _PDF
-        assert kwargs["timeout"] == 30.0 and not kwargs["shell"]
+        assert 0 < kwargs["timeout"] <= 30.0 and not kwargs["shell"]
         assert set(required) <= set(args)
         assert all(key not in kwargs["env"] for key in ("GS_OPTIONS", "GS_LIB"))
         (folder / "page-02.png").write_bytes(_PNG)
@@ -72,7 +76,7 @@ def test_raster_failure_is_nonblocking(monkeypatch, tmp_path, failure):
         (folder / ("page-2.png" if failure == "gap" else "page-1.png")).write_bytes(data)
         return subprocess.CompletedProcess(args, 0)
 
-    monkeypatch.setattr(pdf_raster, "detect_pdf_rasterizer", lambda _: ("gs", "gs"))
+    monkeypatch.setattr(pdf_raster, "detect_pdf_rasterizer", lambda _: ("mutool", "mutool"))
     monkeypatch.setattr(pdf_raster.subprocess, "run", convert)
     result = pdf_raster.render_pdf_to_pngs(_PDF, tmp_path, dpi=20)
     assert not result.images and not result.rasterizer and result.warning and result.dpi == 72
@@ -135,3 +139,56 @@ def test_binary_search_ignores_working_and_relative_paths(monkeypatch, tmp_path)
         candidate.chmod(0o755)
     env = {"PATH": os.pathsep.join((".", "bin", str(working), str(installed)))}
     assert pdf_raster.detect_pdf_rasterizer(env) == ("pdftoppm", str(installed / name))
+
+
+
+def test_mutool_accepts_png_at_configured_size_limit(monkeypatch, tmp_path):
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    width = pdf_raster._MAX_PIXELS
+    header = struct.pack(">IIBBBBB", width, 1, 8, 0, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(bytes(width + 1)))
+    png += chunk(b"IEND", b"")
+
+    def convert(args, *, cwd, **kwargs):
+        assert args[args.index("-w") + 1] == str(width)
+        (cwd / "page-1.png").write_bytes(png)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(pdf_raster, "detect_pdf_rasterizer", lambda _: ("mutool", "unused"))
+    monkeypatch.setattr(pdf_raster.subprocess, "run", convert)
+    result = pdf_raster.render_pdf_to_pngs(_PDF, tmp_path)
+    assert result.images[0].read_bytes() == png
+
+
+
+@pytest.mark.parametrize(("width", "blocked"), [(595, False), (10_000, True)])
+def test_ghostscript_geometry_is_checked_before_rendering(tmp_path, monkeypatch, width, blocked):
+    import io
+    from pathlib import Path
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=width, height=842)
+    pdf = io.BytesIO()
+    writer.write(pdf)
+    real_run = subprocess.run
+    launched = []
+
+    def convert(args, **kwargs):
+        if "-sDEVICE=png16m" in args:
+            launched.append(True)
+            Path(kwargs["cwd"], "page-1.png").write_bytes(_PNG)
+            return subprocess.CompletedProcess(args, 0)
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(pdf_raster, "detect_pdf_rasterizer", lambda _: ("gs", "gs"))
+    monkeypatch.setattr(pdf_raster.subprocess, "run", convert)
+    result = pdf_raster.render_pdf_to_pngs(pdf.getvalue(), tmp_path)
+    assert bool(launched) is not blocked
+    assert bool(result.images) is not blocked

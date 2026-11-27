@@ -9,9 +9,12 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+
+from ultron.infra.fs import is_link
 
 MAX_PDF_BYTES = 25_000_000
 _MAX_PIXELS = 2600
@@ -21,6 +24,23 @@ _PAGE_NAME = re.compile(r"page-([0-9]{1,5})\.png")
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _PNG_END = b"\x00\x00\x00\x00IEND\xaeB\x60\x82"
 _TOOLS = {"pdftoppm": ("pdftoppm",), "mutool": ("mutool",), "gs": ("gs", "gswin64c", "gswin32c")}
+
+_GS_GEOMETRY_CHECK = """
+import math, sys
+from itertools import islice
+from pypdf import PdfReader
+
+dpi, pages, max_pixels = map(int, sys.argv[1:])
+with open("input.pdf", "rb") as source:
+    reader = PdfReader(source)
+    for page in islice(reader.pages, pages):
+        scale = float(page.user_unit) * dpi / 72
+        for size in (page.mediabox.width, page.mediabox.height, page.cropbox.width, page.cropbox.height):
+            pixels = float(size) * scale
+            if not math.isfinite(pixels) or not 0 < pixels <= max_pixels:
+                sys.exit(1)
+"""
+
 
 _PDFIUM = r"""
 import struct, sys, zlib
@@ -88,7 +108,7 @@ def detect_pdf_rasterizer(env: Mapping[str, str] | None = None) -> tuple[str, st
 def _command(backend: str, executable: str, dpi: int, pages: int) -> list[str]:
     pixels = str(_MAX_PIXELS)
     if backend == "pdftoppm":
-        return [executable, "-png", "-r", str(dpi), "-W", pixels, "-H", pixels,
+        return [executable, "-png", "-r", str(dpi), "-W", str(_MAX_PIXELS + 1), "-H", str(_MAX_PIXELS + 1),
                 "-f", "1", "-l", str(pages), "input.pdf", "page"]
     if backend == "mutool":
         return [executable, "draw", "-F", "png", "-r", str(dpi), "-w", pixels, "-h", pixels,
@@ -99,35 +119,25 @@ def _command(backend: str, executable: str, dpi: int, pages: int) -> list[str]:
     return [executable, "-E", "-s", "-P", "-c", _PDFIUM, str(dpi), str(pages), pixels]
 
 
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or path.is_junction()
-
-
 def prepare_output_directory(out_dir: Path) -> Path:
     """Create a preview directory after rejecting symlink and junction components."""
     target = Path(os.path.abspath(out_dir))
-    if sys.platform == "darwin":
-        for alias in (Path("/tmp"), Path("/var")):
-            canonical = Path("/private") / alias.name
-            if target.is_relative_to(alias) and alias.resolve() == canonical:
-                target = canonical / target.relative_to(alias)
-                break
     for part in (*reversed(target.parents), target):
-        if _is_link(part) or (part.exists() and not part.is_dir()):
+        if is_link(part) or (part.exists() and not part.is_dir()):
             raise ValueError("Choose a preview directory without symlinks, junctions or file components.")
         part.mkdir(mode=0o700, exist_ok=True)
     return target
 
 
 def _png_data(path: Path) -> bytes:
-    if _is_link(path) or not path.is_file():
+    if is_link(path) or not path.is_file():
         raise ValueError("Rasterizer did not produce regular PNG files.")
     with path.open("rb") as stream:
         data = stream.read(_MAX_PNG_BYTES + 1)
     if len(data) > _MAX_PNG_BYTES or not data.startswith(_PNG_SIGNATURE + b"\0\0\0\rIHDR") or not data.endswith(_PNG_END):
         raise ValueError("Rasterizer produced an invalid or oversized PNG.")
     width, height = struct.unpack(">II", data[16:24])
-    if not (1 <= width < _MAX_PIXELS and 1 <= height < _MAX_PIXELS):
+    if not (1 <= width <= _MAX_PIXELS and 1 <= height <= _MAX_PIXELS):
         raise ValueError("Rasterizer produced an oversized page image.")
     return data
 
@@ -149,7 +159,7 @@ def _validated_pages(scratch: Path, max_pages: int) -> list[Path]:
 
 
 def _owned_page_count(manifest: Path) -> int:
-    if _is_link(manifest):
+    if is_link(manifest):
         raise ValueError("Preview ownership marker cannot be a link.")
     if not manifest.exists():
         return 0
@@ -170,7 +180,7 @@ def _publish_pages(scratch: Path, out: Path, max_pages: int) -> list[Path]:
     images = [out / f"page-{index}.png" for index in range(1, len(pages) + 1)]
     for index in range(1, max(previous, len(pages)) + 1):
         target = out / f"page-{index}.png"
-        if _is_link(target) or (target.exists() and (index > previous or not target.is_file())):
+        if is_link(target) or (target.exists() and (index > previous or not target.is_file())):
             raise ValueError("Preview cannot replace an unrelated file or link.")
     with tempfile.TemporaryDirectory(prefix=".ultron-pages-", dir=out) as staging:
         pending = Path(staging)
@@ -185,6 +195,25 @@ def _publish_pages(scratch: Path, out: Path, max_pages: int) -> list[Path]:
             (out / f"page-{index}.png").unlink(missing_ok=True)
         (pending / _MANIFEST).replace(manifest)
     return images
+
+
+def _run_rasterizer(
+    backend: str, executable: str, dpi: int, pages: int, scratch: Path, env: dict[str, str], timeout: float,
+) -> None:
+    deadline = time.monotonic() + timeout
+    options = {
+        "cwd": scratch, "env": env,
+        "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
+    }
+    if backend == "gs":
+        # Ghostscript otherwise allocates its raster using the supplied page geometry.
+        check = [sys.executable, "-E", "-s", "-P", "-c", _GS_GEOMETRY_CHECK,
+                 str(dpi), str(pages), str(_MAX_PIXELS)]
+        subprocess.run(check, timeout=min(timeout, 5.0), check=True, shell=False, **options)
+        timeout = deadline - time.monotonic()
+        if timeout <= 0:
+            raise ValueError("Rasterization exhausted its time budget.")
+    subprocess.run(_command(backend, executable, dpi, pages), timeout=timeout, check=True, shell=False, **options)
 
 
 def render_pdf_to_pngs(
@@ -209,11 +238,7 @@ def render_pdf_to_pngs(
             for key in tuple(settings):
                 if key.upper() in {"GS_OPTIONS", "GS_LIB", "GS_DEVICE"}:
                     settings.pop(key)
-            subprocess.run(
-                _command(backend, executable, dpi, max_pages), cwd=scratch, env=settings,
-                timeout=min(timeout, 30.0), shell=False, check=True,
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
+            _run_rasterizer(backend, executable, dpi, max_pages, scratch, settings, min(timeout, 30.0))
             return PdfRasterResult(_publish_pages(scratch, out_dir, max_pages), backend, dpi)
     except (OSError, ValueError, struct.error, subprocess.SubprocessError, ImportError):
         return PdfRasterResult([], None, dpi, "PDF pages could not be rendered safely. Check the preview directory and local rasterizer.")

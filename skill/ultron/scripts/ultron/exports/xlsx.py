@@ -20,7 +20,7 @@ from ultron.exports.xlsx_styles import (
     workbook_styles,
     write_table,
 )
-from ultron.infra.fs import atomic_create_bytes
+from ultron.infra.fs import atomic_create_bytes, atomic_write_bytes
 from ultron.storage import runs
 
 _MISSING = "openpyxl not installed: reinstall ULTRON with the xlsx extra"
@@ -188,8 +188,8 @@ def _companies_sheet(ws, rows, mode, styles):
     write_table(ws, cols, rows, styles, table_name="CompaniesTable")
 
 
-def export_run_to_excel(run_id: str, out_path: Path | str | None = None) -> Path:
-    """Write a new workbook for a finalized run, preserving any existing destination."""
+def export_run_to_excel(run_id: str, out_path: Path | str | None = None, *, force: bool = False) -> Path:
+    """Write a workbook for a finalized run, replacing an existing destination only with force."""
     try:
         from openpyxl import Workbook
     except ImportError as exc:
@@ -226,8 +226,11 @@ def export_run_to_excel(run_id: str, out_path: Path | str | None = None) -> Path
         target.parent.mkdir(parents=True, exist_ok=True)
         with BytesIO() as content:
             wb.save(content)
-            if not atomic_create_bytes(target, content.getvalue()):
-                raise FileExistsError(f"Workbook already exists; choose a new output path: {target}")
+            payload = content.getvalue()
+            if force:
+                atomic_write_bytes(target, payload)
+            elif not atomic_create_bytes(target, payload):
+                raise FileExistsError(f"Workbook already exists: {target}. Choose a new output path or use --force.")
     finally:
         wb.close()
     return target

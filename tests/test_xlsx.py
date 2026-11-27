@@ -174,3 +174,27 @@ def test_reexport_leaves_an_edited_workbook_intact(run_id):
     with pytest.raises(FileExistsError):
         xlsx.export_run_to_excel(run_id)
     assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("custom_output", [False, True])
+def test_cli_xlsx_force_explicitly_replaces_an_existing_workbook(run_id, capsys, tmp_path, custom_output):
+    target = tmp_path / "custom.xlsx" if custom_output else runs.run_dir(run_id) / "results.xlsx"
+    command = ["export", "xlsx", "--run", run_id]
+    if custom_output:
+        command += ["--out", str(target)]
+    assert main(command) == 0
+    capsys.readouterr()
+    wb = load_workbook(target)
+    wb["Summary"]["A1"] = "Manual edit"
+    wb.save(target)
+    wb.close()
+    original = target.read_bytes()
+    assert main(command) != 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["error"] == "export_failed" and "--force" in str(status)
+    assert target.read_bytes() == original
+    assert main([*command, "--force"]) == 0
+    assert json.loads(capsys.readouterr().out)["path"] == str(target)
+    wb = load_workbook(target)
+    assert wb["Summary"]["A1"].value != "Manual edit"
+    wb.close()

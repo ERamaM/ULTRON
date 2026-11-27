@@ -415,3 +415,24 @@ def test_restore_retains_a_note_acknowledged_during_safety_backup(monkeypatch):
         observed = [conn.execute("SELECT notes FROM jobs WHERE identity_key = 'k1'").fetchone()[0]
                     for conn in (live, backup)]
     assert any("synthetic committed edit" in notes for notes in observed)
+
+
+def test_data_purge_uses_the_ledger_lock_and_keeps_it_for_reuse():
+    run_id = _mk_run()
+    db = home.ultron_home() / "ultron.sqlite3"
+    lock = ledger.lock_path(db)
+    lock_bytes = lock.read_bytes()
+    with closing(ledger.connect()) as conn:
+        assert maintenance.purge(yes=False)["preview"]
+        with pytest.raises(maintenance.MaintenanceError) as error:
+            maintenance.purge(yes=True, force=True)
+        assert error.value.code == "ledger_busy"
+        assert db.is_file() and runs.run_dir(run_id).is_dir()
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (1,)
+
+    purged = maintenance.purge(yes=True)
+    assert str(db) in purged["deleted"]
+    assert str(lock) not in purged["deleted"]
+    assert not db.exists() and lock.read_bytes() == lock_bytes
+    with closing(ledger.connect()) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (0,)

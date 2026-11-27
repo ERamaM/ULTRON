@@ -59,7 +59,7 @@ def test_all_ok_with_mock_network(_clean_env):
     checks = doctor.run_checks()
     assert [c.id for c in checks] == [
         "python_version", "ultron_home_writable", "db_schema", "optional_extras",
-        "skill_installed", "web_search", "network_dns", "network_https",
+        "skill_installed", "web_search", "docx_pdf_renderer", "network_dns", "network_https",
     ]
     assert all(c.ok for c in checks), [c for c in checks if not c.ok]
 
@@ -115,6 +115,7 @@ def test_public_diagnostic_contains_known_statuses_without_local_details(monkeyp
         return [
             doctor.Check("python_version", True, "Python available"),
             doctor.Check("ultron_home_writable", False, "/home/sample/private/profile.yaml", "Private path"),
+            doctor.Check("docx_pdf_renderer", True, "LibreOffice available"),
             doctor.Check("sample@example.invalid", True, "Unexpected check"),
         ]
 
@@ -126,6 +127,7 @@ def test_public_diagnostic_contains_known_statuses_without_local_details(monkeyp
     assert payload["checks"] == [
         {"id": "python_version", "ok": True},
         {"id": "ultron_home_writable", "ok": False},
+        {"id": "docx_pdf_renderer", "ok": True},
     ]
 
 
@@ -278,3 +280,13 @@ def test_only_registered_link_must_point_to_a_live_directory(tmp_path, _clean_en
         main(["doctor", "--no-network", *options])
         checks = json.loads(capsys.readouterr().out)["checks"]
         assert next(check for check in checks if check["id"] == "skill_installed")["ok"] is False
+
+
+
+@pytest.mark.parametrize(("backend", "label"), [("word", "Microsoft Word"), ("libreoffice", "LibreOffice")])
+def test_docx_renderer_is_informational(monkeypatch, backend, label):
+    fallback = doctor.check_docx_pdf_renderer()
+    assert fallback.ok and "estimation" in fallback.detail and "LibreOffice" in fallback.fix
+    monkeypatch.setattr(doctor.docx_pdf, "detect_pdf_converter", lambda: (backend, "unused"))
+    detected = doctor.check_docx_pdf_renderer()
+    assert detected.ok and label in detected.detail

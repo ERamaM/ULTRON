@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ultron.core.privacy import redact
+from ultron.cv import docx_pages
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
@@ -82,12 +83,12 @@ def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]
 
 def _inspect_docx(content: bytes) -> tuple[str, int, str, dict[str, Any]]:
     report = cv_docx.inspect_docx(content, max_chars=cv_docx.MAX_RAW_TEXT_CHARS)
-    if report.pages > cv.MAX_CV_PAGES:
-        raise cv.CvPdfTooManyPages(cv.MAX_CV_PAGES)
     clean = cv._clean_text(report.text, cv.MAX_CV_CHARS)
+    count = docx_pages.measure_docx_pages(content, report=report)
     meta = asdict(report)
     meta.pop("text", None)
-    return clean, report.pages, "docx", meta
+    meta.update(count.metadata(), pages=count.pages)
+    return clean, count.pages, "docx", meta
 
 
 def _write_extracted_text(source: Path, text: str) -> Path:
@@ -187,10 +188,18 @@ def _audit_content(
 
 def render_audit_markdown(audit: dict[str, Any]) -> str:
     """Render an ATS audit payload into a clean Markdown report."""
+    page_source = audit.get("page_count_source")
+    page_note = {
+        "pdf_render": "verified via pdf_render",
+        "docx_rendered_breaks": "from saved Word page breaks",
+        "docx_app_props": "from saved Word document properties",
+        "estimated": "estimated",
+    }.get(page_source)
+    page_details = f"{audit['pages']} page(s)" + (f", {page_note}" if page_note else "")
     lines = [
         "# ATS CV Audit Report",
         "",
-        f"- **Source file:** `{audit['source_file']}` (`{audit['file_type']}`, {audit['pages']} page(s))",
+        f"- **Source file:** `{audit['source_file']}` (`{audit['file_type']}`, {page_details})",
         f"- **Target mode:** `{audit['target']['mode']}`",
         f"- **Overall ATS score:** **{audit['score']}/100**",
         f"- **Format tier:** `{audit['format_tier']}`",
@@ -322,6 +331,11 @@ def _score_cv(
         total_score = min(100, format_score + struct_score + content_score + align_score)
 
     all_findings = format_findings + content_findings
+    if format_meta.get("page_count_source") == "estimated":
+        all_findings.append(finding(
+            "page_count_estimated", "info", "format", "The DOCX page count is estimated.",
+            "Use LibreOffice or Microsoft Word to verify the page count with a local PDF.",
+        ))
     if alignment["missing"]:
         all_findings.append(
             finding(
@@ -337,6 +351,7 @@ def _score_cv(
     return {
         "file_type": file_type,
         "pages": pages,
+        **{key: value for key, value in format_meta.items() if key.startswith("page_count_")},
         "chars": len(text),
         "score": total_score,
         "format_tier": format_tier,

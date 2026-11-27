@@ -14,7 +14,7 @@ from pathlib import Path
 
 import ultron
 from ultron.core.web_search.ddgs_client import available as ddgs_available
-from ultron.infra import installs
+from ultron.infra import docx_pdf, installs
 from ultron.infra.net import HttpClient
 from ultron.infra.platforms import (
     PLATFORM_LABELS,
@@ -35,7 +35,7 @@ NETWORK_TIMEOUT = 10.0
 PLATFORMS_DOC = "references/platforms.md"
 PUBLIC_CHECK_IDS = frozenset({
     "python_version", "ultron_home_writable", "db_schema", "optional_extras",
-    "skill_installed", "network_dns", "network_https",
+    "skill_installed", "network_dns", "network_https", "docx_pdf_renderer",
 })
 
 
@@ -215,10 +215,23 @@ def check_web_search(*, network: bool) -> Check:
     return Check("web_search", True, provider, fix)
 
 
+def check_docx_pdf_renderer() -> Check:
+    """Report local DOCX pagination options without making Office a requirement."""
+    detected = docx_pdf.detect_pdf_converter()
+    if detected is not None:
+        backend, _ = detected
+        label = "LibreOffice" if backend == "libreoffice" else "Microsoft Word"
+        return Check("docx_pdf_renderer", True, f"{label} available for exact .docx page counts.")
+    return Check(
+        "docx_pdf_renderer", True, "DOCX page counts use saved metadata or estimation.",
+        "Install LibreOffice to verify DOCX page counts using a local PDF.",
+    )
+
+
 def run_checks(*, network: bool = True) -> list[Check]:
     """Run environment, storage, installation, and optional network checks."""
     checks = [check_python(), check_home_writable(), check_db_schema(), check_extras(), check_skill_installed(),
-              check_web_search(network=network)]
+              check_web_search(network=network), check_docx_pdf_renderer()]
     if network:
         checks.append(check_network_dns(os.environ, http_factory.TEST_OVERRIDES.get("resolver")))
         checks.append(check_network_https(os.environ))

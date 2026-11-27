@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from ultron.cover_letter.draft import (
     parse_json_cover_letter,
     parse_markdown_cover_letter,
 )
+from ultron.cv import docx_pages
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
@@ -137,6 +139,8 @@ def build_cover_letter_docx(
     if template_file is None and (report.table_count > 0 or report.textbox_count > 0 or report.multi_column_sections > 0):
         raise ValueError("generated bundled cover letter violated single-column ATS constraints")
 
+    # Cover-letter length is advisory, so it does not use the CV page cap.
+    count = docx_pages.measure_docx_pages(docx_bytes, report=report, max_pages=sys.maxsize)
     fs.atomic_write_bytes(target_docx, docx_bytes)
     written_md: str | None = None
     if target_md is not None:
@@ -155,7 +159,12 @@ def build_cover_letter_docx(
         if template_file is None
         else "template",
         "bytes": len(docx_bytes),
+        "pages": count.pages,
+        **({"warning": f"The cover letter spans {count.pages} pages ({count.source}). Aim for one page."}
+           if count.pages > 1 else {}),
         "layout": {
+            "pages": count.pages,
+            **count.metadata(),
             "tables": report.table_count,
             "textboxes": report.textbox_count,
             "multi_column_sections": report.multi_column_sections,

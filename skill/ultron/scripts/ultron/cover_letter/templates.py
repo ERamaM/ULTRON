@@ -627,6 +627,9 @@ def _substitute_xml_part(
 
     if any(dom.getElementsByTagNameNS(_W_NS, tag) for tag in _REVIEW_MARKUP):
         raise ValueError("unsupported custom template review markup")
+    # Text substitution invalidates the template's saved layout, and paragraph expansion can clone it.
+    for saved_break in dom.getElementsByTagNameNS(_W_NS, "lastRenderedPageBreak"):
+        saved_break.parentNode.removeChild(saved_break)
     paragraphs = list(dom.getElementsByTagNameNS(_W_NS, "p"))
     for p_node in paragraphs:
         runs = _direct_runs(p_node)

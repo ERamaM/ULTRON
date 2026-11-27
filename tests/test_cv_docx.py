@@ -28,7 +28,7 @@ def _paragraph(*runs: str) -> str:
     return "<w:p>" + "".join(f"<w:r><w:t xml:space=\"preserve\">{text}</w:t></w:r>" for text in runs) + "</w:p>"
 
 
-def build_docx(document_xml: str, *, extra: dict[str, str | bytes] | None = None) -> bytes:
+def build_docx(document_xml: str | bytes, *, extra: dict[str, str | bytes] | None = None) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", "<Types/>")
@@ -212,7 +212,7 @@ def test_deep_nesting_fails_fast_with_a_bounded_error(tmp_path, monkeypatch):
 def test_the_default_budgets_reject_millions_of_empty_siblings():
     body = _document("<w:p>" + "<w:r/>" * (cv_docx.MAX_XML_ELEMENTS + 10) + "</w:p>").encode()
     with pytest.raises(cv.CvExtractionError) as raised:
-        cv_docx._text(body)
+        cv_docx.inspect_docx(build_docx(body))
     assert raised.value.code == "too_long"
 
 def test_a_tag_with_huge_attribute_volume_is_rejected_before_parsing(tmp_path, monkeypatch):
@@ -252,7 +252,7 @@ def test_a_text_run_of_millions_of_separators_fails_while_parsing(tmp_path):
 def test_many_empty_paragraphs_count_toward_the_raw_text_budget():
     body = _document("<w:p/>" * 1_000).encode()
     with pytest.raises(cv.CvExtractionError) as raised:
-        cv_docx._text(body, max_chars=500)
+        cv_docx.inspect_docx(build_docx(body), max_chars=500)
     assert raised.value.code == "too_long"
 
 
@@ -301,3 +301,31 @@ def test_an_encrypted_body_member_is_an_extraction_error(tmp_path):
     with pytest.raises(cv.CvExtractionError) as raised:
         cv.extract_cv(_write(tmp_path, "cv.docx", bytes(content)))
     assert raised.value.code == "no_extractable_text"
+
+
+
+_APP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"
+
+
+@pytest.mark.parametrize(("saved", "app", "pages"), [(2, 9, 3), (0, 4, 4), (0, 1, 2), (0, 0, 2)])
+def test_word_saved_pagination_metadata(tmp_path, saved, app, pages):
+    body = _paragraph("Page one") + '<w:p><w:r><w:br w:type="page"/></w:r></w:p>'
+    body += "<w:p><w:r>" + "<w:lastRenderedPageBreak/>" * saved + "<w:t>Skills</w:t></w:r></w:p>"
+    content = build_docx(_document(body), extra={
+        "docProps/app.xml": f'<Properties xmlns="{_APP_NS}"><Pages>{app}</Pages></Properties>',
+    })
+    report = cv_docx.inspect_docx(content)
+    assert report.pages == pages
+    assert report.explicit_page_breaks == 1 and report.rendered_page_breaks == saved
+    assert report.app_pages == (app or None)
+    assert cv.extract_cv(_write(tmp_path, "cv.docx", content)).pages == pages
+
+
+@pytest.mark.parametrize("app_xml", [
+    '<!DOCTYPE a [<!ENTITY x SYSTEM "https://example.invalid/">]><a>&x;</a>',
+    b" " * (cv_docx.MAX_AUX_XML_BYTES + 1),
+])
+def test_invalid_app_xml_is_rejected_by_bounded_parser(app_xml):
+    content = build_docx(_document(_paragraph("Skills")), extra={"docProps/app.xml": app_xml})
+    with pytest.raises(cv.CvExtractionError):
+        cv_docx.inspect_docx(content)

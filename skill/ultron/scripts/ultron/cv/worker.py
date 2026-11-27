@@ -1,4 +1,4 @@
-"""Bounded PDF page-text extraction for a hard-timeout child process (``python -s -P -m ultron.cv.worker``).
+"""Bounded PDF pagination and page-text extraction for a hard-timeout child process (``python -s -P -m ultron.cv.worker``).
 
 The parent owns the lifetime of this process. This module exits 0 unless the
 interpreter itself fails, and reports the outcome as one JSON object on stdout.
@@ -221,17 +221,31 @@ def extract_pdf_pages_text(content: bytes, *, max_pages: int, max_chars: int) ->
     return pages
 
 
+def _open_pdf(content: bytes):
+    from ultron.cv.extract import CvDependencyMissing
+
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise CvDependencyMissing() from exc
+    return PdfReader(BytesIO(content))
+
+
+def _bounded_page_count(reader, max_pages: int) -> int:
+    from ultron.cv.extract import CvPdfTooManyPages
+
+    count = len(reader.pages)
+    if count > max_pages:
+        raise CvPdfTooManyPages(max_pages)
+    return count
+
+
 def extract_pdf_inspection(
     content: bytes, *, max_pages: int, max_chars: int, collect_metadata: bool = True
 ) -> tuple[list[str], dict[str, object]]:
     """Return ``(pages, inspection_metadata)`` while enforcing page and character budgets."""
 
-    from ultron.cv.extract import CvDependencyMissing, CvExtractionError, CvPdfTooManyPages, CvTextTooLong
-
-    try:
-        from pypdf import PdfReader
-    except ImportError as exc:  # optional dependency: ultron[cv]
-        raise CvDependencyMissing() from exc
+    from ultron.cv.extract import CvExtractionError, CvTextTooLong
 
     two_col_pages: list[int] = []
     rotated_pages: list[int] = []
@@ -243,13 +257,11 @@ def extract_pdf_inspection(
     raw_replacement = 0
 
     try:
-        reader = PdfReader(BytesIO(content))
-        pages = reader.pages
-        if len(pages) > max_pages:
-            raise CvPdfTooManyPages(max_pages)
+        reader = _open_pdf(content)
+        page_count = _bounded_page_count(reader, max_pages)
         chunks: list[str] = []
         used_chars = 0
-        for idx, page in enumerate(pages, start=1):
+        for idx, page in enumerate(reader.pages, start=1):
             if collect_metadata:
                 raw_text, is_two_col, is_rotated = _inspect_page_text(page)
                 if is_two_col:
@@ -285,11 +297,11 @@ def extract_pdf_inspection(
         raise CvExtractionError("Could not extract text from PDF", code="no_extractable_text") from exc
 
     if not collect_metadata:
-        return chunks, {"page_count": len(pages)}
+        return chunks, {"page_count": page_count}
 
     raw_meta = getattr(reader, "metadata", None)
     metadata: dict[str, object] = {
-        "page_count": len(pages),
+        "page_count": page_count,
         "is_encrypted": bool(getattr(reader, "is_encrypted", False)),
         "producer": _meta_str(raw_meta, "/Producer"),
         "creator": _meta_str(raw_meta, "/Creator"),
@@ -305,22 +317,23 @@ def extract_pdf_inspection(
     return chunks, metadata
 
 
-def _limits(argv: list[str]) -> tuple[int, int, bool]:
-    """Read max_pages, max_chars and optional ``--inspect`` flag from argv."""
+def _limits(argv: list[str]) -> tuple[int, int, str]:
+    """Read max_pages, max_chars and the optional worker mode."""
 
-    if len(argv) == 3:
-        return int(argv[1]), int(argv[2]), False
-    if len(argv) == 4 and argv[3] == "--inspect":
-        return int(argv[1]), int(argv[2]), True
-    raise ValueError("PDF worker requires max_pages and max_chars (and optional --inspect)")
+    mode = argv[3] if len(argv) == 4 else ""
+    if len(argv) not in (3, 4) or mode not in ("", "--inspect", "--count-pages"):
+        raise ValueError("Invalid PDF worker arguments")
+    return int(argv[1]), int(argv[2]), mode
 
 
-def _payload(content: bytes, max_pages: int, max_chars: int, *, inspect: bool = False) -> dict[str, object]:
+def _payload(content: bytes, max_pages: int, max_chars: int, *, mode: str = "") -> dict[str, object]:
     from ultron.cv.extract import CvDependencyMissing, CvPdfTooManyPages, CvTextTooLong
 
     try:
+        if mode == "--count-pages":
+            return {"page_count": _bounded_page_count(_open_pdf(content), max_pages)}
         pages, metadata = extract_pdf_inspection(
-            content, max_pages=max_pages, max_chars=max_chars, collect_metadata=inspect,
+            content, max_pages=max_pages, max_chars=max_chars, collect_metadata=mode == "--inspect",
         )
         return {"pages": pages, "metadata": metadata}
     except CvPdfTooManyPages as exc:
@@ -337,8 +350,8 @@ def main() -> None:
     """Read one PDF from stdin and write one JSON object to stdout."""
 
     try:
-        max_pages, max_chars, inspect = _limits(sys.argv)
-        payload = _payload(sys.stdin.buffer.read(), max_pages, max_chars, inspect=inspect)
+        max_pages, max_chars, mode = _limits(sys.argv)
+        payload = _payload(sys.stdin.buffer.read(), max_pages, max_chars, mode=mode)
     except Exception:
         payload = {"error": "extract_failed"}
     sys.stdout.buffer.write(json.dumps(payload).encode("utf-8"))

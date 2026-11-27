@@ -1014,3 +1014,30 @@ def test_custom_template_refreshes_standard_metadata_and_preserves_a_hyperlink(t
         assert b"Former organization" not in output.read("docProps/app.xml")
         assert b"https://example.test/portfolio" in output.read("word/_rels/document.xml.rels")
         assert b"Portfolio" in output.read("word/document.xml")
+
+
+
+@pytest.mark.parametrize("manual_break", [False, True])
+def test_custom_letter_discards_template_pagination_before_expansion(tmp_path, manual_break):
+    template = tmp_path / "template.docx"
+    explicit = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>' if manual_break else ""
+    document = (
+        f'<w:document xmlns:w="{W_NS}"><w:body>{explicit}'
+        '<w:p><w:r><w:lastRenderedPageBreak/><w:t>{{paragraphs}}</w:t></w:r></w:p>'
+        '</w:body></w:document>'
+    )
+    template.write_bytes(_make_custom_docx(document, extra={
+        "docProps/app.xml": '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
+                             '<Pages>9</Pages></Properties>',
+    }))
+    draft = tmp_path / "draft.md"
+    draft.write_text("Dear team,\n\nOpening sentence.\n\n" + "Example body paragraph.\n\n" * 12 + "Best regards,\nJane Example")
+    output = tmp_path / "letter.docx"
+    payload = builder.build_cover_letter_docx(draft, template_file=template, out_path=output)
+
+    report = cv_docx.inspect_docx(output.read_bytes())
+    assert report.rendered_page_breaks == 0 and report.app_pages is None
+    assert report.explicit_page_breaks == int(manual_break)
+    assert payload["layout"]["page_count_source"] == "estimated"
+    assert payload["pages"] == 1 + int(manual_break)
+    assert ("warning" in payload) == manual_break

@@ -1,5 +1,12 @@
 # Tailored Cover Letter Workflow (`ultron cover-letter`)
 
+Use `--preview` when building and pass `--page-size a4` or `--page-size letter` for bundled
+templates so the letter matches the CV. A custom template controls its own page size.
+Open every PNG in `preview.images` with vision. Check for one balanced page, clean margins,
+legible text, and spillover. Make at most three review passes and repeat strict truth verification
+if the text changes. If images are unavailable, report that visual review was skipped, explain
+the local tool hint in `warnings`, and still deliver the DOCX.
+
 Check `pages` and `page_count_source` (in `layout` for cover letters) after generating a DOCX. `pdf_render` means the count was verified against a temporary local PDF rendered with LibreOffice or Microsoft Word. Otherwise, ULTRON uses saved Word pagination or marks the count as `estimated`. Flag letters that exceed one page and use the source when describing an estimate.
 
 ULTRON drafts tailored, truthful cover letters from a verified CV and a target job or search profile, verifies every claim against the source CV, and exports clean Word (`.docx`) files.

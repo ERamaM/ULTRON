@@ -23,6 +23,8 @@ import zlib
 from dataclasses import dataclass, field
 from xml.parsers import expat
 
+from ultron.cv.docx_layout import WORD_NS, DocxLayoutMetrics
+
 MAX_ARCHIVE_ENTRIES = 2_000
 MAX_DOCUMENT_XML_BYTES = 25_000_000
 MAX_AUX_XML_BYTES = 1_000_000
@@ -40,7 +42,7 @@ _APP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/extended-proper
 _APP_PAGES = f"{_APP_NS}Pages"
 _STYLES = "word/styles.xml"
 _COMMENTS = "word/comments.xml"
-_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
+_W = WORD_NS + " "
 _A = "http://schemas.openxmlformats.org/drawingml/2006/main "
 _V = "urn:schemas-microsoft-com:vml "
 _MC_FALLBACK = "http://schemas.openxmlformats.org/markup-compatibility/2006 Fallback"
@@ -91,6 +93,16 @@ class DocxStructureReport:
     rendered_page_breaks: int = 0
     app_pages: int | None = None
     heading_paragraph_count: int = 0
+    page_width_twips: int | None = None
+    page_height_twips: int | None = None
+    margin_twips: int | None = None
+    header_align: str = "left"
+    accent_color: str = ""
+    has_section_borders: bool = False
+    has_shaded_headings: bool = False
+    has_caps_headings: bool = False
+    has_right_tabs: bool = False
+    dominant_font: str = ""
 
 
 def _error(message: str, code: str = "no_extractable_text"):
@@ -151,7 +163,7 @@ def _xml_page_count(body: _BodyText, app_pages: int | None) -> int:
 class _BodyText:
     """Streaming expat handlers: no tree is built, so memory stays bounded by the nesting depth."""
 
-    def __init__(self, max_chars: int) -> None:
+    def __init__(self, max_chars: int, layout: DocxLayoutMetrics | None = None) -> None:
         self.max_chars = max_chars  # raw text budget, enforced while parsing (before any normalization)
         self.chars = 0
         self.lines: list[str] = []
@@ -160,6 +172,7 @@ class _BodyText:
         self.explicit_page_breaks = 0
         self.rendered_page_breaks = 0
         self.heading_paragraph_count = 0
+        self.layout = layout
         self.app_pages: int | None = None
         self._app_page_parts: list[str] | None = None
         self.elements = 0
@@ -233,6 +246,8 @@ class _BodyText:
         if self.skipped:
             return
         self._record_structure(name, attributes)
+        if self.layout is not None:
+            self.layout.start(name, attributes)
         if name == _W_P:
             # A paragraph nested in another (a text box) ends the outer paragraph's text so far.
             if self.stack and self.stack[-1]:
@@ -269,6 +284,8 @@ class _BodyText:
                 if 0 < pages <= 2_147_483_647:
                     self.app_pages = pages
             self._app_page_parts = None
+        if self.layout is not None:
+            self.layout.end(name)
         if name == _W_P and self.stack:
             self._line(self.stack.pop())
         elif name == _W_T:
@@ -279,6 +296,8 @@ class _BodyText:
             self._count(len(data))
             self._app_page_parts.append(data)
         if self.in_text and not self.skipped:
+            if self.layout is not None:
+                self.layout.characters(data)
             for ch in data:
                 code = ord(ch)
                 if 0xE000 <= code <= 0xF8FF or 0xFB00 <= code <= 0xFB06 or ch in _ZERO_WIDTH_CHARS:
@@ -316,7 +335,9 @@ def _check_tag_sizes(body: bytes) -> None:
         raise _error("The Word document body has an oversized tag", code="too_long")
 
 
-def _parse_xml_body(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, _BodyText]:
+def _parse_xml_body(
+    body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS, *, layout: DocxLayoutMetrics | None = None,
+) -> tuple[str, _BodyText]:
     """Parse one OOXML part with bounded streaming expat handlers."""
     # Word writes the body as UTF-8. A UTF-16 body (NUL bytes) could hide a declaration from the byte check.
     if b"\x00" in body or body.startswith((b"\xff\xfe", b"\xfe\xff")):
@@ -324,7 +345,7 @@ def _parse_xml_body(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[s
     if _DOCTYPE.search(body):
         _reject_declaration()
     _check_tag_sizes(body)
-    handlers = _BodyText(max_chars)
+    handlers = _BodyText(max_chars, layout)
     parser = expat.ParserCreate(encoding="UTF-8", namespace_separator=" ")
     parser.StartElementHandler = handlers.start
     parser.EndElementHandler = handlers.end
@@ -360,7 +381,8 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
     archive, entries = _open_archive(content)
     with archive:
         body_bytes = _read_member(archive, _BODY, MAX_DOCUMENT_XML_BYTES)
-        text, body_handlers = _parse_xml_body(body_bytes, max_chars)
+        body_layout = DocxLayoutMetrics()
+        text, body_handlers = _parse_xml_body(body_bytes, max_chars, layout=body_layout)
 
         app_pages = _read_app_pages(archive)
         entry_names = [entry.filename for entry in entries]
@@ -368,15 +390,16 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         has_comments = any(name.lower() == _COMMENTS for name in entry_names)
         hf_names = sorted(name for name in entry_names if _HEADER_FOOTER_RE.match(name))[:MAX_HEADER_FOOTER_PARTS]
 
+        style_layout = DocxLayoutMetrics()
         fonts = list(body_handlers.fonts)
-        if _STYLES in entry_names and len(fonts) < MAX_FONTS:
+        if _STYLES in entry_names:
             styles_bytes = _read_member(archive, _STYLES, MAX_AUX_XML_BYTES)
-            _styles_text, style_handlers = _parse_xml_body(styles_bytes, MAX_AUX_XML_BYTES)
+            _styles_text, style_handlers = _parse_xml_body(styles_bytes, MAX_AUX_XML_BYTES, layout=style_layout)
             for font in style_handlers.fonts:
+                if len(fonts) >= MAX_FONTS:
+                    break
                 if font not in fonts:
                     fonts.append(font)
-                    if len(fonts) >= MAX_FONTS:
-                        break
 
         hf_chars = 0
         hf_has_contact = False
@@ -408,4 +431,5 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         rendered_page_breaks=body_handlers.rendered_page_breaks,
         app_pages=app_pages,
         heading_paragraph_count=body_handlers.heading_paragraph_count,
+        **body_layout.report_fields(style_layout),
     )

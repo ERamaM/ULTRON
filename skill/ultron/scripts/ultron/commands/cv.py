@@ -10,6 +10,7 @@ from ultron.commands.output import emit, fail
 from ultron.cv import ats as cv_ats
 from ultron.cv import docx_writer as cv_docx_writer
 from ultron.cv import extract as cv
+from ultron.cv import layout_profile, preview
 from ultron.cv import truth as cv_truth
 from ultron.infra import home
 from ultron.storage import runs
@@ -80,13 +81,39 @@ def _verify_truth(args: argparse.Namespace) -> int:
     return run_verify_truth(_run, strict=args.strict)
 
 
+def _preview(args: argparse.Namespace) -> int:
+    try:
+        payload = preview.preview_cv(
+            Path(args.path), out_dir=Path(args.out_dir) if args.out_dir else None,
+            dpi=args.dpi, max_pages=args.max_pages,
+        )
+    except cv.CvExtractionError as exc:
+        return fail(exc.code, str(exc))
+    except (OSError, ValueError) as exc:
+        return fail("invalid_value", str(exc))
+    emit(payload)
+    return 0
+
+
 def _build_docx(args: argparse.Namespace) -> int:
     def _run():
         confirmed = cv_truth.load_confirmed_facts(Path(args.confirmed) if args.confirmed else None)
+        overrides = layout_profile.load_layout_overrides(Path(args.layout)) if args.layout else {}
+        overrides.update({
+            key: getattr(args, key) for key in (*layout_profile.LAYOUT_CHOICES, "accent_color")
+            if getattr(args, key) is not None
+        })
+        if not args.preview and (args.preview_dir or args.dpi != 144):
+            raise ValueError("--preview-dir and --dpi require --preview.")
         return cv_docx_writer.build_ats_docx(
             Path(args.source),
             out_path=Path(args.out) if args.out else None,
             font=args.font,
+            layout_overrides=overrides,
+            match_source_layout=args.match_source_layout,
+            preview_output=args.preview,
+            preview_dir=Path(args.preview_dir) if args.preview_dir else None,
+            dpi=args.dpi,
             force=args.force,
             source_cv=Path(args.source_cv) if args.source_cv else None,
             confirmed_facts=confirmed,
@@ -132,6 +159,13 @@ def register(subparsers) -> None:
     verify.add_argument("--strict", action="store_true", help="exit 1 if any truthfulness violation is detected")
     verify.set_defaults(func=_verify_truth)
 
+    visualize = sub.add_parser("preview", help="render a local PDF reference and PNG images for a DOCX or PDF CV")
+    visualize.add_argument("path")
+    visualize.add_argument("--out-dir")
+    visualize.add_argument("--dpi", type=int, default=144)
+    visualize.add_argument("--max-pages", type=int, default=cv.MAX_CV_PAGES)
+    visualize.set_defaults(func=_preview)
+
     build = sub.add_parser(
         "build-docx",
         help="build a clean single-column ATS-preferred .docx CV from a Markdown or JSON draft",
@@ -140,7 +174,15 @@ def register(subparsers) -> None:
     build.add_argument("--out", help="custom output .docx path (default: $ULTRON_HOME/cv/optimized/<stem>-ats.docx)")
     build.add_argument("--source-cv", help="optional original CV path to run verify-truth before/during build")
     build.add_argument("--confirmed", help="optional JSON or text file listing user-confirmed extra facts")
-    build.add_argument("--font", default="Calibri", help="ATS-safe font name (default: Calibri)")
+    build.add_argument("--font", help="override the ATS-safe layout font")
+    build.add_argument("--layout", help="JSON file containing layout overrides")
+    build.add_argument("--match-source-layout", action="store_true", help="detect safe layout cues from --source-cv")
+    for key, choices in layout_profile.LAYOUT_CHOICES.items():
+        build.add_argument("--" + key.replace("_", "-"), choices=choices)
+    build.add_argument("--accent-color", help="six hex RGB digits with sufficient contrast")
+    build.add_argument("--preview", action="store_true", help="save a local PDF reference and PNG page images")
+    build.add_argument("--preview-dir")
+    build.add_argument("--dpi", type=int, default=144)
     build.add_argument("--force", action="store_true", help="overwrite an existing .docx output file")
     build.add_argument("--strict", action="store_true", help="refuse to write .docx if verify-truth fails")
     build.set_defaults(func=_build_docx)

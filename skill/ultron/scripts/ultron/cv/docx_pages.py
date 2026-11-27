@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from ultron.cv import docx_reader, extract
@@ -24,6 +24,7 @@ class DocxPageCount:
     source: PageCountSource
     converter: str | None = None
     warning: str = ""
+    pdf_bytes: bytes | None = field(default=None, repr=False, compare=False)
 
     def metadata(self) -> dict[str, str | None]:
         """Return the provenance fields shared by audit and build outputs."""
@@ -55,16 +56,20 @@ def _fallback(report: docx_reader.DocxStructureReport, warning: str) -> DocxPage
 
 def measure_docx_pages(
     docx_bytes: bytes, *, report: docx_reader.DocxStructureReport | None = None,
-    max_pages: int = extract.MAX_CV_PAGES,
+    max_pages: int = extract.MAX_CV_PAGES, keep_pdf: bool = False,
 ) -> DocxPageCount:
     """Return the best available pagination, applying the caller's page cap."""
     if report is None:
         report = docx_reader.inspect_docx(docx_bytes)
     warning = ""
+    reference = None
     if rendered := docx_pdf.render_docx_to_pdf_bytes(docx_bytes):
         pdf, converter = rendered
+        reference = pdf if keep_pdf else None
         try:
-            return DocxPageCount(extract.count_pdf_pages(pdf, max_pages=max_pages), "pdf_render", converter)
+            return DocxPageCount(
+                extract.count_pdf_pages(pdf, max_pages=max_pages), "pdf_render", converter, pdf_bytes=reference,
+            )
         except extract.CvPdfTooManyPages:
             raise
         except extract.CvDependencyMissing:
@@ -74,4 +79,4 @@ def measure_docx_pages(
     result = _fallback(report, warning)
     if result.pages > max_pages:
         raise extract.CvPdfTooManyPages(max_pages)
-    return result
+    return replace(result, pdf_bytes=reference)

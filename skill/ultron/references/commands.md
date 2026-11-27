@@ -1,5 +1,10 @@
 # Commands
 
+Use `ultron cv preview <path>` to inspect the detected ATS-safe layout and local PDF/PNG previews
+for a DOCX or PDF. It accepts `--out-dir`, `--dpi`, and `--max-pages`. Both
+`ultron cv build-docx` and `ultron cover-letter build-docx` support `--preview`.
+See the CV and cover-letter references for visual review steps and layout options.
+
 Users can drive ULTRON with short commands grouped in five areas. A command is the words after the skill's name,
 however the platform invokes the skill: `/ultron jobs new` (Claude Code), `$ultron jobs new` (Codex), or a plain
 message such as `ultron jobs new` (OpenCode, Antigravity, or any agent that loads skills by itself). Treat all of them

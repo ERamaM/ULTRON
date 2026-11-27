@@ -14,7 +14,7 @@ from pathlib import Path
 
 import ultron
 from ultron.core.web_search.ddgs_client import available as ddgs_available
-from ultron.infra import docx_pdf, installs
+from ultron.infra import docx_pdf, installs, pdf_raster
 from ultron.infra.net import HttpClient
 from ultron.infra.platforms import (
     PLATFORM_LABELS,
@@ -35,7 +35,7 @@ NETWORK_TIMEOUT = 10.0
 PLATFORMS_DOC = "references/platforms.md"
 PUBLIC_CHECK_IDS = frozenset({
     "python_version", "ultron_home_writable", "db_schema", "optional_extras",
-    "skill_installed", "network_dns", "network_https", "docx_pdf_renderer",
+    "skill_installed", "network_dns", "network_https", "docx_pdf_renderer", "cv_visual_preview",
 })
 
 
@@ -228,10 +228,22 @@ def check_docx_pdf_renderer() -> Check:
     )
 
 
+def check_cv_visual_preview() -> Check:
+    """Report local PDF rasterizer availability without making it mandatory."""
+    detected = pdf_raster.detect_pdf_rasterizer()
+    if detected is not None:
+        backend, _ = detected
+        return Check("cv_visual_preview", True, f"{backend} available for local PDF page images.")
+    return Check(
+        "cv_visual_preview", True, "PDF page images are unavailable.",
+        "Install Poppler or pypdfium2 to enable visual previews.",
+    )
+
+
 def run_checks(*, network: bool = True) -> list[Check]:
     """Run environment, storage, installation, and optional network checks."""
     checks = [check_python(), check_home_writable(), check_db_schema(), check_extras(), check_skill_installed(),
-              check_web_search(network=network), check_docx_pdf_renderer()]
+              check_web_search(network=network), check_docx_pdf_renderer(), check_cv_visual_preview()]
     if network:
         checks.append(check_network_dns(os.environ, http_factory.TEST_OVERRIDES.get("resolver")))
         checks.append(check_network_https(os.environ))

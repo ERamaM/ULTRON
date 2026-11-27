@@ -1,5 +1,25 @@
 # ATS CV audit & optimization
 
+When optimizing an existing DOCX or PDF, run `ultron cv preview <source>` before drafting.
+Open each local PNG with vision and read `detected_layout`. Record paper size, target length,
+header alignment, section styling, accent, right-aligned dates, and density. Preserve
+ATS-safe cues. Use a single column and keep contact details in the document body. Leave out
+layout tables, grids, textboxes, images, photos, and skill bars.
+
+Build with `ultron cv build-docx --from <draft> --source-cv <source> --match-source-layout --preview`.
+Override detected cues with a partial JSON `--layout <file.json>` and/or explicit options.
+Options include `--page-size`, `--margins`, `--density`, `--header-align`,
+`--section-style`, `--accent-color`, `--date-layout`, and `--font`. The JSON can
+also set `body_size_pt`, `heading_size_pt`, and `name_size_pt`. Explicit options override JSON.
+Use `--preview-dir` or `--dpi` with `--preview` when needed.
+
+Inspect every PNG in `preview.images` before delivering. Check the intended page count,
+short overflow pages, orphaned headings, alignment with the source, clipping, awkward wraps,
+raw Markdown, and whitespace. Allow up to three build-and-review passes. Adjust layout first.
+If you change content, rerun `ultron cv verify-truth --strict` with the source and optimized draft
+before rebuilding. If images are unavailable, explain that visual review was skipped, relay
+the local tool hint from `warnings`, and still deliver the structurally verified DOCX.
+
 Check `pages` and `page_count_source` after generating a DOCX. `pdf_render` means the count was verified against a temporary local PDF rendered with LibreOffice or Microsoft Word. Otherwise, ULTRON uses saved Word pagination or marks the count as `estimated`. Flag CVs that exceed their target page length.
 
 Use this workflow when the user asks to evaluate, optimize, or convert a CV for Applicant Tracking

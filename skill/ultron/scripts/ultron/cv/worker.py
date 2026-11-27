@@ -250,7 +250,7 @@ def extract_pdf_inspection(
     two_col_pages: list[int] = []
     rotated_pages: list[int] = []
     chars_per_page: list[int] = []
-    fonts: set[str] = set()
+    font_frequency: Counter[str] = Counter()
     image_count = 0
     raw_ligatures = 0
     raw_pua = 0
@@ -276,7 +276,9 @@ def extract_pdf_inspection(
                         raw_pua += 1
                     elif code == 0xFFFD:
                         raw_replacement += 1
-                image_count += _walk_page_resources(page, fonts)
+                page_fonts: set[str] = set()
+                image_count += _walk_page_resources(page, page_fonts)
+                font_frequency.update(sorted(page_fonts))
             else:
                 raw_text = _page_text(page)
 
@@ -300,15 +302,19 @@ def extract_pdf_inspection(
         return chunks, {"page_count": page_count}
 
     raw_meta = getattr(reader, "metadata", None)
+    media_box = getattr(reader.pages[0], "mediabox", None) if page_count else None
     metadata: dict[str, object] = {
         "page_count": page_count,
+        "page_width_pt": float(media_box.width) if media_box is not None else None,
+        "page_height_pt": float(media_box.height) if media_box is not None else None,
         "is_encrypted": bool(getattr(reader, "is_encrypted", False)),
         "producer": _meta_str(raw_meta, "/Producer"),
         "creator": _meta_str(raw_meta, "/Creator"),
         "two_column_pages": two_col_pages,
         "rotated_text_pages": rotated_pages,
         "image_count": image_count,
-        "fonts": sorted(fonts),
+        "fonts": sorted(font_frequency)[:30],
+        "dominant_font": font_frequency.most_common(1)[0][0] if font_frequency else "",
         "raw_ligature_count": raw_ligatures,
         "private_use_glyph_count": raw_pua,
         "replacement_char_count": raw_replacement,

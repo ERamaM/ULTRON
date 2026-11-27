@@ -16,6 +16,7 @@ from defusedxml.common import DefusedXmlException
 
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import extract as cv
+from ultron.cv.layout_profile import PAGE_SIZES
 from ultron.infra import fs, ooxml
 
 
@@ -304,12 +305,15 @@ def _package_cover_letter_docx(
 
 
 def render_bundled_docx_bytes(
-    doc: CoverLetterFields, *, template_name: str = "modern", font: str | None = None
+    doc: CoverLetterFields, *, template_name: str = "modern", font: str | None = None, page_size: str = "letter",
 ) -> bytes:
     """Serialize ``doc`` into an ATS-safe single-column ``.docx`` using one of the bundled templates."""
     key = template_name.strip().lower()
     if key not in BUNDLED_TEMPLATES:
         raise ValueError(f"unknown template {template_name!r}; choose from {', '.join(BUNDLED_TEMPLATES)}")
+    if page_size not in PAGE_SIZES:
+        raise ValueError("page_size must be letter or a4.")
+    width, height = PAGE_SIZES[page_size]
     style = BUNDLED_TEMPLATES[key]
     safe_font = ooxml.resolve_safe_font(font or style["default_font"])
     links: list[tuple[str, str]] = []
@@ -320,7 +324,7 @@ def render_bundled_docx_bytes(
     ]
     body = (
         "".join(paragraphs)
-        + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
+        + f'<w:sectPr><w:pgSz w:w="{width}" w:h="{height}"/>'
         + '<w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" '
         + 'w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
     )

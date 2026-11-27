@@ -11,13 +11,15 @@ import io
 import json
 import re
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 from ultron.cv import ats as cv_ats
+from ultron.cv import docx_pages, docx_reader, layout_profile, preview
 from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
+from ultron.cv.layout_profile import MARGINS, PAGE_SIZES, CvLayoutStyle, merge_layout_overrides
 from ultron.infra import fs, home, ooxml
 
 WRITER_SAFE_FONTS = ooxml.WRITER_SAFE_FONTS
@@ -184,17 +186,37 @@ def parse_json_cv(data: dict[str, Any]) -> CvDocument:
     return CvDocument(name=name or "Candidate CV", headline=headline, contact=contact, sections=sections)
 
 
-def _styles_xml(font: str) -> str:
-    efont = ooxml.xml_escape(font)
+_DENSITY_SPACING = {
+    "compact": (40, 247, 120, 24, 247),
+    "normal": (60, 252, 160, 40, 240),
+    "spacious": (90, 269, 210, 65, 269),
+}
+
+
+def _section_decoration(layout: CvLayoutStyle) -> str:
+    if layout.section_style == "rule":
+        return f'<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="3" w:color="{layout.accent_color}"/></w:pBdr>'
+    if layout.section_style == "shaded":
+        return '<w:shd w:val="clear" w:fill="F3F5F7"/>'
+    return ""
+
+
+def _styles_xml(layout: CvLayoutStyle) -> str:
+    efont = ooxml.xml_escape(layout.font)
+    after, line, heading_before, bullet_after, bullet_line = _DENSITY_SPACING[layout.density]
+    body_size, heading_size, name_size = (round(size * 2) for size in (
+        layout.body_size_pt, layout.heading_size_pt, layout.name_size_pt,
+    ))
+    caps = "<w:caps/>" if layout.section_style == "caps" else ""
     rfonts = f'<w:rFonts w:ascii="{efont}" w:hAnsi="{efont}" w:cs="{efont}" w:eastAsia="{efont}"/>'
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:docDefaults><w:rPrDefault><w:rPr>'
         f"{rfonts}"
-        '<w:sz w:val="21"/><w:szCs w:val="21"/><w:color w:val="1F2937"/>'
+        f'<w:sz w:val="{body_size}"/><w:szCs w:val="{body_size}"/><w:color w:val="1F2937"/>'
         "</w:rPr></w:rPrDefault>"
-        '<w:pPrDefault><w:pPr><w:spacing w:after="60" w:line="252" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
+        f'<w:pPrDefault><w:pPr><w:spacing w:after="{after}" w:line="{line}" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
         "</w:docDefaults>"
         '<w:style w:type="paragraph" w:default="1" w:styleId="Normal">'
         '<w:name w:val="Normal"/>'
@@ -202,35 +224,51 @@ def _styles_xml(font: str) -> str:
         '<w:style w:type="paragraph" w:styleId="Heading1">'
         '<w:name w:val="heading 1"/><w:basedOn w:val="Normal"/>'
         '<w:pPr><w:keepNext/><w:spacing w:before="0" w:after="40"/></w:pPr>'
-        f'<w:rPr>{rfonts}<w:b/><w:color w:val="111827"/><w:sz w:val="34"/><w:szCs w:val="34"/></w:rPr>'
+        f'<w:rPr>{rfonts}<w:b/><w:color w:val="111827"/><w:sz w:val="{name_size}"/><w:szCs w:val="{name_size}"/></w:rPr>'
         "</w:style>"
         '<w:style w:type="paragraph" w:styleId="Heading2">'
         '<w:name w:val="heading 2"/><w:basedOn w:val="Normal"/>'
-        '<w:pPr><w:keepNext/><w:spacing w:before="160" w:after="60"/>'
-        '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="3" w:color="1F3A5F"/></w:pBdr></w:pPr>'
-        f'<w:rPr>{rfonts}<w:b/><w:color w:val="1F3A5F"/><w:sz w:val="23"/><w:szCs w:val="23"/></w:rPr>'
+        f'<w:pPr><w:keepNext/><w:spacing w:before="{heading_before}" w:after="{after}"/>'
+        f'{_section_decoration(layout)}</w:pPr>'
+        f'<w:rPr>{rfonts}<w:b/>{caps}<w:color w:val="{layout.accent_color}"/>'
+        f'<w:sz w:val="{heading_size}"/><w:szCs w:val="{heading_size}"/></w:rPr>'
         "</w:style>"
         '<w:style w:type="paragraph" w:styleId="ListParagraph">'
         '<w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/>'
-        '<w:pPr><w:ind w:left="360" w:hanging="180"/><w:spacing w:after="40" w:line="240" w:lineRule="auto"/></w:pPr>'
+        '<w:pPr><w:ind w:left="360" w:hanging="180"/>'
+        f'<w:spacing w:after="{bullet_after}" w:line="{bullet_line}" w:lineRule="auto"/></w:pPr>'
         "</w:style>"
         "</w:styles>"
     )
 
 
-def _render_document_xml(doc: CvDocument) -> tuple[str, list[tuple[str, str]]]:
+def _render_role(
+    title: str, date: str | None, links: list[tuple[str, str]], content_width: int,
+) -> str:
+    tabs = f'<w:tabs><w:tab w:val="right" w:pos="{content_width}"/></w:tabs>' if date else ""
+    role = ooxml.inline_runs_xml(title, links, bold=True, color="111827", size=22)
+    detail = ""
+    if date:
+        detail = "<w:r><w:tab/></w:r>" + ooxml.inline_runs_xml(date, links, italic=True, color="4B5563", size=20)
+    return f'<w:p><w:pPr><w:keepNext/>{tabs}<w:spacing w:before="100" w:after="20"/></w:pPr>{role}{detail}</w:p>'
+
+
+def _render_document_xml(doc: CvDocument, layout: CvLayoutStyle) -> tuple[str, list[tuple[str, str]]]:
     links: list[tuple[str, str]] = []
+    width, height = PAGE_SIZES[layout.page_size]
+    margin = MARGINS[layout.margins]
+    alignment = '<w:jc w:val="center"/>' if layout.header_align == "center" else ""
     paragraphs: list[str] = [
-        f'<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>{ooxml.run_xml(doc.name)}</w:p>'
+        f'<w:p><w:pPr><w:pStyle w:val="Heading1"/>{alignment}</w:pPr>{ooxml.run_xml(doc.name)}</w:p>'
     ]
     if doc.headline:
         paragraphs.append(
-            f'<w:p><w:pPr><w:spacing w:after="40"/></w:pPr>'
+            f'<w:p><w:pPr><w:spacing w:after="40"/>{alignment}</w:pPr>'
             f"{ooxml.inline_runs_xml(doc.headline, links, bold=True, color='374151', size=22)}</w:p>"
         )
     for line in doc.contact:
         paragraphs.append(
-            f'<w:p><w:pPr><w:spacing w:after="60"/></w:pPr>'
+            f'<w:p><w:pPr><w:spacing w:after="60"/>{alignment}</w:pPr>'
             f"{ooxml.inline_runs_xml(line, links, color='4B5563', size=20)}</w:p>"
         )
 
@@ -238,12 +276,16 @@ def _render_document_xml(doc: CvDocument) -> tuple[str, list[tuple[str, str]]]:
         paragraphs.append(
             f'<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr>{ooxml.run_xml(section.heading)}</w:p>'
         )
-        for block in section.blocks:
+        blocks = iter(section.blocks)
+        block = next(blocks, None)
+        while block is not None:
+            following = next(blocks, None)
             if block.kind == "subheading":
-                paragraphs.append(
-                    '<w:p><w:pPr><w:keepNext/><w:spacing w:before="100" w:after="20"/></w:pPr>'
-                    f"{ooxml.inline_runs_xml(block.text, links, bold=True, color='111827', size=22)}</w:p>"
-                )
+                date = None
+                if layout.date_layout == "right_tab" and following is not None and following.kind == "meta":
+                    date = following.text
+                    following = next(blocks, None)
+                paragraphs.append(_render_role(block.text, date, links, width - 2 * margin))
             elif block.kind == "meta":
                 paragraphs.append(
                     '<w:p><w:pPr><w:keepNext/><w:spacing w:after="40"/></w:pPr>'
@@ -258,11 +300,12 @@ def _render_document_xml(doc: CvDocument) -> tuple[str, list[tuple[str, str]]]:
                         '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>'
                         f"{ooxml.inline_runs_xml(item, links)}</w:p>"
                     )
+            block = following
 
     body = (
         "".join(paragraphs)
-        + '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>'
-        + '<w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080" '
+        + f'<w:sectPr><w:pgSz w:w="{width}" w:h="{height}"/>'
+        + f'<w:pgMar w:top="{margin}" w:right="{margin}" w:bottom="{margin}" w:left="{margin}" '
         + 'w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
     )
     xml = (
@@ -274,27 +317,53 @@ def _render_document_xml(doc: CvDocument) -> tuple[str, list[tuple[str, str]]]:
     return xml, links
 
 
-def render_docx_bytes(doc: CvDocument, *, font: str = "Calibri") -> bytes:
+def render_docx_bytes(doc: CvDocument, *, font: str | None = None, layout: CvLayoutStyle | None = None) -> bytes:
     """Serialize ``doc`` into a clean single-column OOXML ``.docx`` archive."""
-    safe_font = resolve_safe_font(font)
-    doc_xml, links = _render_document_xml(doc)
+    selected = layout if layout is not None else CvLayoutStyle()
+    if font is not None:
+        selected = merge_layout_overrides(selected, font=font)
+    doc_xml, links = _render_document_xml(doc, selected)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("[Content_Types].xml", ooxml.content_types_xml().encode("utf-8"))
         archive.writestr("_rels/.rels", ooxml.root_rels_xml().encode("utf-8"))
         archive.writestr("docProps/core.xml", ooxml.core_props_xml(doc.name).encode("utf-8"))
         archive.writestr("word/_rels/document.xml.rels", ooxml.document_rels_xml(links).encode("utf-8"))
-        archive.writestr("word/styles.xml", _styles_xml(safe_font).encode("utf-8"))
-        archive.writestr("word/numbering.xml", ooxml.numbering_xml(safe_font).encode("utf-8"))
+        archive.writestr("word/styles.xml", _styles_xml(selected).encode("utf-8"))
+        archive.writestr("word/numbering.xml", ooxml.numbering_xml(selected.font).encode("utf-8"))
         archive.writestr("word/document.xml", doc_xml.encode("utf-8"))
     return buf.getvalue()
+
+
+def _build_layout(
+    source: Path | None, layout: CvLayoutStyle | None, match_source: bool,
+    overrides: dict[str, Any] | None, font: str | None,
+) -> CvLayoutStyle:
+    selected = layout if layout is not None else CvLayoutStyle()
+    if match_source:
+        if source is None:
+            raise cv.CvExtractionError("--match-source-layout requires --source-cv", code="missing_source_cv")
+        detected = layout_profile.extract_layout_profile(source, file_type=source.suffix)
+        selected = CvLayoutStyle(**detected)
+        if layout is not None:
+            selected = merge_layout_overrides(selected, **asdict(layout))
+    values = dict(overrides or {})
+    if font is not None:
+        values["font"] = font
+    return merge_layout_overrides(selected, **values)
 
 
 def build_ats_docx(
     from_path: Path,
     out_path: Path | None = None,
     *,
-    font: str = "Calibri",
+    font: str | None = None,
+    layout: CvLayoutStyle | None = None,
+    match_source_layout: bool = False,
+    layout_overrides: dict[str, Any] | None = None,
+    preview_output: bool = False,
+    preview_dir: Path | None = None,
+    dpi: int = 144,
     force: bool = False,
     source_cv: Path | None = None,
     confirmed_facts: list[str] | None = None,
@@ -309,7 +378,9 @@ def build_ats_docx(
     if src.stat().st_size > cv.MAX_CV_BYTES:
         raise cv.CvExtractionError("CV draft file is too large", code="too_long")
 
-    safe_font = resolve_safe_font(font)
+    selected = _build_layout(source_cv, layout, match_source_layout, layout_overrides, font)
+    if preview_output:
+        preview.validate_preview_options(dpi)
     raw = cv.decode_text_bytes(src.read_bytes())
     if src.suffix.lower() == ".json":
         doc = parse_json_cv(json.loads(raw))
@@ -327,13 +398,20 @@ def build_ats_docx(
         if strict and not truth_report["passed"]:
             raise TruthfulnessError(truth_report)
 
-    docx_bytes = render_docx_bytes(doc, font=safe_font)
-    audit = cv_ats.audit_generated_docx(docx_bytes)
+    docx_bytes = render_docx_bytes(doc, layout=selected)
+    report = docx_reader.inspect_docx(docx_bytes) if preview_output else None
+    count = docx_pages.measure_docx_pages(docx_bytes, report=report, keep_pdf=True) if preview_output else None
+    audit = cv_ats.audit_generated_docx(docx_bytes, report=report, page_count=count)
     fs.atomic_write_bytes(target, docx_bytes)
     formatting_issues = [f for f in audit["findings"] if f["category"] == "format" and f["severity"] != "info"]
     return {
         "path": str(target),
-        "font": safe_font,
+        "font": selected.font,
+        "layout_used": asdict(selected),
+        **({"preview": preview.write_reference_preview(
+            target, count.pdf_bytes, pages=count.pages, out_dir=preview_dir, dpi=dpi, warning=count.warning,
+            rendered_pages_verified=count.source == "pdf_render",
+        )} if count is not None else {}),
         "bytes": len(docx_bytes),
         "chars": audit["chars"],
         "pages": audit["pages"],

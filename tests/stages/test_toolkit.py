@@ -351,3 +351,18 @@ def test_failed_shortlist_report_does_not_record_scout_verdict(monkeypatch):
     with closing(ledger.connect()) as conn:
         assert conn.execute("SELECT COUNT(*) FROM scout_verdicts").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM job_occurrences").fetchone()[0] == 0
+
+
+def test_empty_verified_shortlist_keeps_the_previous_report_without_leaving_a_run():
+    from ultron.storage import runs
+
+    previous = shortlist.save_shortlist(SLUG, [
+        {"url": POSTING, "title": "ML Engineer", "company": "Acme", "verdict": "keep"}
+    ])
+    report_path = runs.run_dir(previous["run_id"]) / "results.json"
+    prior = report_path.read_bytes()
+    previous_runs = runs.list_runs()
+    result = shortlist.save_shortlist(SLUG, [{"id": "missing", "verdict": "keep"}])
+    assert result["run_id"] is None and result["outputs"] == {}
+    assert result["not_saved"] and runs.list_runs() == previous_runs
+    assert report_path.read_bytes() == prior

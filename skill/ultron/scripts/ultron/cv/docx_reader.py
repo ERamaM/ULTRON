@@ -1,7 +1,7 @@
 """Bounded text extraction from Word ``.docx`` CVs with the standard library only.
 
-A ``.docx`` file is a zip archive whose body is ``word/document.xml``. Only that part is read: headers
-and footers (often contact details) are left out. The archive and the XML are untrusted input, so:
+A DOCX file is a ZIP archive. Plain extraction reads body text and cached pagination. Structural
+inspection also reads bounded styles, headers and footers. The archive and XML are untrusted, so:
 
 - the archive may hold at most ``MAX_ARCHIVE_ENTRIES`` entries, and the body is streamed with a hard cap
   of ``MAX_DOCUMENT_XML_BYTES`` inflated bytes (a declared size can lie, so the read itself is bounded);
@@ -35,6 +35,9 @@ MAX_XML_TAG_BYTES = 64 * 1024  # a whole markup tag with its attributes; Word wr
 _CHUNK = 64 * 1024
 _ALLOWED_COMPRESSION = frozenset({zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED})
 _BODY = "word/document.xml"
+_APP = "docProps/app.xml"
+_APP_NS = "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties "
+_APP_PAGES = f"{_APP_NS}Pages"
 _STYLES = "word/styles.xml"
 _COMMENTS = "word/comments.xml"
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main "
@@ -84,6 +87,10 @@ class DocxStructureReport:
     header_footer_parts: int = 0
     header_footer_text_chars: int = 0
     header_footer_has_contact: bool = False
+    explicit_page_breaks: int = 0
+    rendered_page_breaks: int = 0
+    app_pages: int | None = None
+    heading_paragraph_count: int = 0
 
 
 def _error(message: str, code: str = "no_extractable_text"):
@@ -129,10 +136,16 @@ def _read_member(archive: zipfile.ZipFile, name: str, max_bytes: int) -> bytes:
     return bytes(data)
 
 
-def _read_body(content: bytes) -> bytes:
-    archive, _entries = _open_archive(content)
-    with archive:
-        return _read_member(archive, _BODY, MAX_DOCUMENT_XML_BYTES)
+def _read_app_pages(archive: zipfile.ZipFile) -> int | None:
+    if _APP not in archive.namelist():
+        return None
+    _, props = _parse_xml_body(_read_member(archive, _APP, MAX_AUX_XML_BYTES), MAX_AUX_XML_BYTES)
+    return props.app_pages
+
+
+def _xml_page_count(body: _BodyText, app_pages: int | None) -> int:
+    pages = 1 + max(body.explicit_page_breaks, body.rendered_page_breaks)
+    return pages if body.rendered_page_breaks else max(pages, app_pages or 0)
 
 
 class _BodyText:
@@ -144,7 +157,11 @@ class _BodyText:
         self.lines: list[str] = []
         self.stack: list[list[str]] = []  # one text buffer per open w:p (text boxes nest paragraphs)
         self.loose: list[str] = []  # text outside any paragraph
-        self.pages = 1
+        self.explicit_page_breaks = 0
+        self.rendered_page_breaks = 0
+        self.heading_paragraph_count = 0
+        self.app_pages: int | None = None
+        self._app_page_parts: list[str] | None = None
         self.elements = 0
         self.depth = 0
         self.skipped = 0  # depth inside mc:Fallback (the same content as its mc:Choice)
@@ -191,6 +208,10 @@ class _BodyText:
             self.has_tracked_changes = True
         elif name == _W_VANISH:
             self.has_hidden_text = True
+        elif name == f"{_W}pStyle":
+            style = attributes.get(f"{_W}val", "").casefold()
+            if style in {"title", "subtitle"} or style.startswith("heading"):
+                self.heading_paragraph_count += 1
         elif name == _W_NUMPR:
             self.list_paragraph_count += 1
         elif name == _W_RFONTS and len(self.fonts) < MAX_FONTS:
@@ -224,9 +245,13 @@ class _BodyText:
             self._append("\t")
         elif name == _W_NO_BREAK_HYPHEN:
             self._append("-")
+        elif name == f"{_W}lastRenderedPageBreak":
+            self.rendered_page_breaks += 1
+        elif name == _APP_PAGES and self.depth == 2:
+            self._app_page_parts = []
         elif name in _W_BREAKS:
-            if attributes.get(_W_TYPE) == "page":
-                self.pages += 1
+            if name == f"{_W}br" and attributes.get(_W_TYPE) == "page":
+                self.explicit_page_breaks += 1
             # Every break (line, column or page) separates the text on its two sides.
             self._append("\n")
 
@@ -237,12 +262,22 @@ class _BodyText:
             return
         if self.skipped:
             return
+        if name == _APP_PAGES and self._app_page_parts is not None:
+            value = "".join(self._app_page_parts).strip()
+            if value.isascii() and value.isdecimal() and len(value) <= 10:
+                pages = int(value)
+                if 0 < pages <= 2_147_483_647:
+                    self.app_pages = pages
+            self._app_page_parts = None
         if name == _W_P and self.stack:
             self._line(self.stack.pop())
         elif name == _W_T:
             self.in_text -= 1
 
     def characters(self, data: str) -> None:
+        if self._app_page_parts is not None and self.depth == 2:
+            self._count(len(data))
+            self._app_page_parts.append(data)
         if self.in_text and not self.skipped:
             for ch in data:
                 code = ord(ch)
@@ -308,19 +343,16 @@ def _parse_xml_body(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[s
     return "\n".join(lines), handlers
 
 
-def _text(body: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, int]:
-    """Paragraph text and the page count (explicit page breaks plus one)."""
-    text, handlers = _parse_xml_body(body, max_chars)
-    return text, handlers.pages
-
-
 def extract_docx_text(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tuple[str, int]:
     """Return the raw body text of a ``.docx`` file and its page count, or raise a CV extraction error.
 
     ``max_chars`` bounds the raw text (separators included) while it is parsed, so a crafted body cannot
     build an unbounded string or line list before the CV character budget is checked.
     """
-    return _text(_read_body(content), max_chars)
+    archive, _ = _open_archive(content)
+    with archive:
+        text, body = _parse_xml_body(_read_member(archive, _BODY, MAX_DOCUMENT_XML_BYTES), max_chars)
+        return text, _xml_page_count(body, _read_app_pages(archive))
 
 
 def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStructureReport:
@@ -330,6 +362,7 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         body_bytes = _read_member(archive, _BODY, MAX_DOCUMENT_XML_BYTES)
         text, body_handlers = _parse_xml_body(body_bytes, max_chars)
 
+        app_pages = _read_app_pages(archive)
         entry_names = [entry.filename for entry in entries]
         media_entries = sum(1 for name in entry_names if name.lower().startswith("word/media/") and not name.endswith("/"))
         has_comments = any(name.lower() == _COMMENTS for name in entry_names)
@@ -357,7 +390,7 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
 
     return DocxStructureReport(
         text=text,
-        pages=body_handlers.pages,
+        pages=_xml_page_count(body_handlers, app_pages),
         table_count=body_handlers.table_count,
         textbox_count=body_handlers.textbox_count,
         multi_column_sections=body_handlers.multi_column_sections,
@@ -371,4 +404,8 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         header_footer_parts=len(hf_names),
         header_footer_text_chars=hf_chars,
         header_footer_has_contact=hf_has_contact,
+        explicit_page_breaks=body_handlers.explicit_page_breaks,
+        rendered_page_breaks=body_handlers.rendered_page_breaks,
+        app_pages=app_pages,
+        heading_paragraph_count=body_handlers.heading_paragraph_count,
     )

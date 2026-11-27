@@ -1,5 +1,7 @@
 # ATS CV audit & optimization
 
+Check `pages` and `page_count_source` after generating a DOCX. `pdf_render` means the count was verified against a temporary local PDF rendered with LibreOffice or Microsoft Word. Otherwise, ULTRON uses saved Word pagination or marks the count as `estimated`. Flag CVs that exceed their target page length.
+
 Use this workflow when the user asks to evaluate, optimize, or convert a CV for Applicant Tracking
 Systems (ATS), either generally, for an ULTRON search profile, or for a specific job posting.
 

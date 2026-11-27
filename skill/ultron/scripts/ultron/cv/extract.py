@@ -180,6 +180,8 @@ def _run_pdf_worker(
         )
     except subprocess.TimeoutExpired as exc:
         raise CvPdfTimeout() from exc
+    except OSError as exc:
+        raise CvExtractionError("Could not launch PDF worker", code="worker_failed") from exc
     stdout = completed.stdout
     if not isinstance(stdout, bytes):
         raise CvExtractionError(_FAILED)
@@ -194,6 +196,25 @@ def subprocess_pdf_runner(content: bytes, *, max_pages: int, max_chars: int, tim
         content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout_seconds
     )
     return _validate_pages(payload)
+
+
+def count_pdf_pages(
+    content: bytes,
+    *,
+    max_pages: int = MAX_CV_PAGES,
+    timeout_seconds: float = PDF_TIMEOUT_SECONDS,
+) -> int:
+    """Count PDF pages in the bounded child interpreter without extracting text."""
+    payload = _run_pdf_worker(
+        content, max_pages=max_pages, max_chars=0, timeout_seconds=timeout_seconds,
+        extra_args=("--count-pages",),
+    )
+    count = _json_int(payload.get("page_count"))
+    if count is None or count < 1:
+        raise CvExtractionError("Could not count pages in PDF")
+    if count > max_pages:
+        raise CvPdfTooManyPages(max_pages)
+    return count
 
 
 def subprocess_pdf_inspector(

@@ -337,6 +337,9 @@ def build_ats_docx(
         "bytes": len(docx_bytes),
         "chars": audit["chars"],
         "pages": audit["pages"],
+        "page_count_source": audit["page_count_source"],
+        "page_count_converter": audit["page_count_converter"],
+        **({"page_count_warning": audit["page_count_warning"]} if "page_count_warning" in audit else {}),
         "ats_audit": {
             "score": audit["score"],
             "format_tier": audit["format_tier"],

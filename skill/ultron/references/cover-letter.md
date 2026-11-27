@@ -1,5 +1,7 @@
 # Tailored Cover Letter Workflow (`ultron cover-letter`)
 
+Check `pages` and `page_count_source` (in `layout` for cover letters) after generating a DOCX. `pdf_render` means the count was verified against a temporary local PDF rendered with LibreOffice or Microsoft Word. Otherwise, ULTRON uses saved Word pagination or marks the count as `estimated`. Flag letters that exceed one page and use the source when describing an estimate.
+
 ULTRON drafts tailored, truthful cover letters from a verified CV and a target job or search profile, verifies every claim against the source CV, and exports clean Word (`.docx`) files.
 
 ## 1. Choose a template (or inspect placeholders)

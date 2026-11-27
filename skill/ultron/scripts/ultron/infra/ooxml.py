@@ -20,7 +20,7 @@ WRITER_SAFE_FONTS: tuple[str, ...] = (
 _SAFE_FONT_LOOKUP = {font.casefold(): font for font in WRITER_SAFE_FONTS}
 
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
-_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
+_INVALID_XML_RE = re.compile(r"[\ud800-\udfff\ufffe\uffff]")
 _MD_LINK_RE = re.compile(r"\[([^\[\]]+)\]\(([^()\s]+)\)")
 _BOLD_RE = re.compile(r"\*\*([^*\n]+)\*\*")
 
@@ -35,10 +35,10 @@ def resolve_safe_font(font: str) -> str:
 
 
 def sanitize_xml_text(value: str) -> str:
-    """Normalize line breaks and strip XML-illegal control/surrogate characters."""
+    """Normalize line breaks and strip disallowed XML characters."""
     cleaned = str(value or "").replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
     cleaned = _CONTROL_CHARS_RE.sub("", cleaned)
-    return _SURROGATE_RE.sub("", cleaned)
+    return _INVALID_XML_RE.sub("", cleaned)
 
 
 def xml_escape(value: str) -> str:
@@ -51,7 +51,10 @@ def safe_hyperlink(url: str) -> str | None:
     candidate = sanitize_xml_text(url).strip()
     if not candidate:
         return None
-    parsed = urlsplit(candidate)
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError:
+        return None
     scheme = parsed.scheme.lower()
     if scheme in {"http", "https"} and parsed.netloc:
         return candidate
@@ -151,7 +154,7 @@ def root_rels_xml() -> str:
         'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
         'Target="word/document.xml"/>'
         '<Relationship Id="rId2" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/metadata/core-properties" '
+        'Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" '
         'Target="docProps/core.xml"/>'
         "</Relationships>"
     )

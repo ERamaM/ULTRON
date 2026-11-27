@@ -356,6 +356,10 @@ def render_salary_report_markdown(estimate: SalaryEstimate, *, profile_slug: str
     return "\n".join(lines) + "\n"
 
 
+class SalaryProfileSlugError(ValueError):
+    """The selected profile's stored slug differs from its filename."""
+
+
 def save_salary_estimate(
     estimate_data: dict[str, Any],
     *,
@@ -373,6 +377,8 @@ def save_salary_estimate(
     }
     if profile_slug:
         current = profiles.load_profile(profile_slug)
+        if current.get("slug") != profile_slug:
+            raise SalaryProfileSlugError(f"{profile_slug}.yaml must declare slug {profile_slug!r}")
         before_text = profiles.dump_profile(current)
         updated = dict(current)
         updated["expected_salary"] = dumped

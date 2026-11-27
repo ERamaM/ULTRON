@@ -285,7 +285,7 @@ def extract_pdf_inspection(
         raise CvExtractionError("Could not extract text from PDF", code="no_extractable_text") from exc
 
     if not collect_metadata:
-        return chunks, {}
+        return chunks, {"page_count": len(pages)}
 
     raw_meta = getattr(reader, "metadata", None)
     metadata: dict[str, object] = {
@@ -319,10 +319,10 @@ def _payload(content: bytes, max_pages: int, max_chars: int, *, inspect: bool = 
     from ultron.cv.extract import CvDependencyMissing, CvPdfTooManyPages, CvTextTooLong
 
     try:
-        if inspect:
-            pages, metadata = extract_pdf_inspection(content, max_pages=max_pages, max_chars=max_chars)
-            return {"pages": pages, "metadata": metadata}
-        pages = extract_pdf_pages_text(content, max_pages=max_pages, max_chars=max_chars)
+        pages, metadata = extract_pdf_inspection(
+            content, max_pages=max_pages, max_chars=max_chars, collect_metadata=inspect,
+        )
+        return {"pages": pages, "metadata": metadata}
     except CvPdfTooManyPages as exc:
         return {"error": "too_many_pages", "limit": exc.limit}
     except CvTextTooLong as exc:
@@ -331,7 +331,6 @@ def _payload(content: bytes, max_pages: int, max_chars: int, *, inspect: bool = 
         return {"error": "dependency_missing"}
     except Exception:
         return {"error": "extract_failed"}
-    return {"pages": pages}
 
 
 def main() -> None:

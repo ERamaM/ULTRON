@@ -284,7 +284,7 @@ def resolve_job_target(
             raise FileNotFoundError(f"job file not found: {src}")
         if src.stat().st_size > cv.MAX_CV_BYTES:
             raise ValueError("job file is too large")
-        raw = cv._clean_text(cv._decode_text_bytes(src.read_bytes()), cv.MAX_CV_CHARS)
+        raw = cv._clean_text(cv.decode_text_bytes(src.read_bytes()), cv.MAX_CV_CHARS)
         title, company, location = _extract_job_file_meta(raw)
         terms = ats_target.extract_job_keywords(title, raw, profile=profile)
         return {

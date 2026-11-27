@@ -2,85 +2,30 @@
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-import yaml
-
+from ultron.cover_letter import draft
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
 
 
-def split_frontmatter(text: str, *, strict: bool = False) -> tuple[dict[str, Any] | None, str]:
-    """Extract optional YAML frontmatter mapping and remaining body from Markdown ``text``."""
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return ({} if strict else None), text
-    for idx in range(1, min(len(lines), 80)):
-        if lines[idx].strip() == "---":
-            raw_yaml = "\n".join(lines[1:idx])
-            try:
-                loaded = {} if (strict and not raw_yaml.strip()) else yaml.safe_load(raw_yaml)
-            except yaml.YAMLError as exc:
-                if strict:
-                    raise ValueError(f"invalid YAML frontmatter: {exc}") from exc
-                return None, text
-            if isinstance(loaded, dict):
-                return loaded, "\n".join(lines[idx + 1 :])
-            if strict:
-                raise ValueError("Markdown cover letter frontmatter must be a YAML mapping")
-            return None, text
-    return ({} if strict else None), text
-
-
-def _extract_draft_claim_text(draft_path: Path) -> tuple[str, str]:
-    """Return ``(claim_text, draft_company)`` from JSON, YAML-frontmatter Markdown, or plain CV-like text."""
-    src = Path(draft_path)
-    if not src.is_file():
-        raise FileNotFoundError(f"cover letter draft not found: {src}")
-    if src.stat().st_size > cv.MAX_CV_BYTES:
-        raise cv.CvExtractionError("cover letter draft is too large", code="too_long")
-
-    suffix = src.suffix.lower()
-    if suffix not in {".json", ".md", ".markdown", ".txt"}:
-        return cv_truth.load_cv_plain_text(src), ""
-
-    raw = cv._decode_text_bytes(src.read_bytes())
-    if suffix == ".json":
-        data = json.loads(raw)
-        if not isinstance(data, dict):
-            raise ValueError("JSON cover letter draft must contain an object")
-        claim_parts: list[str] = []
-        for field in ("subject", "opening", "closing"):
-            val = data.get(field)
-            if isinstance(val, str) and val.strip():
-                claim_parts.append(val.strip())
-        for seq_field in ("paragraphs", "highlights", "body"):
-            seq = data.get(seq_field)
-            if isinstance(seq, list):
-                claim_parts.extend(str(item).strip() for item in seq if str(item).strip())
-            elif isinstance(seq, str) and seq.strip():
-                claim_parts.append(seq.strip())
-        company = str(data.get("company") or "").strip()
-        if claim_parts:
-            return "\n".join(claim_parts), company
-        return json.dumps(data, ensure_ascii=False), company
-
-    frontmatter, body = split_frontmatter(raw)
-    if frontmatter is None:
-        return raw, ""
-    parts: list[str] = []
-    subject = str(frontmatter.get("subject") or "").strip()
-    if subject:
-        parts.append(subject)
-    if body.strip():
-        parts.append(body.strip())
-    company = str(frontmatter.get("company") or "").strip()
-    return "\n".join(parts), company
-
+def _extract_draft_claim_text(draft_path: Path, document: draft.CoverLetterDocument | None) -> str:
+    if document is None:
+        if draft_path.suffix.lower() not in {".json", ".md", ".markdown", ".txt"}:
+            return cv_truth.load_cv_plain_text(draft_path)
+        if draft_path.suffix.lower() != ".json":
+            if draft_path.stat().st_size > cv.MAX_CV_BYTES:
+                raise cv.CvExtractionError("cover letter draft is too large", code="too_long")
+            raw = cv.decode_text_bytes(draft_path.read_bytes())
+            if not raw.lstrip().startswith("---"):
+                # Standalone verification also accepts plain text with original line structure.
+                return raw
+        document = draft.load_cover_letter_draft(draft_path)
+    return "\n".join((document.subject, document.salutation, document.opening,
+                      *document.paragraphs, *document.highlights, document.closing, document.signoff))
 
 def _spanned_verified_years(source_text: str, confirmed: list[str], ref: date, roles: list[dict[str, Any]]) -> set[str]:
     spanned: set[str] = {str(ref.year)}
@@ -107,11 +52,12 @@ def verify_cover_letter_truth(
     confirmed_facts: list[str] | None = None,
     target_company: str | None = None,
     as_of: date | None = None,
+    document: draft.CoverLetterDocument | None = None,
 ) -> dict[str, Any]:
     """Verify a cover letter draft against the candidate's source CV (+ confirmed facts)."""
     ref = as_of or datetime.now(UTC).date()
     source_text = cv_truth.load_cv_plain_text(source_cv_path)
-    claim_text, _draft_company = _extract_draft_claim_text(draft_path)
+    claim_text = _extract_draft_claim_text(Path(draft_path), document)
     confirmed = [fact.strip() for fact in (confirmed_facts or []) if fact.strip()]
     authorized_text = source_text + ("\n" + "\n".join(confirmed) if confirmed else "")
     company_note = (target_company or "").strip()

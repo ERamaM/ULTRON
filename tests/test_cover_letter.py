@@ -910,3 +910,107 @@ def test_brief_respects_requested_application_language(tmp_path, instruction, ov
     assert data["application_language_conflict"] is conflict
     assert all(fragment in instruction for fragment in target["application_language_evidence"])
     assert bool(target["application_language_evidence"]) is ("fluidez" not in instruction)
+
+
+def test_regression_cover_strict_requires_source(tmp_path, capsys):
+    draft = _write_faithful_md_draft(tmp_path / "draft.md")
+    output, markdown = tmp_path / "letter.docx", tmp_path / "letter.md"
+    args = ["cover-letter", "build-docx", "--from", str(draft), "--out", str(output), "--out-md", str(markdown)]
+    assert cli.main([*args, "--strict"]) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "missing_source_cv"
+    assert not output.exists() and not markdown.exists()
+    assert cli.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["truth"] is None
+
+
+@pytest.mark.parametrize("field", ["opening", "paragraphs", "highlights", "closing"])
+def test_regression_cover_checks_rendered_frontmatter(field, tmp_path, capsys):
+    source = _write_sample_cv(tmp_path)
+    draft = tmp_path / "draft.md"
+    output, markdown = tmp_path / "letter.docx", tmp_path / "letter.md"
+    args = ["cover-letter", "build-docx", "--from", str(draft), "--out", str(output),
+            "--out-md", str(markdown), "--source-cv", str(source), "--strict"]
+    body = f"---\n{field}: Reduced latency by {{}}%.\n---\nThank you for your consideration.\n"
+    draft.write_text(body.format(91), encoding="utf-8")
+    assert cli.main(args) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["error"] == "truthfulness_failed"
+    assert any(v["type"] == "unverified_metric" for v in result["truth"]["violations"])
+    assert not output.exists() and not markdown.exists()
+    draft.write_text(body.format(35), encoding="utf-8")
+    assert cli.main(args) == 0
+    capsys.readouterr()
+    assert "35%" in markdown.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("relative", [False, True])
+def test_regression_cover_output_paths_must_differ(tmp_path, monkeypatch, capsys, relative):
+    monkeypatch.chdir(tmp_path)
+    draft = _write_faithful_md_draft(tmp_path / "draft.md")
+    output = tmp_path / "letter.docx"
+    args = ["cover-letter", "build-docx", "--from", str(draft), "--out", str(output),
+            "--out-md", output.name if relative else str(output)]
+    assert cli.main(args) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "output_collision"
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(("claim", "expected"), [
+    ("Managed 8 teams.", False), ("Managed eight teams.", False), ("Managed 8+ teams.", False),
+    ("Managed 8 projects.", True), ("Managed 8+ projects.", True), ("Led one team.", True),
+    ("Led 1 teams.", True), ("Handled 50k requests.", True),
+])
+def test_regression_both_verifiers_bind_counts_to_units(tmp_path, claim, expected):
+    from ultron.cv import truth as cv_truth
+
+    source, draft = tmp_path / "source.txt", tmp_path / "draft.md"
+    source.write_text("Managed eight projects. Led 1 team. Handled 50000 requests.\n", encoding="utf-8")
+    draft.write_text(claim, encoding="utf-8")
+    assert cv_truth.verify_truth(source, draft)["passed"] is expected
+    assert truth.verify_cover_letter_truth(source, draft)["passed"] is expected
+
+
+@pytest.mark.parametrize(("part", "data"), [
+    ("word/comments.xml", f'<w:comments xmlns:w="{W_NS}"><w:comment w:id="1"/></w:comments>'),
+    ("docProps/custom.xml", "<Properties/>"),
+    ("word/_rels/document.xml.rels",
+     ('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      '<Relationship Id="rId3" Type="urn:example:layout" TargetMode="External" '
+      'Target="https://example.test/layout"/></Relationships>')),
+])
+def test_regression_custom_template_rejects_unsupported_package_data(tmp_path, part, data):
+    template = tmp_path / "template.docx"
+    doc_xml = (
+        f'<w:document xmlns:w="{W_NS}"><w:body><w:p><w:r><w:t>{{{{opening}}}}</w:t></w:r></w:p></w:body></w:document>'
+    )
+    template.write_bytes(_make_custom_docx(doc_xml, extra={part: data}))
+    doc = builder.CoverLetterDocument(opening="Thank you for your consideration.")
+    with pytest.raises(ValueError, match="unsupported custom template"):
+        templates.render_custom_template_docx_bytes(template, doc)
+
+
+def test_custom_template_refreshes_standard_metadata_and_preserves_a_hyperlink(tmp_path):
+    from ultron.infra import ooxml
+
+    rel_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    doc_xml = (
+        f'<w:document xmlns:w="{W_NS}" xmlns:r="{rel_ns}"><w:body>'
+        '<w:p><w:r><w:t>{{opening}}</w:t></w:r></w:p>'
+        '<w:p><w:hyperlink r:id="rId3"><w:r><w:t>Portfolio</w:t></w:r></w:hyperlink></w:p>'
+        '</w:body></w:document>'
+    )
+    template = tmp_path / "template.docx"
+    template.write_bytes(_make_custom_docx(doc_xml, extra={
+        "docProps/core.xml": ooxml.core_props_xml("Former author"),
+        "docProps/app.xml": "<Properties><Company>Former organization</Company></Properties>",
+        "word/styles.xml": f'<w:styles xmlns:w="{W_NS}"/>',
+        "word/numbering.xml": ooxml.numbering_xml("Calibri"),
+        "word/_rels/document.xml.rels": ooxml.document_rels_xml([("rId3", "https://example.test/portfolio")]),
+    }))
+    doc = builder.CoverLetterDocument(subject="Application", opening="Thank you for your consideration.")
+    with zipfile.ZipFile(io.BytesIO(templates.render_custom_template_docx_bytes(template, doc))) as output:
+        core = output.read("docProps/core.xml")
+        assert b"Application" in core and b"Former author" not in core
+        assert b"Former organization" not in output.read("docProps/app.xml")
+        assert b"https://example.test/portfolio" in output.read("word/_rels/document.xml.rels")
+        assert b"Portfolio" in output.read("word/document.xml")

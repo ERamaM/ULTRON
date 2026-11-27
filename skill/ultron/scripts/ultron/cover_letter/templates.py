@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import io
+import posixpath
 import re
 import zipfile
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any, Protocol
+from xml.etree.ElementTree import ParseError
 
-from defusedxml import minidom
+from defusedxml import ElementTree, minidom
+from defusedxml.common import DefusedXmlException
 
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import extract as cv
@@ -100,6 +103,26 @@ MAX_TEMPLATE_TOTAL_UNCOMPRESSED = 16 * 1024 * 1024
 _CHUNK = 64 * 1024
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _WORD_TEXT_PART_RE = re.compile(r"^word/(?:document|header\d{1,3}|footer\d{1,3})\.xml$")
+_PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_WORD_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_HYPERLINK_REL = f"{_WORD_REL_NS}/hyperlink"
+_FIXED_PARTS = {
+    "word/document.xml": f"{_WORD_REL_NS}/officeDocument",
+    "docProps/core.xml": f"{_PACKAGE_REL_NS}/metadata/core-properties",
+    "docProps/app.xml": f"{_WORD_REL_NS}/extended-properties",
+
+    "word/stylesWithEffects.xml": "http://schemas.microsoft.com/office/2007/relationships/stylesWithEffects",
+    **{f"word/{name}.xml": f"{_WORD_REL_NS}/{name}"
+       for name in ("styles", "numbering", "settings", "webSettings", "fontTable")},
+}
+_DECORATION_PART_RE = re.compile(
+    r"word/(?:theme/theme\d{1,3}\.xml|media/[A-Za-z0-9_.-]{1,120}\.(?:png|jpg|jpeg|gif|bmp))"
+)
+_LAYOUT_RELS_RE = re.compile(r"word/_rels/(?:document|header\d{1,3}|footer\d{1,3}|numbering)\.xml\.rels")
+_REVIEW_MARKUP = (
+    "commentRangeStart", "commentRangeEnd", "commentReference", "ins", "del", "moveFrom", "moveTo",
+    "pPrChange", "rPrChange", "sectPrChange", "tblPrChange", "trPrChange", "tcPrChange",
+)
 _PLACEHOLDER_RE = re.compile(r"\{\{[ \t]{0,4}([a-z_]{1,32})[ \t]{0,4}\}\}")
 
 
@@ -420,6 +443,54 @@ def _read_template_entries(template_path: Path) -> list[tuple[str, bytes]]:
     return loaded
 
 
+def _layout_relationship_type(part: str) -> str | None:
+    if part in _FIXED_PARTS:
+        return _FIXED_PARTS[part]
+    if _WORD_TEXT_PART_RE.fullmatch(part):
+        return f"{_WORD_REL_NS}/{'header' if part.startswith('word/header') else 'footer'}"
+    if _DECORATION_PART_RE.fullmatch(part):
+        return f"{_WORD_REL_NS}/{'image' if part.startswith('word/media/') else 'theme'}"
+    return None
+
+
+def _validate_template_relationships(name: str, data: bytes, parts: set[str]) -> None:
+    try:
+        root = ElementTree.fromstring(data, forbid_dtd=True)
+    except (ParseError, DefusedXmlException) as exc:
+        raise ValueError("unsupported custom template relationship XML") from exc
+    if root.tag != f"{{{_PACKAGE_REL_NS}}}Relationships":
+        raise ValueError("unsupported custom template relationship XML")
+    for element in root:
+        rel_type = element.get("Type", "")
+        target = element.get("Target", "")
+        mode = element.get("TargetMode", "Internal")
+        if element.tag != f"{{{_PACKAGE_REL_NS}}}Relationship":
+            raise ValueError("unsupported custom template relationship XML")
+        if mode == "External":
+            if target and name != "_rels/.rels" and rel_type == _HYPERLINK_REL and ooxml.safe_hyperlink(target) == target:
+                continue
+        elif mode == "Internal" and target and not re.search(r"[\\:%?#\s]", target):
+            base = "" if name == "_rels/.rels" or target.startswith("/") else "word"
+            part = posixpath.normpath(posixpath.join(base, target.lstrip("/")))
+            expected = _layout_relationship_type(part)
+            legacy_core = part == "docProps/core.xml" and rel_type == f"{_WORD_REL_NS}/metadata/core-properties"
+            if part in parts and (rel_type == expected or legacy_core):
+                continue
+        raise ValueError("unsupported custom template relationship")
+
+
+def _prepare_template_part(name: str, data: bytes, parts: set[str], title: str) -> bytes:
+    if name == "docProps/core.xml":
+        return ooxml.core_props_xml(title).encode("utf-8")
+    if name == "docProps/app.xml":
+        return b'<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"/>'
+    if name == "_rels/.rels" or _LAYOUT_RELS_RE.fullmatch(name):
+        _validate_template_relationships(name, data, parts)
+    elif name != "[Content_Types].xml" and _layout_relationship_type(name) is None:
+        raise ValueError(f"unsupported custom template part: {name}")
+    return data
+
+
 def _direct_runs(p_node: minidom.Element) -> list[tuple[minidom.Element, minidom.Element, str]]:
     """Collect ``(r_node, t_node, text)`` for runs belonging directly to ``p_node`` (excluding nested ``w:p``)."""
     collected: list[tuple[minidom.Element, minidom.Element, str]] = []
@@ -554,6 +625,8 @@ def _substitute_xml_part(
     except Exception as exc:
         raise ValueError(f"unsafe or malformed XML in custom template: {exc}") from exc
 
+    if any(dom.getElementsByTagNameNS(_W_NS, tag) for tag in _REVIEW_MARKUP):
+        raise ValueError("unsupported custom template review markup")
     paragraphs = list(dom.getElementsByTagNameNS(_W_NS, "p"))
     for p_node in paragraphs:
         runs = _direct_runs(p_node)
@@ -615,9 +688,11 @@ def render_custom_template_docx_bytes(template_path: Path, doc: CoverLetterField
     }
 
     entries = _read_template_entries(template_path)
+    parts = {name for name, _ in entries}
     out_buf = io.BytesIO()
     with zipfile.ZipFile(out_buf, "w", zipfile.ZIP_DEFLATED) as out_zip:
         for name, data in entries:
+            data = _prepare_template_part(name, data, parts, doc.subject or "Cover letter")
             if _WORD_TEXT_PART_RE.match(name):
                 data = _substitute_xml_part(data, values, multi_values)
             out_zip.writestr(name, data)

@@ -301,6 +301,8 @@ def build_ats_docx(
     strict: bool = False,
 ) -> dict[str, Any]:
     """Build an ATS-clean ``.docx`` from a Markdown or JSON CV draft and verify round-trip parsing."""
+    if strict and source_cv is None:
+        raise cv.CvExtractionError("--strict requires --source-cv", code="missing_source_cv")
     src = Path(from_path)
     if not src.is_file():
         raise FileNotFoundError(f"draft CV file not found: {src}")
@@ -308,7 +310,7 @@ def build_ats_docx(
         raise cv.CvExtractionError("CV draft file is too large", code="too_long")
 
     safe_font = resolve_safe_font(font)
-    raw = cv._decode_text_bytes(src.read_bytes())
+    raw = cv.decode_text_bytes(src.read_bytes())
     if src.suffix.lower() == ".json":
         doc = parse_json_cv(json.loads(raw))
     else:
@@ -326,9 +328,8 @@ def build_ats_docx(
             raise TruthfulnessError(truth_report)
 
     docx_bytes = render_docx_bytes(doc, font=safe_font)
+    audit = cv_ats.audit_generated_docx(docx_bytes)
     fs.atomic_write_bytes(target, docx_bytes)
-
-    audit = cv_ats.audit_cv(target, write_report=False)
     formatting_issues = [f for f in audit["findings"] if f["category"] == "format" and f["severity"] != "info"]
     return {
         "path": str(target),

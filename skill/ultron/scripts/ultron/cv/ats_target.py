@@ -240,7 +240,7 @@ def resolve_target(
             raise FileNotFoundError(f"job file not found: {job_file}")
         if job_file.stat().st_size > cv.MAX_CV_BYTES:
             raise ValueError("job file is too large")
-        raw = cv._clean_text(cv._decode_text_bytes(job_file.read_bytes()), cv.MAX_CV_CHARS)
+        raw = cv._clean_text(cv.decode_text_bytes(job_file.read_bytes()), cv.MAX_CV_CHARS)
         first_line = next((ln.strip() for ln in raw.splitlines() if ln.strip()), "")
         terms = extract_job_keywords(first_line, raw, profile=profile)
         return "job", terms, {

@@ -10,6 +10,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+from collections import Counter
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ from ultron.cv import ats as cv_ats
 from ultron.cv import ats_target
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
-from ultron.cv.claim_attribution import SAFE_EXPANSION_PAIRS, verify_claim_attribution
+from ultron.cv.claim_attribution import SAFE_EXPANSION_PAIRS, ClaimScope, identify_role_scope, verify_claim_attribution
 
 _YEAR_RE = re.compile(r"\b(19[6-9]\d|20[0-3]\d)\b")
 _PHONE_LINE_RE = re.compile(
@@ -38,11 +39,31 @@ _WORD_NUMBERS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
     "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
     "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8,
     "nueve": 9, "diez": 10,
 }
 
-_WORD_NUM_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
+_WORD_SIMPLE_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
+_DECADE_ALT = "|".join(word for word, value in _WORD_NUMBERS.items() if value >= 20)
+_DIGIT_WORD_ALT = "one|two|three|four|five|six|seven|eight|nine"
+_WORD_COUNT_SEPARATOR = r"(?:[-\u2010\u2011]|[ \t]{1,3})"
+_WORDS_UNDER_HUNDRED = rf"(?:{_DECADE_ALT}){_WORD_COUNT_SEPARATOR}(?:{_DIGIT_WORD_ALT})|{_WORD_SIMPLE_ALT}"
+_WORD_REMAINDER = rf"{_WORD_COUNT_SEPARATOR}(?:and{_WORD_COUNT_SEPARATOR})?"
+_WORD_TRIAD = (
+    rf"(?:(?:{_DIGIT_WORD_ALT}){_WORD_COUNT_SEPARATOR}hundred"
+    rf"(?:{_WORD_REMAINDER}(?:{_WORDS_UNDER_HUNDRED}))?|{_WORDS_UNDER_HUNDRED})"
+)
+_MAJOR_SCALES = {"thousand": 1_000, "million": 1_000_000, "billion": 1_000_000_000}
+_MAJOR_SCALE_ALT = "|".join(_MAJOR_SCALES)
+_WORD_SCALE_GROUP = rf"{_WORD_TRIAD}{_WORD_COUNT_SEPARATOR}(?:{_MAJOR_SCALE_ALT})"
+_WORD_NUM_ALT = (
+    rf"(?:{_WORD_SCALE_GROUP}{_WORD_COUNT_SEPARATOR}){{0,2}}"
+    rf"(?:{_WORD_SCALE_GROUP}(?:{_WORD_REMAINDER}{_WORD_TRIAD})?|{_WORD_TRIAD})"
+)
+_WORD_NUM_START = r"(?<![\w\-\u2010\u2011])"
+_WORD_NUMBER_RE = re.compile(rf"{_WORD_NUM_START}({_WORD_NUM_ALT})\b", re.IGNORECASE)
+_WORD_COUNT_SPLIT_RE = re.compile(r"[-\u2010\u2011 \t]+")
 _CURRENCY_SYMBOL_MAP: dict[str, str] = {"$": "USD", "€": "EUR", "£": "GBP", "¥": "JPY", "₹": "INR"}
 
 _PERCENT_RE = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)?)\s*%")
@@ -56,17 +77,27 @@ _YEARS_METRIC_RE = re.compile(
     re.IGNORECASE,
 )
 _WORD_YEARS_RE = re.compile(
-    rf"\b({_WORD_NUM_ALT})[ \t]{{1,3}}(?:years|year|yrs|yr|años|año|anos|ano|ans|jahren|jahre|jahr)\b",
+    rf"{_WORD_NUM_START}({_WORD_NUM_ALT})[ \t]{{1,3}}(?:years|year|yrs|yr|años|año|anos|ano|ans|jahren|jahre|jahr)\b",
     re.IGNORECASE,
 )
 _SCALED_NUM_RE = re.compile(
     r"\b(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\s*(k|m|b|thousand|million|billion)\b",
     re.IGNORECASE,
 )
-_PLUS_OR_UNIT_NUM_RE = re.compile(
-    r"\b(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)"
-    r"(?:(\+)|\s+(?:engineers?|developers?|people|users?|clients?|customers?|teams?|projects?|services?|"
-    r"pipelines?|models?|countries|languages|microservices|endpoints|requests|terabytes|gb|tb|pb|ms|seconds?)\b)",
+_PLUS_NUM_RE = re.compile(r"\b(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\+")
+_COUNT_UNITS = (
+    r"engineers?|developers?|people|users?|clients?|customers?|teams?|projects?|services?|"
+    r"pipelines?|models?|countr(?:y|ies)|languages?|microservices?|endpoints?|requests?|terabytes?|gb|tb|pb|ms|seconds?"
+)
+_COUNT_MODIFIER = (
+    rf"(?!(?:{_COUNT_UNITS}|{_WORD_SIMPLE_ALT}|{_MAJOR_SCALE_ALT}|hundred|and|or|of|to|for|with|from|in|at|per)\b)"
+    r"[a-z][a-z-]{0,23}[ \t]{1,3}"
+)
+_UNIT_RE = re.compile(
+    rf"\b(?:(?P<number>\d{{1,3}}(?:[.,]\d{{3}})+|\d+(?:[.,]\d+)?)(?:[ \t]{{0,3}}"
+    r"(?P<scale>k|m|b|thousand|million|billion))?"
+    rf"|{_WORD_NUM_START}(?P<word>{_WORD_NUM_ALT}))\+?[ \t]{{1,3}}"
+    rf"(?:{_COUNT_MODIFIER}){{0,2}}(?P<unit>{_COUNT_UNITS})\b",
     re.IGNORECASE,
 )
 
@@ -146,7 +177,7 @@ def load_cv_plain_text(path: Path) -> str:
     if suffix == ".json":
         if path.stat().st_size > cv.MAX_CV_BYTES:
             raise cv.CvExtractionError("CV file is too large", code="too_long")
-        data = json.loads(cv._decode_text_bytes(path.read_bytes()))
+        data = json.loads(cv.decode_text_bytes(path.read_bytes()))
         if not isinstance(data, dict):
             raise ValueError("JSON CV file must contain an object")
         return _flatten_json_cv(data)
@@ -162,7 +193,7 @@ def load_confirmed_facts(path: Path | None) -> list[str]:
         raise FileNotFoundError(f"confirmed facts file not found: {path}")
     if path.stat().st_size > cv.MAX_CV_BYTES:
         raise ValueError("confirmed facts file is too large")
-    raw = cv._decode_text_bytes(path.read_bytes())
+    raw = cv.decode_text_bytes(path.read_bytes())
     if path.suffix.lower() == ".json":
         data = json.loads(raw)
         items = data.get("confirmed") if isinstance(data, dict) else data
@@ -234,7 +265,7 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
             years_claims.append((match.group(0).strip(), val))
 
     for match in _WORD_YEARS_RE.finditer(masked):
-        word_val = _WORD_NUMBERS.get(match.group(1).lower())
+        word_val = _word_count(match.group(1))
         if word_val is not None:
             years_claims.append((match.group(0).strip(), float(word_val)))
 
@@ -244,25 +275,42 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
         if (val := _scale_number(match.group(1), match.group(2))) is not None:
             metrics.setdefault(_metric_key("num", val), match.group(0).strip())
 
-    for match in _PLUS_OR_UNIT_NUM_RE.finditer(masked):
+    for match in _PLUS_NUM_RE.finditer(masked):
+        if not _overlaps_currency(match.span()) and (val := _scale_number(match.group(1), None)) is not None:
+            metrics.setdefault(_metric_key("num", val), match.group(0).strip())
+
+    for match in _UNIT_RE.finditer(masked):
         if _overlaps_currency(match.span()):
             continue
-        raw_num, plus = match.group(1), match.group(2)
-        if not plus and re.fullmatch(r"(?:19[6-9]\d|20[0-3]\d)", raw_num):
+        raw_num = match.group("number")
+        scale = match.group("scale")
+        word = match.group("word")
+        if raw_num and not scale and _YEAR_RE.fullmatch(raw_num):
             continue
-        if (val := _scale_number(raw_num, None)) is not None:
-            metrics.setdefault(_metric_key("num", val), match.group(0).strip())
+        val = float(_word_count(word)) if word else _scale_number(raw_num, scale)
+        if val is not None:
+            unit = match.group("unit").lower()
+            unit = "country" if unit == "countries" else unit if unit == "ms" else unit.removesuffix("s")
+            metrics.setdefault(_metric_key(f"unit:{unit}", val), match.group(0).strip())
 
     return metrics, years_claims
 
 
+def _word_count(word: str) -> int:
+    total = group = 0
+    for part in _WORD_COUNT_SPLIT_RE.split(word.casefold()):
+        if part == "hundred":
+            group *= 100
+        elif part in _MAJOR_SCALES:
+            total += group * _MAJOR_SCALES[part]
+            group = 0
+        elif part != "and":
+            group += _WORD_NUMBERS[part]
+    return total + group
+
+
 def _word_number_keys(text: str) -> set[str]:
-    norm = normalize_text(text)
-    keys: set[str] = set()
-    for word, val in _WORD_NUMBERS.items():
-        if re.search(rf"(?<!\w){word}(?!\w)", norm):
-            keys.add(f"num:{val}")
-    return keys
+    return {f"num:{_word_count(match.group(1))}" for match in _WORD_NUMBER_RE.finditer(normalize_text(text))}
 
 
 def _extract_credentials(text: str) -> set[str]:
@@ -396,6 +444,7 @@ def _check_years_and_experience(
 
     src_exp = cv_experience.analyze_experience(source_text, as_of=ref)
     opt_exp = cv_experience.analyze_experience(optimized_text, as_of=ref)
+    _check_role_dates(src_exp, opt_exp, confirmed, ref, violations)
 
     bounds, authorized_estimate = authorized_timeline(source_text, confirmed, ref, src_exp)
     opt_months = int(opt_exp["total_months"])
@@ -422,6 +471,65 @@ def _check_years_and_experience(
     return src_exp, opt_exp, delta, bounds
 
 
+def _precise_role_dates(experience: dict[str, Any]) -> dict[ClaimScope, set[tuple[str, str]]]:
+    roles: dict[ClaimScope, set[tuple[str, str]]] = {}
+    for role in experience["roles"]:
+        scope = identify_role_scope(role["title_hint"])
+        if not scope.role:
+            scope = ClaimScope(role=" ".join(re.findall(r"\w+", normalize_text(role["title_hint"]))))
+        if scope.role and role["start_precision"] == role["end_precision"] == "month":
+            roles.setdefault(scope, set()).add((role["start"], role["end"]))
+    return roles
+
+
+def _confirmed_date_scope(
+    hint: str, roles: dict[ClaimScope, set[tuple[str, str]]], unique_role_only: dict[str, ClaimScope],
+) -> ClaimScope | None:
+    heading = normalize_text(hint)
+    matching = [scope for scope in roles if scope.employer and contains_term(heading, scope.employer)]
+    if len(matching) > 1:
+        matching = [scope for scope in matching if contains_term(heading, scope.role)]
+    if matching:
+        return matching[0] if len(matching) == 1 else None
+    fact_scope = identify_role_scope(hint)
+    return unique_role_only.get(fact_scope.role) if fact_scope.employer else None
+
+
+def _confirmed_role_dates(
+    confirmed: list[str], ref: date, roles: dict[ClaimScope, set[tuple[str, str]]],
+) -> None:
+    title_counts = Counter(scope.role for scope in roles)
+    unique_role_only = {
+        scope.role: scope for scope, dates in roles.items()
+        if not scope.employer and len(dates) == 1 and title_counts[scope.role] == 1
+    }
+    for fact in confirmed:
+        for entry in cv_experience.parse_date_ranges_from_lines(fact.splitlines(), as_of=ref):
+            start, end = entry.display_start or entry.start, entry.display_end or entry.end
+            if start.year_only or end.year_only:
+                continue
+            scope = _confirmed_date_scope(entry.title_hint, roles, unique_role_only)
+            if scope is not None:
+                roles[scope].add((start.label(), "present" if entry.is_present else end.label()))
+
+
+def _check_role_dates(
+    source: dict[str, Any], draft: dict[str, Any], confirmed: list[str], ref: date,
+    violations: list[dict[str, Any]],
+) -> None:
+    source_roles = _precise_role_dates(source)
+    _confirmed_role_dates(confirmed, ref, source_roles)
+    for scope, dates in _precise_role_dates(draft).items():
+        if scope in source_roles and dates - source_roles[scope]:
+            title = " | ".join(filter(None, (scope.role, scope.employer)))
+            violations.append({
+                "type": "changed_role_dates",
+                "severity": "high",
+                "token": title,
+                "message": f"Employment dates for {title!r} differ from the source CV and confirmed facts.",
+            })
+
+
 def _check_metrics(
     authorized_text: str,
     optimized_text: str,
@@ -431,7 +539,8 @@ def _check_metrics(
 ) -> None:
     verified_years = round(month_bounds[0] / 12.0, 1)
     auth_metrics, auth_years_claims = _extract_metrics(authorized_text)
-    auth_metric_keys = set(auth_metrics) | _word_number_keys(authorized_text)
+    count_keys = {f"num:{key.rsplit(':', 1)[-1]}" for key in auth_metrics if key.startswith("unit:")}
+    auth_metric_keys = set(auth_metrics) | count_keys | _word_number_keys(authorized_text)
     auth_years_keys = {_metric_key("yrs", yrs_val) for _raw_claim, yrs_val in auth_years_claims}
     opt_metrics, opt_years_claims = _extract_metrics(optimized_text)
     for key, display in sorted(opt_metrics.items()):

@@ -593,3 +593,62 @@ def test_explain_accepts_sector_aliases_that_select_packs(tmp_path, capsys):
     assert code == 0
     assert "'fintech' is not a known sector" in warnings
     assert "'healthcare'" not in warnings and "'Software'" not in warnings
+
+
+def test_regression_plain_undo_retains_all_entries_at_capacity(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(profiles, "HISTORY_LIMIT", 3)
+    _save_draft(tmp_path, capsys, _draft(name="First"))
+    for name in ("Second", "Third", "Fourth"):
+        code, _ = _run(capsys, "profile", "edit", SLUG, "--set", f"name={name}")
+        assert code == 0
+    assert len(profiles.history(SLUG)) == 3
+    for name in ("Third", "Second", "First"):
+        code, result = _run(capsys, "profile", "undo", SLUG)
+        assert code == 0, result
+        assert _saved()["name"] == name
+        assert len(profiles.history(SLUG)) <= 3
+    redo = next(item["version"] for item in profiles.history(SLUG) if item["reason"] == "undo")
+    code, result = _run(capsys, "profile", "undo", SLUG, "--to", redo)
+    assert code == 0, result
+    assert _saved()["name"] == "Second"
+
+
+def test_profile_undo_write_failure_preserves_history(tmp_path, capsys, monkeypatch):
+    path = _save_draft(tmp_path, capsys, _draft(name="First"))
+    code, _ = _run(capsys, "profile", "edit", SLUG, "--set", "name=Second")
+    assert code == 0
+    current = path.read_bytes()
+    history = profiles.history(SLUG)
+    write = profiles._atomic_write_bytes
+
+    def fail_restore(target, content):
+        if target == path:
+            raise OSError("disk full")
+        write(target, content)
+
+    monkeypatch.setattr(profiles, "_atomic_write_bytes", fail_restore)
+    assert _run(capsys, "profile", "undo", SLUG)[0] != 0
+    assert path.read_bytes() == current
+    assert profiles.history(SLUG) == history
+
+
+def test_regression_profile_nonfinite_metadata_uses_strict_json(tmp_path, capsys):
+    def reject_constant(value):
+        raise ValueError(f"Nonstandard JSON constant: {value}")
+
+    data = _draft(description=float("nan"), metadata=[float("inf"), -float("inf")])
+    draft = tmp_path / "draft.yaml"
+    draft.write_text(yaml.safe_dump(data), encoding="utf-8")
+    code = main(["profile", "save", "--from", str(draft)])
+    saved = json.loads(capsys.readouterr().out, parse_constant=reject_constant)
+    assert (code != 0) == ("error" in saved)
+    if code == 0:
+        code = main(["profile", "show", SLUG])
+        result = json.loads(capsys.readouterr().out, parse_constant=reject_constant)
+        assert (code != 0) == ("error" in result)
+    stored = profiles.user_path(SLUG)
+    stored.parent.mkdir(parents=True, exist_ok=True)
+    stored.write_bytes(draft.read_bytes())
+    code = main(["profile", "show", SLUG])
+    result = json.loads(capsys.readouterr().out, parse_constant=reject_constant)
+    assert (code != 0) == ("error" in result)

@@ -14,7 +14,7 @@ enforces the rules below on every import.
 | `core/` | Domain logic that reads no run state: models, run presets, ATS clients, identity and board-key resolution (`ats/board_key`), extractors, feeds, rules, decisions, ranking (including factual lexical pre-ranking in `ranker/lexical`) and Markdown rendering. |
 | `profiles/` | Search profiles: loading and saving (`store`), conversational edits (`edit`), shared watch role families (`families`), and replaying a run with a draft profile (`explain`). |
 | `cv/` | CV parsing (`extract`, `docx_reader`, the sandboxed PDF `worker`), the ATS audit (`ats`, `ats_target`, `ats_requirements`), experience timeline (`experience`, `experience_terms`), truthfulness and claim attribution (`truth`, `claim_attribution`) and the `.docx` writer. |
-| `cover_letter/` | Cover-letter brief preparation, bundled & custom `.docx` template rendering, truthfulness check and builder. |
+| `cover_letter/` | Cover-letter brief preparation, draft parsing (`draft`), bundled & custom `.docx` template rendering, truthfulness check and builder. |
 | `salary/` | Salary estimation (estimator), disclosure extraction and display formatting (disclosure, display), and run-local market observations (observations). |
 | `storage/` | Persistent state under the ULTRON home: the job ledger, run folders, transactional report publication (`run_publication`), saved searches, review states, maintenance (purge, export), the memory of agent verdicts (`scout_memory`) and the watchlist with its pending postings (`watchlist`), and bounded closure snapshots (`watch_digests`). |
 | `seeds/` | Company seeds: the inventory and bundled packs, the auto-seed file, company and domain names, verification and seed-generation rounds. |

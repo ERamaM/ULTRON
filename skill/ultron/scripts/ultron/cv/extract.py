@@ -237,7 +237,7 @@ def _normalize_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
-def _decode_text_bytes(content: bytes) -> str:
+def decode_text_bytes(content: bytes) -> str:
     """Decode plain-text bytes honoring BOMs, then utf-8 with latin-1 fallback."""
 
     if content.startswith(b"\xef\xbb\xbf"):
@@ -277,7 +277,7 @@ def extract_cv(
     max_pages: int = MAX_CV_PAGES,
     max_chars: int = MAX_CV_CHARS,
     timeout: float = PDF_TIMEOUT_SECONDS,
-    pdf_runner: PdfRunner = subprocess_pdf_runner,
+    pdf_runner: PdfRunner | None = None,
 ) -> CvText:
     """Return the cleaned CV text and its page count (``.txt``/``.md`` count as one page)."""
 
@@ -292,7 +292,7 @@ def extract_cv(
     except OSError as exc:
         raise CvExtractionError(f"Cannot read CV file: {exc}", code="unsupported_type") from exc
     if suffix in TEXT_SUFFIXES:
-        return CvText(_clean_text(_decode_text_bytes(content), max_chars), 1)
+        return CvText(_clean_text(decode_text_bytes(content), max_chars), 1)
     if suffix == DOCX_SUFFIX:
         from ultron.cv.docx_reader import extract_docx_text
 
@@ -301,8 +301,15 @@ def extract_cv(
         if page_count > max_pages:  # the same page budget as a PDF
             raise CvPdfTooManyPages(max_pages)
         return CvText(_clean_text(text, max_chars), page_count)
-    pages = pdf_runner(content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout)
-    return CvText(_clean_text("\n".join(pages), max_chars), len(pages))
+    if pdf_runner is not None:
+        pages = pdf_runner(content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout)
+        return CvText(_clean_text("\n".join(pages), max_chars), len(pages))
+
+    payload = _run_pdf_worker(content, max_pages=max_pages, max_chars=max_chars, timeout_seconds=timeout)
+    pages = _validate_pages(payload)
+    metadata = payload.get("metadata")
+    page_count = _json_int(metadata.get("page_count")) if isinstance(metadata, dict) else None
+    return CvText(_clean_text("\n".join(pages), max_chars), page_count if page_count is not None else len(pages))
 
 
 def extract_cv_text(

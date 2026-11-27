@@ -6,6 +6,8 @@ import datetime
 import json
 import zipfile
 
+import pytest
+
 from ultron import cli
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import extract as cv
@@ -335,3 +337,117 @@ def test_verify_truth_rejects_currency_substitution_and_unrelated_count_as_tenur
         encoding="utf-8",
     )
     assert cv_truth.verify_truth(src_explicit, opt_inflated, as_of=datetime.date(2026, 1, 1))["passed"] is True
+
+
+def test_regression_cv_strict_requires_source(tmp_path, capsys):
+    draft = tmp_path / "cv.md"
+    draft.write_text(SOURCE_CV_MD, encoding="utf-8")
+    output = tmp_path / "cv.docx"
+    args = ["cv", "build-docx", "--from", str(draft), "--out", str(output)]
+    assert cli.main([*args, "--strict"]) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "missing_source_cv"
+    assert not output.exists()
+    assert cli.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["truth"] is None
+
+
+def test_regression_cv_audit_precedes_publication(tmp_path, capsys):
+    draft = tmp_path / "cv.md"
+    original = tmp_path / "original.docx"
+    draft.write_text(SOURCE_CV_MD, encoding="utf-8")
+    args = ["cv", "build-docx", "--from", str(draft)]
+    assert cli.main([*args, "--out", str(original)]) == 0
+    capsys.readouterr()
+    prior = original.read_bytes()
+    draft.write_text("# Jane Example\n\n## Summary\n" + "ordinary prose " * 4200, encoding="utf-8")
+    fresh = tmp_path / "fresh.docx"
+    for output in (original, fresh):
+        assert cli.main([*args, "--out", str(output), "--force"]) != 0
+        assert json.loads(capsys.readouterr().out)["error"] == "too_long"
+        assert original.read_bytes() == prior
+        assert not fresh.exists()
+
+
+def test_regression_truth_keeps_dates_with_their_roles(tmp_path):
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    one, two = "Jan 2020 - Dec 2020", "Jan 2022 - Dec 2023"
+    first = "Analyst | Acme Labs | {}\n- Prepared reports.\n"
+    second = "Engineer | Beta Corp | {}\n- Maintained services.\n"
+    heading = "# Jane Example\n\n## Experience\n"
+    source.write_text(heading + first.format(one) + "\n" + second.format(two), encoding="utf-8")
+    draft.write_text(heading + second.format(two.replace("Dec", "December")) + "\n" + first.format(one),
+                     encoding="utf-8")
+    assert cv_truth.verify_truth(source, draft)["passed"]
+    draft.write_text(heading + first.format(two) + "\n" + second.format(one), encoding="utf-8")
+    result = cv_truth.verify_truth(source, draft)
+    assert not result["passed"]
+    assert any(item["type"] == "changed_role_dates" for item in result["violations"])
+
+
+@pytest.mark.parametrize("spelled", ["twenty-five", "twenty five", "twenty\u2011five"])
+def test_compound_number_claims_preserve_the_whole_count(tmp_path, spelled):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    draft.write_text(f"Managed {spelled} developers.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        source.write_text("Managed 25 developers.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        source.write_text("Managed five developers.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])
+
+
+def test_count_modifiers_can_be_removed_without_changing_the_unit(tmp_path):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    source.write_text("Maintained services for 50k active users.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        draft.write_text("Maintained services for 50k users.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        draft.write_text("Maintained services for 50k teams.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_confirmed_dates_apply_only_to_a_unique_role_only_heading(tmp_path, ambiguous):
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    text = (
+        "# Jane Example\n\n## Experience\n"
+        "Acme Labs\nEngineer\nJan 2020 - Dec 2021\n- Maintained services.\n"
+    )
+    if ambiguous:
+        text += "\nBeta Corp\nEngineer\nJan 2018 - Dec 2019\n- Developed tools.\n"
+    source.write_text(text, encoding="utf-8")
+    draft.write_text(text.replace("Jan 2020", "Feb 2020"), encoding="utf-8")
+    result = cv_truth.verify_truth(source, draft, confirmed_facts=["Engineer at Acme Labs from Feb 2020 to Dec 2021"])
+    assert any(item["type"] == "changed_role_dates" for item in result["violations"]) is ambiguous
+    assert result["passed"] is not ambiguous
+
+
+@pytest.mark.parametrize(("number", "words", "smaller"), [
+    ("1 million", "one million", "1"),
+    ("500", "five hundred", "5"),
+    ("1250", "one thousand two hundred and fifty", "50"),
+])
+def test_scaled_word_counts_are_authorized_as_a_whole(tmp_path, number, words, smaller):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    draft.write_text(f"Served {words} active users.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        source.write_text(f"Served {number} active users.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        source.write_text(f"Served {smaller} active users.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])

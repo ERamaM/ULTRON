@@ -297,7 +297,7 @@ def write_profile(data: dict, *, reason: str) -> tuple[Path, str]:
     errors = validate_profile(data)
     if errors:
         raise ProfileInvalidError(errors)
-    version = _snapshot(data["slug"], reason)
+    version = _version_id(_snapshot(data["slug"], reason))
     target = user_path(data["slug"])
     _atomic_write_bytes(target, dump_profile(data).encode("utf-8"))
     return target, version
@@ -343,8 +343,8 @@ def _version_id(path: Path) -> str:
     return path.name.rsplit(".", 1)[0]
 
 
-def _snapshot(slug: str, reason: str) -> str:
-    """Record the user's current file (or its absence) before a write; return the version id."""
+def _snapshot(slug: str, reason: str, *, prune: bool = True) -> Path:
+    """Record the user's current file (or its absence) before a write."""
     if not SLUG_RE.fullmatch(slug):
         raise ValueError(f"invalid profile slug: {slug!r}")
     existing = _versions(slug)
@@ -357,9 +357,14 @@ def _snapshot(slug: str, reason: str) -> str:
     else:
         target = _history_dir(slug) / f"{seq:06d}-{stamp}-{reason}.absent"
         _atomic_write_bytes(target, b"")
+    if prune:
+        _prune_history(slug)
+    return target
+
+
+def _prune_history(slug: str) -> None:
     for *_rest, old in _versions(slug)[:-HISTORY_LIMIT]:
         old.unlink(missing_ok=True)
-    return _version_id(target)
 
 
 def history(slug: str) -> list[dict]:
@@ -401,14 +406,18 @@ def restore(slug: str, version: str | None = None) -> dict:
     restore therefore brings back the state that restore replaced.
     """
     path = _undo_target(slug, version)
-    # Read the version before snapshotting: the snapshot may prune the oldest entry, which can be this one.
     content = path.read_bytes() if path.suffix == ".yaml" else None
-    backup = _snapshot(slug, "undo" if version is None else "restore")
+    backup = _snapshot(slug, "undo" if version is None else "restore", prune=False)
     target = user_path(slug)
-    if content is not None:
-        _atomic_write_bytes(target, content)
-    else:
-        target.unlink(missing_ok=True)
+    try:
+        if content is not None:
+            _atomic_write_bytes(target, content)
+        else:
+            target.unlink(missing_ok=True)
+    except OSError:
+        backup.unlink(missing_ok=True)
+        raise
     if version is None:
         path.unlink(missing_ok=True)
-    return {"restored": _version_id(path), "backup": backup, "removed_user_copy": content is None}
+    _prune_history(slug)
+    return {"restored": _version_id(path), "backup": _version_id(backup), "removed_user_copy": content is None}

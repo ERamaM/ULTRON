@@ -85,6 +85,8 @@ def _save(args: argparse.Namespace) -> int:
         return 1
     except FileNotFoundError as exc:
         return fail("profile_not_found", str(exc))
+    except salary.SalaryProfileSlugError as exc:
+        return fail("profile_slug_mismatch", str(exc))
     except (OSError, ValueError) as exc:
         return fail("salary_save_failed", str(exc))
     emit(payload)

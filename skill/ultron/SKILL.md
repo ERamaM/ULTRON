@@ -37,6 +37,10 @@ a request to search before launching a run. If the intent is unclear, ask what t
   user to run `python <path-to-ULTRON>/install.py` (global) or `install.py --project <folder>`.
 - Every command prints exactly one JSON object. Errors are `{"error": ..., "detail": ...}` with a
   non-zero exit code; `stage_order` (exit 3) means you skipped a stage.
+- On your first ULTRON turn in a session, run `ultron version --check-update` once (skip if the
+  user is already asking to update). If it returns `update_available`, include one short note in
+  your reply with the new version and release link, and ask whether to update. Continue with the
+  user's request normally if no update is reported or if the check is unavailable.
 - Run folder: `<ULTRON_HOME>/runs/<run_id>/`. Write your own input files there with an `agent_`
   prefix (never overwrite the CLI's files), as UTF-8 JSONL with your file-writing tool.
 - Fetching and discovery can take minutes; use a long timeout and wait.
@@ -137,9 +141,6 @@ use `ddg` or `ddg_html` for web search alongside feeds and boards.
 
 ## Rules of thumb
 
-- After a completed interactive search, run `ultron version --check-update` once. If it returns
-  `update_available`, add one short note below the results with the new version and release link,
-  and ask whether to update. Keep the conversation going normally if the check is unavailable.
 - Update only when the user agrees or asks: run `ultron update`, then run each returned command as a
   separate process, then `ultron doctor`, then tell the user to restart the session. Follow
   "Updating ULTRON" in `references/commands.md`.

@@ -101,7 +101,7 @@ The `ultron` binary lives inside its dedicated venv (`~/.ultron/venv`) rather th
 
 ### Updating ULTRON
 
-After an interactive search, ULTRON checks once every 24 hours for a newer stable GitHub release (`ULTRON_DISABLE_UPDATE_CHECK=1` disables checks). Ask your agent to update (`ultron update` prepares the release and outputs `install.py --update` commands; your profiles, saved searches, and ledger stay intact), or update manually:
+When you start an ULTRON session, ULTRON checks once every 24 hours for a newer stable GitHub release (`ULTRON_DISABLE_UPDATE_CHECK=1` disables checks). Ask your agent to update (`ultron update` prepares the release and outputs `install.py --update` commands; your profiles, saved searches, and ledger stay intact), or update manually:
 
 - **macOS / Linux:** `./install.sh --update` (or `curl -fsSL https://raw.githubusercontent.com/ERamaM/ULTRON/main/install.sh | sh -s -- --update`)
 - **Windows (PowerShell):** `powershell -ExecutionPolicy Bypass -File .\install.ps1 --update` (or `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/ERamaM/ULTRON/main/install.ps1))) --update`)

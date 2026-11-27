@@ -68,7 +68,7 @@ See [references/platforms.md](../../skill/ultron/references/platforms.md) for ve
 
 ## Updating ULTRON
 
-After an interactive search, ULTRON checks once every 24 hours whether a newer stable GitHub release exists and displays a single notice. Set `ULTRON_DISABLE_UPDATE_CHECK=1` to disable the reminder.
+When you start an ULTRON session, ULTRON checks once every 24 hours whether a newer stable GitHub release exists and displays a single notice. Set `ULTRON_DISABLE_UPDATE_CHECK=1` to disable the reminder.
 
 When you confirm an update with your agent:
 

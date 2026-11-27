@@ -109,6 +109,14 @@ def test_skill_install_advice_and_quoting():
     assert "unsure" in text
 
 
+def test_skill_checks_for_updates_on_first_turn():
+    text = SKILL_MD.read_text(encoding="utf-8")
+    assert "first ULTRON turn in a session" in text
+    assert "ultron version --check-update" in text
+    assert "update_available" in text
+    assert "After a completed interactive search" not in text
+
+
 def _stage_commands() -> set[str]:
     """Every registered stage command as the words a user types, e.g. ``discover feeds``."""
     import argparse

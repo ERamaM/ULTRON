@@ -448,7 +448,8 @@ def _check_report(report: Any, label: str) -> None:
         _check_gated_metrics(metrics["classification"])
         for groups in metrics["slices"].values():
             for values in groups.values():
-                if type(values["sample_size"]) is not int or values["sample_size"] < 0:
+                sample_size = values["sample_size"]
+                if not isinstance(sample_size, int) or isinstance(sample_size, bool) or sample_size < 0:
                     raise ValueError("invalid sample size")
                 _check_gated_metrics(values)
         cases = report.get("cases", [])
@@ -464,7 +465,7 @@ def _check_report_case(case: dict[str, Any]) -> None:
     if not isinstance(case["id"], str) or case["prediction"]["status"] not in _STATUS_ORDER:
         raise ValueError("invalid case id or prediction status")
     relevance = case["truth"]["relevant"]
-    if relevance is not None and type(relevance) is not bool:
+    if relevance is not None and not isinstance(relevance, bool):
         raise ValueError("invalid case relevance")
 
 

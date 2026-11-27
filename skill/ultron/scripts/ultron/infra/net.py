@@ -46,15 +46,17 @@ def run_bounded[T](
         try:
             remaining()
             result.set_result(operation())
-        except BaseException as error:  # noqa: BLE001 - propagate worker failures to the waiting caller
+        except Exception as error:  # noqa: BLE001 - propagate worker failures to the waiting caller
             result.set_exception(error)
         finally:
+            if not result.done():
+                result.set_exception(RuntimeError("bounded operation stopped without a result"))
             slots.release()
 
     # The OS call may outlive the caller. It keeps its slot until it exits and never holds up process shutdown.
     try:
         threading.Thread(target=run, daemon=True).start()
-    except BaseException:
+    except Exception:
         slots.release()
         raise
     if not wait((result,), timeout=remaining()).done:

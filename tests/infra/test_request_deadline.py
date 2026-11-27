@@ -4,7 +4,7 @@ import time
 import httpx
 import pytest
 
-from ultron.infra.net import HostGate, HttpClient, RequestBudgetExceeded
+from ultron.infra.net import HostGate, HttpClient, RequestBudgetExceeded, run_bounded
 
 
 def _client(handler, **options):
@@ -93,3 +93,15 @@ def test_deadline_returns_while_resolution_is_pending():
         release.set()
         caller.join(timeout=4)
     assert not dispatched
+
+
+def test_bounded_worker_signals_interrupted_operation(monkeypatch):
+    def interrupted():
+        raise SystemExit(1)
+
+    monkeypatch.setattr(threading, "excepthook", lambda _: None)
+    slots = threading.BoundedSemaphore(1)
+    with pytest.raises(RuntimeError, match="without a result"):
+        run_bounded(interrupted, slots=slots, remaining=lambda: 1, timeout_error=TimeoutError)
+    assert slots.acquire(timeout=1)
+    slots.release()

@@ -1,6 +1,7 @@
 """Test local renderer discovery, process isolation, and static input validation."""
 
 import io
+import os
 import subprocess
 import sys
 import types
@@ -27,9 +28,9 @@ def test_discovery_order_and_explicit_selection(monkeypatch, tmp_path):
     monkeypatch.setattr(docx_pdf, "_APP", str(app))
     monkeypatch.setattr(docx_pdf, "_LO_MAC", str(soffice))
 
-    def which(name, *, path):
-        assert path == str(tmp_path)
-        return str(script) if name == "osascript" else None
+    def which(candidate, *, path):
+        assert not path
+        return str(script) if candidate == str(script) else None
 
     monkeypatch.setattr(docx_pdf.shutil, "which", which)
     assert docx_pdf.detect_pdf_converter({"PATH": str(tmp_path)}) == ("libreoffice", str(soffice))
@@ -40,6 +41,42 @@ def test_discovery_order_and_explicit_selection(monkeypatch, tmp_path):
     assert docx_pdf.detect_pdf_converter({"PATH": str(tmp_path), "ULTRON_DOCX_PDF_CONVERTER": " Word "}) == (
         "word", str(script),
     )
+
+
+def test_path_search_ignores_current_and_relative_directories(monkeypatch, tmp_path):
+    working_dir = tmp_path / "working"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
+    trusted = tmp_path / "installed"
+    trusted.mkdir()
+    checked = []
+    executable = str(trusted / ("soffice.exe" if sys.platform == "win32" else "soffice"))
+
+    def which(candidate, *, path):
+        assert not path
+        checked.append(candidate)
+        return executable
+
+    monkeypatch.setattr(docx_pdf.shutil, "which", which)
+    search_path = os.pathsep.join(("", ".", "bin", str(working_dir), str(trusted)))
+    assert docx_pdf.detect_pdf_converter({"PATH": search_path}) == ("libreoffice", executable)
+    assert checked == [str(trusted / "soffice")]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows executable lookup")
+def test_windows_does_not_discover_office_from_project_directory(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "soffice.exe").touch()
+    installed = tmp_path / "installed"
+    installed.mkdir()
+    monkeypatch.chdir(project)
+    env = {"PATH": os.pathsep.join((str(project), ".", str(installed))), "ULTRON_DOCX_PDF_CONVERTER": "libreoffice"}
+    assert docx_pdf.detect_pdf_converter(env) is None
+    (installed / "soffice.bat").touch()
+    assert docx_pdf.detect_pdf_converter(env) is None
+    (installed / "soffice.exe").touch()
+    assert docx_pdf.detect_pdf_converter(env) == ("libreoffice", str(installed / "soffice.exe"))
 
 
 def test_windows_program_files_and_registry_discovery(monkeypatch, tmp_path):

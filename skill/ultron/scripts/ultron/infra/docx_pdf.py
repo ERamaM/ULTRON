@@ -80,9 +80,23 @@ end run
 
 
 def _on_path(names: tuple[str, ...], env: Mapping[str, str]) -> str | None:
+    cwd = Path.cwd().resolve()
+    directories = []
+    for entry in env.get("PATH", os.defpath).split(os.pathsep):
+        directory = Path(entry.strip('"'))
+        if directory.is_absolute() and (resolved := directory.resolve()) != cwd:
+            directories.append(resolved)
+
     for name in names:
-        if executable := shutil.which(name, path=env.get("PATH", os.defpath)):
-            return str(Path(executable).resolve())
+        for directory in directories:
+            # An explicit path lets which check executability and PATHEXT without prepending cwd.
+            if executable := shutil.which(str(directory / name), path=""):
+                resolved_executable = Path(executable).resolve()
+                if resolved_executable.parent == cwd:
+                    continue
+                if sys.platform == "win32" and resolved_executable.suffix.casefold() not in {".exe", ".com"}:
+                    continue
+                return str(resolved_executable)
     return None
 
 

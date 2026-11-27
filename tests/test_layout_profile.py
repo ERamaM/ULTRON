@@ -125,3 +125,31 @@ def test_inherited_body_font_and_effective_heading_border(base_border, direct_bo
         """)
     detected = layout_profile.extract_layout_profile(buffer.getvalue(), file_type="docx")
     assert detected["font"] == "Arial" and detected["section_style"] == expected
+
+
+
+def test_heading_one_sections_are_detected_separately_from_title():
+    import io
+    import zipfile
+
+    from ultron.cv.docx_layout import WORD_NS
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", f"""
+            <w:document xmlns:w="{WORD_NS}"><w:body>
+            <w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Jane Example</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Experience</w:t></w:r></w:p>
+            <w:p><w:r><w:t>Worked on reporting.</w:t></w:r></w:p>
+            </w:body></w:document>
+        """)
+        archive.writestr("word/styles.xml", f"""
+            <w:styles xmlns:w="{WORD_NS}">
+                <w:style w:styleId="Title"><w:rPr><w:color w:val="882222"/></w:rPr></w:style>
+                <w:style w:styleId="Heading1"><w:pPr><w:pBdr>
+                    <w:bottom w:val="single" w:color="2B4C7E"/>
+                </w:pBdr></w:pPr></w:style>
+            </w:styles>
+        """)
+    detected = layout_profile.extract_layout_profile(buffer.getvalue(), file_type="docx")
+    assert (detected["section_style"], detected["accent_color"]) == ("rule", "2B4C7E")

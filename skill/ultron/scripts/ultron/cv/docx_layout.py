@@ -138,6 +138,8 @@ class DocxLayoutMetrics:
         cues.caps |= "".join(paragraph.text).isupper()
         paragraph.text.clear()
         self.paragraph_fonts.setdefault(paragraph.style, Counter())[cues.font] += 1
+        if paragraph is self.header:
+            return
         self.paragraph_borders.setdefault(paragraph.style, set()).add(cues.border)
         combined = self.applied.setdefault(paragraph.style, _Cues())
         combined.shaded |= cues.shaded
@@ -165,14 +167,17 @@ class DocxLayoutMetrics:
         fonts: Counter[str] = Counter()
         right_tabs = False
         section_border = False
-        for style_id, direct in self.applied.items():
+        for style_id, declared_fonts in self.paragraph_fonts.items():
             chain = definitions._chain(style_id)
             inherited = definitions._used_style_cues(chain)
-            right_tabs |= direct.right_tab or any(cue.right_tab for cue in inherited)
             default_font = next((cue.font for cue in inherited if cue.font), definitions.defaults.font)
-            for font, count in self.paragraph_fonts[style_id].items():
+            for font, count in declared_fonts.items():
                 fonts[font or default_font] += count
-            if any(style.startswith("heading") and style != "heading1" for style in chain):
+            direct = self.applied.get(style_id)
+            if direct is None:
+                continue
+            right_tabs |= direct.right_tab or any(cue.right_tab for cue in inherited)
+            if any(style.startswith("heading") for style in chain):
                 sections.append(direct)
                 default_border = next((cue.border for cue in inherited if cue.border is not None), False)
                 section_border |= any(

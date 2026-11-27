@@ -1358,3 +1358,103 @@ def test_concurrent_registry_updates_keep_both_records(inst, tmp_path, monkeypat
             pending_first.result(timeout=10)
             pending_second.result(timeout=10)
     assert set(read()[kind]) == set(map(str, folders))
+
+
+@pytest.mark.parametrize("layout", ["marked", "shared", "orphan", "shared-orphan"])
+def test_installer_purge_recognizes_the_real_ledger_lock(inst, fake_home, capsys, monkeypatch, layout):
+    from contextlib import closing
+
+    from ultron.storage import ledger
+
+    home = fake_home / "purge-ledger"
+    home.mkdir()
+    monkeypatch.setenv("ULTRON_HOME", str(home))
+    db = home / "ultron.sqlite3"
+    with closing(ledger.connect(db)):
+        pass
+    lock = ledger.lock_path(db)
+    assert lock.is_file()
+    if layout == "marked":
+        (home / ".ultron-home").touch()
+    if layout.startswith("shared"):
+        (home / "notes.txt").write_text("keep", encoding="utf-8")
+    if layout.endswith("orphan"):
+        db.unlink()
+    if layout == "shared-orphan":
+        (home / "installs.json").write_text("unrelated file", encoding="utf-8")
+
+    code, preview = _run_main(inst, capsys, "--uninstall", "--purge-data", "--dry-run")
+    assert code == 0
+    assert lock.name in preview["ultron_home"]["would_delete"]
+    assert lock.is_file()
+    code, result = _run_main(inst, capsys, "--uninstall", "--purge-data")
+    assert code == 0
+    assert not lock.exists()
+    if layout.startswith("shared"):
+        foreign = ["installs.json", "notes.txt"] if layout == "shared-orphan" else ["notes.txt"]
+        assert result["ultron_home"]["kept_foreign_entries"] == foreign
+        assert (home / "notes.txt").read_text(encoding="utf-8") == "keep"
+    else:
+        assert result["ultron_home"]["status"] == "removed"
+        assert not home.exists()
+
+
+def test_installer_purge_keeps_the_ledger_while_a_connection_is_open(inst, fake_home, monkeypatch, capsys):
+    from contextlib import closing
+
+    from ultron.storage import ledger
+
+    home = fake_home / "busy-ledger"
+    home.mkdir()
+    marker = home / ".ultron-home"
+    marker.touch()
+    db = home / "ultron.sqlite3"
+    monkeypatch.setenv("ULTRON_HOME", str(home))
+    with closing(ledger.connect(db)) as conn:
+        code, result = _run_main(inst, capsys, "--uninstall", "--purge-data")
+        assert code == 1
+        assert "close concurrent ULTRON commands" in json.dumps(result)
+        assert db.exists() and marker.exists()
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (0,)
+    assert _run_main(inst, capsys, "--uninstall", "--purge-data")[0] == 0
+    assert not home.exists()
+
+
+def test_installer_purge_keeps_a_directory_named_like_the_ledger_lock(inst, fake_home, capsys, monkeypatch):
+    home = fake_home / "shared"
+    lock_dir = home / ".ultron.sqlite3.lock"
+    lock_dir.mkdir(parents=True)
+    data = lock_dir / "keep.txt"
+    data.write_text("user data", encoding="utf-8")
+    (home / ".ultron-home").touch()
+    monkeypatch.setenv("ULTRON_HOME", str(home))
+    code, result = _run_main(inst, capsys, "--uninstall", "--purge-data")
+    assert code == 0
+    assert result["ultron_home"]["kept_foreign_entries"] == [lock_dir.name]
+    assert data.read_text(encoding="utf-8") == "user data"
+
+
+def test_uninstall_of_an_unregistered_copy_does_not_create_registry(inst, fake_home, capsys):
+    _, report = _run_main(inst, capsys, "--platforms", "claude")
+    target = Path(report["targets"][0]["path"])
+    home = fake_home / ".ultron"
+    registry, lock = home / "installs.json", home / ".ultron-installs.lock"
+    registry.unlink()
+    lock.unlink()
+    code, report = _run_main(inst, capsys, "--uninstall", "--platforms", "claude")
+    assert code == 0 and report["targets"][0]["status"] == "removed"
+    assert not target.exists()
+    assert not registry.exists() and not lock.exists()
+
+
+def test_unknown_registry_entries_do_not_rewrite_existing_records(inst, fake_home):
+    home = fake_home / ".ultron"
+    home.mkdir()
+    registry = home / "installs.json"
+    original = b'{"installs":{},"links":{}}'
+    registry.write_bytes(original)
+    unknown = fake_home / "unknown"
+    inst._forget_install(unknown)
+    inst._forget_link(unknown)
+    assert registry.read_bytes() == original
+    assert not (home / ".ultron-installs.lock").exists()

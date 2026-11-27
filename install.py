@@ -20,7 +20,8 @@ behaviour: project install into ``--target`` (default ``.``).
 ``--update`` refreshes the venv and only the targets that already hold an ULTRON install (others: skipped).
 ``--uninstall`` removes only folders that contain ``.ultron-install.json``; ``$ULTRON_HOME`` is kept unless
 ``--purge-data`` is given, and even then only if it holds ``.ultron-home`` (written by every install) or
-``ultron.sqlite3`` (with only the database, generic entries such as ``venv`` or ``cv`` are kept). Nothing outside the ``ultron`` folders this installer created is ever deleted: destinations
+its ledger database or lock (without the marker, generic entries such as ``venv`` or ``cv`` are kept). Nothing
+outside the ``ultron`` folders this installer created is ever deleted: destinations
 inside the source tree are refused, a marker only counts when its ``path`` is the folder itself, ``--dev`` links
 are tracked in ``$ULTRON_HOME/installs.json`` (no marker is written through them; the same file records every
 install's scope, path, platforms, version and mode for ``ultron update``), unmarked phase-1 folders are
@@ -37,10 +38,11 @@ import re
 import secrets
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent
@@ -445,9 +447,7 @@ def _registry_edit():
             import fcntl
 
             fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        data = _read_registry_file()
-        yield data
-        _save_registry_file(data)
+        yield _read_registry_file()
 
 
 def _record_install(dst: Path, *, scope: str, project: Path | None, platforms: list[str], version: str) -> None:
@@ -464,21 +464,32 @@ def _record_install(dst: Path, *, scope: str, project: Path | None, platforms: l
     }
     with _registry_edit() as data:
         data.setdefault("installs", {})[key] = record
+        _save_registry_file(data)
+
+
+def _forget_registry_entry(section: str, dst: Path) -> None:
+    key = str(_real_location(dst))
+    if key not in _read_registry_file().get(section, {}):
+        return
+    with _registry_edit() as data:
+        records = data.get(section, {})
+        if key in records:  # Another writer may have removed it since the unlocked read.
+            del records[key]
+            _save_registry_file(data)
 
 
 def _forget_install(dst: Path) -> None:
-    with _registry_edit() as data:
-        data.get("installs", {}).pop(str(_real_location(dst)), None)
+    _forget_registry_entry("installs", dst)
 
 
 def _register_link(dst: Path, target: Path) -> None:
     with _registry_edit() as data:
         data.setdefault("links", {})[str(_real_location(dst))] = str(Path(target).resolve())
+        _save_registry_file(data)
 
 
 def _forget_link(dst: Path) -> None:
-    with _registry_edit() as data:
-        data.get("links", {}).pop(str(_real_location(dst)), None)
+    _forget_registry_entry("links", dst)
 
 
 def _has_marker(path: Path) -> bool:
@@ -879,52 +890,93 @@ def _home_refusal(home: Path) -> str | None:
         return f"{home} is the user's home, one of its parents or a drive root"
     if resolved == REPO or resolved in REPO.parents or REPO in resolved.parents:
         return f"{home} overlaps the ULTRON source folder"
-    # P4-R3: only the installer's own marker or the ULTRON database qualify (a venv or runs/ alone does not);
-    # with the database alone, _purge_home deletes only ULTRON-specific names
-    looks_like_home = (home / HOME_MARKER).is_file() or (home / "ultron.sqlite3").is_file()
-    if not looks_like_home:
-        return f"{home} does not look like an ULTRON home (no {HOME_MARKER} or ultron.sqlite3)"
-    return None
+    # A regular ledger lock can survive an older purge. Without the marker, generic names are still protected.
+    lock = home / LEDGER_LOCK
+    if (home / HOME_MARKER).is_file() or (home / "ultron.sqlite3").is_file():
+        return None
+    if not _is_link(lock) and lock.is_file():
+        return None
+    return f"{home} does not look like an ULTRON home (no {HOME_MARKER}, ultron.sqlite3 or ledger lock)"
+
+
+# Fixed ledger sidecar name mirrored from storage.ledger.lock_path for the default database.
+LEDGER_LOCK = ".ultron.sqlite3.lock"
 
 
 # Entries of $ULTRON_HOME that ULTRON creates; ``--purge-data`` deletes only these (C1).
 OWNED_HOME_ENTRIES = frozenset({
     "venv", "runs", "profiles", "seeds", "backups", "cv", "ultron.sqlite3", "ultron.sqlite3-wal",
-    "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices", REGISTRY, REGISTRY_LOCK, HOME_MARKER,
+    "ultron.sqlite3-shm", "ultron.sqlite3-journal", LEDGER_LOCK, "update-notices", REGISTRY, REGISTRY_LOCK, HOME_MARKER,
     "cover-letters", "salary", "watch", "toolkit",
 })
 # Without HOME_MARKER the folder existed before ULTRON used it (the CLI creates the ledger in any folder
 # ULTRON_HOME points at), so generic names like venv/ or cv/ may be the user's: only these are deleted.
 SPECIFIC_HOME_ENTRIES = frozenset({
     "ultron.sqlite3", "ultron.sqlite3-wal", "ultron.sqlite3-shm", "ultron.sqlite3-journal", "update-notices",
-    REGISTRY, REGISTRY_LOCK,
+    REGISTRY, REGISTRY_LOCK, LEDGER_LOCK,
 })
+
+
+@contextmanager
+def _purge_ledger_lease(lock: Path):
+    # The installer runs before ULTRON can be imported. Its exclusive lease uses the same SQLite protocol.
+    if _is_link(lock) or not lock.is_file():
+        yield
+        return
+    try:
+        with closing(sqlite3.connect(lock.as_uri() + "?mode=rw", uri=True, timeout=0)) as lease:
+            lease.execute("BEGIN EXCLUSIVE")
+            yield
+    except sqlite3.Error as exc:
+        raise InstallError("cannot lock the ULTRON ledger; close concurrent ULTRON commands and retry the purge") from exc
+
+
+def _remove_home_entry(child: Path) -> None:
+    if _is_link(child):
+        _unlink(child)
+    elif child.is_dir():
+        shutil.rmtree(child)  # Does not follow nested links.
+    else:
+        child.unlink()
+
+
+def _delete_home_entries(home: Path, owned: set[Path]) -> None:
+    lock, marker = home / LEDGER_LOCK, home / HOME_MARKER
+    with _purge_ledger_lease(lock):
+        for child in sorted(owned - {lock, marker}):
+            _remove_home_entry(child)
+    # Close the SQLite handle before unlinking its file. Keep ownership proof until all other removals succeed.
+    for child in (lock, marker):
+        if child in owned:
+            _remove_home_entry(child)
 
 
 def _purge_home(home: Path, *, dry_run: bool) -> dict:
     """Delete the ULTRON-owned entries of ``home``; remove ``home`` itself only if nothing else is left."""
-    deletable = OWNED_HOME_ENTRIES if (home / HOME_MARKER).is_file() else SPECIFIC_HOME_ENTRIES
+    marked = (home / HOME_MARKER).is_file()
+    if marked:
+        deletable = OWNED_HOME_ENTRIES
+    elif (home / "ultron.sqlite3").is_file():
+        deletable = SPECIFIC_HOME_ENTRIES
+    else:
+        deletable = {LEDGER_LOCK}  # An orphaned lock alone does not establish ownership of other entries.
     children = sorted(home.iterdir(), key=lambda p: p.name)
-    owned = [c for c in children if c.name in deletable]
-    foreign = [c.name for c in children if c.name not in deletable]
-    extra = {"would_delete": [c.name for c in owned]} if dry_run else {}
+    lock = home / LEDGER_LOCK
+    owned = {c for c in children if c.name in deletable}
+    if lock.is_dir() and not _is_link(lock):
+        owned.discard(lock)
+    foreign = [c.name for c in children if c not in owned]
+    extra = {"would_delete": [c.name for c in sorted(owned)]} if dry_run else {}
     if not dry_run:
-        # The marker goes last: if an earlier deletion fails, a retry still treats the generic entries as ULTRON's
-        for child in sorted(owned, key=lambda c: c.name == HOME_MARKER):
-            if _is_link(child):
-                _unlink(child)  # never follow a link out of the home
-            elif child.is_dir():
-                shutil.rmtree(child)  # rmtree unlinks inner symlinks, never follows them
-            else:
-                child.unlink()
+        _delete_home_entries(home, owned)
         if not foreign:
             home.rmdir()
     if not foreign:
         return {"status": "removed", **extra}
     note = "the folder also holds files ULTRON did not create; they and the folder were kept"
-    if deletable is SPECIFIC_HOME_ENTRIES:
-        note = (f"no {HOME_MARKER}: the folder existed before ULTRON used it, so only ULTRON's database and "
-                "records were deleted; the rest and the folder were kept (remove them manually if they are ULTRON's)")
+    if not marked:
+        note = (f"no {HOME_MARKER}: the folder existed before ULTRON used it, so only ULTRON-specific entries "
+                "were deleted; the rest and the folder were kept (remove them manually if they are ULTRON's)")
     return {"status": "ultron_data_removed", "kept_foreign_entries": foreign, **extra, "note": note}
 
 

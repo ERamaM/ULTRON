@@ -12,7 +12,7 @@ from ultron.storage import runs
 
 def _xlsx(args: argparse.Namespace) -> int:
     try:
-        path = xlsx.export_run_to_excel(args.run, args.out)
+        path = xlsx.export_run_to_excel(args.run, args.out, force=args.force)
     except runs.RunNotFoundError as exc:
         return fail("run_not_found", str(exc))
     except xlsx.XlsxUnavailable as exc:
@@ -63,6 +63,7 @@ def register(subparsers) -> None:
     parser = sub.add_parser("xlsx", help="write the run as an Excel workbook")
     parser.add_argument("--run", required=True)
     parser.add_argument("--out", default=None)
+    parser.add_argument("--force", action="store_true", help="replace an existing workbook and its manual edits")
     parser.set_defaults(func=_xlsx)
     page = sub.add_parser("html", help="write the run as a self-contained offline HTML report")
     page.add_argument("--run", required=True)

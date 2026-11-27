@@ -18,7 +18,7 @@ import re
 import shutil
 import sqlite3
 import tempfile
-from contextlib import closing
+from contextlib import closing, nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -339,6 +339,19 @@ def _open_runs() -> list[str]:
     return found
 
 
+def _purge_ledger_lease(db: Path, root: Path):
+    # A link is removed independently; never lock the external database it points to.
+    if _is_link(db):
+        return nullcontext()
+    lock = _safe_target(ledger.lock_path(db), root)
+    if _is_link(lock):
+        raise MaintenanceError("unsafe_path", "the ledger lock is a link")
+    try:
+        return closing(open_file_lock(lock, exclusive=True, timeout=0))
+    except sqlite3.OperationalError as exc:
+        raise MaintenanceError("ledger_busy", "close concurrent ledger operations and retry the purge") from exc
+
+
 def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> dict:
     """Purge local ULTRON run, profile, seed, CV, and ledger data when confirmed."""
     root = _root()
@@ -349,8 +362,9 @@ def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> d
     # Generic names (cv/, backups/, anything in runs/) are only ULTRON's in a home install.py marked as its own.
     # The ledger is no proof: the CLI creates it on first use in whatever folder ULTRON_HOME points at.
     owned = (home_dir / HOME_MARKER).is_file()
-    targets = [home_dir / f"ultron.sqlite3{s}" for s in _DB_SIDECARS]
-    targets += [home_dir / "runs", home_dir / "seeds" / "auto_seeds.yaml"]
+    db = _db_path()
+    ledger_files = [db.with_name(db.name + suffix) for suffix in _DB_SIDECARS]
+    targets = [*ledger_files, home_dir / "runs", home_dir / "seeds" / "auto_seeds.yaml"]
     if owned:
         targets.append(home_dir / "cv")
         if include_backups:
@@ -372,6 +386,9 @@ def purge(*, yes: bool, include_backups: bool = False, force: bool = False) -> d
             "keeps": ["profiles", "venv"] + ([] if include_backups and owned else ["backups"])
             + ([] if owned else ["cv", "runs/ entries that are not ULTRON run folders"]),
         }
-    for t in plan:
-        _remove(t, root, link_ok=True)
+    # Keep the coordination file while this home remains available to new ledger connections.
+    lease = _purge_ledger_lease(db, root) if any(t in plan for t in ledger_files) else nullcontext()
+    with lease:
+        for t in plan:
+            _remove(t, root, link_ok=True)
     return {"preview": False, "deleted": [str(t) for t in plan]}

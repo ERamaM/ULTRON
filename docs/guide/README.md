@@ -43,7 +43,7 @@ For scheduled or zero-token terminal usage, see [Unattended Mode & Scheduling](u
 | Inspect new jobs | *"Show me only new openings since last time"* | `ultron jobs new-since <run_id>` |
 | Export shortlist | *"Export my last run to Excel / HTML"* | `ultron export xlsx --run <run_id>` / `ultron export html --run <run_id>` |
 | Benchmark salary | *"What salary range fits my CV?"* | `ultron salary analyze --cv <cv_path>` |
-| Optimize CV for ATS | *"Audit my CV and export a clean .docx"* | `ultron cv audit <cv_path>` / `ultron cv build-docx --from <draft> --strict` |
-| Generate cover letter | *"Write a cover letter for this job"* | `ultron cover-letter prepare` / `ultron cover-letter build-docx --from <draft> --strict` |
+| Optimize CV for ATS | *"Audit my CV and export a clean .docx"* | `ultron cv audit <cv_path>` / `ultron cv build-docx --from <draft> --source-cv <cv_path> --strict` |
+| Generate cover letter | *"Write a cover letter for this job"* | `ultron cover-letter prepare` / `ultron cover-letter build-docx --from <draft> --source-cv <cv_path> --strict` |
 
 Looking for repository setup or architecture internals? See the [Repository README](../../README.md), [Architecture Overview](../architecture.md), and [Skill Commands Reference](../../skill/ultron/references/commands.md).

@@ -12,7 +12,7 @@ from ultron.core.rules.term_matching import contains_term, normalize_text
 from ultron.cv import experience
 from ultron.cv.ats_target import KNOWN_SKILL_TERMS
 
-_ROLE_SEPARATOR = re.compile(r"\s(?:at|en)\s|[|·]", re.IGNORECASE)
+_ROLE_SEPARATOR = re.compile(r"\s(?:at|en|[–—])\s|[|·]", re.IGNORECASE)
 _SENTENCE = re.compile(r"(?<=[.!?])[ \t]+(?=[A-Z])|\r?\n")
 _CAUSAL = re.compile(r"\b(?:using|with|through|via|mediante|usando|con)\b")
 _METHOD_PREFIX = re.compile(
@@ -96,6 +96,12 @@ class Claim:
     methods: set[str]
 
 
+def identify_role_scope(title_hint: str) -> ClaimScope:
+    """Identify a role and employer from a parsed employment heading."""
+    parts = [normalize_text(part.strip()) for part in _ROLE_SEPARATOR.split(title_hint) if part.strip()]
+    return ClaimScope(parts[1], parts[0]) if len(parts) >= 2 else ClaimScope()
+
+
 def _blocks(text: str, ref: date) -> list[tuple[ClaimScope, str]]:
     sections, _ = experience.split_sections(text)
     work = sections.get("experience", [])
@@ -106,8 +112,7 @@ def _blocks(text: str, ref: date) -> list[tuple[ClaimScope, str]]:
         line for name, lines in sections.items() if name != "experience" for line in lines
     ))]
     for index, entry in enumerate(entries):
-        parts = [normalize_text(part.strip()) for part in _ROLE_SEPARATOR.split(entry.title_hint) if part.strip()]
-        scope = ClaimScope(parts[1], parts[0]) if len(parts) >= 2 else ClaimScope()
+        scope = identify_role_scope(entry.title_hint)
         end = entries[index + 1].heading_line_index if index + 1 < len(entries) else len(work)
         out.append((scope, "\n".join(work[entry.line_index + 1:end])))
     return out

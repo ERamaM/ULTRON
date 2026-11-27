@@ -351,3 +351,14 @@ def test_run_snapshot_keeps_source_cv():
     profiles.save_profile(_profile() | {"source_cv": "/x/cv.pdf"})
     run_id = runs.new_run("mi-perfil", "balanced")
     assert runs.load_run(run_id)["profile_snapshot"]["source_cv"] == "/x/cv.pdf"
+
+
+def test_regression_mixed_pdf_reports_physical_pages(tmp_path, capsys):
+    path = _write(tmp_path, "mixed.pdf", build_pdf(["Jane Example", "", "Experience", ""]))
+    assert cli.main(["cv", "extract", str(path)]) == 0
+    extracted = json.loads(capsys.readouterr().out)
+    assert cli.main(["cv", "audit", str(path)]) == 0
+    audited = json.loads(capsys.readouterr().out)
+    assert extracted["pages"] == audited["pages"] == audited["format_metadata"]["page_count"] == 4
+    assert audited["format_metadata"]["chars_per_page"] == [12, 0, 10, 0]
+    assert any(f["id"] == "page_length_excessive" for f in audited["findings"])

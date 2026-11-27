@@ -435,3 +435,44 @@ def test_a_parenthetical_pay_basis_stays_with_its_amount():
     assert [hit["gross_or_net"] for hit in net] == ["net"]
     bonus = extract_salaries_from_text("Spain base salary: EUR 60,000 - 80,000 per year plus 10,000 bonus (gross).")
     assert bonus[0]["gross_or_net"] is None  # the qualifier belongs to the bonus, after another figure
+
+
+def test_regression_salary_save_checks_profile_identity(tmp_path, capsys):
+    alpha = _seed_profile("alpha")
+    beta = _seed_profile("beta")
+    beta["criteria"]["target_titles"] = ["Distinct role"]
+    profiles.save_profile(beta, force=True)
+    alpha["slug"] = "beta"
+    profiles.user_path("alpha").write_text(yaml.safe_dump(alpha), encoding="utf-8")
+    folder = profiles.user_path("alpha").parent
+
+    def snapshot():
+        return {p.relative_to(folder): p.read_bytes() for p in folder.rglob("*") if p.is_file()}
+
+    before = snapshot()
+    estimate = tmp_path / "estimate.json"
+    estimate.write_text(json.dumps({
+        "currency": "EUR", "period": "annual", "low": 68000, "median": 76000, "high": 88000,
+        "gross_or_net": "gross", "compensation_type": "base", "experience_years": 6.5,
+        "seniority_band": "senior", "location_market": "Spain", "confidence": "high",
+        "methodology": "Verified tenure with market data.", "updated_at": "2026-11-20",
+    }), encoding="utf-8")
+    for options in (["--dry-run"], []):
+        assert cli.main(["salary", "save", "--profile", "alpha", "--from", str(estimate), *options]) != 0
+        assert json.loads(capsys.readouterr().out)["error"] == "profile_slug_mismatch"
+        assert snapshot() == before
+
+
+def test_regression_salary_grouped_decimal_ranges():
+    from ultron.salary import display
+
+    for text, currency in [("USD 80,000.50 - 90,000.75 per year", "USD"),
+                           ("80.000,50 - 90.000,75 EUR per year", "EUR")]:
+        hit, = salary.extract_salaries_from_text(text)
+        assert hit["currency"] == currency
+        assert (hit["low"], hit["high"]) == (80000.50, 90000.75)
+        assert (hit["annual_low"], hit["annual_high"]) == (80000, 90001)
+        assert display.format_salary_disclosure(text) == f"{currency} 80,000.5\u201390,000.75 / year"
+    for text in ("USD 80,000.1234 per year", "80.000,1234 EUR per year",
+                 "USD 80,000 - 90,000.1234 per year"):
+        assert salary.extract_salaries_from_text(text) == []

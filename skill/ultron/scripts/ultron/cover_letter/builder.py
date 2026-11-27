@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from ultron.cover_letter import brief, templates, truth
+from ultron.cover_letter import brief, templates
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
@@ -164,10 +164,27 @@ def _group_markdown_body(body: str) -> tuple[list[str], list[str]]:
     return prose_blocks, bullets
 
 
+def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}, text
+    for idx in range(1, min(len(lines), 80)):
+        if lines[idx].strip() != "---":
+            continue
+        raw_yaml = "\n".join(lines[1:idx])
+        try:
+            loaded = yaml.safe_load(raw_yaml) if raw_yaml.strip() else {}
+        except yaml.YAMLError as exc:
+            raise ValueError(f"invalid YAML frontmatter: {exc}") from exc
+        if not isinstance(loaded, dict):
+            raise TypeError("Markdown cover letter frontmatter must be a YAML mapping")
+        return loaded, "\n".join(lines[idx + 1:])
+    return {}, text
+
+
 def parse_markdown_cover_letter(text: str) -> CoverLetterDocument:
     """Parse Markdown with optional YAML frontmatter into :class:`CoverLetterDocument`."""
-    meta_raw, body = truth.split_frontmatter(text or "", strict=True)
-    meta = meta_raw or {}
+    meta, body = _split_frontmatter(text or "")
     candidate_name = str(meta.get("candidate_name") or "").strip()
     prose_blocks, bullets = _group_markdown_body(body)
 
@@ -301,6 +318,10 @@ def build_cover_letter_docx(
     as_of: date | None = None,
 ) -> dict[str, Any]:
     """Build a tailored `.docx` (and optional `.md`) cover letter with optional strict truth verification."""
+    from ultron.cover_letter import truth
+
+    if strict and source_cv is None:
+        raise cv.CvExtractionError("--strict requires --source-cv", code="missing_source_cv")
     src = Path(from_path)
     doc = load_cover_letter_draft(src)
     ref = as_of or datetime.now(UTC).date()
@@ -313,6 +334,8 @@ def build_cover_letter_docx(
     )
     target_md = Path(out_md) if out_md is not None else None
 
+    if target_md is not None and target_docx.resolve() == target_md.resolve():
+        raise cv.CvExtractionError("Word and Markdown outputs must use different paths", code="output_collision")
     if not force:
         if target_docx.exists():
             raise FileExistsError(f"output file already exists: {target_docx} (pass --force to overwrite)")
@@ -327,6 +350,7 @@ def build_cover_letter_docx(
             confirmed_facts=confirmed_facts,
             target_company=doc.company or None,
             as_of=ref,
+            document=doc,
         )
         if strict and not truth_report["passed"]:
             raise cv_writer.TruthfulnessError(truth_report)

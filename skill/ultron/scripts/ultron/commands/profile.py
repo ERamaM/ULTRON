@@ -39,7 +39,10 @@ def _show(args: argparse.Namespace) -> int:
     except FileNotFoundError as exc:
         return fail("profile_not_found", str(exc))
     origin, path = profiles.profile_origin(args.slug)
-    emit({"profile": data, "origin": origin, "path": str(path)})
+    try:
+        emit({"profile": data, "origin": origin, "path": str(path)})
+    except (TypeError, ValueError):
+        return fail("profile_unserializable", "The saved profile contains values that JSON cannot represent.")
     return 0
 
 

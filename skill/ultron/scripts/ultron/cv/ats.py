@@ -71,19 +71,23 @@ def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]
         text = cv._clean_text(cv._decode_text_bytes(content), cv.MAX_CV_CHARS)
         return text, 1, suffix.lstrip("."), {}
     if suffix == cv.DOCX_SUFFIX:
-        report = cv_docx.inspect_docx(content, max_chars=cv_docx.MAX_RAW_TEXT_CHARS)
-        if report.pages > cv.MAX_CV_PAGES:
-            raise cv.CvPdfTooManyPages(cv.MAX_CV_PAGES)
-        clean = cv._clean_text(report.text, cv.MAX_CV_CHARS)
-        meta = asdict(report)
-        meta.pop("text", None)
-        return clean, report.pages, "docx", meta
+        return _inspect_docx(content)
 
     pages, meta = cv.subprocess_pdf_inspector(
         content, max_pages=cv.MAX_CV_PAGES, max_chars=cv.MAX_CV_CHARS, timeout_seconds=cv.PDF_TIMEOUT_SECONDS
     )
     clean = cv._clean_text("\n".join(pages), cv.MAX_CV_CHARS)
-    return clean, len(pages), "pdf", meta
+    return clean, int(meta.get("page_count", len(pages))), "pdf", meta
+
+
+def _inspect_docx(content: bytes) -> tuple[str, int, str, dict[str, Any]]:
+    report = cv_docx.inspect_docx(content, max_chars=cv_docx.MAX_RAW_TEXT_CHARS)
+    if report.pages > cv.MAX_CV_PAGES:
+        raise cv.CvPdfTooManyPages(cv.MAX_CV_PAGES)
+    clean = cv._clean_text(report.text, cv.MAX_CV_CHARS)
+    meta = asdict(report)
+    meta.pop("text", None)
+    return clean, report.pages, "docx", meta
 
 
 def _write_extracted_text(source: Path, text: str) -> Path:
@@ -257,9 +261,39 @@ def audit_cv(
 ) -> dict[str, Any]:
     """Audit a CV for ATS format suitability, structure, experience, and target alignment."""
     source = Path(path)
-    text, pages, file_type, format_meta = _load_cv_with_inspection(source)
-    extracted_path = _write_extracted_text(source, text)
+    inspected = _load_cv_with_inspection(source)
+    extracted_path = _write_extracted_text(source, inspected[0])
+    payload = _score_cv(
+        inspected, profile_slug=profile_slug, job_arg=job_arg, job_file=job_file,
+        run_id=run_id, fetch=fetch, as_of=as_of,
+    )
+    payload["source_file"] = str(source.resolve())
+    payload["extracted_text_path"] = str(extracted_path)
+    if write_report or out_path is not None:
+        report_target = Path(out_path) if out_path is not None else (home.ultron_home() / "cv" / f"{source.name}.ats-audit.md")
+        fs.atomic_write_text(report_target, render_audit_markdown(payload))
+        payload["report_path"] = str(report_target)
+    return payload
 
+
+def audit_generated_docx(content: bytes) -> dict[str, Any]:
+    """Validate and score a generated DOCX in memory before publishing it."""
+    if len(content) > cv.MAX_CV_BYTES:
+        raise cv.CvExtractionError("CV file is too large", code="too_long")
+    return _score_cv(_inspect_docx(content), fetch=False)
+
+
+def _score_cv(
+    inspected: tuple[str, int, str, dict[str, Any]],
+    *,
+    profile_slug: str | None = None,
+    job_arg: str | None = None,
+    job_file: Path | None = None,
+    run_id: str | None = None,
+    fetch: bool,
+    as_of: date | None = None,
+) -> dict[str, Any]:
+    text, pages, file_type, format_meta = inspected
     profile = profiles.load_profile(profile_slug) if profile_slug else None
     ref = as_of or datetime.now(UTC).date()
     exp = cv_experience.analyze_experience(text, profile=profile, as_of=ref)
@@ -300,9 +334,7 @@ def audit_cv(
             )
         )
 
-    payload: dict[str, Any] = {
-        "source_file": str(source.resolve()),
-        "extracted_text_path": str(extracted_path),
+    return {
         "file_type": file_type,
         "pages": pages,
         "chars": len(text),
@@ -321,10 +353,3 @@ def audit_cv(
         "keyword_alignment": alignment,
         "findings": all_findings,
     }
-
-    if write_report or out_path is not None:
-        report_target = Path(out_path) if out_path is not None else (home.ultron_home() / "cv" / f"{source.name}.ats-audit.md")
-        fs.atomic_write_text(report_target, render_audit_markdown(payload))
-        payload["report_path"] = str(report_target)
-
-    return payload

@@ -118,3 +118,24 @@ def test_collapse_whitespace_and_candidate_identity():
     assert collapse_whitespace("  Senior \n\t Backend  ") == "Senior Backend"
     ident = candidate_identity({"source_url": "https://boards.greenhouse.io/acme/jobs/1?utm_source=x"})
     assert ident
+
+
+@pytest.mark.parametrize("character", ["\ufffe", "\uffff"])
+def test_regression_ooxml_forbidden_characters(character):
+    from xml.etree import ElementTree
+
+    value = f"left{character}right"
+    for xml in (
+        f'<body xmlns:w="urn:word">{ooxml.run_xml(value)}</body>',
+        ooxml.core_props_xml(value),
+        ooxml.document_rels_xml([("rId3", f"https://example.test/{value}")]),
+    ):
+        ElementTree.fromstring(xml)
+        assert "leftright" in xml
+
+
+def test_regression_malformed_hyperlink_preserves_label():
+    links = []
+    body = ooxml.inline_runs_xml("See [Example](https://[example.test).", links)
+    assert "Example" in body and "w:hyperlink" not in body
+    assert links == []

@@ -8,7 +8,7 @@ import sys
 
 def emit(payload: dict) -> None:
     """Print a single JSON object to stdout (UTF-8, no ASCII escaping)."""
-    sys.stdout.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    sys.stdout.write(json.dumps(payload, ensure_ascii=False, allow_nan=False) + "\n")
 
 
 def fail(error: str, detail: str = "", code: int = 2) -> int:

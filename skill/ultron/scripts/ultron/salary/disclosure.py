@@ -59,19 +59,24 @@ _SUFFIX_CURRENCIES: dict[str, str] = {
     "inr": "INR",
 }
 
-_NUM = r"(?:\d{1,3}(?:[.,]\d{3}){1,3}|\d{1,9}(?:[.,]\d{1,2})?)"
+_US_GROUPED = r"\d{1,3}(?:,\d{3}){1,3}(?:\.\d{1,2})?"
+_EU_GROUPED = r"\d{1,3}(?:\.\d{3}){1,3}(?:,\d{1,2})?"
+_UNGROUPED = r"\d{1,9}(?:[.,]\d{1,2})?"
+_NUM = rf"(?:{_US_GROUPED}|{_EU_GROUPED}|{_UNGROUPED})(?!\d|[.,]\d)"
 _PRE_TOKEN = r"(?:€|£|₹|US\$|CA\$|C\$|AU\$|A\$|R\$|\$|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR)\b)"
 _SUF_TOKEN = r"(?:€|£|zł|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR|zl)\b)"
 _RANGE_JOIN = r"[ \t]{0,3}(?:[-–—]{1,2}|\b(?:to|and|a|bis)\b)[ \t]{0,3}"
+_TRAILING_AMOUNT = re.compile(rf"{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?\d", re.IGNORECASE)
+_LEADING_AMOUNT = re.compile(rf"\d[kK]?{_RANGE_JOIN}$", re.IGNORECASE)
 
 _PREFIX_SALARY_RE = re.compile(
-    rf"(?P<curr>{_PRE_TOKEN})[ \t]{{0,3}}(?P<low>{_NUM})(?!\d)[ \t]{{0,2}}(?P<low_k>[kK])?"
-    rf"(?:{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?(?P<high>{_NUM})(?!\d)[ \t]{{0,2}}(?P<high_k>[kK])?)?",
+    rf"(?P<curr>{_PRE_TOKEN})[ \t]{{0,3}}(?P<low>{_NUM})[ \t]{{0,2}}(?P<low_k>[kK])?"
+    rf"(?:{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?(?P<high>{_NUM})[ \t]{{0,2}}(?P<high_k>[kK])?)?",
     re.UNICODE,
 )
 _SUFFIX_SALARY_RE = re.compile(
-    rf"(?<!\d)(?P<low>{_NUM})(?!\d)[ \t]{{0,2}}(?P<low_k>[kK])?"
-    rf"(?:{_RANGE_JOIN}(?P<high>{_NUM})(?!\d)[ \t]{{0,2}}(?P<high_k>[kK])?)?"
+    rf"(?<!\d)(?<!\d[.,])(?P<low>{_NUM})[ \t]{{0,2}}(?P<low_k>[kK])?"
+    rf"(?:{_RANGE_JOIN}(?P<high>{_NUM})[ \t]{{0,2}}(?P<high_k>[kK])?)?"
     rf"[ \t]{{0,3}}(?P<curr>{_SUF_TOKEN})",
     re.UNICODE,
 )
@@ -232,9 +237,11 @@ def _parse_amount(raw: str, has_k: bool) -> float | None:
             return float(normalized) * 1000.0
         except ValueError:
             return None
-    if re.fullmatch(r"\d{1,3}(?:[.,]\d{3}){1,3}", cleaned):
-        return float(cleaned.replace(".", "").replace(",", ""))
-    if re.fullmatch(r"\d{1,9}(?:[.,]\d{1,2})?", cleaned):
+    if re.fullmatch(_US_GROUPED, cleaned):
+        return float(cleaned.replace(",", ""))
+    if re.fullmatch(_EU_GROUPED, cleaned):
+        return float(cleaned.replace(".", "").replace(",", "."))
+    if re.fullmatch(_UNGROUPED, cleaned):
         return float(cleaned.replace(",", "."))
     return None
 
@@ -408,6 +415,11 @@ def _build_salary_hit(
     if not low_k and high_k and low_raw < 1000:
         low_raw *= 1000.0
     high_str = match.group("high")
+    if high_str is None and (
+        _TRAILING_AMOUNT.match(text, match.end())
+        or _LEADING_AMOUNT.search(text[max(0, match.start() - 16):match.start()])
+    ):
+        return None
     high_raw = _parse_amount(high_str, high_k) if high_str else low_raw
     if high_raw is None or high_raw < low_raw or (high_raw > low_raw * 4 and low_raw > 0):
         return None

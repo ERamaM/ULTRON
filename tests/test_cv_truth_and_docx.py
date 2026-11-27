@@ -335,3 +335,49 @@ def test_verify_truth_rejects_currency_substitution_and_unrelated_count_as_tenur
         encoding="utf-8",
     )
     assert cv_truth.verify_truth(src_explicit, opt_inflated, as_of=datetime.date(2026, 1, 1))["passed"] is True
+
+
+def test_regression_cv_strict_requires_source(tmp_path, capsys):
+    draft = tmp_path / "cv.md"
+    draft.write_text(SOURCE_CV_MD, encoding="utf-8")
+    output = tmp_path / "cv.docx"
+    args = ["cv", "build-docx", "--from", str(draft), "--out", str(output)]
+    assert cli.main([*args, "--strict"]) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "missing_source_cv"
+    assert not output.exists()
+    assert cli.main(args) == 0
+    assert json.loads(capsys.readouterr().out)["truth"] is None
+
+
+def test_regression_cv_audit_precedes_publication(tmp_path, capsys):
+    draft = tmp_path / "cv.md"
+    original = tmp_path / "original.docx"
+    draft.write_text(SOURCE_CV_MD, encoding="utf-8")
+    args = ["cv", "build-docx", "--from", str(draft)]
+    assert cli.main([*args, "--out", str(original)]) == 0
+    capsys.readouterr()
+    prior = original.read_bytes()
+    draft.write_text("# Jane Example\n\n## Summary\n" + "ordinary prose " * 4200, encoding="utf-8")
+    fresh = tmp_path / "fresh.docx"
+    for output in (original, fresh):
+        assert cli.main([*args, "--out", str(output), "--force"]) != 0
+        assert json.loads(capsys.readouterr().out)["error"] == "too_long"
+        assert original.read_bytes() == prior
+        assert not fresh.exists()
+
+
+def test_regression_truth_keeps_dates_with_their_roles(tmp_path):
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    one, two = "Jan 2020 - Dec 2020", "Jan 2022 - Dec 2023"
+    first = "Analyst | Acme Labs | {}\n- Prepared reports.\n"
+    second = "Engineer | Beta Corp | {}\n- Maintained services.\n"
+    heading = "# Jane Example\n\n## Experience\n"
+    source.write_text(heading + first.format(one) + "\n" + second.format(two), encoding="utf-8")
+    draft.write_text(heading + second.format(two.replace("Dec", "December")) + "\n" + first.format(one),
+                     encoding="utf-8")
+    assert cv_truth.verify_truth(source, draft)["passed"]
+    draft.write_text(heading + first.format(two) + "\n" + second.format(one), encoding="utf-8")
+    result = cv_truth.verify_truth(source, draft)
+    assert not result["passed"]
+    assert any(item["type"] == "changed_role_dates" for item in result["violations"])

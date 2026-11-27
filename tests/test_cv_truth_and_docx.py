@@ -399,3 +399,35 @@ def test_compound_number_claims_preserve_the_whole_count(tmp_path, spelled):
         report = verify(source, draft)
         assert not report["passed"]
         assert any(item["type"] == "unverified_metric" for item in report["violations"])
+
+
+def test_count_modifiers_can_be_removed_without_changing_the_unit(tmp_path):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    source.write_text("Maintained services for 50k active users.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        draft.write_text("Maintained services for 50k users.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        draft.write_text("Maintained services for 50k teams.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])
+
+
+@pytest.mark.parametrize("ambiguous", [False, True])
+def test_confirmed_dates_apply_only_to_a_unique_role_only_heading(tmp_path, ambiguous):
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    text = (
+        "# Jane Example\n\n## Experience\n"
+        "Acme Labs\nEngineer\nJan 2020 - Dec 2021\n- Maintained services.\n"
+    )
+    if ambiguous:
+        text += "\nBeta Corp\nEngineer\nJan 2018 - Dec 2019\n- Developed tools.\n"
+    source.write_text(text, encoding="utf-8")
+    draft.write_text(text.replace("Jan 2020", "Feb 2020"), encoding="utf-8")
+    result = cv_truth.verify_truth(source, draft, confirmed_facts=["Engineer at Acme Labs from Feb 2020 to Dec 2021"])
+    assert any(item["type"] == "changed_role_dates" for item in result["violations"]) is ambiguous
+    assert result["passed"] is not ambiguous

@@ -10,6 +10,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+from collections import Counter
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -72,12 +73,19 @@ _SCALED_NUM_RE = re.compile(
     re.IGNORECASE,
 )
 _PLUS_NUM_RE = re.compile(r"\b(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\+")
+_COUNT_UNITS = (
+    r"engineers?|developers?|people|users?|clients?|customers?|teams?|projects?|services?|"
+    r"pipelines?|models?|countr(?:y|ies)|languages?|microservices?|endpoints?|requests?|terabytes?|gb|tb|pb|ms|seconds?"
+)
+_COUNT_MODIFIER = (
+    rf"(?!(?:{_COUNT_UNITS}|{_WORD_SIMPLE_ALT}|and|or|of|to|for|with|from|in|at|per)\b)"
+    r"[a-z][a-z-]{0,23}[ \t]{1,3}"
+)
 _UNIT_RE = re.compile(
     rf"\b(?:(?P<number>\d{{1,3}}(?:[.,]\d{{3}})+|\d+(?:[.,]\d+)?)(?:[ \t]{{0,3}}"
     r"(?P<scale>k|m|b|thousand|million|billion))?"
     rf"|{_WORD_NUM_START}(?P<word>{_WORD_NUM_ALT}))\+?[ \t]{{1,3}}"
-    r"(?P<unit>engineers?|developers?|people|users?|clients?|customers?|teams?|projects?|services?|"
-    r"pipelines?|models?|countr(?:y|ies)|languages?|microservices?|endpoints?|requests?|terabytes?|gb|tb|pb|ms|seconds?)\b",
+    rf"(?:{_COUNT_MODIFIER}){{0,2}}(?P<unit>{_COUNT_UNITS})\b",
     re.IGNORECASE,
 )
 
@@ -453,20 +461,35 @@ def _precise_role_dates(experience: dict[str, Any]) -> dict[ClaimScope, set[tupl
     return roles
 
 
+def _confirmed_date_scope(
+    hint: str, roles: dict[ClaimScope, set[tuple[str, str]]], unique_role_only: dict[str, ClaimScope],
+) -> ClaimScope | None:
+    heading = normalize_text(hint)
+    matching = [scope for scope in roles if scope.employer and contains_term(heading, scope.employer)]
+    if len(matching) > 1:
+        matching = [scope for scope in matching if contains_term(heading, scope.role)]
+    if matching:
+        return matching[0] if len(matching) == 1 else None
+    fact_scope = identify_role_scope(hint)
+    return unique_role_only.get(fact_scope.role) if fact_scope.employer else None
+
+
 def _confirmed_role_dates(
     confirmed: list[str], ref: date, roles: dict[ClaimScope, set[tuple[str, str]]],
 ) -> None:
+    title_counts = Counter(scope.role for scope in roles)
+    unique_role_only = {
+        scope.role: scope for scope, dates in roles.items()
+        if not scope.employer and len(dates) == 1 and title_counts[scope.role] == 1
+    }
     for fact in confirmed:
         for entry in cv_experience.parse_date_ranges_from_lines(fact.splitlines(), as_of=ref):
             start, end = entry.display_start or entry.start, entry.display_end or entry.end
             if start.year_only or end.year_only:
                 continue
-            heading = normalize_text(entry.title_hint)
-            matching = [scope for scope in roles if scope.employer and contains_term(heading, scope.employer)]
-            if len(matching) > 1:
-                matching = [scope for scope in matching if contains_term(heading, scope.role)]
-            if len(matching) == 1:
-                roles[matching[0]].add((start.label(), "present" if entry.is_present else end.label()))
+            scope = _confirmed_date_scope(entry.title_hint, roles, unique_role_only)
+            if scope is not None:
+                roles[scope].add((start.label(), "present" if entry.is_present else end.label()))
 
 
 def _check_role_dates(

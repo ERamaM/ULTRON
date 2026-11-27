@@ -66,12 +66,19 @@ _NUM = rf"(?:{_US_GROUPED}|{_EU_GROUPED}|{_UNGROUPED})(?!\d|[.,]\d)"
 _PRE_TOKEN = r"(?:€|£|₹|US\$|CA\$|C\$|AU\$|A\$|R\$|\$|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR)\b)"
 _SUF_TOKEN = r"(?:€|£|zł|\b(?:EUR|USD|GBP|CHF|CAD|AUD|PLN|SEK|NOK|DKK|BRL|MXN|INR|zl)\b)"
 _RANGE_JOIN = r"[ \t]{0,3}(?:[-–—]{1,2}|\b(?:to|and|a|bis)\b)[ \t]{0,3}"
-_TRAILING_AMOUNT = re.compile(rf"{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?\d", re.IGNORECASE)
+_BENEFIT_COUNT = (
+    rf"{_NUM}[ \t]{{1,3}}(?i:(?:days?|weeks?|months?)[ \t]{{1,3}}"
+    r"(?:(?:of|paid|annual)[ \t]{1,3}){0,3}(?:holidays?|vacation|leave|pto)\b)"
+)
+_TRAILING_AMOUNT = re.compile(
+    rf"{_RANGE_JOIN}(?!{_BENEFIT_COUNT})(?:{_PRE_TOKEN}[ \t]{{0,3}})?\d", re.IGNORECASE,
+)
 _LEADING_AMOUNT = re.compile(rf"\d[kK]?{_RANGE_JOIN}$", re.IGNORECASE)
 
 _PREFIX_SALARY_RE = re.compile(
     rf"(?P<curr>{_PRE_TOKEN})[ \t]{{0,3}}(?P<low>{_NUM})[ \t]{{0,2}}(?P<low_k>[kK])?"
-    rf"(?:{_RANGE_JOIN}(?:{_PRE_TOKEN}[ \t]{{0,3}})?(?P<high>{_NUM})[ \t]{{0,2}}(?P<high_k>[kK])?)?",
+    rf"(?:{_RANGE_JOIN}(?!{_BENEFIT_COUNT})(?:{_PRE_TOKEN}[ \t]{{0,3}})?"
+    rf"(?P<high>{_NUM})[ \t]{{0,2}}(?P<high_k>[kK])?)?",
     re.UNICODE,
 )
 _SUFFIX_SALARY_RE = re.compile(

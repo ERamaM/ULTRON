@@ -6,6 +6,7 @@ import json
 import time
 from pathlib import Path
 
+import pytest
 import yaml
 
 from ultron import cli
@@ -476,3 +477,15 @@ def test_regression_salary_grouped_decimal_ranges():
     for text in ("USD 80,000.1234 per year", "80.000,1234 EUR per year",
                  "USD 80,000 - 90,000.1234 per year"):
         assert salary.extract_salaries_from_text(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "Salary: 60,000 EUR and 25 days holiday.",
+    "Salary: EUR 60,000 and 25 days of paid leave.",
+    "Salary: 60,000 to 80,000 EUR and 4 weeks of vacation.",
+])
+def test_salary_disclosure_survives_a_following_leave_allowance(text):
+    hit, = salary.extract_salaries_from_text(text)
+    assert hit["currency"] == "EUR"
+    assert hit["low"] == 60_000
+    assert hit["high"] == (80_000 if "80,000" in text else 60_000)

@@ -237,7 +237,7 @@ def _normalize_text(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
-def _decode_text_bytes(content: bytes) -> str:
+def decode_text_bytes(content: bytes) -> str:
     """Decode plain-text bytes honoring BOMs, then utf-8 with latin-1 fallback."""
 
     if content.startswith(b"\xef\xbb\xbf"):
@@ -292,7 +292,7 @@ def extract_cv(
     except OSError as exc:
         raise CvExtractionError(f"Cannot read CV file: {exc}", code="unsupported_type") from exc
     if suffix in TEXT_SUFFIXES:
-        return CvText(_clean_text(_decode_text_bytes(content), max_chars), 1)
+        return CvText(_clean_text(decode_text_bytes(content), max_chars), 1)
     if suffix == DOCX_SUFFIX:
         from ultron.cv.docx_reader import extract_docx_text
 

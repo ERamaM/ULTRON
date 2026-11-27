@@ -42,7 +42,7 @@ _TEX_CMD_RE = re.compile(r"\\[a-zA-Z@]+\*?(?:\[[^\]]*\])?")
 
 def extract_tex_text(content: bytes, *, max_chars: int = cv.MAX_CV_CHARS) -> str:
     """Best-effort linear-time plain-text extraction from an untrusted ``.tex`` CV source."""
-    raw = cv._decode_text_bytes(content)
+    raw = cv.decode_text_bytes(content)
     cleaned = _TEX_COMMENT_RE.sub("", raw)
     cleaned = _TEX_HREF_RE.sub(r"\2 (\1)", cleaned)
     cleaned = _TEX_SECTION_RE.sub(r"\n\1\n", cleaned)
@@ -68,7 +68,7 @@ def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]
         text = extract_tex_text(content, max_chars=cv.MAX_CV_CHARS)
         return text, 1, "tex", {}
     if suffix in cv.TEXT_SUFFIXES:
-        text = cv._clean_text(cv._decode_text_bytes(content), cv.MAX_CV_CHARS)
+        text = cv._clean_text(cv.decode_text_bytes(content), cv.MAX_CV_CHARS)
         return text, 1, suffix.lstrip("."), {}
     if suffix == cv.DOCX_SUFFIX:
         return _inspect_docx(content)

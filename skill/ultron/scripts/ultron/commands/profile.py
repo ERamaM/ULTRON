@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import yaml
@@ -40,9 +41,10 @@ def _show(args: argparse.Namespace) -> int:
         return fail("profile_not_found", str(exc))
     origin, path = profiles.profile_origin(args.slug)
     try:
-        emit({"profile": data, "origin": origin, "path": str(path)})
+        json.dumps(data, allow_nan=False)
     except (TypeError, ValueError):
         return fail("profile_unserializable", "The saved profile contains values that JSON cannot represent.")
+    emit({"profile": data, "origin": origin, "path": str(path)})
     return 0
 
 

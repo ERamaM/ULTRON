@@ -6,6 +6,8 @@ import datetime
 import json
 import zipfile
 
+import pytest
+
 from ultron import cli
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import extract as cv
@@ -381,3 +383,19 @@ def test_regression_truth_keeps_dates_with_their_roles(tmp_path):
     result = cv_truth.verify_truth(source, draft)
     assert not result["passed"]
     assert any(item["type"] == "changed_role_dates" for item in result["violations"])
+
+
+@pytest.mark.parametrize("spelled", ["twenty-five", "twenty five", "twenty\u2011five"])
+def test_compound_number_claims_preserve_the_whole_count(tmp_path, spelled):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    draft.write_text(f"Managed {spelled} developers.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        source.write_text("Managed 25 developers.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        source.write_text("Managed five developers.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])

@@ -38,11 +38,19 @@ _WORD_NUMBERS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
     "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
     "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     "uno": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6, "siete": 7, "ocho": 8,
     "nueve": 9, "diez": 10,
 }
 
-_WORD_NUM_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
+_WORD_SIMPLE_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
+_DECADE_ALT = "|".join(word for word, value in _WORD_NUMBERS.items() if value >= 20)
+_DIGIT_WORD_ALT = "one|two|three|four|five|six|seven|eight|nine"
+_WORD_COUNT_SEPARATOR = r"[-\u2010\u2011]|[ \t]{1,3}"
+_WORD_NUM_ALT = rf"(?:{_DECADE_ALT})(?:{_WORD_COUNT_SEPARATOR})(?:{_DIGIT_WORD_ALT})|{_WORD_SIMPLE_ALT}"
+_WORD_NUM_START = r"(?<![\w\-\u2010\u2011])"
+_WORD_NUMBER_RE = re.compile(rf"{_WORD_NUM_START}({_WORD_NUM_ALT})\b", re.IGNORECASE)
+_WORD_COUNT_SPLIT_RE = re.compile(r"[-\u2010\u2011 \t]+")
 _CURRENCY_SYMBOL_MAP: dict[str, str] = {"$": "USD", "€": "EUR", "£": "GBP", "¥": "JPY", "₹": "INR"}
 
 _PERCENT_RE = re.compile(r"(?<!\w)(\d+(?:[.,]\d+)?)\s*%")
@@ -56,7 +64,7 @@ _YEARS_METRIC_RE = re.compile(
     re.IGNORECASE,
 )
 _WORD_YEARS_RE = re.compile(
-    rf"\b({_WORD_NUM_ALT})[ \t]{{1,3}}(?:years|year|yrs|yr|años|año|anos|ano|ans|jahren|jahre|jahr)\b",
+    rf"{_WORD_NUM_START}({_WORD_NUM_ALT})[ \t]{{1,3}}(?:years|year|yrs|yr|años|año|anos|ano|ans|jahren|jahre|jahr)\b",
     re.IGNORECASE,
 )
 _SCALED_NUM_RE = re.compile(
@@ -67,7 +75,7 @@ _PLUS_NUM_RE = re.compile(r"\b(\d{1,3}(?:[.,]\d{3})+|\d+(?:[.,]\d+)?)\+")
 _UNIT_RE = re.compile(
     rf"\b(?:(?P<number>\d{{1,3}}(?:[.,]\d{{3}})+|\d+(?:[.,]\d+)?)(?:[ \t]{{0,3}}"
     r"(?P<scale>k|m|b|thousand|million|billion))?"
-    rf"|(?P<word>{_WORD_NUM_ALT}))\+?[ \t]{{1,3}}"
+    rf"|{_WORD_NUM_START}(?P<word>{_WORD_NUM_ALT}))\+?[ \t]{{1,3}}"
     r"(?P<unit>engineers?|developers?|people|users?|clients?|customers?|teams?|projects?|services?|"
     r"pipelines?|models?|countr(?:y|ies)|languages?|microservices?|endpoints?|requests?|terabytes?|gb|tb|pb|ms|seconds?)\b",
     re.IGNORECASE,
@@ -149,7 +157,7 @@ def load_cv_plain_text(path: Path) -> str:
     if suffix == ".json":
         if path.stat().st_size > cv.MAX_CV_BYTES:
             raise cv.CvExtractionError("CV file is too large", code="too_long")
-        data = json.loads(cv._decode_text_bytes(path.read_bytes()))
+        data = json.loads(cv.decode_text_bytes(path.read_bytes()))
         if not isinstance(data, dict):
             raise ValueError("JSON CV file must contain an object")
         return _flatten_json_cv(data)
@@ -165,7 +173,7 @@ def load_confirmed_facts(path: Path | None) -> list[str]:
         raise FileNotFoundError(f"confirmed facts file not found: {path}")
     if path.stat().st_size > cv.MAX_CV_BYTES:
         raise ValueError("confirmed facts file is too large")
-    raw = cv._decode_text_bytes(path.read_bytes())
+    raw = cv.decode_text_bytes(path.read_bytes())
     if path.suffix.lower() == ".json":
         data = json.loads(raw)
         items = data.get("confirmed") if isinstance(data, dict) else data
@@ -237,7 +245,7 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
             years_claims.append((match.group(0).strip(), val))
 
     for match in _WORD_YEARS_RE.finditer(masked):
-        word_val = _WORD_NUMBERS.get(match.group(1).lower())
+        word_val = _word_count(match.group(1))
         if word_val is not None:
             years_claims.append((match.group(0).strip(), float(word_val)))
 
@@ -259,7 +267,7 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
         word = match.group("word")
         if raw_num and not scale and _YEAR_RE.fullmatch(raw_num):
             continue
-        val = float(_WORD_NUMBERS[word.lower()]) if word else _scale_number(raw_num, scale)
+        val = float(_word_count(word)) if word else _scale_number(raw_num, scale)
         if val is not None:
             unit = match.group("unit").lower()
             unit = "country" if unit == "countries" else unit if unit == "ms" else unit.removesuffix("s")
@@ -268,13 +276,12 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
     return metrics, years_claims
 
 
+def _word_count(word: str) -> int:
+    return sum(_WORD_NUMBERS[part] for part in _WORD_COUNT_SPLIT_RE.split(word.casefold()))
+
+
 def _word_number_keys(text: str) -> set[str]:
-    norm = normalize_text(text)
-    keys: set[str] = set()
-    for word, val in _WORD_NUMBERS.items():
-        if re.search(rf"(?<!\w){word}(?!\w)", norm):
-            keys.add(f"num:{val}")
-    return keys
+    return {f"num:{_word_count(match.group(1))}" for match in _WORD_NUMBER_RE.finditer(normalize_text(text))}
 
 
 def _extract_credentials(text: str) -> set[str]:

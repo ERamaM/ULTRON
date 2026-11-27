@@ -6,24 +6,24 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from ultron.cover_letter import builder
+from ultron.cover_letter import draft
 from ultron.cv import experience as cv_experience
 from ultron.cv import extract as cv
 from ultron.cv import truth as cv_truth
 
 
-def _extract_draft_claim_text(draft_path: Path, document: builder.CoverLetterDocument | None) -> str:
+def _extract_draft_claim_text(draft_path: Path, document: draft.CoverLetterDocument | None) -> str:
     if document is None:
         if draft_path.suffix.lower() not in {".json", ".md", ".markdown", ".txt"}:
             return cv_truth.load_cv_plain_text(draft_path)
         if draft_path.suffix.lower() != ".json":
             if draft_path.stat().st_size > cv.MAX_CV_BYTES:
                 raise cv.CvExtractionError("cover letter draft is too large", code="too_long")
-            raw = cv._decode_text_bytes(draft_path.read_bytes())
+            raw = cv.decode_text_bytes(draft_path.read_bytes())
             if not raw.lstrip().startswith("---"):
                 # Standalone verification also accepts plain text with original line structure.
                 return raw
-        document = builder.load_cover_letter_draft(draft_path)
+        document = draft.load_cover_letter_draft(draft_path)
     return "\n".join((document.subject, document.salutation, document.opening,
                       *document.paragraphs, *document.highlights, document.closing, document.signoff))
 
@@ -52,7 +52,7 @@ def verify_cover_letter_truth(
     confirmed_facts: list[str] | None = None,
     target_company: str | None = None,
     as_of: date | None = None,
-    document: builder.CoverLetterDocument | None = None,
+    document: draft.CoverLetterDocument | None = None,
 ) -> dict[str, Any]:
     """Verify a cover letter draft against the candidate's source CV (+ confirmed facts)."""
     ref = as_of or datetime.now(UTC).date()

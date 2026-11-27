@@ -310,7 +310,7 @@ def build_ats_docx(
         raise cv.CvExtractionError("CV draft file is too large", code="too_long")
 
     safe_font = resolve_safe_font(font)
-    raw = cv._decode_text_bytes(src.read_bytes())
+    raw = cv.decode_text_bytes(src.read_bytes())
     if src.suffix.lower() == ".json":
         doc = parse_json_cv(json.loads(raw))
     else:

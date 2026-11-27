@@ -20,6 +20,7 @@ import io
 import re
 import zipfile
 import zlib
+from collections import Counter
 from dataclasses import dataclass, field
 from xml.parsers import expat
 
@@ -91,6 +92,16 @@ class DocxStructureReport:
     rendered_page_breaks: int = 0
     app_pages: int | None = None
     heading_paragraph_count: int = 0
+    page_width_twips: int | None = None
+    page_height_twips: int | None = None
+    margin_twips: int | None = None
+    header_align: str = "left"
+    accent_color: str = ""
+    has_section_borders: bool = False
+    has_shaded_headings: bool = False
+    has_caps_headings: bool = False
+    has_right_tabs: bool = False
+    dominant_font: str = ""
 
 
 def _error(message: str, code: str = "no_extractable_text"):
@@ -160,6 +171,18 @@ class _BodyText:
         self.explicit_page_breaks = 0
         self.rendered_page_breaks = 0
         self.heading_paragraph_count = 0
+        self.page_width_twips: int | None = None
+        self.page_height_twips: int | None = None
+        self.margin_twips: int | None = None
+        self.header_align = "left"
+        self.accent_color = ""
+        self.has_section_borders = False
+        self.has_shaded_headings = False
+        self.has_caps_headings = False
+        self.has_right_tabs = False
+        self._first_paragraph = False
+        self._section_depth: int | None = None
+        self._section_text: list[str] | None = None
         self.app_pages: int | None = None
         self._app_page_parts: list[str] | None = None
         self.elements = 0
@@ -174,7 +197,7 @@ class _BodyText:
         self.has_hidden_text = False
         self.list_paragraph_count = 0
         self.fonts: list[str] = []
-        self._seen_fonts: set[str] = set()
+        self.font_frequency: Counter[str] = Counter()
         self.non_standard_char_count = 0
 
     def _buffer(self) -> list[str]:
@@ -214,14 +237,52 @@ class _BodyText:
                 self.heading_paragraph_count += 1
         elif name == _W_NUMPR:
             self.list_paragraph_count += 1
-        elif name == _W_RFONTS and len(self.fonts) < MAX_FONTS:
-            for attr in (f"{_W}ascii", f"{_W}hAnsi", f"{_W}cs", f"{_W}eastAsia", "ascii", "hAnsi"):
-                font = (attributes.get(attr) or "").strip()
-                if font and font not in self._seen_fonts:
-                    self._seen_fonts.add(font)
+        elif name == _W_RFONTS:
+            self._record_fonts(attributes)
+
+    def _record_fonts(self, attributes: dict[str, str]) -> None:
+        seen: set[str] = set()
+        for attr in (f"{_W}ascii", f"{_W}hAnsi", f"{_W}cs", f"{_W}eastAsia", "ascii", "hAnsi"):
+            font = (attributes.get(attr) or "").strip()
+            if not font or font in seen:
+                continue
+            seen.add(font)
+            if font in self.font_frequency or len(self.fonts) < MAX_FONTS:
+                if font not in self.font_frequency:
                     self.fonts.append(font)
-                    if len(self.fonts) >= MAX_FONTS:
-                        break
+                self.font_frequency[font] += 1
+
+    def _record_layout(self, name: str, attributes: dict[str, str]) -> None:
+        val = attributes.get(f"{_W}val", "")
+        if name == f"{_W}pgSz" and self.page_width_twips is None:
+            self.page_width_twips = _positive_twips(attributes.get(f"{_W}w", ""))
+            self.page_height_twips = _positive_twips(attributes.get(f"{_W}h", ""))
+        elif name == f"{_W}pgMar" and self.margin_twips is None:
+            left = _positive_twips(attributes.get(f"{_W}left", ""))
+            right = _positive_twips(attributes.get(f"{_W}right", ""))
+            if left is not None and right is not None:
+                self.margin_twips = (left + right) // 2
+        elif name == f"{_W}jc" and self._first_paragraph and val == "center":
+            self.header_align = "center"
+        elif name == f"{_W}tab" and val == "right":
+            self.has_right_tabs = True
+        elif name == f"{_W}style" and attributes.get(f"{_W}styleId", "").casefold() == "heading2":
+            self._section_depth = self.depth
+        elif name == f"{_W}pStyle" and val.casefold() == "heading2":
+            self._section_text = []
+        elif self._section_depth is not None or self._section_text is not None:
+            self._record_heading_layout(name, attributes)
+
+    def _record_heading_layout(self, name: str, attributes: dict[str, str]) -> None:
+        if name == f"{_W}pBdr":
+            self.has_section_borders = True
+        elif name == f"{_W}shd":
+            self.has_shaded_headings = True
+        elif name == f"{_W}caps":
+            self.has_caps_headings = True
+        color = attributes.get(f"{_W}val" if name == f"{_W}color" else f"{_W}color", "").upper()
+        if not self.accent_color and re.fullmatch(r"[0-9A-F]{6}", color) and color not in {"000000", "FFFFFF"}:
+            self.accent_color = color
 
     def start(self, name: str, attributes: dict[str, str]) -> None:
         self.elements += 1
@@ -233,7 +294,9 @@ class _BodyText:
         if self.skipped:
             return
         self._record_structure(name, attributes)
+        self._record_layout(name, attributes)
         if name == _W_P:
+            self._first_paragraph = not self.lines and not self.stack
             # A paragraph nested in another (a text box) ends the outer paragraph's text so far.
             if self.stack and self.stack[-1]:
                 self._line(self.stack[-1])
@@ -269,7 +332,13 @@ class _BodyText:
                 if 0 < pages <= 2_147_483_647:
                     self.app_pages = pages
             self._app_page_parts = None
+        if name == f"{_W}style" and self._section_depth == self.depth + 1:
+            self._section_depth = None
         if name == _W_P and self.stack:
+            self._first_paragraph = False
+            if self._section_text is not None:
+                self.has_caps_headings |= "".join(self._section_text).isupper()
+                self._section_text = None
             self._line(self.stack.pop())
         elif name == _W_T:
             self.in_text -= 1
@@ -279,11 +348,17 @@ class _BodyText:
             self._count(len(data))
             self._app_page_parts.append(data)
         if self.in_text and not self.skipped:
+            if self._section_text is not None:
+                self._section_text.append(data)
             for ch in data:
                 code = ord(ch)
                 if 0xE000 <= code <= 0xF8FF or 0xFB00 <= code <= 0xFB06 or ch in _ZERO_WIDTH_CHARS:
                     self.non_standard_char_count += 1
             self._append(data)
+
+
+def _positive_twips(value: str) -> int | None:
+    return int(value) if len(value) <= 6 and value.isascii() and value.isdecimal() else None
 
 
 def _reject_declaration(*_args) -> None:
@@ -355,6 +430,11 @@ def extract_docx_text(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> tu
         return text, _xml_page_count(body, _read_app_pages(archive))
 
 
+def _dominant_font(body: _BodyText, styles: _BodyText) -> str:
+    fonts = body.font_frequency or styles.font_frequency
+    return fonts.most_common(1)[0][0] if fonts else ""
+
+
 def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStructureReport:
     """Extract raw body text plus bounded ATS structural indicators from a ``.docx`` archive."""
     archive, entries = _open_archive(content)
@@ -368,15 +448,16 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         has_comments = any(name.lower() == _COMMENTS for name in entry_names)
         hf_names = sorted(name for name in entry_names if _HEADER_FOOTER_RE.match(name))[:MAX_HEADER_FOOTER_PARTS]
 
+        style_handlers = _BodyText(0)
         fonts = list(body_handlers.fonts)
-        if _STYLES in entry_names and len(fonts) < MAX_FONTS:
+        if _STYLES in entry_names:
             styles_bytes = _read_member(archive, _STYLES, MAX_AUX_XML_BYTES)
             _styles_text, style_handlers = _parse_xml_body(styles_bytes, MAX_AUX_XML_BYTES)
             for font in style_handlers.fonts:
+                if len(fonts) >= MAX_FONTS:
+                    break
                 if font not in fonts:
                     fonts.append(font)
-                    if len(fonts) >= MAX_FONTS:
-                        break
 
         hf_chars = 0
         hf_has_contact = False
@@ -408,4 +489,14 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         rendered_page_breaks=body_handlers.rendered_page_breaks,
         app_pages=app_pages,
         heading_paragraph_count=body_handlers.heading_paragraph_count,
+        page_width_twips=body_handlers.page_width_twips,
+        page_height_twips=body_handlers.page_height_twips,
+        margin_twips=body_handlers.margin_twips,
+        header_align=body_handlers.header_align,
+        accent_color=body_handlers.accent_color or style_handlers.accent_color,
+        has_section_borders=body_handlers.has_section_borders or style_handlers.has_section_borders,
+        has_shaded_headings=body_handlers.has_shaded_headings or style_handlers.has_shaded_headings,
+        has_caps_headings=body_handlers.has_caps_headings or style_handlers.has_caps_headings,
+        has_right_tabs=body_handlers.has_right_tabs or style_handlers.has_right_tabs,
+        dominant_font=_dominant_font(body_handlers, style_handlers),
     )

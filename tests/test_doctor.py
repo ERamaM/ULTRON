@@ -59,7 +59,7 @@ def test_all_ok_with_mock_network(_clean_env):
     checks = doctor.run_checks()
     assert [c.id for c in checks] == [
         "python_version", "ultron_home_writable", "db_schema", "optional_extras",
-        "skill_installed", "web_search", "docx_pdf_renderer", "network_dns", "network_https",
+        "skill_installed", "web_search", "docx_pdf_renderer", "cv_visual_preview", "network_dns", "network_https",
     ]
     assert all(c.ok for c in checks), [c for c in checks if not c.ok]
 
@@ -290,3 +290,12 @@ def test_docx_renderer_is_informational(monkeypatch, backend, label):
     monkeypatch.setattr(doctor.docx_pdf, "detect_pdf_converter", lambda: (backend, "unused"))
     detected = doctor.check_docx_pdf_renderer()
     assert detected.ok and label in detected.detail
+
+
+
+def test_visual_preview_check_is_informational(monkeypatch):
+    fallback = doctor.check_cv_visual_preview()
+    assert fallback.ok and "Poppler" in fallback.fix
+    assert {"id": "cv_visual_preview", "ok": True} in doctor.to_public_payload([fallback])["checks"]
+    monkeypatch.setattr(doctor.pdf_raster, "detect_pdf_rasterizer", lambda: ("pdftoppm", "unused"))
+    assert "pdftoppm" in doctor.check_cv_visual_preview().detail

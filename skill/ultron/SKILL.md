@@ -139,6 +139,14 @@ use `ddg` or `ddg_html` for web search alongside feeds and boards.
 | help preparing or submitting a bug report or GitHub issue | `references/issue-reporting.md` |
 | backup, cleanup, delete runs, purge or restore data | `references/data-maintenance.md` (always preview first) |
 
+## Document layout and visual review
+
+Before optimizing a DOCX or PDF CV, run `ultron cv preview`. Inspect the local page images and
+the detected layout. Rebuild with `--preview` and visually check every page, following
+`references/cv-ats.md` and `references/cover-letter.md`. Preserve ATS-safe source cues
+and check page count, headings, wraps, and whitespace. Limit visual review to three passes.
+If no images are available, report that the DOCX was delivered without a visual review.
+
 ## Rules of thumb
 
 - Update only when the user agrees or asks: run `ultron update`, then run each returned command as a

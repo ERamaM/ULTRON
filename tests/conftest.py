@@ -8,6 +8,7 @@ def _isolated_ultron_home(tmp_path, monkeypatch):
     monkeypatch.delenv("ULTRON_DISABLE_UPDATE_CHECK", raising=False)
     monkeypatch.setenv("ULTRON_SEARXNG_AUTO_START", "0")
     monkeypatch.setenv("ULTRON_DOCX_PDF_CONVERTER", "none")
+    monkeypatch.setenv("ULTRON_PDF_RASTERIZER", "none")
 
 
 @pytest.fixture(autouse=True)

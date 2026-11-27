@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+from dataclasses import asdict
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -17,10 +18,11 @@ from ultron.cover_letter.draft import (
     parse_json_cover_letter,
     parse_markdown_cover_letter,
 )
-from ultron.cv import docx_pages
+from ultron.cv import docx_pages, layout_profile
 from ultron.cv import docx_reader as cv_docx
 from ultron.cv import docx_writer as cv_writer
 from ultron.cv import extract as cv
+from ultron.cv import preview as cv_preview
 from ultron.infra import fs, home, ooxml
 
 __all__ = [
@@ -86,6 +88,8 @@ def build_cover_letter_docx(
     template: str = "modern",
     template_file: Path | None = None,
     font: str | None = None,
+    page_size: str = "letter",
+    preview: bool = False,
     force: bool = False,
     source_cv: Path | None = None,
     confirmed_facts: list[str] | None = None,
@@ -93,6 +97,8 @@ def build_cover_letter_docx(
     as_of: date | None = None,
 ) -> dict[str, Any]:
     """Build a tailored `.docx` (and optional `.md`) cover letter with optional strict truth verification."""
+    if template_file is not None and page_size != "letter":
+        raise ValueError("Custom templates specify their own page size.")
     if strict and source_cv is None:
         raise cv.CvExtractionError("--strict requires --source-cv", code="missing_source_cv")
     src = Path(from_path)
@@ -132,7 +138,7 @@ def build_cover_letter_docx(
         docx_bytes = templates.render_custom_template_docx_bytes(Path(template_file), doc)
         mode_used = "custom"
     else:
-        docx_bytes = templates.render_bundled_docx_bytes(doc, template_name=template, font=font)
+        docx_bytes = templates.render_bundled_docx_bytes(doc, template_name=template, font=font, page_size=page_size)
         mode_used = template.strip().lower()
 
     report = cv_docx.inspect_docx(docx_bytes)
@@ -140,7 +146,7 @@ def build_cover_letter_docx(
         raise ValueError("generated bundled cover letter violated single-column ATS constraints")
 
     # Cover-letter length is advisory, so it does not use the CV page cap.
-    count = docx_pages.measure_docx_pages(docx_bytes, report=report, max_pages=sys.maxsize)
+    count = docx_pages.measure_docx_pages(docx_bytes, report=report, max_pages=sys.maxsize, keep_pdf=preview)
     fs.atomic_write_bytes(target_docx, docx_bytes)
     written_md: str | None = None
     if target_md is not None:
@@ -159,6 +165,13 @@ def build_cover_letter_docx(
         if template_file is None
         else "template",
         "bytes": len(docx_bytes),
+        "layout_used": {"page_size": layout_profile.extract_layout_profile(
+            docx_bytes, file_type="docx", format_meta=asdict(report),
+        )["page_size"] if template_file is not None else page_size},
+        **({"preview": cv_preview.write_reference_preview(
+            target_docx, count.pdf_bytes, pages=count.pages, category="cover-letters", warning=count.warning,
+            rendered_pages_verified=count.source == "pdf_render",
+        )} if preview else {}),
         "pages": count.pages,
         **({"warning": f"The cover letter spans {count.pages} pages ({count.source}). Aim for one page."}
            if count.pages > 1 else {}),

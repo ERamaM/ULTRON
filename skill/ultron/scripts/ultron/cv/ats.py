@@ -81,10 +81,14 @@ def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]
     return clean, int(meta.get("page_count", len(pages))), "pdf", meta
 
 
-def _inspect_docx(content: bytes) -> tuple[str, int, str, dict[str, Any]]:
-    report = cv_docx.inspect_docx(content, max_chars=cv_docx.MAX_RAW_TEXT_CHARS)
+def _inspect_docx(
+    content: bytes, *, report: cv_docx.DocxStructureReport | None = None,
+    page_count: docx_pages.DocxPageCount | None = None,
+) -> tuple[str, int, str, dict[str, Any]]:
+    if report is None:
+        report = cv_docx.inspect_docx(content, max_chars=cv_docx.MAX_RAW_TEXT_CHARS)
     clean = cv._clean_text(report.text, cv.MAX_CV_CHARS)
-    count = docx_pages.measure_docx_pages(content, report=report)
+    count = page_count or docx_pages.measure_docx_pages(content, report=report)
     meta = asdict(report)
     meta.pop("text", None)
     meta.update(count.metadata(), pages=count.pages)
@@ -285,11 +289,14 @@ def audit_cv(
     return payload
 
 
-def audit_generated_docx(content: bytes) -> dict[str, Any]:
+def audit_generated_docx(
+    content: bytes, *, report: cv_docx.DocxStructureReport | None = None,
+    page_count: docx_pages.DocxPageCount | None = None,
+) -> dict[str, Any]:
     """Validate and score a generated DOCX in memory before publishing it."""
     if len(content) > cv.MAX_CV_BYTES:
         raise cv.CvExtractionError("CV file is too large", code="too_long")
-    return _score_cv(_inspect_docx(content), fetch=False)
+    return _score_cv(_inspect_docx(content, report=report, page_count=page_count), fetch=False)
 
 
 def _score_cv(

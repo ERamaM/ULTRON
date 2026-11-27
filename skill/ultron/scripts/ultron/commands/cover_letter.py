@@ -106,6 +106,8 @@ def _build_docx(args: argparse.Namespace) -> int:
             template=args.template,
             template_file=Path(args.template_file) if args.template_file else None,
             font=args.font,
+            page_size=args.page_size,
+            preview=args.preview,
             force=args.force,
             source_cv=Path(args.source_cv) if args.source_cv else None,
             confirmed_facts=confirmed,
@@ -175,6 +177,8 @@ def register(subparsers) -> None:
         help="bundled Word template: classic, modern, or executive (default: modern)",
     )
     build.add_argument("--template-file", help="custom Word .docx template file containing {{placeholders}}")
+    build.add_argument("--page-size", choices=("letter", "a4"), default="letter", help="paper size for bundled templates")
+    build.add_argument("--preview", action="store_true", help="save a local PDF reference and PNG page images")
     build.add_argument("--font", help="override ATS-safe font name (Calibri, Georgia, Cambria, etc.)")
     build.add_argument("--source-cv", help="optional original CV path to run verify-truth before/during build")
     build.add_argument("--confirmed", help="optional JSON or text file listing user-confirmed extra facts")

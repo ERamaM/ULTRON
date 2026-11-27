@@ -20,7 +20,6 @@ import io
 import re
 import zipfile
 import zlib
-from collections import Counter
 from dataclasses import dataclass, field
 from xml.parsers import expat
 
@@ -188,7 +187,7 @@ class _BodyText:
         self.has_hidden_text = False
         self.list_paragraph_count = 0
         self.fonts: list[str] = []
-        self.font_frequency: Counter[str] = Counter()
+        self._seen_fonts: set[str] = set()
         self.non_standard_char_count = 0
 
     def _buffer(self) -> list[str]:
@@ -228,20 +227,14 @@ class _BodyText:
                 self.heading_paragraph_count += 1
         elif name == _W_NUMPR:
             self.list_paragraph_count += 1
-        elif name == _W_RFONTS:
-            self._record_fonts(attributes)
-
-    def _record_fonts(self, attributes: dict[str, str]) -> None:
-        seen: set[str] = set()
-        for attr in (f"{_W}ascii", f"{_W}hAnsi", f"{_W}cs", f"{_W}eastAsia", "ascii", "hAnsi"):
-            font = (attributes.get(attr) or "").strip()
-            if not font or font in seen:
-                continue
-            seen.add(font)
-            if font in self.font_frequency or len(self.fonts) < MAX_FONTS:
-                if font not in self.font_frequency:
+        elif name == _W_RFONTS and len(self.fonts) < MAX_FONTS:
+            for attr in (f"{_W}ascii", f"{_W}hAnsi", f"{_W}cs", f"{_W}eastAsia", "ascii", "hAnsi"):
+                font = (attributes.get(attr) or "").strip()
+                if font and font not in self._seen_fonts:
+                    self._seen_fonts.add(font)
                     self.fonts.append(font)
-                self.font_frequency[font] += 1
+                    if len(self.fonts) >= MAX_FONTS:
+                        break
 
     def start(self, name: str, attributes: dict[str, str]) -> None:
         self.elements += 1
@@ -418,9 +411,6 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
             if stripped and _CONTACT_RE.search(stripped):
                 hf_has_contact = True
 
-    layout_fields = body_layout.report_fields(style_layout)
-    if body_handlers.font_frequency:
-        layout_fields["dominant_font"] = body_handlers.font_frequency.most_common(1)[0][0]
     return DocxStructureReport(
         text=text,
         pages=_xml_page_count(body_handlers, app_pages),
@@ -441,5 +431,5 @@ def inspect_docx(content: bytes, max_chars: int = MAX_RAW_TEXT_CHARS) -> DocxStr
         rendered_page_breaks=body_handlers.rendered_page_breaks,
         app_pages=app_pages,
         heading_paragraph_count=body_handlers.heading_paragraph_count,
-        **layout_fields,
+        **body_layout.report_fields(style_layout),
     )

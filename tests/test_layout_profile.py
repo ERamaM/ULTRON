@@ -73,7 +73,7 @@ def test_only_applied_styles_and_their_bases_contribute_cues():
                 <w:styles xmlns:w="{WORD_NS}">
                   <w:style w:styleId="Header"><w:basedOn w:val="Centered"/></w:style>
                   <w:style w:styleId="Centered"><w:pPr><w:jc w:val="center"/></w:pPr></w:style>
-                  <w:style w:styleId="Heading2"><w:basedOn w:val="CycleA"/><w:pPr><w:pBdr/></w:pPr></w:style>
+                  <w:style w:styleId="Heading2"><w:basedOn w:val="CycleA"/><w:pPr><w:pBdr><w:bottom w:val="single"/></w:pBdr></w:pPr></w:style>
                   <w:style w:styleId="CycleA"><w:basedOn w:val="Heading2"/>
                     <w:pPr><w:tabs><w:tab w:val="right"/></w:tabs></w:pPr>
                     <w:rPr><w:color w:val="2B4C7E"/><w:rFonts w:ascii="Arial"/></w:rPr>
@@ -89,3 +89,39 @@ def test_only_applied_styles_and_their_bases_contribute_cues():
     used = layout_profile.extract_layout_profile(document('<w:pStyle w:val="Custom"/>'), file_type="docx")
     assert (used["section_style"], used["date_layout"], used["accent_color"]) == ("rule", "right_tab", "2B4C7E")
     assert used["font"] == "Arial"
+
+
+
+@pytest.mark.parametrize(("base_border", "direct_border", "expected"), [
+    ("single", "nil", "clean"), ("single", "none", "clean"), ("single", "", "rule"), ("nil", "", "clean"),
+])
+def test_inherited_body_font_and_effective_heading_border(base_border, direct_border, expected):
+    import io
+    import zipfile
+
+    from ultron.cv.docx_layout import WORD_NS
+
+    buffer = io.BytesIO()
+    properties = f'<w:pBdr><w:bottom w:val="{direct_border}"/></w:pBdr>' if direct_border else ""
+    body = "<w:p><w:r><w:t>Normal body paragraph.</w:t></w:r></w:p>" * 20
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("word/document.xml", f"""
+            <w:document xmlns:w="{WORD_NS}"><w:body>
+            <w:p><w:r><w:rPr><w:rFonts w:ascii="Georgia"/></w:rPr><w:t>Jane Example</w:t></w:r></w:p>
+            <w:p><w:pPr><w:pStyle w:val="Heading2"/>{properties}</w:pPr>
+                <w:r><w:t>Experience</w:t></w:r></w:p>
+            {body}
+            </w:body></w:document>
+        """)
+        archive.writestr("word/styles.xml", f"""
+            <w:styles xmlns:w="{WORD_NS}">
+              <w:style w:styleId="Normal" w:type="paragraph" w:default="1">
+                <w:rPr><w:rFonts w:ascii="Arial"/></w:rPr>
+              </w:style>
+              <w:style w:styleId="Heading2"><w:basedOn w:val="Normal"/>
+                <w:pPr><w:pBdr><w:bottom w:val="{base_border}"/></w:pBdr></w:pPr>
+              </w:style>
+            </w:styles>
+        """)
+    detected = layout_profile.extract_layout_profile(buffer.getvalue(), file_type="docx")
+    assert detected["font"] == "Arial" and detected["section_style"] == expected

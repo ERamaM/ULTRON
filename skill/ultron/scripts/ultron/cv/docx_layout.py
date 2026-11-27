@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _W = WORD_NS + " "
 _HEX = re.compile(r"[0-9A-F]{6}")
+_PARAGRAPH_BORDERS = {"top", "left", "bottom", "right", "between", "bar", "start", "end"}
 
 
 def _twips(value: str) -> int | None:
@@ -17,7 +18,7 @@ def _twips(value: str) -> int | None:
 
 @dataclass
 class _Cues:
-    border: bool = False
+    border: bool | None = None
     shaded: bool = False
     caps: bool = False
     right_tab: bool = False
@@ -25,10 +26,10 @@ class _Cues:
     accent: str = ""
     font: str = ""
 
-    def record(self, kind: str, attrs: dict[str, str]) -> None:
+    def record(self, kind: str, attrs: dict[str, str], *, paragraph_border: bool = False) -> None:
         val = attrs.get(f"{_W}val", "")
-        if kind == "pBdr":
-            self.border = True
+        if paragraph_border and kind in _PARAGRAPH_BORDERS and val:
+            self.border = bool(self.border) or val not in {"nil", "none"}
         elif kind == "shd":
             self.shaded = val != "nil"
         elif kind == "caps":
@@ -67,7 +68,9 @@ class DocxLayoutMetrics:
         self.header: _Paragraph | None = None
         self.paragraphs: list[_Paragraph] = []
         self.applied: dict[str, _Cues] = {}
-        self.paragraph_counts: Counter[str] = Counter()
+        self.paragraph_fonts: dict[str, Counter[str]] = {}
+        self.paragraph_borders: dict[str, set[bool | None]] = {}
+        self.border_depth = 0
         self.defaults = _Cues()
         self.styles: dict[str, _Style] = {}
         self.default_style = ""
@@ -79,6 +82,8 @@ class DocxLayoutMetrics:
             return
         kind = name[len(_W):]
         value = attrs.get(f"{_W}val", "").casefold()
+        if kind == "pBdr":
+            self.border_depth += 1
         if kind in {"pgSz", "pgMar"}:
             self._page_geometry(kind, attrs)
         elif kind == "p":
@@ -95,13 +100,13 @@ class DocxLayoutMetrics:
             if kind == "basedOn":
                 self.current_style.base = value
             else:
-                self.current_style.cues.record(kind, attrs)
+                self.current_style.cues.record(kind, attrs, paragraph_border=self.border_depth > 0)
         elif self.paragraphs:
             paragraph = self.paragraphs[-1]
             if kind == "pStyle":
                 paragraph.style = value
             else:
-                paragraph.cues.record(kind, attrs)
+                paragraph.cues.record(kind, attrs, paragraph_border=self.border_depth > 0)
         elif kind == "rFonts":
             self.defaults.record(kind, attrs)
 
@@ -122,6 +127,8 @@ class DocxLayoutMetrics:
 
     def end(self, name: str) -> None:
         """Save cues from a completed paragraph or leave a style definition."""
+        if name == f"{_W}pBdr":
+            self.border_depth -= 1
         if name == f"{_W}style":
             self.current_style = None
         if name != f"{_W}p" or not self.paragraphs:
@@ -130,14 +137,13 @@ class DocxLayoutMetrics:
         cues = paragraph.cues
         cues.caps |= "".join(paragraph.text).isupper()
         paragraph.text.clear()
-        self.paragraph_counts[paragraph.style] += 1
+        self.paragraph_fonts.setdefault(paragraph.style, Counter())[cues.font] += 1
+        self.paragraph_borders.setdefault(paragraph.style, set()).add(cues.border)
         combined = self.applied.setdefault(paragraph.style, _Cues())
-        combined.border |= cues.border
         combined.shaded |= cues.shaded
         combined.caps |= cues.caps
         combined.right_tab |= cues.right_tab
         combined.accent = combined.accent or cues.accent
-        combined.font = combined.font or cues.font
 
     def _chain(self, style_id: str) -> list[str]:
         chain: list[str] = []
@@ -153,29 +159,35 @@ class DocxLayoutMetrics:
     def _used_style_cues(self, chain: list[str]) -> list[_Cues]:
         return [self.styles[style_id].cues for style_id in chain if style_id in self.styles]
 
-    def _applied_format(self, definitions: DocxLayoutMetrics) -> tuple[list[_Cues], bool, str]:
+    def _applied_format(self, definitions: DocxLayoutMetrics) -> tuple[list[_Cues], bool, bool, str]:
         sections: list[_Cues] = []
         section_styles: dict[str, _Cues] = {}
         fonts: Counter[str] = Counter()
         right_tabs = False
+        section_border = False
         for style_id, direct in self.applied.items():
             chain = definitions._chain(style_id)
-            used = [direct, *definitions._used_style_cues(chain)]
-            right_tabs |= any(cue.right_tab for cue in used)
-            font = next((cue.font for cue in used if cue.font), definitions.defaults.font)
-            if font:
-                fonts[font] += self.paragraph_counts[style_id]
+            inherited = definitions._used_style_cues(chain)
+            right_tabs |= direct.right_tab or any(cue.right_tab for cue in inherited)
+            default_font = next((cue.font for cue in inherited if cue.font), definitions.defaults.font)
+            for font, count in self.paragraph_fonts[style_id].items():
+                fonts[font or default_font] += count
             if any(style.startswith("heading") and style != "heading1" for style in chain):
                 sections.append(direct)
-                for style in chain:
-                    if style in definitions.styles:
-                        section_styles.setdefault(style, definitions.styles[style].cues)
+                default_border = next((cue.border for cue in inherited if cue.border is not None), False)
+                section_border |= any(
+                    default_border if border is None else border for border in self.paragraph_borders[style_id]
+                )
+                section_styles.update({
+                    style: definitions.styles[style].cues for style in chain if style in definitions.styles
+                })
+        fonts.pop("", None)
         dominant = fonts.most_common(1)[0][0] if fonts else ""
-        return [*sections, *section_styles.values()], right_tabs, dominant
+        return [*sections, *section_styles.values()], right_tabs, section_border, dominant
 
     def report_fields(self, definitions: DocxLayoutMetrics) -> dict[str, int | str | bool | None]:
         """Return source layout properties taken only from used styles and their bases."""
-        sections, right_tabs, font = self._applied_format(definitions)
+        sections, right_tabs, section_border, font = self._applied_format(definitions)
         alignment = "left"
         if self.header is not None:
             header = [self.header.cues, *definitions._used_style_cues(definitions._chain(self.header.style))]
@@ -186,7 +198,7 @@ class DocxLayoutMetrics:
             "margin_twips": self.margin,
             "header_align": alignment,
             "accent_color": next((cue.accent for cue in sections if cue.accent), ""),
-            "has_section_borders": any(cue.border for cue in sections),
+            "has_section_borders": section_border,
             "has_shaded_headings": any(cue.shaded for cue in sections),
             "has_caps_headings": any(cue.caps for cue in sections),
             "has_right_tabs": right_tabs,

@@ -55,6 +55,14 @@ def _scoped_query(host: str, phrase: str) -> str:
     return f"site:{host} {phrase}"
 
 
+def _broad_query(phrase: str, override: str | None) -> str:
+    if any(word.startswith("site:") for word in phrase.split()):
+        return phrase
+    if override is not None:
+        return f"{override} {_JOB_INTENT}{phrase.removeprefix(override)}"
+    return f"{phrase} {_JOB_INTENT}"
+
+
 def build_queries(profile: dict, max_queries: int, *, query: str | None = None) -> list[str]:
     """Build up to 40 queries from role, region and work mode preferences."""
     limit = min(40, max(0, max_queries))
@@ -64,8 +72,14 @@ def build_queries(profile: dict, max_queries: int, *, query: str | None = None) 
                     criteria.get("role_focus_terms"), templates.get("titles"))
     regions = _terms(location_scope(profile)["preferred"], templates.get("regions")) or ("",)
     mode = work_mode_term(profile)
-    phrases = (f'"{title}" {region} {mode}' for region, title in product(regions, titles))
-    broad = [collapse_whitespace(phrase) for phrase in phrases] if query is None else [collapse_whitespace(query[:300])]
+    override = None if query is None else collapse_whitespace(query[:300])
+    if override is None:
+        roles = tuple(f'"{title}"' for title in titles)
+    elif override:
+        roles = (override,)
+    else:
+        return []
+    broad = [collapse_whitespace(f"{role} {region} {mode}") for region, role in product(regions, roles)]
     broad = list(dict.fromkeys(phrase for phrase in broad if phrase))[:limit]
     if not broad:
         return []
@@ -73,11 +87,11 @@ def build_queries(profile: dict, max_queries: int, *, query: str | None = None) 
     hosts = tuple(dict.fromkeys(scope.removeprefix("site:") for scope in scopes if scope.removeprefix("site:")))
     scoped = [_scoped_query(host, broad[(index + rotation) % len(broad)])
               for rotation in range(len(broad)) for index, host in enumerate(hosts)]
-    job_queries = [f"{phrase} {_JOB_INTENT}" if not any(word.startswith("site:") for word in phrase.split()) else phrase
-                   for phrase in broad]
+    job_queries = [_broad_query(phrase, override) for phrase in broad]
     plan = _interleave(job_queries, scoped[:limit])
-    if query is not None:
-        plan = [*job_queries, *(item for item in plan if item not in job_queries)]
+    if override is not None:
+        first = job_queries[0]
+        plan = [first, *(item for item in plan if item != first)]
     return plan[:limit]
 
 

@@ -9,6 +9,7 @@ from ultron.core.web_search import cascade, ddg_html, ddgs_client, searxng
 from ultron.core.web_search.dedup import deduplicate_hits
 from ultron.core.web_search.models import ProviderUnavailable, SearchHit
 from ultron.core.web_search.query_builder import build_queries, relaxed_queries
+from ultron.infra import searxng as searxng_api
 from ultron.infra.net import HttpError
 
 
@@ -46,6 +47,49 @@ def test_finance_plan_gives_workday_two_role_queries():
     plan = build_queries(profile, 20)
     workday = [query for query in plan if query.startswith("site:myworkdayjobs.com ")]
     assert workday == ["site:myworkdayjobs.com Analista Financiero Spain", "site:myworkdayjobs.com FP&A Analyst Spain"]
+
+
+def test_role_override_keeps_profile_scope():
+    profile = {"criteria": {"target_titles": ["Teacher"], "work_mode": "onsite",
+                            "location_scope": {"preferred": ["Ireland"]}}}
+    broad, scoped = build_queries(profile, 2, query="clinical nurse")
+    assert broad == "clinical nurse (jobs OR careers OR apply OR empleo) Ireland onsite"
+    assert scoped.startswith("site:")
+    assert "clinical nurse Ireland onsite" in scoped and "Teacher" not in scoped
+
+
+def test_unusable_searxng_rows_still_allow_alternate_host(monkeypatch):
+    calls = []
+
+    def read(_base, path, **_options):
+        query = parse_qs(urlsplit(path).query)["q"][0]
+        calls.append(query)
+        if query.startswith("site:job-boards.greenhouse.io "):
+            return {"results": [{"url": "https://example.org/jobs/1", "title": "Nurse"}]}
+        return {"results": [{"title": "A row with no link"}]}
+
+    monkeypatch.setenv("ULTRON_SEARXNG_URL", "http://localhost:8888")
+    monkeypatch.setattr(searxng, "read_json", read)
+    result = cascade.search_web(['site:boards.greenhouse.io "nurse"'], "searxng")
+    assert [row.url for row in result.hits] == ["https://example.org/jobs/1"]
+    assert calls == ['site:boards.greenhouse.io "nurse"', "site:boards.greenhouse.io nurse",
+                     "site:job-boards.greenhouse.io nurse"]
+
+
+@pytest.mark.parametrize("healthy", [False, True])
+def test_searxng_decoder_recursion_allows_auto_fallback(monkeypatch, healthy):
+    monkeypatch.setenv("ULTRON_SEARXNG_URL", "http://localhost:8888")
+    monkeypatch.setattr(searxng_api, "read_loopback", lambda *a, **k: (200, b'{"results":[]}'))
+    if healthy:
+        monkeypatch.setattr(cascade, "json_health", lambda **_: True)
+    monkeypatch.setattr(searxng_api, "json", type("Decoder", (), {"loads": staticmethod(_decoder_recursion)}))
+    monkeypatch.setattr(ddgs_client, "available", lambda: False)
+    monkeypatch.setattr(ddg_html, "search", lambda queries: ([hit("https://example.org/jobs/1")], len(queries)))
+    assert cascade.search_web(["nurse"], "auto").provider_used == "ddg_html"
+
+
+def _decoder_recursion(_payload):
+    raise RecursionError("synthetic decoder failure")
 
 
 def test_provider_urls_are_normalized():
@@ -212,6 +256,22 @@ def test_provider_deadlines_stop_queued_queries(monkeypatch):
     assert searxng.search(["nurse"], deadline=0) == ([], 0)
     assert ddg_html.search(["nurse"], deadline=0) == ([], 0)
     assert cascade.search_web(["nurse"], "searxng", deadline=0).metadata()["fallback_to_agent_web_search"]
+
+
+def test_searxng_timeout_leaves_no_time_for_retry_sleep(monkeypatch):
+    now = [0.0]
+
+    def read(*_args, **_kwargs):
+        now[0] = 1.0
+        raise HttpError("request timed out")
+
+    monkeypatch.setenv("ULTRON_SEARXNG_URL", "http://localhost:8888")
+    monkeypatch.setattr(searxng, "read_json", read)
+    monkeypatch.setattr(searxng, "time", type("Clock", (), {
+        "monotonic": lambda: now[0],
+        "sleep": lambda _: pytest.fail("retry sleep would run past the deadline"),
+    }))
+    assert searxng.search(["nurse"], deadline=1.0) == ([], 1)
 
 def test_searxng_runs_initial_queries_before_relaxing(monkeypatch):
     from urllib.parse import parse_qs, urlsplit

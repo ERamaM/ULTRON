@@ -1,6 +1,9 @@
+import threading
+
 import httpx
 import pytest
 
+from ultron.infra import loopback
 from ultron.infra.loopback import explicit_loopback_origin, read_loopback
 from ultron.infra.urlpolicy import URLRejected, admit_url
 
@@ -54,3 +57,70 @@ def test_loopback_stream_isolated(monkeypatch, status, body, encoding, error):
             read_loopback(origin, url, timeout=1, max_bytes=2)
     else:
         assert read_loopback(origin, url, timeout=1, max_bytes=2) == (200, b"ok")
+
+
+@pytest.mark.parametrize("late_at", ["headers", "chunk", "eof"])
+def test_late_loopback_response_is_rejected(monkeypatch, late_at):
+    now = [0.0]
+    real_client = httpx.Client
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self):
+            if late_at == "chunk":
+                now[0] = 2.0
+                yield b"ok"
+            if late_at == "eof":
+                now[0] = 2.0
+
+    def respond(_request):
+        if late_at == "headers":
+            now[0] = 2.0
+        return httpx.Response(200, stream=Stream())
+
+    monkeypatch.setattr(loopback, "time", type("Clock", (), {"monotonic": lambda: now[0]}))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(respond), **kw))
+    url = "http://localhost:8888"
+    with pytest.raises(httpx.ReadTimeout):
+        read_loopback(explicit_loopback_origin(url), url + "/", timeout=1)
+
+
+@pytest.mark.parametrize("blocked_at", ["headers", "body"])
+def test_blocking_loopback_read_returns_before_release(monkeypatch, blocked_at):
+    entered, release, returned = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+    real_client = httpx.Client
+
+    def wait():
+        entered.set()
+        release.wait(timeout=8)
+
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self):
+            if blocked_at == "body":
+                wait()
+            yield b"ok"
+
+    def respond(_request):
+        if blocked_at == "headers":
+            wait()
+        return httpx.Response(200, stream=Stream())
+
+    def fetch():
+        url = "http://localhost:8888"
+        try:
+            read_loopback(explicit_loopback_origin(url), url + "/", timeout=0.25)
+        except httpx.ReadTimeout as error:
+            errors.append(error)
+        finally:
+            returned.set()
+
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(respond), **kw))
+    caller = threading.Thread(target=fetch, daemon=True)
+    caller.start()
+    try:
+        assert entered.wait(timeout=4)
+        assert returned.wait(timeout=2), "blocked read outlasted the request budget"
+        assert len(errors) == 1
+    finally:
+        release.set()
+        caller.join(timeout=4)

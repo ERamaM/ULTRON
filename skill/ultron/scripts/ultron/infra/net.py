@@ -6,6 +6,7 @@ import json
 import threading
 import time
 from collections.abc import Callable, Mapping
+from concurrent.futures import Future, wait
 from contextlib import ExitStack
 from datetime import UTC
 from email.utils import parsedate_to_datetime
@@ -29,6 +30,37 @@ HOST_BACKOFF_MIN = 5.0
 HOST_BACKOFF_MAX = 15.0
 HOST_BACKOFF_DECAY = 0.5
 REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_DNS_SLOTS = threading.BoundedSemaphore(16)
+
+
+def run_bounded[T](
+    operation: Callable[[], T], *, slots: threading.BoundedSemaphore,
+    remaining: Callable[[], float], timeout_error: Callable[[], Exception],
+) -> T:
+    """Wait within the caller's budget for blocking I/O, with a cap on outstanding operations."""
+    if not slots.acquire(timeout=remaining()):
+        raise timeout_error()
+    result: Future[T] = Future()
+
+    def run() -> None:
+        try:
+            remaining()
+            result.set_result(operation())
+        except BaseException as error:  # noqa: BLE001 - propagate worker failures to the waiting caller
+            result.set_exception(error)
+        finally:
+            slots.release()
+
+    # The OS call may outlive the caller. It keeps its slot until it exits and never holds up process shutdown.
+    try:
+        threading.Thread(target=run, daemon=True).start()
+    except BaseException:
+        slots.release()
+        raise
+    if not wait((result,), timeout=remaining()).done:
+        raise timeout_error()
+    remaining()
+    return result.result()
 
 
 class RequestBudgetExceeded(RuntimeError):
@@ -221,14 +253,14 @@ def top_hosts(*counts: Mapping[str, int], limit: int = TOP_HOSTS_REPORTED) -> li
 class HostGate:
     """Shared by clients running in parallel threads: one request at a time per host, spaced across all of them.
 
-    Each client keeps its own budgets; the gate only makes sure two threads never hit the same host at once and
-    that the host's spacing holds across clients.
+    The gate enforces spacing across clients and shares adaptive vendor delays under the vendor key's lock.
     """
 
     def __init__(self) -> None:
         self._guard = threading.Lock()
         self._locks: dict[str, threading.Lock] = {}
         self._last: dict[str, float] = {}
+        self.vendor_delays: dict[str, float] = {}
 
     def lock_for(self, host: str) -> threading.Lock:
         """The lock of ``host`` (created on first use)."""
@@ -255,6 +287,7 @@ class HttpClient:
         max_bytes: int = 5_000_000,
         timeout: float = 20.0,
         deadline: float | None = None,
+        require_https: bool = False,
         min_interval_per_host: float = 0.5,
         gate: HostGate | None = None,
         transport: httpx.BaseTransport | None = None,
@@ -277,6 +310,7 @@ class HttpClient:
         self.max_bytes = max_bytes
         self.timeout = timeout
         self.deadline = deadline
+        self.require_https = require_https
         self.min_interval_per_host = min_interval_per_host
         self._gate = gate
         self.requests_made = 0
@@ -383,7 +417,13 @@ class HttpClient:
 
     def host_delay(self, host: str) -> float:
         """Current minimum spacing between requests to ``host`` (adapts to 429 and 2xx responses)."""
-        return self._host_delay.get(host, self._base_interval(host))
+        base = self._base_interval(host)
+        return max(base, self._delays_for(host).get(host, base))
+
+    def _delays_for(self, key: str) -> dict[str, float]:
+        if self._gate is not None and key.startswith(_VENDOR_KEY):
+            return self._gate.vendor_delays
+        return self._host_delay
 
     def _base_interval(self, key: str) -> float:
         if key.startswith(_VENDOR_KEY):
@@ -398,12 +438,18 @@ class HttpClient:
         self._block_streak[host] = self._block_streak.get(host, 0) + 1 if status in (403, 429) else 0
         self._adapt_delay(host, status)
 
+    def _adapt_response_delays(self, host: str, vendor: str | None, status: int) -> None:
+        self._adapt_host_delay(host, status)
+        if vendor is not None:
+            self._adapt_delay(_VENDOR_KEY + vendor, status)
+
     def _adapt_delay(self, host: str, status: int) -> None:
         current = self.host_delay(host)
+        delays = self._delays_for(host)
         if status == 429:
-            self._host_delay[host] = min(HOST_BACKOFF_MAX, max(HOST_BACKOFF_MIN, current * 2.0))
+            delays[host] = min(HOST_BACKOFF_MAX, max(HOST_BACKOFF_MIN, current * 2.0))
         elif 200 <= status < 300 and current > self._base_interval(host):
-            self._host_delay[host] = max(self._base_interval(host), current - HOST_BACKOFF_DECAY)
+            delays[host] = max(self._base_interval(host), current - HOST_BACKOFF_DECAY)
 
     def _throttle(self, *keys: str) -> None:
         """One wait until every key's spacing has passed (host and vendor), then stamp all keys with the send time."""
@@ -470,6 +516,9 @@ class HttpClient:
         try:
             with self._client.stream(method, url, **kwargs) as response:
                 status = response.status_code
+                blocked = status in (403, 429)
+                if blocked:
+                    self._adapt_response_delays(host, vendor, status)
                 if vendor is not None:
                     self.vendor_budget.record(vendor, status)
                 body = bytearray()
@@ -485,11 +534,21 @@ class HttpClient:
             raise URLRejected("invalid_url") from exc
         except httpx.HTTPError as exc:
             raise HttpError(f"request failed: {type(exc).__name__}") from exc
-        self._adapt_host_delay(host, status)
-        if vendor is not None:
-            self._adapt_delay(_VENDOR_KEY + vendor, status)
+        if not blocked:
+            self._adapt_response_delays(host, vendor, status)
         raw = bytes(body)
         return status, headers, _decode_body(raw, encoding)
+
+    def _resolve(self, host: str, port: int) -> tuple[str, ...]:
+        def resolve() -> tuple[str, ...]:
+            return resolve_public_addresses(host, port, resolver=self._resolver)
+
+        if self.deadline is None:
+            return resolve()
+        return run_bounded(
+            resolve, slots=_DNS_SLOTS, remaining=lambda: self._remaining(threading.TIMEOUT_MAX),
+            timeout_error=lambda: RequestBudgetExceeded("request time budget exhausted while resolving host"),
+        )
 
     def _fetch(
         self, method: str, url: str, timeout: float | None, json_body: Any = None,
@@ -503,6 +562,9 @@ class HttpClient:
         for _hop in range(MAX_REDIRECTS + 1):
             self._remaining(effective_timeout)
             admitted = admit_url(current, allowed_domains=allowed_domains)
+            origin = (urlsplit(admitted.url).scheme, admitted.hostname, admitted.port)
+            if self.require_https and origin[0] != "https":
+                raise URLRejected("https_required")
             # Resolve once per hop; the transport connects only to these validated addresses (no second lookup).
             # Resolve the ASCII host HTTPX connects to and sends as SNI/Host (IDNA2008, e.g. "xn--fa-hia.de"),
             # not the Unicode name, which Python's resolver would encode differently ("fass.de").
@@ -510,11 +572,8 @@ class HttpClient:
                 connect_host = httpx.URL(admitted.url).raw_host.decode("ascii")
             except (httpx.InvalidURL, UnicodeError) as exc:
                 raise URLRejected("invalid_url") from exc
-            self._validated[admitted.hostname] = resolve_public_addresses(
-                connect_host, admitted.port, resolver=self._resolver
-            )
+            self._validated[admitted.hostname] = self._resolve(connect_host, admitted.port)
             current = admitted.url
-            origin = (urlsplit(admitted.url).scheme, admitted.hostname, admitted.port)
             first_origin = first_origin or origin
             # Request headers (credentials) go only to the origin they were meant for (scheme, host and port), never
             # to a redirect target on another host or downgraded to plain HTTP.

@@ -11,7 +11,7 @@ import yaml
 from ultron import seeds
 from ultron.cli import main
 from ultron.core.models import AtsBoardSeed
-from ultron.infra.net import HttpClient
+from ultron.infra.net import HttpClient, VendorBudget
 from ultron.profiles import store as profiles
 from ultron.seeds import Proposal, add_seeds, load_inventory, slug_candidates, verify_proposal
 from ultron.stages import http_factory
@@ -349,6 +349,42 @@ def test_a_single_rate_limited_answer_does_not_skip_the_next_board_on_that_host(
 def test_seeds_verify_unknown_run(capsys, tmp_path):
     assert main(["seeds", "verify", "--run", "nope", "--from", str(tmp_path / "x.jsonl")]) != 0
     assert json.loads(capsys.readouterr().out)["error"] == "run_not_found"
+
+
+@pytest.mark.parametrize("vendor_exhausted", [False, True])
+def test_seed_budget_exhaustion_only_skips_matching_scope(vendor_exhausted):
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.host)
+        return httpx.Response(200, json={"offers": []})
+
+    proposal = Proposal(company="Example Hospital", ats="recruitee", board="first",
+                        careers_url="https://second.recruitee.com/")
+    with make_client(handler, max_requests_per_host=1, vendor_of=lambda _: "recruitee",
+                     vendor_budget=VendorBudget(max_requests=1 if vendor_exhausted else 10)) as client:
+        client.get_text("https://first.recruitee.com/api/offers")
+        result = verify_proposal(proposal, client=client, timeout=5, verify_only=True)
+    assert calls == (["first.recruitee.com"] if vendor_exhausted else ["first.recruitee.com", "second.recruitee.com"])
+    if not vendor_exhausted:
+        assert result.status == "verified" and result.seed.board_identifier == "second"
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_invalid_seed_proposal_path_preserves_reports(monkeypatch, capsys, tmp_path, directory):
+    run_id = _run(monkeypatch)
+    source = tmp_path / "proposals.jsonl"
+    if directory:
+        source.mkdir()
+    previous = runs.load_run(run_id)
+    paths = [runs.run_dir(run_id) / f"seeds_{kind}.jsonl" for kind in ("verified", "unresolved")]
+    for path in paths:
+        path.write_bytes(b'{"company":"Previous"}\n')
+    http_factory.set_test_overrides(transport=httpx.MockTransport(lambda _: pytest.fail("unexpected request")))
+    assert main(["seeds", "verify", "--run", run_id, "--from", str(source)]) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "invalid_proposals"
+    assert all(path.read_bytes() == b'{"company":"Previous"}\n' for path in paths)
+    assert runs.load_run(run_id) == previous
 
 
 def test_seeds_list_cli(capsys):

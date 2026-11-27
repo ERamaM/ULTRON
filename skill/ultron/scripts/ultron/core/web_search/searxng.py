@@ -5,10 +5,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode, urlsplit
 
+from ultron.core.web_search.dedup import deduplicate_hits
 from ultron.core.web_search.models import SearchHit, make_hit
 from ultron.core.web_search.query_builder import relaxed_queries
 from ultron.infra.net import HttpError, RequestBudgetExceeded
 from ultron.infra.searxng import LifecycleError, default_url, read_json
+
+_RETRY_DELAY = 0.2
 
 
 def _page(base: str, query: str, page: int, deadline: float | None) -> list[SearchHit]:
@@ -25,12 +28,15 @@ def _page(base: str, query: str, page: int, deadline: float | None) -> list[Sear
             results = value.get("results")
             if not isinstance(results, list):
                 return []
-            return [make_hit(row.get("title"), row.get("url"), row.get("content"), query, "searxng")
+            hits = [make_hit(row.get("title"), row.get("url"), row.get("content"), query, "searxng")
                     for row in results[:35] if isinstance(row, dict)]
+            return hits if deduplicate_hits(hits) else []
         except HttpError as error:
             if attempt or (error.status_code is not None and error.status_code < 500):
                 return []
-            time.sleep(0.2)
+            if deadline is not None and deadline - time.monotonic() <= _RETRY_DELAY:
+                return []
+            time.sleep(_RETRY_DELAY)
         except (ValueError, RequestBudgetExceeded):
             return []
     return []

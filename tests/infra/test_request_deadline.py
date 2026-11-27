@@ -60,3 +60,36 @@ def test_success_before_deadline_releases_gate():
     lock: threading.Lock = gate.lock_for("example.org")
     assert lock.acquire(blocking=False)
     lock.release()
+
+
+def test_deadline_returns_while_resolution_is_pending():
+    entered, release, returned = threading.Event(), threading.Event(), threading.Event()
+    outcomes = []
+    dispatched = []
+
+    def resolve(*_):
+        entered.set()
+        release.wait(timeout=8)
+        return ["93.184.216.34"]
+
+    def fetch():
+        try:
+            with HttpClient(max_requests=1, max_requests_per_host=1, resolver=resolve,
+                            transport=httpx.MockTransport(dispatched.append),
+                            deadline=time.monotonic() + 0.25) as client:
+                client.get_text("https://example.org/jobs")
+        except RequestBudgetExceeded as error:
+            outcomes.append(str(error))
+        finally:
+            returned.set()
+
+    caller = threading.Thread(target=fetch, daemon=True)
+    caller.start()
+    try:
+        assert entered.wait(timeout=4)
+        assert returned.wait(timeout=2), "request waited for the blocked resolver"
+        assert len(outcomes) == 1 and "time budget" in outcomes[0]
+    finally:
+        release.set()
+        caller.join(timeout=4)
+    assert not dispatched

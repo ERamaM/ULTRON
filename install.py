@@ -921,12 +921,12 @@ SPECIFIC_HOME_ENTRIES = frozenset({
 def _purge_ledger_lease(lock: Path):
     # The installer runs before ULTRON can be imported. Its exclusive lease uses the same SQLite protocol.
     if _is_link(lock) or not lock.is_file():
-        yield
+        yield None
         return
     try:
         with closing(sqlite3.connect(lock.as_uri() + "?mode=rw", uri=True, timeout=0)) as lease:
             lease.execute("BEGIN EXCLUSIVE")
-            yield
+            yield lease
     except sqlite3.Error as exc:
         raise InstallError("cannot lock the ULTRON ledger; close concurrent ULTRON commands and retry the purge") from exc
 
@@ -940,11 +940,23 @@ def _remove_home_entry(child: Path) -> None:
         child.unlink()
 
 
+def _prepare_ledger_lock_for_uninstall(lease: sqlite3.Connection, *, retire: bool) -> None:
+    # Must match infra.file_lock. Retirement prevents acquisitions between releasing and unlinking.
+    if retire:
+        lease.execute("PRAGMA user_version = 1")
+    elif lease.execute("PRAGMA user_version").fetchone()[0] == 1:
+        # An earlier attempt may have failed to unlink the lock before this home became shared.
+        lease.execute("PRAGMA user_version = 0")
+    lease.commit()
+
+
 def _delete_home_entries(home: Path, owned: set[Path]) -> None:
     lock, marker = home / LEDGER_LOCK, home / HOME_MARKER
-    with _purge_ledger_lease(lock):
+    with _purge_ledger_lease(lock) as lease:
         for child in sorted(owned - {lock, marker}):
             _remove_home_entry(child)
+        if lease is not None:
+            _prepare_ledger_lock_for_uninstall(lease, retire=lock in owned)
     # Close the SQLite handle before unlinking its file. Keep ownership proof until all other removals succeed.
     for child in (lock, marker):
         if child in owned:
@@ -963,9 +975,11 @@ def _purge_home(home: Path, *, dry_run: bool) -> dict:
     children = sorted(home.iterdir(), key=lambda p: p.name)
     lock = home / LEDGER_LOCK
     owned = {c for c in children if c.name in deletable}
-    if lock.is_dir() and not _is_link(lock):
+    if _is_link(lock) or lock.is_dir():
         owned.discard(lock)
     foreign = [c.name for c in children if c not in owned]
+    if foreign:
+        owned.discard(lock)  # A surviving home must keep the same lock for subsequent connections.
     extra = {"would_delete": [c.name for c in sorted(owned)]} if dry_run else {}
     if not dry_run:
         _delete_home_entries(home, owned)

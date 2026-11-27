@@ -22,7 +22,8 @@ explicit flag. Show the preview to the user and get their agreement before re-ru
   that orders ATS boards is kept too.
 - `purge` never touches `profiles/` or `venv/`. It keeps `backups/` unless you pass `--include-backups`.
   It also keeps the ledger coordination file for future connections. If the result is `ledger_busy`, close
-  the running ULTRON commands and retry.
+  the running ULTRON commands and retry. A full uninstall with `--purge-data` removes the lock when removing
+  the home itself. The installer keeps the coordination file when unrelated files keep the home in place.
 - If the home has no `.ultron-home` marker (written by `install.py` into a home it created), the folder may have
   existed before ULTRON used it, so `purge` keeps `cv/`, `backups/` and every `runs/` entry that is not a run folder.
 - Unfinished runs are never removed by `cleanup`. `purge` refuses to run while an unfinished run younger than 24 hours

@@ -1385,15 +1385,19 @@ def test_installer_purge_recognizes_the_real_ledger_lock(inst, fake_home, capsys
 
     code, preview = _run_main(inst, capsys, "--uninstall", "--purge-data", "--dry-run")
     assert code == 0
-    assert lock.name in preview["ultron_home"]["would_delete"]
+    assert (lock.name in preview["ultron_home"]["would_delete"]) is not layout.startswith("shared")
     assert lock.is_file()
+    previous_lock_stat = lock.stat()
     code, result = _run_main(inst, capsys, "--uninstall", "--purge-data")
     assert code == 0
-    assert not lock.exists()
     if layout.startswith("shared"):
         foreign = ["installs.json", "notes.txt"] if layout == "shared-orphan" else ["notes.txt"]
         assert result["ultron_home"]["kept_foreign_entries"] == foreign
         assert (home / "notes.txt").read_text(encoding="utf-8") == "keep"
+        assert not db.exists()
+        assert lock.stat().st_ino == previous_lock_stat.st_ino
+        with closing(ledger.connect(db)) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM jobs").fetchone() == (0,)
     else:
         assert result["ultron_home"]["status"] == "removed"
         assert not home.exists()
@@ -1458,3 +1462,49 @@ def test_unknown_registry_entries_do_not_rewrite_existing_records(inst, fake_hom
     inst._forget_link(unknown)
     assert registry.read_bytes() == original
     assert not (home / ".ultron-installs.lock").exists()
+
+
+@pytest.mark.parametrize("becomes_shared", [False, True])
+def test_complete_uninstall_retires_the_lock_before_unlinking(inst, fake_home, monkeypatch, capsys, becomes_shared):
+    import sqlite3
+    from contextlib import closing
+
+    from ultron.storage import ledger
+
+    home = fake_home / "retire-ledger"
+    home.mkdir()
+    (home / ".ultron-home").touch()
+    db = home / "ultron.sqlite3"
+    lock = ledger.lock_path(db)
+    monkeypatch.setenv("ULTRON_HOME", str(home))
+    with closing(ledger.connect(db)):
+        pass
+
+    real_remove = inst._remove_home_entry
+    attempted = []
+
+    def remove(path):
+        if path == lock:
+            attempted.append(path)
+            with pytest.raises(sqlite3.OperationalError, match="file lock is retired"):
+                ledger.connect(db)
+            assert not db.exists()
+            if len(attempted) == 1:
+                raise PermissionError("lock file cannot be unlinked yet")
+        real_remove(path)
+
+    monkeypatch.setattr(inst, "_remove_home_entry", remove)
+    command = ("--uninstall", "--purge-data")
+    assert _run_main(inst, capsys, *command)[0] == 1
+    assert attempted == [lock]
+    assert lock.is_file() and (home / ".ultron-home").is_file()
+    if becomes_shared:
+        (home / "notes.txt").touch()
+    assert _run_main(inst, capsys, *command)[0] == 0
+    if becomes_shared:
+        assert attempted == [lock]
+        assert (home / "notes.txt").is_file() and lock.is_file()
+        with closing(ledger.connect(db)) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone() == (0,)
+    else:
+        assert attempted == [lock, lock] and not home.exists()

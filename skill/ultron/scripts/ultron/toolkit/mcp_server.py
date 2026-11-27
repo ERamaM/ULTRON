@@ -8,6 +8,7 @@ output stream; diagnostics go to stderr. Text a tool returns from postings is da
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 import traceback
 from collections.abc import Callable
@@ -280,5 +281,8 @@ def serve(stdin: IO[str] | None = None, stdout: IO[str] | None = None) -> int:
             stdout.flush()
             if not response.get("result", {}).get("isError"):
                 for acknowledge in acknowledgments:
-                    acknowledge()
+                    try:
+                        acknowledge()
+                    except (OSError, sqlite3.Error):
+                        print("MCP watch acknowledgement failed; postings remain pending.", file=sys.stderr)
     return 0

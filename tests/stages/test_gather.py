@@ -8,6 +8,7 @@ import pytest
 from toolkit_helpers import (
     EMPLOYER,
     EMPLOYER_PAGE,
+    GH_BOARD,
     GH_PAGE,
     POSTING,
     offline,
@@ -57,7 +58,8 @@ def _setup_transport(monkeypatch, handler):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch):
+@pytest.mark.parametrize("lookup_host", ["boards.greenhouse.io", "job-boards.greenhouse.io"])
+def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch, lookup_host):
     barrier = Barrier(2)
     noise = ("https://en.wikipedia.org/wiki/Financial_analyst", "https://careers.example.org/jobs")
     requests = []
@@ -79,7 +81,13 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
             return httpx.Response(200, text="<html><body>No links here</body></html>")
         if str(request.url) in {WATCH, FEED}:
             return httpx.Response(200, text=EMPLOYER_PAGE.replace("Example Org", "Watched" if host == "watch.example" else "Hico"))
-        if str(request.url) == LOOKUP_TARGET:
+        if path == "/v1/boards/extra/jobs" and lookup_host.startswith("job-") and resolution_queries:
+            board = json.loads(GH_BOARD)
+            posting = board["jobs"][0]
+            posting.update(id=188, title="Senior ML Engineer", absolute_url=LOOKUP_TARGET,
+                           content="<p>Develop machine learning models and pipelines. Remote within Spain.</p>")
+            return httpx.Response(200, json={"jobs": [posting]})
+        if str(request.url) == LOOKUP_TARGET and not lookup_host.startswith("job-"):
             return httpx.Response(200, text=GH_PAGE.replace("Acme", "Extra"))
         return default_handler(request)
 
@@ -99,7 +107,10 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
 
     def lookup(queries, *, deadline):
         resolution_queries.extend(queries)
-        return [hit(LOOKUP_TARGET, "Senior ML Engineer", query=query)
+        target = LOOKUP_TARGET if lookup_host == "boards.greenhouse.io" else (
+            f"https://{lookup_host}/extra/jobs/188?utm_source=test"
+        )
+        return [hit(target, "Senior ML Engineer", query=query)
                 for query in queries if "extra" in query], len(queries)
 
     _setup_transport(monkeypatch, handler)
@@ -134,6 +145,7 @@ def test_gather_reads_sources_reuses_board_posts_and_caches_for_save(monkeypatch
     with closing(ledger.connect()) as conn:
         assert not watchlist.pending(conn, SLUG)
     cache = cached_postings(SLUG)
+    assert cache[by_url[LOOKUP_TARGET]["id"]]["job"]["body_text"]
     assert by_url[WATCH]["id"] in cache
     assert cache[by_url[WATCH]["id"]]["job"]["body_text"]
     saved = save_shortlist(SLUG, [{"id": by_url[WATCH]["id"], "verdict": "keep", "priority": 1}])

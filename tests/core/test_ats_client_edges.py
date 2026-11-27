@@ -165,6 +165,17 @@ def test_taleo_html():
     assert taleo.fetch_taleo_jobs("acme.taleo.net", client=FC(text_fn=lambda u: t))[0].apply_url.endswith("/career/1")
 
 
+@pytest.mark.parametrize("locator", [
+    "acme.taleo.net/careersection/ext",
+    "acme.taleo.net/careersection/ext/",
+    "acme.taleo.net/careersection/ext/joblist.ftl?lang=en",
+])
+def test_taleo_resolves_relative_jobs_in_the_career_section(locator):
+    html = '<a class="jobTitle-link" href="jobdetail.ftl?job=42">Taleo role</a>'
+    result = taleo.fetch_taleo_jobs(locator, client=FC(text_fn=lambda _url: html))
+    assert result[0].apply_url == "https://acme.taleo.net/careersection/ext/jobdetail.ftl?job=42"
+
+
 def test_comeet_html():
     cm = '<a href="/jobs/acme/company/position/role">Comeet role</a>'
     assert comeet.fetch_comeet_jobs("acme", client=FC(text_fn=lambda u: cm))[0].title == "Comeet role"

@@ -229,8 +229,11 @@ class InspectionSession:
             key = url_ids.get(normalize_url(url)) or canonical_job_identity(url).identity_key
             hit = by_id.pop(key, None)
             if hit is not None and hit[0]["status"] == "open":
-                dossiers.append(hit[0])
-                cache.append(hit[1])
+                dossier, cached = hit
+                if url != dossier["url"]:
+                    dossier["found_at"] = url
+                dossiers.append(dossier)
+                cache.append(cached)
             else:
                 unread.append((url, company))
         read, read_cache = self._postings(unread, client)

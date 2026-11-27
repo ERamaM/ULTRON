@@ -347,3 +347,32 @@ def test_failed_stdio_write_keeps_watch_results_pending(name, failure):
     assert any(row["id"] == identity and row["source"] == "watch" for row in _payload(result)["dossiers"])
     with closing(ledger.connect()) as conn:
         assert not watchlist.pending(conn, SLUG)
+
+
+def test_failed_watch_acknowledgement_keeps_the_mcp_session_alive(monkeypatch, capsys):
+    import sqlite3
+    from contextlib import closing
+
+    from ultron.core.job_identity import canonical_job_identity
+    from ultron.storage import ledger, watchlist
+
+    identity = canonical_job_identity(POSTING).identity_key
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [(identity, {
+            "identity_key": identity, "normalized_url": POSTING, "ats_title": "Senior Machine Learning Engineer",
+            "ats_company": "Acme", "ats_location": "Spain",
+        })])
+
+    def busy(*_args):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(watchlist, "mark_queued", busy)
+    delivered, ping = _session(
+        _call("search_jobs", {"profile": SLUG}),
+        {"jsonrpc": "2.0", "id": 2, "method": "ping"},
+    )
+    assert any(row["id"] == identity and row["source"] == "watch" for row in _payload(delivered)["dossiers"])
+    assert ping["result"] == {}
+    assert "acknowledgement failed" in capsys.readouterr().err
+    with closing(ledger.connect()) as conn:
+        assert [row["identity_key"] for row in watchlist.pending(conn, SLUG)] == [identity]

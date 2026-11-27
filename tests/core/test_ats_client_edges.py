@@ -118,6 +118,7 @@ def test_jobvite_eu_host_retry_and_exhaustion():
     jobs = jobvite.fetch_jobvite_jobs("acme", client=c)
     assert len(jobs) == 1 and jobs[0].title == "Engineer"
     assert urlsplit(c.calls[-1]).hostname == "jobs.eu.jobvite.com"
+    assert jobs[0].apply_url == "https://jobs.eu.jobvite.com/jobs/1"
     with pytest.raises(RuntimeError, match="down"):
         jobvite.fetch_jobvite_jobs("acme", client=FC(text_fn=boom("down")))
     assert jobvite._extract_text_between('data-title="unterminated', 'data-title="') == ""

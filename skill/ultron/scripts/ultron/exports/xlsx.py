@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import date
+from io import BytesIO
 from pathlib import Path
 
 from ultron.exports import sanitize, view_model
@@ -19,6 +20,7 @@ from ultron.exports.xlsx_styles import (
     workbook_styles,
     write_table,
 )
+from ultron.infra.fs import atomic_create_bytes
 from ultron.storage import runs
 
 _MISSING = "openpyxl not installed: reinstall ULTRON with the xlsx extra"
@@ -187,7 +189,7 @@ def _companies_sheet(ws, rows, mode, styles):
 
 
 def export_run_to_excel(run_id: str, out_path: Path | str | None = None) -> Path:
-    """Build a workbook for a finalized run, raising XlsxUnavailable if openpyxl is missing."""
+    """Write a new workbook for a finalized run, preserving any existing destination."""
     try:
         from openpyxl import Workbook
     except ImportError as exc:
@@ -222,7 +224,10 @@ def export_run_to_excel(run_id: str, out_path: Path | str | None = None) -> Path
         wb.properties.title = f"ULTRON run {run_id}"
         target = Path(out_path).absolute() if out_path else (out_dir / "results.xlsx").absolute()
         target.parent.mkdir(parents=True, exist_ok=True)
-        wb.save(target)
+        with BytesIO() as content:
+            wb.save(content)
+            if not atomic_create_bytes(target, content.getvalue()):
+                raise FileExistsError(f"Workbook already exists; choose a new output path: {target}")
     finally:
         wb.close()
     return target

@@ -88,6 +88,11 @@ def has_remote_work_hint(text: str) -> bool:
     return False
 
 
+def closure_is_conditional(text: str, start: int) -> bool:
+    """Identify a conditional clause before a potential closure signal."""
+    return bool(_CLOSED_STATUS_CONDITION_BEFORE_RE.search(text, max(0, start - 60), start))
+
+
 def has_closed_status_phrase(text: str) -> bool:
     """Whole-phrase ``CLOSED_STATUS_PHRASES`` match, accent- and apostrophe-insensitive.
 
@@ -102,7 +107,7 @@ def has_closed_status_phrase(text: str) -> bool:
         end = match.start() + len(phrase)
         if phrase in AGENCY_EXEMPTABLE_CLOSED_PHRASES and CLOSED_STATUS_AGENCY_SUFFIX_RE.match(low, end):
             continue
-        if _CLOSED_STATUS_CONDITION_BEFORE_RE.search(low, max(0, match.start() - 60), match.start()):
+        if closure_is_conditional(low, match.start()):
             continue
         if phrase.endswith(("pourvu", "pourvue")) and _PROVIDED_WITH_AFTER_RE.match(low, end):
             continue

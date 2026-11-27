@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ultron.core.job_identity import canonical_job_identity
 from ultron.core.models import FinalRow, RunSummary
 from ultron.infra import home
+from ultron.infra.file_lock import open_file_lock
 
 SCHEMA_VERSION = 9
 
@@ -374,9 +376,30 @@ def _migrate_locked(conn: sqlite3.Connection, check_foreign_keys: bool) -> int:
         return version
 
 
+class _LedgerConnection(sqlite3.Connection):
+    lease: sqlite3.Connection
+
+    def close(self) -> None:
+        super().close()
+        self.lease.close()
+
+
+def lock_path(path: Path) -> Path:
+    """Path of the shared restore lock for this ledger file."""
+    target = path.resolve()
+    return target.with_name(f".{target.name}.lock")
+
+
 def connect(path: Path | None = None) -> sqlite3.Connection:
-    """Open (and create/migrate if needed) a ledger. Callers must close it (``contextlib.closing``)."""
-    conn = sqlite3.connect(path if path is not None else home.ultron_home() / "ultron.sqlite3")
+    """Open and migrate a ledger under a shared restore lock. Callers must close it."""
+    target = Path(path) if path is not None else home.ultron_home() / "ultron.sqlite3"
+    lease = open_file_lock(lock_path(target), exclusive=False)
+    try:
+        conn = sqlite3.connect(target, factory=_LedgerConnection)
+    except BaseException:
+        lease.close()
+        raise
+    conn.lease = lease
     try:
         migrate(conn)
     except BaseException:
@@ -593,13 +616,24 @@ def vacancy_snapshot_runs(conn: sqlite3.Connection, identity_key: str, canonical
     )]
 
 
-def record_finalized_run(
+@contextmanager
+def finalized_run_transaction(
     conn: sqlite3.Connection, summary: RunSummary, rows: list[FinalRow], *, profile_slug: str, preset: str,
     seed_kept: dict[str, int] | None = None, saved_search_id: str | None = None,
-) -> dict[str, bool]:
-    """Record the run and its occurrences; ``seed_kept`` (seed key -> kept postings) replaces its seed yield rows."""
+) -> Iterator[dict[str, bool]]:
+    """Record history and yield novelty flags before committing the transaction."""
     with conn:
         _record_run(conn, summary.run_id, summary, profile_slug, preset, saved_search_id)
         if seed_kept is not None:
             _record_seed_yield(conn, summary.run_id, profile_slug, seed_kept)
-        return _record_occurrences(conn, summary.run_id, rows, profile_slug)
+        yield _record_occurrences(conn, summary.run_id, rows, profile_slug)
+
+
+def record_finalized_run(
+    conn: sqlite3.Connection, summary: RunSummary, rows: list[FinalRow], *, profile_slug: str, preset: str,
+    seed_kept: dict[str, int] | None = None, saved_search_id: str | None = None,
+) -> dict[str, bool]:
+    """Record a run and its occurrences, and return the committed novelty flags."""
+    with finalized_run_transaction(conn, summary, rows, profile_slug=profile_slug, preset=preset,
+                                   seed_kept=seed_kept, saved_search_id=saved_search_id) as novelty:
+        return novelty

@@ -8,8 +8,6 @@ searches flag it.
 
 from __future__ import annotations
 
-import json
-from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
@@ -19,8 +17,8 @@ from ultron.core.ranker.final_rows import rank_scout_rows
 from ultron.core.remote_requirement import is_remote_required
 from ultron.core.reporting.export import write_outputs
 from ultron.stages import scout_verified
-from ultron.stages.final_helpers import TOP_N, row_identity, seed_kept, stamp_first_seen
-from ultron.storage import ledger, runs, scout_memory
+from ultron.stages.final_helpers import TOP_N, row_identity, seed_kept
+from ultron.storage import run_publication, runs
 
 
 class _Collector:
@@ -83,7 +81,6 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
     started_at = datetime.fromisoformat(run["created_at"])
     if "finalized_at" not in run:
         run["finalized_at"] = datetime.now(started_at.tzinfo).isoformat()
-        runs._write_run(run_id, run)
     counts: dict[str, int] = {}
     for record in out.discards:
         counts[record.reason] = counts.get(record.reason, 0) + 1
@@ -92,20 +89,10 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
         ats_pages_opened=0, roles_kept=len(ranked), discard_counts=counts,
         full_query_log=[], unsure_to_keep_count=sum(1 for r in ranked if r.evaluation_verdict == "unsure"),
     )
-    with closing(ledger.connect()) as conn:
-        is_new = ledger.record_finalized_run(conn, summary, ranked, profile_slug=run["profile_slug"],
-                                             preset=run["preset"], seed_kept=seed_kept(out_dir, ranked))
-        scout_memory.record_verdicts(conn, run["profile_slug"], run_id, out.verdicts,
-                                     scout_memory.profile_hash(run.get("profile_snapshot") or {}))
-        stamp_first_seen(conn, run_id, ranked)
-    md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, out.discards)
-    payload = json.loads(Path(js).read_text(encoding="utf-8"))
-    for row, data in zip(ranked, payload["rows"], strict=True):
-        data["is_new"] = is_new[row_identity(row)]
-    Path(js).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    finalize_discards = out_dir / "finalize_discards.jsonl"
-    runs.write_jsonl(finalize_discards, out.stage_discards)
-    runs.mark_stage(run_id, "finalize")
+    is_new, outputs = run_publication.publish_run(
+        run, summary, ranked, out.discards, out.stage_discards,
+        seeds=seed_kept(out_dir, ranked), writer=write_outputs, scout_verdicts=out.verdicts,
+    )
     return {
         "roles": len(ranked),
         "new_roles": sum(1 for r in ranked if is_new[row_identity(r)]),
@@ -113,8 +100,7 @@ def _write(run_id: str, run: dict, out_dir: Path, ranked: list[FinalRow], out: _
         "discarded": len(out.discards),
         "final_cap": stats["final_cap"],
         "verified_finds": stats["verified_finds"],
-        "outputs": {"results_md": md, "results_json": js, "run_summary_md": sm,
-                    "finalize_discards_jsonl": str(finalize_discards)},
+        "outputs": outputs,
         "top": [{"title": r.title, "company": r.company, "priority": r.priority, "is_new": is_new[row_identity(r)]}
                 for r in ranked[:TOP_N]],
     }

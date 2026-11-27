@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from contextlib import closing
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from ultron.core.job_identity import canonical_job_identity
@@ -60,7 +60,10 @@ _SELECT = (
 
 
 def _run_created_at(conn, run_id: str) -> str:
-    row = conn.execute("SELECT created_at FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+    row = conn.execute(
+        "SELECT created_at FROM run_scopes WHERE run_id = ? UNION ALL"
+        " SELECT created_at FROM runs WHERE run_id = ? LIMIT 1", (run_id, run_id),
+    ).fetchone()
     if row is None or row[0] is None:
         raise LookupError(f"run not found in ledger: {run_id}")
     return row[0]
@@ -132,7 +135,8 @@ def _scoped_rows(
     found = _rows(conn, sql, tuple(params))
     for row in found:
         detail = ledger.occurrence_details(row.pop("scoped_details"))
-        for field in ("title", "company", "location", "canonical_url", "source_type", "source_key"):
+        for field in ("title", "company", "location", "canonical_url", "source_type", "source_key",
+                      "published_at", "updated_at", "unverified_date"):
             if field in detail:
                 row[field] = detail[field]
         row["match_score"] = detail.get("match_score")
@@ -182,7 +186,8 @@ def list_jobs(
             params.append(state)
 
         if since_run is not None:
-            where.append("(SELECT r.created_at FROM runs r WHERE r.run_id = j.last_seen_run_id) >= ?")
+            where.append("COALESCE((SELECT created_at FROM run_scopes WHERE run_id = j.last_seen_run_id),"
+                         " (SELECT created_at FROM runs WHERE run_id = j.last_seen_run_id)) >= ?")
             params.append(_run_created_at(conn, since_run))
         if new_only:
             where.append("j.times_seen = 1")
@@ -191,16 +196,35 @@ def list_jobs(
         return _rows(conn, sql, (*params, max(0, limit)))
 
 
-def set_state(identity_key: str, state: str, *, db_path: Path | None = None) -> str:
-    """Set the review state; returns the resolved identity key."""
+class ReviewConflict(Exception):
+    """The job status changed after the caller's edit."""
+
+
+def set_state_revision(
+    identity_key: str, state: str, *, db_path: Path | None = None, expected_revision: str | None = None,
+) -> tuple[str, str]:
+    """Set a job's status and return its identity and committed revision timestamp."""
     if state not in STATES:
         raise ValueError(f"invalid state {state!r}; expected one of {', '.join(STATES)}")
     with closing(ledger.connect(db_path)) as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
         key = resolve_key(identity_key, conn)
-        _require(conn, key)
-        conn.execute(
-            "UPDATE jobs SET review_state = ?, review_changed_at = ? WHERE identity_key = ?", (state, _now(), key)
-        )
+        previous = conn.execute("SELECT review_changed_at FROM jobs WHERE identity_key = ?", (key,)).fetchone()
+        if previous is None:
+            raise LookupError(f"job not found: {key}")
+        if expected_revision is not None and previous[0] != expected_revision:
+            raise ReviewConflict
+        revision = _now()
+        if previous[0] and revision <= previous[0]:
+            revision = (datetime.fromisoformat(previous[0]) + timedelta(microseconds=1)).isoformat()
+        conn.execute("UPDATE jobs SET review_state = ?, review_changed_at = ? WHERE identity_key = ?",
+                     (state, revision, key))
+    return key, revision
+
+
+def set_state(identity_key: str, state: str, *, db_path: Path | None = None) -> str:
+    """Set the review state and return the resolved identity key."""
+    key, _ = set_state_revision(identity_key, state, db_path=db_path)
     return key
 
 
@@ -261,7 +285,8 @@ def new_since(run_id: str) -> list[dict]:
         created = _run_created_at(conn, run_id)
         return _rows(
             conn,
-            _SELECT + " WHERE (SELECT r.created_at FROM runs r WHERE r.run_id = j.first_seen_run_id) > ?"
+            _SELECT + " WHERE COALESCE((SELECT created_at FROM run_scopes WHERE run_id = j.first_seen_run_id),"
+            " (SELECT created_at FROM runs WHERE run_id = j.first_seen_run_id)) > ?"
             " ORDER BY j.first_seen DESC, j.identity_key",
             (created,),
         )

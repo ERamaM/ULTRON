@@ -47,6 +47,7 @@ async function post(path, body) {
       profile_not_found: "The selected profile is unavailable.",
       invalid_board: "Enter a supported ATS board URL or vendor:board key.",
       job_not_found: "The job is no longer in the ledger.",
+      review_conflict: "The status has already changed. Refresh to see the latest status.",
     };
     const data = await reply.json().catch(() => ({}));
     throw new Error(Object.hasOwn(codes, data.error) ? codes[data.error] : "The ledger could not save this change.");
@@ -73,18 +74,21 @@ export function createActions({getSnapshot, getJob, redraw, refresh}) {
 
   const editable = () => Boolean(token && getSnapshot()?.meta?.editable);
 
-  async function persistState(job, next, allowUndo) {
+  async function persistState(job, next, allowUndo, expectedRevision) {
     if (!editable() || !job || busy || job.review_state === next) return;
     const previous = job.review_state;
     const identity = job.identity_key;
     busy = true;
     job.review_state = next;
-    redraw();
+    redraw(identity);
     try {
-      const result = await post("/api/jobs/state", {identity_key: identity, state: next});
+      const result = await post("/api/jobs/state", {
+        identity_key: identity, state: next, expected_revision: expectedRevision,
+      });
       Object.assign(getJob(identity) || job, result.job);
       Object.assign(getSnapshot().summary.state_counts, result.state_counts);
-      last = allowUndo && result.job.review_state === next ? {identity, previous, next} : null;
+      last = allowUndo && result.job.review_state === next
+        ? {identity, previous, next, revision: result.job.review_changed_at} : null;
       notify("Status saved", Boolean(last));
     } catch (error) {
       (getJob(identity) || job).review_state = previous;
@@ -92,7 +96,7 @@ export function createActions({getSnapshot, getJob, redraw, refresh}) {
       notify(error.message);
     } finally {
       busy = false;
-      redraw();
+      redraw(identity);
     }
   }
 
@@ -102,10 +106,10 @@ export function createActions({getSnapshot, getJob, redraw, refresh}) {
 
   function undo() {
     if (!last || busy) return;
-    const {identity, previous, next} = last;
+    const {identity, previous, next, revision} = last;
     const current = getJob(identity);
     last = null;
-    if (current?.review_state === next) void persistState(current, previous, false);
+    if (revision && current?.review_state === next) void persistState(current, previous, false, revision);
     else notify("The status has already changed.");
   }
 

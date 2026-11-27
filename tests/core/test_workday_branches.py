@@ -257,3 +257,21 @@ def test_next_data_extractor_handles_nesting_deeper_than_the_recursion_limit(mon
     html = '<script id="__NEXT_DATA__" type="application/json">{}</script>'
     postings = workday._extract_from_next_data(html, "acme.wd5.myworkdayjobs.com")
     assert [p.title for p in postings] == ["Role 1"]
+
+
+def test_shared_host_cxs_requests_name_each_recruiting_tenant():
+    from ultron.core.ats.clients import fetch_vendor_jobs
+
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.path)
+        tenant = request.url.path.split("/")[3]
+        return httpx.Response(200, json={"jobPostings": [{"title": tenant, "externalPath": "/job/1"}]})
+
+    client = _http_client(handler, max_requests=10)
+    for tenant in ("north", "south"):
+        board = f"wd3.myworkdaysite.com/recruiting/{tenant}/External"
+        postings = fetch_vendor_jobs("workday", board, client=client, timeout=1)
+        assert [posting.title for posting in postings] == [tenant]
+    assert seen == ["/wday/cxs/north/External/jobs", "/wday/cxs/south/External/jobs"]

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from contextlib import closing
 from datetime import datetime
-from pathlib import Path
 
 from ultron.core.decision.decision import DecisionFinalizer
 from ultron.core.decision.heuristics import HeuristicConfig
@@ -17,9 +14,9 @@ from ultron.core.reporting.export import write_outputs
 from ultron.core.rules.geography import geo_scope, other_country_restriction
 from ultron.core.rules.hard_filters import is_full_remote_only
 from ultron.salary.display import format_salary_disclosure
-from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept, stamp_first_seen
+from ultron.stages.final_helpers import TOP_N, candidate_of, discard_record, row_identity, seed_kept
 from ultron.stages.scout_finalize import finalize_scout
-from ultron.storage import ledger, runs
+from ultron.storage import run_publication, runs
 
 
 def finalize(run_id: str) -> dict:
@@ -122,7 +119,6 @@ def finalize(run_id: str) -> dict:
     started_at = datetime.fromisoformat(run["created_at"])
     if "finalized_at" not in run:
         run["finalized_at"] = datetime.now(started_at.tzinfo).isoformat()
-        runs._write_run(run_id, run)
     ended_at = datetime.fromisoformat(run["finalized_at"])
     counts: dict[str, int] = {}
     for d in discards:
@@ -146,27 +142,9 @@ def finalize(run_id: str) -> dict:
         unsure_to_keep_count=sum(1 for r in ranked if r.evaluation_verdict == "unsure"),
     )
 
-    with closing(ledger.connect()) as conn:
-        is_new = ledger.record_finalized_run(
-            conn, summary, ranked, profile_slug=run["profile_slug"], preset=run["preset"],
-            seed_kept=seed_kept(out_dir, ranked), saved_search_id=run.get("saved_search_id"),
-        )
-        stamp_first_seen(conn, run_id, ranked)
-        new_to_search = ledger.new_keys_in_saved_search(conn, run_id) if run.get("saved_search_id") else None
-    md, js, sm = write_outputs(str(out_dir.parent), run_id, ranked, summary, discards)
-    # write_outputs (ported verbatim) has no is_new notion; patch it into each results.json row.
-    payload = json.loads(Path(js).read_text(encoding="utf-8"))
-    for row, data in zip(ranked, payload["rows"], strict=True):
-        key = row_identity(row)
-        data["is_new"] = is_new[key]
-        if new_to_search is not None:
-            data["is_new_in_saved_search"] = key in new_to_search
-    Path(js).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-
-    finalize_discards = out_dir / "finalize_discards.jsonl"
-    runs.write_jsonl(finalize_discards, stage_discards)  # atomic rewrite: idempotent, discarded.jsonl untouched
-
-    runs.mark_stage(run_id, "finalize")
+    is_new, outputs = run_publication.publish_run(
+        run, summary, ranked, discards, stage_discards, seeds=seed_kept(out_dir, ranked), writer=write_outputs,
+    )
     return {
         "roles": len(ranked),
         "new_roles": sum(1 for r in ranked if is_new[row_identity(r)]),
@@ -175,8 +153,7 @@ def finalize(run_id: str) -> dict:
         "final_cap": len(capped),
         "agent_evaluated": len(agent),
         "heuristic_fallback": len(current - agent.keys()),
-        "outputs": {"results_md": md, "results_json": js, "run_summary_md": sm,
-                    "finalize_discards_jsonl": str(finalize_discards)},
+        "outputs": outputs,
         "top": [
             {"title": r.title, "company": r.company, "match_score": r.match_score, "is_new": is_new[row_identity(r)]}
             for r in ranked[:TOP_N]

@@ -13,6 +13,7 @@ from typing import Any
 from ultron.core.ats.clients import AtsClientError, fetch_vendor_jobs
 from ultron.core.ats.clients.base import AtsPosting
 from ultron.core.discovery.url_filter import domain_of, normalize_url
+from ultron.core.extractors.posting_date import iso_vacancy_date
 from ultron.core.models import AtsBoardSeed, ExtractedJob
 from ultron.core.rules.hard_filters import is_open_status_ok
 from ultron.infra.net import HostBlocked, HttpError, RequestBudgetExceeded, URLRejected, VendorBlocked
@@ -50,7 +51,8 @@ def board_job(seed: AtsBoardSeed, posting: AtsPosting) -> ExtractedJob:
     published = raw.get("first_published") if seed.ats == "greenhouse" else posting.posted_at
     return ExtractedJob(apply_url=url, domain=domain_of(url), title=posting.title, company=seed.company,
                         location=posting.location, remote_text=posting.remote_hint, body_text=posting.description,
-                        apply_available=True, posting_date=str(published) if published else None)
+                        apply_available=True, posting_date=str(published) if published else None,
+                        posting_date_verified=seed.ats == "greenhouse" and iso_vacancy_date(published) is not None)
 
 
 def board_status(job: ExtractedJob) -> str:

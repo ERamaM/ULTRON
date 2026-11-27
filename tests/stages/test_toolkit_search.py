@@ -247,8 +247,10 @@ def test_pending_postings_keep_their_remote_hint():
                  "ats_location": "United States", "ats_remote_hint": "Remote - Europe"}
     with closing(ledger.connect()) as conn:
         watchlist.add_pending(conn, SLUG, [(candidate["identity_key"], candidate)])
-    served = [d["id"] for d in search.search_jobs(SLUG)["dossiers"] if d["source"] == "watch"]
-    assert "greenhouse:acme:999" in served
+    served = next(d for d in search.search_jobs(SLUG)["dossiers"] if d["id"] == candidate["identity_key"])
+    assert served["source"] == "watch"
+    assert served["location"] == "United States"
+    assert served["remote"] == "Remote - Europe"
 
 
 def test_a_failing_term_keeps_the_other_terms_rows(monkeypatch):
@@ -285,3 +287,79 @@ def test_search_flags_an_aggregator_listing_with_its_employer_postings_memory():
     shortlist.save_shortlist(SLUG, [{"id": read["id"], "verdict": "discard"}])
     again = {d["id"]: d["memory"] for d in search.search_jobs(SLUG)["dossiers"]}
     assert again[listing["id"]] == "rejected"
+
+
+def test_himalayas_out_of_range_timestamp_keeps_other_search_results():
+    broken = {**HIMALAYAS["jobs"][0], "pubDate": 10**100, "companyName": "Other",
+              "applicationLink": "https://other.example/jobs/42"}
+
+    def with_invalid_date(request):
+        if request.url.host == "himalayas.app":
+            return httpx.Response(200, json={"jobs": [broken, *HIMALAYAS["jobs"]]})
+        return handler(request)
+
+    http_factory.set_test_overrides(
+        transport=httpx.MockTransport(with_invalid_date), resolver=lambda h, p: ["93.184.216.34"],
+        sleep=lambda s: None, min_interval_per_host=0.0,
+    )
+    dossiers = search.search_jobs(SLUG)["dossiers"]
+    assert {row["company"] for row in dossiers if row["source"] == "Himalayas"} == {"Hico", "Other"}
+    assert any(row["source"] == "Remotive" for row in dossiers)
+    source = next(source for source in role_search.SOURCES if source.name == "himalayas")
+    assert [row["posted"] for row in source.parse({"jobs": [broken, *HIMALAYAS["jobs"]]})] == ["", "2026-11-18"]
+
+
+
+def test_all_invalid_save_leaves_the_previous_shortlist_visible():
+    good = shortlist.save_shortlist(SLUG, [
+        {"url": POSTING, "verdict": "keep", "title": "Senior Data Scientist", "company": "Acme"},
+    ])
+    bad = shortlist.save_shortlist(SLUG, [{"id": "unknown", "verdict": "keep"}])
+    assert good["saved"]["keep"] == 1 and not sum(bad["saved"].values())
+    assert [row["apply_url"] for row in latest_shortlist(SLUG)] == [POSTING]
+
+
+
+def test_search_preserves_full_board_cache_and_prior_verified_date(monkeypatch):
+    from ultron.storage import runs
+    from ultron.toolkit import inspect
+
+    identity = "greenhouse:acme:4012345"
+    dossier = {"id": identity, "source": "greenhouse:acme", "url": POSTING, "status": "open",
+               "title": "ML Engineer", "company": "Acme", "location": "Spain"}
+    full = search.listed_cache_row(dossier, {"greenhouse:acme"})
+    full["job"].update(salary="EUR 90000 - 110000", posting_date="2026-11-20", posting_date_verified=True)
+    discovery = search.SourceDiscovery([dossier], [full], {}, {"greenhouse:acme"})
+    monkeypatch.setattr(search, "discover_sources", lambda *args, **kwargs: discovery)
+    search.search_jobs(SLUG)
+    cached = inspect.cached_postings(SLUG)[identity]
+    assert cached["job"]["salary"] == full["job"]["salary"]
+
+    discovery.dossiers = [{**dossier, "status": "listed"}]
+    discovery.cache = []
+    search.search_jobs(SLUG)
+    result = shortlist.save_shortlist(SLUG, [{"id": identity, "verdict": "keep"}])
+    row, = json.loads((runs.run_dir(result["run_id"]) / "results.json").read_text(encoding="utf-8"))["rows"]
+    assert row["salary"] == full["job"]["salary"]
+    assert row["published_at"] == "2026-11-20"
+
+
+
+def test_watch_retries_link_resolution_after_temporary_page_failure(capsys):
+    unavailable = True
+
+    def temporary(request):
+        if unavailable and request.url.host == "remotive.com" and not request.url.path.startswith("/api"):
+            return httpx.Response(503)
+        return handler(request)
+
+    http_factory.set_test_overrides(
+        transport=httpx.MockTransport(temporary), resolver=lambda h, p: ["93.184.216.34"],
+        sleep=lambda s: None, min_interval_per_host=0.0,
+    )
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    unavailable = False
+    assert main(["watch", "--profile", SLUG]) == 0
+    capsys.readouterr()
+    assert POSTING in {row["url"] for row in search.search_jobs(SLUG)["dossiers"] if row["source"] == "watch"}

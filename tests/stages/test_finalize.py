@@ -318,3 +318,33 @@ def test_finalize_preserves_distinct_vacancy_dates_and_first_seen(capsys):
     assert unknown["published_at"] is None
     assert unknown["unverified_date"] == "2026-02-12"
     assert unknown["freshness"] == "Unverified date 2026-02-12"
+
+
+def test_failed_report_publication_keeps_history_and_previous_report_consistent(capsys, monkeypatch):
+    from contextlib import closing
+    from pathlib import Path
+
+    from ultron.stages import finalize
+
+    run_id = _filtered(capsys, KEEP[:1])
+    directory = runs.run_dir(run_id)
+    real_write = finalize.write_outputs
+
+    def fail(root, ident, *args, **kwargs):
+        (Path(root) / ident).mkdir(parents=True, exist_ok=True)
+        (Path(root) / ident / "results.md").write_text("partial report", encoding="utf-8")
+        raise OSError("report unavailable")
+
+    for completed in (False, True):
+        previous = {path.name: path.read_bytes() for path in directory.glob("results.*")}
+        monkeypatch.setattr(finalize, "write_outputs", fail)
+        assert main(["finalize", "--run", run_id]) != 0
+        capsys.readouterr()
+        with closing(ledger.connect()) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM job_occurrences WHERE run_id = ?", (run_id,)).fetchone()[0] == int(completed)
+        assert ("finalize" in runs.load_run(run_id)["stages_done"]) is completed
+        assert {path.name: path.read_bytes() for path in directory.glob("results.*")} == previous
+        monkeypatch.setattr(finalize, "write_outputs", real_write)
+        assert main(["finalize", "--run", run_id]) == 0
+        capsys.readouterr()
+        assert _results(run_id)["rows"][0]["is_new"] is True

@@ -168,3 +168,43 @@ def test_pending_and_finalize_include_kept_outside_ambiguity_queue(tmp_path, cap
     assert (result["pending"], result["pending_ambiguous"]) == (1, 0)
     assert main(["finalize", "--run", run_id]) == 0
     assert json.loads(capsys.readouterr().out)["heuristic_fallback"] == 1
+
+
+def test_concurrent_disjoint_evaluations_preserve_every_acknowledged_verdict(tmp_path, capsys, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from pathlib import Path
+    from threading import Event
+
+    from ultron.stages import evaluate
+
+    run_id = _filtered(capsys)
+    keys = [f"id:{name}" for name in AMBIG[:2]]
+    paths = [Path(_write(tmp_path, [{"identity_key": keys[0], "evaluation": _ev()}]))]
+    paths[0] = paths[0].rename(tmp_path / "first.jsonl")
+    paths.append(Path(_write(tmp_path, [{"identity_key": keys[1], "evaluation": _ev()}])))
+    first_read, second_read, release = Event(), Event(), Event()
+    real_read = runs.read_jsonl
+
+    def read(path):
+        rows = real_read(path)
+        if Path(path).name == "evaluations.jsonl":
+            if not first_read.is_set():
+                first_read.set()
+                assert release.wait(timeout=5)
+            else:
+                second_read.set()
+        return rows
+
+    monkeypatch.setattr(runs, "read_jsonl", read)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(evaluate.record_evaluations, run_id, paths[0])
+        assert first_read.wait(timeout=5)
+        second = executor.submit(evaluate.record_evaluations, run_id, paths[1])
+        try:
+            if second_read.wait(timeout=0.5):
+                assert second.result(timeout=5)["recorded"] == 1
+        finally:
+            release.set()
+        assert first.result(timeout=5)["recorded"] == second.result(timeout=5)["recorded"] == 1
+    final = real_read(runs.run_dir(run_id) / "evaluations.jsonl")
+    assert {row["identity_key"] for row in final} == set(keys)

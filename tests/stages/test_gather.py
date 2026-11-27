@@ -371,3 +371,39 @@ def test_mcp_leaves_undelivered_watch_postings_pending(monkeypatch, tool, limit)
     with closing(ledger.connect()) as conn:
         pending, = watchlist.pending(conn, SLUG)
     assert pending["normalized_url"] == next(url for url in urls if url != delivered["url"])
+
+
+def test_gather_marks_delivered_watch_identity_despite_board_host_alias():
+    canonical = "https://boards.greenhouse.io/acme/jobs/731"
+    alias = canonical.replace("boards.greenhouse.io", "job-boards.greenhouse.io")
+    identity = gather._identity(canonical)
+    other = gather._identity(WATCH)
+    pending = {"id": identity, "source": "watch", "url": alias}
+    omitted = {"id": other, "source": "watch", "url": WATCH}
+    with closing(ledger.connect()) as conn:
+        watchlist.add_pending(conn, SLUG, [
+            (row["id"], {"identity_key": row["id"], "normalized_url": row["url"]}) for row in (pending, omitted)
+        ])
+    gather._mark_gather_watch(SLUG, [{**pending, "url": canonical}], [pending, omitted])
+    with closing(ledger.connect()) as conn:
+        remaining = watchlist.pending(conn, SLUG)
+    assert [row["identity_key"] for row in remaining] == [other]
+
+
+def test_gather_excludes_target_whose_fetched_title_fails_verification(monkeypatch):
+    web = WebSearchResult("ok", "searxng", 1, 1, (hit(LOOKUP, "Senior ML Engineer at Extra"),))
+    monkeypatch.setattr(gather, "search_web", lambda *args, **kwargs: web)
+    monkeypatch.setattr(gather, "discover_sources", lambda *args, **kwargs: gather_empty_sources())
+    monkeypatch.setattr(gather.searxng, "search",
+                        lambda queries, **kwargs: ([hit(LOOKUP_TARGET, "Senior ML Engineer", query=queries[0])], 1))
+
+    def handler(request):
+        if str(request.url) == LOOKUP_TARGET:
+            return httpx.Response(200, text="<html><h1>Payroll Specialist</h1><p>Apply now</p></html>")
+        return httpx.Response(200, text="<html>No links</html>")
+
+    _setup_transport(monkeypatch, handler)
+    result = gather.gather_candidates(SLUG)
+    assert LOOKUP in {row["url"] for row in result["unresolved"]}
+    assert LOOKUP_TARGET not in {row["url"] for row in result["dossiers"]}
+    assert gather._identity(LOOKUP_TARGET) not in cached_postings(SLUG)

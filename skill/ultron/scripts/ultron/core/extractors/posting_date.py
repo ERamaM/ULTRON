@@ -35,7 +35,11 @@ def posting_date_from_text(text: str, *, require_label: bool = False) -> str | N
     """Return the publication date found in ``text``, or None."""
     matches = list(DATE_RE.finditer(text))
     for match in matches:
-        if _POSTING_DATE_LABEL_RE.search(_same_line_prefix(text, match.start(), 40)):
+        prefix = _same_line_prefix(text, match.start(), 40)
+        update = list(_NON_POSTING_DATE_LABEL_RE.finditer(prefix))
+        if update:
+            prefix = prefix[update[-1].end():]
+        if _POSTING_DATE_LABEL_RE.search(prefix):
             return match.group(1)
     if require_label:
         return None

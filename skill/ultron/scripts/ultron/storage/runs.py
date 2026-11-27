@@ -138,6 +138,16 @@ def mark_stage(run_id: str, stage: str) -> None:
         _write_run(run_id, data)
 
 
+def invalidate_stages(run_id: str, *stages: str) -> None:
+    """Clear completion markers before replacing the artifacts they depend on."""
+    data = load_run(run_id)
+    previous = data.get("stages_done", [])
+    current = [stage for stage in previous if stage not in stages]
+    if current != previous:
+        data["stages_done"] = current
+        _write_run(run_id, data)
+
+
 def require_stage(run_id: str, stage: str) -> None:
     """Check that ``stage`` (the stage about to run) may run now.
 

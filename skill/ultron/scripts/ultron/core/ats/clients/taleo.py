@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 
@@ -47,9 +48,12 @@ def fetch_taleo_jobs(
         refuse_browser_fallback()
     postings: list[AtsPosting] = []
     for listing in parse_card_listings(html, "jobTitle-link"):
-        apply_url = listing["href"]
+        try:
+            apply_url = urljoin(board_url, listing["href"])
+        except ValueError:
+            continue
         if not apply_url.startswith(("http://", "https://")):
-            apply_url = locator_url(board_identifier, apply_url)
+            continue
         postings.append(
             AtsPosting(
                 title=listing["title"],

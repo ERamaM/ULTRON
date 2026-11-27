@@ -456,3 +456,28 @@ def test_fetch_invalid_idna_host_is_recorded_and_stage_continues():
     assert res["fetched"] == 1 and res["failed"] == 1
     assert len(runs.read_jsonl(d / "postings.jsonl")) == 1
     assert runs.read_jsonl(d / "fetch_errors.jsonl")[0]["error"] == "url_rejected: invalid_url"
+
+
+def test_refetch_requires_filtering_before_finalize(capsys):
+    status = 200
+
+    def handler(request):
+        return httpx.Response(status, text=PAGE)
+
+    run_id = _run(handler)
+    directory = runs.run_dir(run_id)
+    url = "https://boards.greenhouse.io/acme/jobs/1"
+    runs.write_jsonl(directory / "candidates.jsonl", [_cand(url)])
+    runs.mark_stage(run_id, "discover_ats")
+    for stage in ("fetch", "filter"):
+        assert main([stage, "--run", run_id]) == 0
+        capsys.readouterr()
+    status = 410
+    assert main(["fetch", "--run", run_id]) == 0
+    capsys.readouterr()
+    assert main(["finalize", "--run", run_id]) != 0
+    assert json.loads(capsys.readouterr().out)["error"] == "stage_order"
+    for stage in ("filter", "finalize"):
+        assert main([stage, "--run", run_id]) == 0
+        capsys.readouterr()
+    assert json.loads((directory / "results.json").read_text(encoding="utf-8"))["rows"] == []

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from html import unescape
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import ParseResult, parse_qs, unquote, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -148,9 +149,20 @@ def extract_urls_from_text(text: str) -> list[str]:
     return re.findall(URL_RE, normalized)
 
 
+def parse_feed_url(url: str) -> ParseResult | None:
+    """Parse an HTTP(S) feed link with a usable authority."""
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    return parsed if parsed.scheme in {"http", "https"} and parsed.hostname else None
+
+
 def redirect_targets(url: str) -> list[str]:
     """Extract destination URLs from known redirect query parameters."""
-    parsed = urlparse(url)
+    parsed = parse_feed_url(url)
+    if parsed is None:
+        return []
     params = parse_qs(parsed.query)
     keys = (
         "url",
@@ -167,14 +179,16 @@ def redirect_targets(url: str) -> list[str]:
     out: list[str] = []
     for key in keys:
         for val in params.get(key, []):
-            clean = unquote(str(val).strip())
-            if clean.startswith("http://") or clean.startswith("https://"):
+            clean = val.strip()
+            if not clean.startswith(("http://", "https://")):
+                clean = unquote(clean)
+            if parse_feed_url(clean) is not None:
                 out.append(clean)
     return out
 
 
-def candidate_urls_from_row(row: dict) -> list[str]:
-    """Extract candidate destination URLs from one structured feed row."""
+def candidate_urls_from_row(row: dict, *, on_invalid: Callable[[], None] | None = None) -> list[str]:
+    """Extract candidate URLs and optionally report rejected links."""
     urls: list[str] = []
     explicit_keys = (
         "url",
@@ -200,32 +214,47 @@ def candidate_urls_from_row(row: dict) -> list[str]:
     seen: set[str] = set()
     for item in urls:
         clean = item.strip().rstrip(".,)")
-        if clean.startswith("http://") or clean.startswith("https://"):
-            if clean not in seen:
-                seen.add(clean)
-                expanded.append(clean)
-            for target in redirect_targets(clean):
-                if target not in seen:
-                    seen.add(target)
-                    expanded.append(target)
+        if clean in seen or not clean.startswith(("http://", "https://")):
+            continue
+        seen.add(clean)
+        if parse_feed_url(clean) is None:
+            if on_invalid is not None:
+                on_invalid()
+            continue
+        expanded.append(clean)
+        for target in redirect_targets(clean):
+            if target not in seen:
+                seen.add(target)
+                expanded.append(target)
     return expanded
 
 
-def fetch_page_links(url: str, timeout: int, *, client: AtsHTTPClient) -> list[str]:
+class PageLinksUnavailable(Exception):
+    """Page links could not be checked."""
+
+
+def fetch_page_links(
+    url: str, timeout: int, *, client: AtsHTTPClient, require_completed: bool = False,
+) -> list[str]:
     """Links found on ``url``. ``client`` is required (ULTRON has a single network path).
 
     ``HttpClient.get_text`` returns ``(status, final_url, text)``; it carries no headers, so the
     HTML check relies on the body only. The network failures MARK III swallowed (any ``Exception``)
     are swallowed here too, except the request budget and a blocked host or vendor (nothing was requested, so
-    the page is unchecked, not empty), which propagate.
+    the page is unchecked, not empty), which propagate. With ``require_completed``, a failed
+    fetch raises ``PageLinksUnavailable`` instead of returning an empty list.
     """
     try:
         status, final_url, text = client.get_text(url)  # type: ignore[attr-defined]
     except (RequestBudgetExceeded, HostBlocked):
         raise
-    except Exception:  # pragma: no cover - network/runtime dependent
+    except Exception as exc:
+        if require_completed:
+            raise PageLinksUnavailable from exc
         return []
     if status >= 400:
+        if require_completed:
+            raise PageLinksUnavailable
         return []
 
     out: list[str] = []
@@ -235,7 +264,7 @@ def fetch_page_links(url: str, timeout: int, *, client: AtsHTTPClient) -> list[s
         clean = link.strip().rstrip(".,)")
         if not clean or clean in seen:
             return
-        if clean.startswith("http://") or clean.startswith("https://"):
+        if parse_feed_url(clean) is not None:
             seen.add(clean)
             out.append(clean)
             for target in redirect_targets(clean):

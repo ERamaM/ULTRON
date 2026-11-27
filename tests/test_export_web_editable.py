@@ -219,3 +219,27 @@ def test_only_readonly_mode_auto_opens_a_browser(db, monkeypatch):
     assert not opened
     view = web_server.serve_ledger(db_path=db)
     assert view["opened_browser"] is True and opened == [view["url"]]
+
+
+def test_undo_refuses_to_overwrite_a_newer_review_revision(db):
+    from http import HTTPStatus
+    from io import BytesIO
+
+    from ultron.exports import web_api
+
+    key = review.resolve_key("https://example.com/1")
+
+    def set_state(state, **fields):
+        data = json.dumps({"identity_key": key, "state": state, **fields}).encode()
+        return web_api.apply_mutation("/api/jobs/state", BytesIO(data), len(data), db)["job"]
+
+    first = set_state("shortlisted")
+    undone = set_state("unreviewed", expected_revision=first["review_changed_at"])
+    assert undone["review_state"] == "unreviewed"
+    first = set_state("shortlisted")
+    review.set_state(key, "interview", db_path=db)
+    with pytest.raises(web_api.MutationError) as error:
+        set_state("unreviewed", expected_revision=first["review_changed_at"])
+    assert error.value.status == HTTPStatus.CONFLICT
+    with closing(ledger.connect(db)) as conn:
+        assert conn.execute("SELECT review_state FROM jobs WHERE identity_key = ?", (key,)).fetchone()[0] == "interview"

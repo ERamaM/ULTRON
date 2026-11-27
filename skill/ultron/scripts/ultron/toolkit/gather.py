@@ -214,8 +214,11 @@ def _persist(profile: str, returned: list[dict], caches: list[dict], boards: set
 
 
 def _mark_gather_watch(profile: str, returned: list[dict], candidates: list[dict]) -> None:
-    returned_urls = {row.get("found_at") or row["url"] for row in returned if row.get("source") == "watch"}
-    originals = [row for row in candidates if row["source"] == "watch" and normalize_url(row["url"]) in returned_urls]
+    watched = [row for row in returned if row.get("source") == "watch"]
+    returned_ids = {row["id"] for row in watched}
+    returned_urls = {row.get("found_at") or row["url"] for row in watched}
+    originals = [row for row in candidates if row["source"] == "watch"
+                 and (row["id"] in returned_ids or normalize_url(row["url"]) in returned_urls)]
     mark_watch_served(profile, originals, origin="gather")
 
 
@@ -226,6 +229,7 @@ def _inspect_lookups(
         return 0, set()
     result = inspector.inspect([(url, row["company"]) for url, row in targets.items()])
     resolved = set()
+    accepted = set()
     for row in result.dossiers:
         origin = targets.get(row.get("found_at") or row["url"])
         if (origin and row["status"] == "open" and _canonical(row)
@@ -235,8 +239,9 @@ def _inspect_lookups(
             row["via"] = "targeted_ats_search"
             inspector.resolutions[origin["url"]] = row["url"]
             resolved.add(origin["url"])
-    rows.extend(result.dossiers)
-    caches.extend(result.cache)
+            accepted.add(row["id"])
+            rows.append(row)
+    caches.extend(row for row in result.cache if row["identity_key"] in accepted)
     return result.requests, resolved
 
 

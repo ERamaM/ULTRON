@@ -22,14 +22,14 @@ from ultron.storage import ledger, review, watchlist
 
 MAX_BODY = 16_384
 _FIELDS = {
-    "/api/jobs/state": ({"identity_key", "state"}, {}),
+    "/api/jobs/state": ({"identity_key", "state"}, {"expected_revision": ""}),
     "/api/jobs/notes": ({"identity_key", "text"}, {}),
     "/api/jobs/feedback": ({"identity_key", "relevance"}, {"reason_code": "", "note": "", "profile": ""}),
     "/api/watchlist/add": ({"profile", "board"}, {}),
     "/api/watchlist/remove": ({"profile", "seed_key"}, {}),
 }
 _LIMITS = {"identity_key": 2048, "text": 2000, "note": 2000, "profile": 128, "board": 1024, "seed_key": 1024,
-           "state": 32, "relevance": 32, "reason_code": 32}
+           "state": 32, "expected_revision": 64, "relevance": 32, "reason_code": 32}
 
 
 class MutationError(ValueError):
@@ -141,13 +141,16 @@ def _require_profile(profile: str, db_path: Path) -> None:
 def _set_state(fields: dict[str, str], db_path: Path) -> dict:
     if fields["state"] not in review.STATES:
         raise MutationError(HTTPStatus.BAD_REQUEST, "invalid_state")
-    key = review.set_state(fields["identity_key"], fields["state"], db_path=db_path)
+    try:
+        key, changed = review.set_state_revision(
+            fields["identity_key"], fields["state"], db_path=db_path, expected_revision=fields.get("expected_revision"),
+        )
+    except review.ReviewConflict:
+        raise MutationError(HTTPStatus.CONFLICT, "review_conflict") from None
     with closing(sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)) as conn:
-        state, changed = conn.execute("SELECT review_state, review_changed_at FROM jobs WHERE identity_key = ?",
-                                      (key,)).fetchone()
         counts = dict.fromkeys(review.STATES, 0)
         counts.update(conn.execute("SELECT review_state, COUNT(*) FROM jobs GROUP BY review_state"))
-    return {"job": {"identity_key": sanitize.clean_text(key), "review_state": state, "review_changed_at": changed},
+    return {"job": {"identity_key": sanitize.clean_text(key), "review_state": fields["state"], "review_changed_at": changed},
             "state_counts": counts}
 
 

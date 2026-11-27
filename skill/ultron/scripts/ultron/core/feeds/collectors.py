@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from functools import partial
+from urllib.parse import urlsplit
 
 from ultron.core.feeds.parsers import (
     extract_company_entries_from_remote_es_markdown,
@@ -335,17 +337,20 @@ def collect_himalayas_urls(
         except Exception as exc:
             discards.append({"url": page_url, "reason": "ats_seed_discovery_api_error", "detail": f"himalayas:{exc}"})
             break
-        page_rows = rows_from_himalayas_payload(payload)
-        rows.extend(page_rows)
-        if len(page_rows) < limit:
+        rows.extend(rows_from_himalayas_payload(payload))
+        raw_jobs = payload.get("jobs") if isinstance(payload, dict) else payload
+        if not isinstance(raw_jobs, list) or len(raw_jobs) < limit:
             break
     return rows, discards
 
 
 def _c_arbeitnow(client, source, timeout):
-    return collect_arbeitnow_urls(
-        timeout, int(source.get("max_pages", 3)), api_url=source["url"], request_json=client.request_json
-    )
+    url = source["url"]
+    host = urlsplit(url).hostname
+    if not host:
+        return [], [{"url": url, "reason": "ats_seed_discovery_api_error", "detail": "arbeitnow: missing feed host"}]
+    request_json = partial(client.request_json, allowed_domains=(host,))
+    return collect_arbeitnow_urls(timeout, int(source.get("max_pages", 3)), api_url=url, request_json=request_json)
 
 
 def _c_himalayas(client, source, timeout):

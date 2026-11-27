@@ -85,7 +85,8 @@ def _posting_aliases(out_dir) -> dict[str, str]:
 
 def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
     out_dir = runs.run_dir(run_id)
-    stages_done = runs.load_run(run_id).get("stages_done") or []
+    run = runs.load_run(run_id)
+    stages_done = run.get("stages_done") or []
     aliases = _posting_aliases(out_dir)
     wanted = {identity}
     if identity in aliases:  # the submitted URL is the canonical URL fetch switched to
@@ -115,7 +116,11 @@ def _lookup(run_id: str, identity: str, trace: list[dict]) -> tuple[str, str]:
     if "fetch" not in stages_done:
         _step(trace, "fetch", False, "not_fetched")
         return "pending", "not_fetched"
-    if not ({r.get("identity_key") for r in runs.read_jsonl(out_dir / "postings.jsonl")} & wanted):
+    postings_file = "judged_finds.jsonl" if runs.run_mode(run) == "scout" else "postings.jsonl"
+    if not ({r.get("identity_key") for r in runs.read_jsonl(out_dir / postings_file)} & wanted):
+        if runs.run_mode(run) == "scout":
+            _step(trace, "fetch", False, "not_fetched")
+            return "pending", "not_fetched"
         capped_path = out_dir / "fetch_capped.jsonl"
         # Runs from before fetch recorded capped candidates: not fetched and not failed can only mean the cap.
         if not capped_path.is_file() or {r.get("identity_key") for r in runs.read_jsonl(capped_path)} & wanted:

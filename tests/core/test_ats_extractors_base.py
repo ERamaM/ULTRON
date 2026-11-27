@@ -121,7 +121,7 @@ def test_expired_recommendation_does_not_expire_the_page():
 
     other = ('{"@type": "JobPosting", "title": "Data Engineer", "validThrough": "2020-02-01T00:00:00Z", '
              '"url": "https://boards.greenhouse.io/acme/jobs/999"}')
-    # Only a recommendation with an expired deadline: it may fill in the title, but not expire this page.
+    # A recommendation's expired deadline cannot expire the current posting.
     active = base.parse_generic(_page(page(other)))
     assert active.valid_through_expired is False
     # The page's own posting still decides, whichever order the nodes come in.
@@ -352,7 +352,7 @@ def test_parse_generic_selects_jsonld_whose_url_matches_final_url():
     with_query = base.parse_generic(_page(html, final_url="https://jobs.example/this-one/?ref=1#apply"))
     assert with_query.title == "Staff ML Engineer"
     elsewhere = base.parse_generic(_page(html, final_url="https://jobs.example/elsewhere"))
-    assert elsewhere.title == "Intern"
+    assert not elsewhere.title
 
 
 def test_parse_generic_uses_single_jobposting_without_url():
@@ -554,7 +554,7 @@ def test_job_id_query_parameter_decides_which_deadline_applies():
     job = base.parse_generic(_page(html, final_url=page_url))
     assert job.valid_through_expired is False
     assert job.title == "ML Engineer"
-    # Only the other job id's node: its fields may be used, its deadline is not.
+    # The other job ID's node supplies no facts about the current posting.
     only_other = (
         '<html><head><script type="application/ld+json">{"@type": "JobPosting", "title": "Other role", '
         '"validThrough": "2020-02-01", "url": "https://acme.com/careers?gh_jid=4012347"}</script></head>'
@@ -694,3 +694,25 @@ def test_jsonld_company_still_beats_the_ats_company_hint():
     html = _PORTAL_PAGE.replace('"UNAVAILABLE"', '"Example Hospital Group"')
     job = base.parse_generic(_page(html), ats_hints={"company": "Example Hospital"})
     assert job.company == "Example Hospital Group"
+
+
+def test_recommended_posting_does_not_override_visible_vacancy_facts():
+    job = base.parse_generic(_page("""
+        <html><head><script type="application/ld+json">
+        {"@type":"JobPosting","url":"/acme/jobs/999","title":"Data Engineer",
+         "jobLocation":{"address":{"addressLocality":"Madrid"}},
+         "jobLocationType":"TELECOMMUTE","datePosted":"2026-04-01"}
+        </script></head><body><h1>Backend Engineer</h1></body></html>
+    """))
+    assert job.title == "Backend Engineer"
+    assert not job.location and not job.remote_text
+    assert not job.posting_date_verified
+
+
+def test_update_label_closer_to_date_takes_precedence_over_posted():
+    update = "<p>Posted by Recruiting. Updated 2026-10-20</p>"
+    updated_only = base.parse_generic(_page(update))
+    assert not updated_only.posting_date_verified
+    posted = base.parse_generic(_page(update + "<p>Published 2026-10-01</p>"))
+    assert posted.posting_date == "2026-10-01"
+    assert posted.posting_date_verified

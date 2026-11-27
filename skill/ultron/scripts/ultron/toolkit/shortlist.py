@@ -101,9 +101,13 @@ def save_shortlist(profile_slug: str, rows: list, *, preset: str = presets.DEFAU
     run = runs.load_run(run_id)
     # Board context comes only from ULTRON's own cache, never from the rows, so a row cannot claim an identity.
     added = add_scout_finds(run_id, run, rows, boards=board_aliases(cache))
+    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"] + over
+    if not sum(added["verified"].values()):
+        return {"run_id": run_id, "saved": added["verified"], "not_saved": not_saved,
+                "roles": 0, "new_roles": 0, "unsure": 0, "discarded": 0,
+                "final_cap": 0, "verified_finds": 0, "outputs": {}, "top": []}
     _credit_boards(run_id)
     for stage in ("fetch", "filter"):
         runs.mark_stage(run_id, stage)
     result = finalize_scout(run_id, runs.load_run(run_id))
-    not_saved = [row for row in added["rows"] if row["outcome"] != "verified"] + over
     return {"run_id": run_id, "saved": added["verified"], "not_saved": not_saved, **result}

@@ -47,8 +47,20 @@ _WORD_NUMBERS: dict[str, int] = {
 _WORD_SIMPLE_ALT = "|".join(sorted(_WORD_NUMBERS, key=len, reverse=True))
 _DECADE_ALT = "|".join(word for word, value in _WORD_NUMBERS.items() if value >= 20)
 _DIGIT_WORD_ALT = "one|two|three|four|five|six|seven|eight|nine"
-_WORD_COUNT_SEPARATOR = r"[-\u2010\u2011]|[ \t]{1,3}"
-_WORD_NUM_ALT = rf"(?:{_DECADE_ALT})(?:{_WORD_COUNT_SEPARATOR})(?:{_DIGIT_WORD_ALT})|{_WORD_SIMPLE_ALT}"
+_WORD_COUNT_SEPARATOR = r"(?:[-\u2010\u2011]|[ \t]{1,3})"
+_WORDS_UNDER_HUNDRED = rf"(?:{_DECADE_ALT}){_WORD_COUNT_SEPARATOR}(?:{_DIGIT_WORD_ALT})|{_WORD_SIMPLE_ALT}"
+_WORD_REMAINDER = rf"{_WORD_COUNT_SEPARATOR}(?:and{_WORD_COUNT_SEPARATOR})?"
+_WORD_TRIAD = (
+    rf"(?:(?:{_DIGIT_WORD_ALT}){_WORD_COUNT_SEPARATOR}hundred"
+    rf"(?:{_WORD_REMAINDER}(?:{_WORDS_UNDER_HUNDRED}))?|{_WORDS_UNDER_HUNDRED})"
+)
+_MAJOR_SCALES = {"thousand": 1_000, "million": 1_000_000, "billion": 1_000_000_000}
+_MAJOR_SCALE_ALT = "|".join(_MAJOR_SCALES)
+_WORD_SCALE_GROUP = rf"{_WORD_TRIAD}{_WORD_COUNT_SEPARATOR}(?:{_MAJOR_SCALE_ALT})"
+_WORD_NUM_ALT = (
+    rf"(?:{_WORD_SCALE_GROUP}{_WORD_COUNT_SEPARATOR}){{0,2}}"
+    rf"(?:{_WORD_SCALE_GROUP}(?:{_WORD_REMAINDER}{_WORD_TRIAD})?|{_WORD_TRIAD})"
+)
 _WORD_NUM_START = r"(?<![\w\-\u2010\u2011])"
 _WORD_NUMBER_RE = re.compile(rf"{_WORD_NUM_START}({_WORD_NUM_ALT})\b", re.IGNORECASE)
 _WORD_COUNT_SPLIT_RE = re.compile(r"[-\u2010\u2011 \t]+")
@@ -78,7 +90,7 @@ _COUNT_UNITS = (
     r"pipelines?|models?|countr(?:y|ies)|languages?|microservices?|endpoints?|requests?|terabytes?|gb|tb|pb|ms|seconds?"
 )
 _COUNT_MODIFIER = (
-    rf"(?!(?:{_COUNT_UNITS}|{_WORD_SIMPLE_ALT}|and|or|of|to|for|with|from|in|at|per)\b)"
+    rf"(?!(?:{_COUNT_UNITS}|{_WORD_SIMPLE_ALT}|{_MAJOR_SCALE_ALT}|hundred|and|or|of|to|for|with|from|in|at|per)\b)"
     r"[a-z][a-z-]{0,23}[ \t]{1,3}"
 )
 _UNIT_RE = re.compile(
@@ -285,7 +297,16 @@ def _extract_metrics(text: str) -> tuple[dict[str, str], list[tuple[str, float]]
 
 
 def _word_count(word: str) -> int:
-    return sum(_WORD_NUMBERS[part] for part in _WORD_COUNT_SPLIT_RE.split(word.casefold()))
+    total = group = 0
+    for part in _WORD_COUNT_SPLIT_RE.split(word.casefold()):
+        if part == "hundred":
+            group *= 100
+        elif part in _MAJOR_SCALES:
+            total += group * _MAJOR_SCALES[part]
+            group = 0
+        elif part != "and":
+            group += _WORD_NUMBERS[part]
+    return total + group
 
 
 def _word_number_keys(text: str) -> set[str]:

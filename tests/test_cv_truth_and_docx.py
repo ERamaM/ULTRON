@@ -431,3 +431,23 @@ def test_confirmed_dates_apply_only_to_a_unique_role_only_heading(tmp_path, ambi
     result = cv_truth.verify_truth(source, draft, confirmed_facts=["Engineer at Acme Labs from Feb 2020 to Dec 2021"])
     assert any(item["type"] == "changed_role_dates" for item in result["violations"]) is ambiguous
     assert result["passed"] is not ambiguous
+
+
+@pytest.mark.parametrize(("number", "words", "smaller"), [
+    ("1 million", "one million", "1"),
+    ("500", "five hundred", "5"),
+    ("1250", "one thousand two hundred and fifty", "50"),
+])
+def test_scaled_word_counts_are_authorized_as_a_whole(tmp_path, number, words, smaller):
+    from ultron.cover_letter.truth import verify_cover_letter_truth
+
+    source = tmp_path / "source.md"
+    draft = tmp_path / "draft.md"
+    draft.write_text(f"Served {words} active users.\n", encoding="utf-8")
+    for verify in (cv_truth.verify_truth, verify_cover_letter_truth):
+        source.write_text(f"Served {number} active users.\n", encoding="utf-8")
+        assert verify(source, draft)["passed"]
+        source.write_text(f"Served {smaller} active users.\n", encoding="utf-8")
+        report = verify(source, draft)
+        assert not report["passed"]
+        assert any(item["type"] == "unverified_metric" for item in report["violations"])

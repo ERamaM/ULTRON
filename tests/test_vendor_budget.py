@@ -51,6 +51,20 @@ def tenant(i: int) -> str:
     return f"https://tenant{i}.wd{1 + i % 5}.myworkdayjobs.com/x"
 
 
+def test_vendor_backoff_is_shared_between_clients():
+    clock = FakeClock()
+    budget = VendorBudget(max_requests=10)
+    options = {"budget": budget, "clock": clock, "gate": HostGate(), "min_interval_per_vendor": 1}
+    with (
+        make_client(lambda _: httpx.Response(429), **options) as first,
+        make_client(lambda _: httpx.Response(200), **options) as second,
+    ):
+        assert first.get_text(tenant(1), retry_rate_limited=False)[0] == 429
+        assert budget.strikes("workday") == 1
+        assert second.get_text(tenant(2))[0] == 200
+        assert clock.slept == [5.0]
+
+
 def test_vendor_cap_counts_requests_across_tenant_hosts():
     budget = VendorBudget(max_requests=5)
     client = make_client(lambda r: httpx.Response(200, text="ok"), budget=budget)

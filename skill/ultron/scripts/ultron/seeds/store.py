@@ -106,6 +106,14 @@ def add_seeds(seeds: list[AtsBoardSeed], *, profile_slug: str) -> int:
         return _add_seeds_locked(path, seeds, profile_slug)
 
 
+def _observed_at(seed: AtsBoardSeed) -> datetime:
+    try:
+        observed = datetime.fromisoformat(str(seed.verification.get("verified_at", "")))
+    except ValueError:
+        return datetime.min.replace(tzinfo=UTC)
+    return observed if observed.tzinfo is not None else observed.replace(tzinfo=UTC)
+
+
 def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) -> int:
     out_rows: list = []
     index: dict[tuple[str, str], AtsBoardSeed] = {}
@@ -137,8 +145,11 @@ def _add_seeds_locked(path: Path, seeds: list[AtsBoardSeed], profile_slug: str) 
             })
             index[key] = promoted
             out_rows[out_rows.index(current)] = promoted
-        elif profile_slug not in current.profiles:
-            current.profiles.append(profile_slug)
+        else:
+            if seed.verification and not is_unconfirmed(seed) and _observed_at(seed) >= _observed_at(current):
+                current.verification = seed.verification
+            if profile_slug not in current.profiles:
+                current.profiles.append(profile_slug)
     text = yaml.safe_dump(
         {"seeds": [r.model_dump(mode="json") if isinstance(r, AtsBoardSeed) else r for r in out_rows]},
         allow_unicode=True, sort_keys=False,

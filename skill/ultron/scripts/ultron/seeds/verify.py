@@ -364,7 +364,8 @@ def verify_proposal(
                 if scope in {"host", "vendor"}:
                     host_budget = host_budget or scope == "host"
                     vendor_budget = vendor_budget or scope == "vendor"
-                    skipped_vendors.add(ats)
+                    if scope == "vendor":
+                        skipped_vendors.add(ats)
                     continue
                 budget_spent = True
                 return None

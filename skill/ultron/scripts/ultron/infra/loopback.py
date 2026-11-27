@@ -1,12 +1,17 @@
 """Bounded HTTP reads for an explicitly configured IPv4 loopback service."""
 
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
+from ultron.infra.net import run_bounded
 from ultron.infra.urlpolicy import URLRejected
+
+_LOOPBACK_SLOTS = threading.BoundedSemaphore(8)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,27 +46,50 @@ def explicit_loopback_origin(url: str) -> ExplicitLoopbackOrigin | None:
 
 def read_loopback(
     origin: ExplicitLoopbackOrigin, url: str, *, timeout: float, max_bytes: int = 2_000_000,
+    deadline: float | None = None,
 ) -> tuple[int, bytes]:
-    """Read a same-origin response without proxies, DNS lookups or redirects."""
+    """Read a same-origin response within the time budget, without proxies, DNS or redirects."""
+    stop = time.monotonic() + timeout
+    if deadline is not None:
+        stop = min(stop, deadline)
     parts = _parts(url)
     if not parts or (parts.hostname, parts.port) != (origin.host, origin.port):
         raise URLRejected("loopback_origin_mismatch")
     target = urlunsplit(parts._replace(netloc=f"127.0.0.1:{origin.port}"))
     headers = {"Host": parts.netloc, "Accept-Encoding": "identity"}
-    deadline = time.monotonic() + timeout
+
+    def timeout_error() -> httpx.ReadTimeout:
+        return httpx.ReadTimeout("Loopback request exceeded its time budget")
+
+    def remaining() -> float:
+        seconds = stop - time.monotonic()
+        if seconds <= 0:
+            raise timeout_error()
+        return seconds
+
+    return run_bounded(
+        lambda: _read(target, headers, max_bytes, remaining),
+        slots=_LOOPBACK_SLOTS, remaining=remaining, timeout_error=timeout_error,
+    )
+
+
+def _read(
+    target: str, headers: dict[str, str], max_bytes: int, remaining: Callable[[], float],
+) -> tuple[int, bytes]:
     with (
-        httpx.Client(trust_env=False, follow_redirects=False, timeout=timeout) as client,
-        client.stream("GET", target, headers=headers) as response,
+        httpx.Client(trust_env=False, follow_redirects=False) as client,
+        client.stream("GET", target, headers=headers, timeout=remaining()) as response,
     ):
+        remaining()
         if 300 <= response.status_code < 400:
             raise URLRejected("redirect_rejected")
         if response.headers.get("content-encoding", "identity").lower() != "identity":
             raise URLRejected("loopback_content_encoding")
         body = bytearray()
         for chunk in response.iter_raw():
-            if time.monotonic() >= deadline:
-                raise httpx.ReadTimeout("Loopback request exceeded its time budget")
+            remaining()
             if len(body) + len(chunk) > max_bytes:
                 raise URLRejected("response_too_large")
             body.extend(chunk)
+        remaining()
         return response.status_code, bytes(body)

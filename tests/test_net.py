@@ -45,6 +45,25 @@ def test_urlrejected_is_policy_class():
     assert net.URLRejected is urlpolicy.URLRejected
 
 
+def test_rate_limit_strike_survives_stream_timeout():
+    sent = []
+
+    class Interrupted(httpx.SyncByteStream):
+        def __iter__(self):
+            raise httpx.ReadTimeout("synthetic body interruption")
+
+    def handler(request):
+        sent.append(request.url.host)
+        return httpx.Response(429, stream=Interrupted())
+
+    with make_client(handler, block_threshold=1) as client:
+        with pytest.raises(net.HostBlocked):
+            client.get_text("https://example.org/jobs")
+        assert client.block_streak("example.org") == 1
+        assert client.host_delay("example.org") == 5.0
+    assert sent == ["example.org"]
+
+
 def test_rejects_private_ip():
     client = make_client(lambda r: httpx.Response(200, text="x"), resolver=lambda h, p: ["10.0.0.5"])
     with pytest.raises(URLRejected):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from ultron import seeds
@@ -72,11 +73,14 @@ def _verify(args: argparse.Namespace) -> int:
         run = runs.load_run(args.run)
     except runs.RunNotFoundError as exc:
         return fail("run_not_found", str(exc))
+    source = Path(args.source)
     try:
-        rows = runs.read_jsonl(args.source)
+        if not source.is_file():
+            return fail("invalid_proposals", "--from must name a readable file")
+        rows = [json.loads(line) for line in runs.jsonl_lines(source.read_text(encoding="utf-8")) if line.strip()]
     except (OSError, ValueError) as exc:
         return fail("invalid_proposals", str(exc))
-    is_feed_proposals = Path(args.source).name == seeds.FEED_PROPOSALS_FILE
+    is_feed_proposals = source.name == seeds.FEED_PROPOSALS_FILE
     round_info: dict | None = None
     repeats: list[str] = []
     if args.round:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import get_args
 
 import httpx
@@ -76,6 +77,39 @@ def _rows(prefix: str, ok: int, missing: int = 0) -> list[dict]:
 def test_run_new_reports_the_seed_deficit_of_a_profile_without_a_fitting_pack(requests_log, capsys):
     out = _new_run(capsys)
     assert (out["seed_target"], out["fitting_seeds"], out["seed_deficit"]) == (35, 0, 35)
+
+
+def test_reverification_refreshes_count_and_keeps_seed_links(no_packs, tmp_path, capsys, monkeypatch):
+    times = iter([datetime(2026, 10, day, tzinfo=UTC) for day in (1, 2)])
+
+    class VerificationClock:
+        @staticmethod
+        def now(_timezone):
+            return next(times)
+
+    monkeypatch.setattr(seeds.verify, "datetime", VerificationClock)
+    profiles.install_example()
+    run_id = _new_run(capsys)["run_id"]
+    source = _write(tmp_path, "proposals.jsonl", [{"company": "Example", "ats": "greenhouse", "board": "example"}])
+    run = runs.load_run(run_id)
+    for jobs in ([], JOBS["jobs"]):
+        http_factory.set_test_overrides(
+            transport=httpx.MockTransport(lambda _, jobs=jobs: httpx.Response(200, json={"jobs": jobs})),
+            resolver=lambda *_: ["93.184.216.34"], sleep=lambda _: None, min_interval_per_host=0.0,
+        )
+        code, report = _cli(capsys, "seeds", "verify", "--run", run_id, "--from", source)
+        assert code == 0 and report["verified"] == 1
+        saved, = seeds.load_inventory(profiles.EXAMPLE_SLUG)
+        assert saved.verification["postings"] == len(jobs)
+        assert seed_rounds.fitting_seeds(run)[0] == bool(jobs)
+        if not jobs:
+            older_observation = saved
+    seeds.add_seeds([older_observation], profile_slug="other-profile")
+    saved, = seeds.load_inventory(profiles.EXAMPLE_SLUG)
+    assert saved.verification["postings"] == len(JOBS["jobs"])
+    assert saved.verification["verified_at"] == "2026-10-02T00:00:00+00:00"
+    assert set(saved.profiles) == {profiles.EXAMPLE_SLUG, "other-profile"}
+    assert not seeds.is_unconfirmed(saved)
 
 
 def test_a_profile_covered_by_the_bundled_pack_has_no_deficit(capsys):

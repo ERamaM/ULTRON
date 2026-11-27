@@ -75,7 +75,7 @@ def _read(base: str, path: str, timeout: float, deadline: float | None = None) -
     url = base.rstrip("/") + path
     if local:
         try:
-            status, payload = read_loopback(local, url, timeout=timeout)
+            status, payload = read_loopback(local, url, timeout=timeout, deadline=deadline)
         except httpx.HTTPError as error:
             raise HttpError("Local SearXNG request failed") from error
     else:
@@ -85,11 +85,15 @@ def _read(base: str, path: str, timeout: float, deadline: float | None = None) -
             raise ValueError("SearXNG URL must be an explicit loopback HTTP origin or public HTTPS origin")
         origin = admit_url(base)
         with HttpClient(max_requests=2, max_requests_per_host=2, max_bytes=2_000_000,
-                        min_interval_per_host=0, block_threshold=1, timeout=timeout, deadline=deadline) as client:
+                        min_interval_per_host=0, block_threshold=1, timeout=timeout, deadline=deadline,
+                        require_https=True) as client:
             status, _, payload = client.get_text(url, allowed_domains=(origin.hostname,))
     if status not in {200, 400}:
         raise HttpError("SearXNG service error", status_code=status)
-    value = json.loads(payload)
+    try:
+        value = json.loads(payload)
+    except RecursionError as error:
+        raise ValueError("Invalid SearXNG JSON response: nesting limit exceeded") from error
     if not isinstance(value, dict):
         raise ValueError("Invalid SearXNG JSON response: expected an object")  # noqa: TRY004 - invalid response data
     return status, value
@@ -123,12 +127,16 @@ def _remaining(deadline: float | None, maximum: float) -> float:
 
 
 def _docker(*args: str, timeout: float = 15, secret: str | None = None, cwd: Path | None = None,
-            deadline: float | None = None):
+            deadline: float | None = None, endpoint: str | None = None):
     timeout = _remaining(deadline, timeout)
     if timeout <= 0:
         raise LifecycleError("Docker startup reached its time limit.")
     env = os.environ.copy()
     env.pop(_SECRET_VAR, None)
+    if endpoint is not None:
+        env.pop("DOCKER_CONTEXT", None)
+        env.pop("DOCKER_HOST", None)
+        args = ("--host", endpoint, *args)
     env["COMPOSE_DISABLE_ENV_FILE"] = "1"
     if secret is not None:
         env[_SECRET_VAR] = secret
@@ -151,9 +159,10 @@ def _local_endpoint(deadline: float | None) -> str:
     return endpoint
 
 
-def _daemon_running(deadline: float | None) -> bool:
+def _daemon_running(endpoint: str, deadline: float | None) -> bool:
     try:
-        return _docker("info", "--format", "{{.ServerVersion}}", timeout=2, deadline=deadline).returncode == 0
+        return _docker("info", "--format", "{{.ServerVersion}}", timeout=2,
+                       deadline=deadline, endpoint=endpoint).returncode == 0
     except LifecycleError:
         return False
 
@@ -165,7 +174,7 @@ def _start_and_wait(endpoint: str, deadline: float | None) -> bool:
     if not start_daemon(endpoint, timeout=timeout):
         return False
     while _remaining(stop, 1) > 0:
-        if _daemon_running(stop):
+        if _daemon_running(endpoint, stop):
             return True
         time.sleep(_remaining(stop, 1))
     return False
@@ -216,8 +225,9 @@ def _owner(root: Path) -> str:
     return hashlib.sha256(os.fsencode(os.path.normcase(root))).hexdigest()
 
 
-def _inspect(root: Path, deadline: float | None) -> dict | None:
-    listed = _docker("container", "ls", "-aq", "--filter", f"name=^/{CONTAINER}$", deadline=deadline)
+def _inspect(root: Path, endpoint: str, deadline: float | None) -> dict | None:
+    listed = _docker("container", "ls", "-aq", "--filter", f"name=^/{CONTAINER}$",
+                     deadline=deadline, endpoint=endpoint)
     if listed.returncode:
         raise LifecycleError("The Docker daemon is unavailable.")
     container_id = listed.stdout.strip()
@@ -227,7 +237,8 @@ def _inspect(root: Path, deadline: float | None) -> dict | None:
         raise LifecycleError("Docker returned an invalid container identity.")
     fields = ('{{json .Id}}', '{{json .State.Status}}', '{{json .Config.Image}}',
               f'{{{{json (index .Config.Labels "{_OWNER_LABEL}")}}}}', '{{json .HostConfig.PortBindings}}')
-    result = _docker("container", "inspect", "--format", "[" + ",".join(fields) + "]", container_id, deadline=deadline)
+    result = _docker("container", "inspect", "--format", "[" + ",".join(fields) + "]", container_id,
+                     deadline=deadline, endpoint=endpoint)
     try:
         full_id, status, image, owner, bindings = json.loads(result.stdout) if result.returncode == 0 else []
         if not _ID.fullmatch(full_id) or owner != _owner(root):
@@ -243,12 +254,12 @@ def _inspect(root: Path, deadline: float | None) -> dict | None:
         raise LifecycleError("Could not verify local SearXNG container ownership and port.") from error
 
 
-def _launch(root: Path, port: int, deadline: float | None) -> None:
+def _launch(root: Path, port: int, endpoint: str, deadline: float | None) -> None:
     settings, secret = _stage(root)
     owner = _owner(root)
     publish = f"127.0.0.1:{port}:8080"
     target = "/etc/searxng/settings.yml"
-    compose = _docker("compose", "version", deadline=deadline)
+    compose = _docker("compose", "version", deadline=deadline, endpoint=endpoint)
     if compose.returncode == 0:
         # JSON is valid Compose YAML. Escape Compose interpolation in user-selected paths.
         config = {"services": {"searxng": {
@@ -261,7 +272,7 @@ def _launch(root: Path, port: int, deadline: float | None) -> None:
         path = root / "compose.json"
         atomic_write_bytes(path, json.dumps(config).encode("utf-8"))
         result = _docker("compose", "--project-name", f"ultron-searxng-{owner[:12]}", "--file", str(path),
-                         "up", "--detach", timeout=180, secret=secret, cwd=root, deadline=deadline)
+                         "up", "--detach", timeout=180, secret=secret, cwd=root, deadline=deadline, endpoint=endpoint)
     else:
         source = str(settings)
         if "," in source or '"' in source:
@@ -271,13 +282,14 @@ def _launch(root: Path, port: int, deadline: float | None) -> None:
                          "--publish", publish, "--mount", f"type=bind,source={source},target={target},readonly",
                          "--cpus", str(_RESOURCES["cpus"]), "--memory", _RESOURCES["mem_limit"],
                          "--pids-limit", str(_RESOURCES["pids_limit"]),
-                         *environment_args, IMAGE, timeout=180, secret=secret, deadline=deadline)
+                         *environment_args, IMAGE, timeout=180, secret=secret, deadline=deadline, endpoint=endpoint)
     if result.returncode:
         raise LifecycleError("Docker could not launch SearXNG. Verify the daemon, port and file sharing.")
 
 
-def _remove(container: dict | None, deadline: float | None) -> None:
-    if container and _docker("container", "rm", "--force", container["id"], timeout=30, deadline=deadline).returncode:
+def _remove(container: dict | None, endpoint: str, deadline: float | None) -> None:
+    if container and _docker("container", "rm", "--force", container["id"],
+                             timeout=30, deadline=deadline, endpoint=endpoint).returncode:
         raise LifecycleError("Docker could not remove the managed SearXNG container.")
 
 
@@ -290,8 +302,8 @@ def _wait(url: str, deadline: float | None) -> bool:
     return False
 
 
-def _diagnostics(root: Path, container: dict | None) -> dict:
-    version = _docker("version", "--format", "{{.Client.Version}}")
+def _diagnostics(root: Path, container: dict | None, endpoint: str, deadline: float | None) -> dict:
+    version = _docker("version", "--format", "{{.Client.Version}}", deadline=deadline, endpoint=endpoint)
     docker_version = version.stdout.strip()
     details = {"docker_version": docker_version if re.fullmatch(r"[0-9A-Za-z.+-]{1,50}", docker_version) else None}
     if container is None:
@@ -301,10 +313,11 @@ def _diagnostics(root: Path, container: dict | None) -> dict:
     except (OSError, ValueError, LifecycleError):
         return details
     inspect_env = '{{range .Config.Env}}{{println .}}{{end}}'
-    runtime = _docker("container", "inspect", "--format", inspect_env, container["id"])
+    runtime = _docker("container", "inspect", "--format", inspect_env, container["id"],
+                      deadline=deadline, endpoint=endpoint)
     if runtime.returncode or f"{_SECRET_VAR}={secret}" not in runtime.stdout.splitlines():
         return details
-    logs = _docker("logs", "--tail", "30", container["id"])
+    logs = _docker("logs", "--tail", "30", container["id"], deadline=deadline, endpoint=endpoint)
     if logs.returncode == 0:
         details["logs"] = (logs.stdout + logs.stderr).replace(secret, "[redacted]")[-8000:]
     return details
@@ -317,22 +330,24 @@ def _config_drift(root: Path) -> bool:
     return settings.is_file() and settings.read_bytes() != (data_dir() / "searxng" / "settings.yml").read_bytes()
 
 
-def _bring_up(root: Path, container: dict | None, action: str, port: int | None, deadline: float | None) -> dict | None:
+def _bring_up(
+    root: Path, container: dict | None, action: str, port: int | None, endpoint: str, deadline: float | None,
+) -> dict | None:
     desired = default_url(port)
     if action == "restart":
-        _remove(container, deadline)
+        _remove(container, endpoint, deadline)
         container = None
     if container and (container["url"] != desired or container["image"] != IMAGE):
         raise LifecycleError("Run ultron searxng restart to apply the requested port or image.")
     if container and _config_drift(root):
-        _remove(container, deadline)
+        _remove(container, endpoint, deadline)
         container = None
     if container is None:
-        _launch(root, configured_port(port), deadline)
+        _launch(root, configured_port(port), endpoint, deadline)
     elif (container["state"] != "running"
-          and _docker("container", "start", container["id"], deadline=deadline).returncode):
+          and _docker("container", "start", container["id"], deadline=deadline, endpoint=endpoint).returncode):
         raise LifecycleError("Docker could not start the managed SearXNG container.")
-    container = _inspect(root, deadline)
+    container = _inspect(root, endpoint, deadline)
     if container and container["url"] == desired:
         atomic_write_bytes(root / "port", f"{urlsplit(desired).port}\n".encode("ascii"))
     return container
@@ -347,25 +362,23 @@ def manage(action: str, *, port: int | None = None, deadline: float | None = Non
     if starting:
         configured_port(port)
     endpoint = _local_endpoint(deadline)
-    if not _daemon_running(deadline):
-        if not starting or not _start_and_wait(endpoint, deadline):
-            return {"docker_available": True, "daemon_running": False, "state": "unknown", "json_healthy": False,
-                    "start_hint": start_hint()}
-        _local_endpoint(deadline)
+    if not _daemon_running(endpoint, deadline) and (not starting or not _start_and_wait(endpoint, deadline)):
+        return {"docker_available": True, "daemon_running": False, "state": "unknown", "json_healthy": False,
+                "start_hint": start_hint()}
     root = _managed_root()
-    container = _inspect(root, deadline)
+    container = _inspect(root, endpoint, deadline)
     if action == "down":
-        _remove(container, deadline)
+        _remove(container, endpoint, deadline)
         container = None
     elif starting:
-        container = _bring_up(root, container, action, port, deadline)
+        container = _bring_up(root, container, action, port, endpoint, deadline)
     payload = {"docker_available": True, "daemon_running": True, "state": "absent", "json_healthy": False}
     if container:
         healthy = container["state"] == "running" and (
             _wait(container["url"], deadline) if starting else json_health(container["url"]))
         payload.update(container, json_healthy=healthy)
     if action == "diagnose":
-        payload.update(_diagnostics(root, container))
+        payload.update(_diagnostics(root, container, endpoint, deadline))
     return payload
 
 

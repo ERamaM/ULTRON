@@ -11,7 +11,8 @@ from ultron.cli import main
 from ultron.diagnostics import doctor
 from ultron.infra import searxng
 from ultron.infra.fs import atomic_create_bytes
-from ultron.infra.net import HttpError
+from ultron.infra.net import HttpClient, HttpError
+from ultron.infra.urlpolicy import URLRejected
 
 
 def test_exclusive_file(tmp_path):
@@ -23,7 +24,7 @@ def test_exclusive_file(tmp_path):
 
 
 def test_local_json_health(monkeypatch):
-    def read(origin, url, *, timeout):
+    def read(origin, url, *, timeout, deadline=None):
         assert origin.host == "localhost"
         if url.endswith("format=json"):
             return 400, b'{"error":"No query"}'
@@ -76,6 +77,33 @@ def test_remote_api_uses_public_http_client(monkeypatch):
         searxng.read_json("https://search.example.org", "/search?q=x", timeout=1)
 
 
+def test_remote_api_rejects_cleartext_redirect_before_dispatch(monkeypatch):
+    sent = []
+
+    def respond(request):
+        sent.append(request.url.scheme)
+        if request.url.scheme == "https":
+            return httpx.Response(302, headers={"Location": "http://search.example.org/search"})
+        return httpx.Response(200, json={"results": []})
+
+    def client(**options):
+        return HttpClient(transport=httpx.MockTransport(respond), resolver=lambda *_: ["93.184.216.34"], **options)
+
+    monkeypatch.setattr(searxng, "HttpClient", client)
+    with pytest.raises(URLRejected, match="https_required"):
+        searxng.read_json("https://search.example.org", "/search?q=example", timeout=2)
+    assert sent == ["https"]
+
+
+def test_local_api_passes_through_absolute_deadline(monkeypatch):
+    def read(_origin, _url, **options):
+        assert options["deadline"] == 42.0
+        return 200, b'{"results":[]}'
+
+    monkeypatch.setattr(searxng, "read_loopback", read)
+    assert searxng.read_json("http://localhost:8888", "/search", timeout=1, deadline=42.0) == {"results": []}
+
+
 @pytest.fixture
 def docker(monkeypatch, tmp_path):
     monkeypatch.setenv("ULTRON_HOME", str(tmp_path / "ULTRON state"))
@@ -92,6 +120,8 @@ def docker(monkeypatch, tmp_path):
         assert argv[0] == "docker"
         assert shell is False and timeout > 0
         args = argv[1:]
+        if args[:1] == ["--host"]:
+            args = args[2:]
         state.issued.append(args)
         result = SimpleNamespace(returncode=0, stdout="", stderr="")
         if args[0] == "context":
@@ -153,6 +183,25 @@ def docker(monkeypatch, tmp_path):
 
     monkeypatch.setattr(searxng.subprocess, "run", run)
     return state
+
+
+@pytest.mark.parametrize("endpoint", ["unix:///var/run/docker.sock", "npipe:////./pipe/docker_engine"])
+def test_docker_operations_keep_validated_endpoint_after_context_change(docker, monkeypatch, endpoint):
+    run = searxng.subprocess.run
+    observed = []
+
+    def changing_context(argv, **kwargs):
+        if argv[1:3] == ["context", "inspect"]:
+            assert not observed
+            monkeypatch.setenv("DOCKER_CONTEXT", "changed-context")
+            return SimpleNamespace(returncode=0, stdout=endpoint, stderr="")
+        observed.append((argv[1:3], kwargs["env"].get("DOCKER_CONTEXT")))
+        return run(argv, **kwargs)
+
+    monkeypatch.setattr(searxng.subprocess, "run", changing_context)
+    assert searxng.manage("up")["state"] == "running"
+    assert len(observed) >= 5
+    assert all(args == ["--host", endpoint] and context is None for args, context in observed)
 
 
 @pytest.mark.parametrize("compose", [True, False])

@@ -36,27 +36,10 @@ _METRIC_RE = re.compile(
     r"(?:(?<!\d)\d{1,9}(?:[.,]\d{1,4})?%|[$€£]\s{0,2}\d|(?<!\d)\d{1,6}\s{0,2}[xX]\b|\b\d{1,4}\+)"
 )
 
-_TEX_COMMENT_RE = re.compile(r"(?<!\\)%[^\n]*")
-_TEX_HREF_RE = re.compile(r"\\href\{([^{}]*)\}\{([^{}]*)\}")
-_TEX_SECTION_RE = re.compile(r"\\(?:sub)*section\*?\{([^{}]*)\}")
-_TEX_CMD_RE = re.compile(r"\\[a-zA-Z@]+\*?(?:\[[^\]]*\])?")
-
-def extract_tex_text(content: bytes, *, max_chars: int = cv.MAX_CV_CHARS) -> str:
-    """Best-effort linear-time plain-text extraction from an untrusted ``.tex`` CV source."""
-    raw = cv.decode_text_bytes(content)
-    cleaned = _TEX_COMMENT_RE.sub("", raw)
-    cleaned = _TEX_HREF_RE.sub(r"\2 (\1)", cleaned)
-    cleaned = _TEX_SECTION_RE.sub(r"\n\1\n", cleaned)
-    cleaned = cleaned.replace("\\\\", "\n")
-    cleaned = _TEX_CMD_RE.sub(" ", cleaned)
-    cleaned = cleaned.replace("{", " ").replace("}", " ").replace("\\&", "&").replace("\\%", "%")
-    return cv._clean_text(cleaned, max_chars)
-
-
 def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]:
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix not in cv.TEXT_SUFFIXES and suffix not in {".pdf", cv.DOCX_SUFFIX, ".tex"}:
+    if suffix not in cv.TEXT_SUFFIXES and suffix not in {".pdf", cv.DOCX_SUFFIX}:
         raise cv.CvExtractionError("Unsupported CV format. Use .docx, PDF, .txt, .md or .tex.", code="unsupported_type")
     try:
         if path.stat().st_size > cv.MAX_CV_BYTES:
@@ -65,11 +48,8 @@ def _load_cv_with_inspection(path: Path) -> tuple[str, int, str, dict[str, Any]]
     except OSError as exc:
         raise cv.CvExtractionError(f"Cannot read CV file: {exc}", code="unsupported_type") from exc
 
-    if suffix == ".tex":
-        text = extract_tex_text(content, max_chars=cv.MAX_CV_CHARS)
-        return text, 1, "tex", {}
     if suffix in cv.TEXT_SUFFIXES:
-        text = cv._clean_text(cv.decode_text_bytes(content), cv.MAX_CV_CHARS)
+        text = cv.extract_cv_source_text(content, suffix=suffix)
         return text, 1, suffix.lstrip("."), {}
     if suffix == cv.DOCX_SUFFIX:
         return _inspect_docx(content)

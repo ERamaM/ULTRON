@@ -4,6 +4,7 @@ import base64
 import os
 import stat
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,6 +22,8 @@ _PNG = base64.b64decode(
 ])
 def test_cli_isolation_and_normalized_page_names(monkeypatch, tmp_path, backend, required):
     scratch = []
+    # A fixed reading exercises round-off when subtracting from the computed deadline.
+    monkeypatch.setattr(pdf_raster, "time", SimpleNamespace(monotonic=lambda: 2.02))
     out = tmp_path / "pages"
     out.mkdir()
     (out / "page-3.png").write_bytes(_PNG)

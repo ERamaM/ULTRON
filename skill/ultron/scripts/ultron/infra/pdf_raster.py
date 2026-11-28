@@ -210,7 +210,7 @@ def _run_rasterizer(
         check = [sys.executable, "-E", "-s", "-P", "-c", _GS_GEOMETRY_CHECK,
                  str(dpi), str(pages), str(_MAX_PIXELS)]
         subprocess.run(check, timeout=min(timeout, 5.0), check=True, shell=False, **options)
-        timeout = deadline - time.monotonic()
+        timeout = min(timeout, deadline - time.monotonic())
         if timeout <= 0:
             raise ValueError("Rasterization exhausted its time budget.")
     subprocess.run(_command(backend, executable, dpi, pages), timeout=timeout, check=True, shell=False, **options)

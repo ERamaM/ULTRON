@@ -362,3 +362,42 @@ def test_regression_mixed_pdf_reports_physical_pages(tmp_path, capsys):
     assert extracted["pages"] == audited["pages"] == audited["format_metadata"]["page_count"] == 4
     assert audited["format_metadata"]["chars_per_page"] == [12, 0, 10, 0]
     assert any(f["id"] == "page_length_excessive" for f in audited["findings"])
+
+
+
+def test_cli_extract_latex_uses_shared_source_parser(tmp_path, capsys):
+    from ultron.cv import truth
+
+    (tmp_path / "private.tex").write_text("Content outside the source must never be loaded.", encoding="utf-8")
+    source = _write(
+        tmp_path,
+        "cv.TEX",
+        b"\\documentclass[margin=1in]{article}\n"
+        b"\\section*{Experience}\n"
+        b"\\textbf{Jane Example}\\\\Data engineering\n"
+        b"\\href{https://example.invalid}{Portfolio} \\& reporting \\% improvement\n"
+        b"% Omit this comment\n"
+        b"\\input{private.tex}\n",
+    )
+    assert cli.main(["cv", "extract", str(source)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["pages"] == 1
+    output = Path(result["path"])
+    assert output.name == "cv.TEX.txt"
+    text = output.read_text(encoding="utf-8")
+    assert text == truth.load_cv_plain_text(source)
+    assert "Jane Example\nData engineering" in text
+    assert "Portfolio (https://example.invalid) & reporting % improvement" in text
+    assert "Omit this comment" not in text and "Content outside" not in text
+
+
+def test_latex_extraction_rejects_over_budget_text(tmp_path):
+    source = _write(tmp_path, "cv.tex", b"\\textbf{Python}")
+    with pytest.raises(cv.CvTextTooLong):
+        cv.extract_cv(source, max_chars=5)
+
+
+def test_latex_extraction_handles_repeated_unclosed_options(tmp_path):
+    malformed = b"\\geometry[" * 20_000 + b"\\section{Experience}"
+    source = _write(tmp_path, "malformed.tex", malformed)
+    assert cv.extract_cv(source).text.endswith("Experience")

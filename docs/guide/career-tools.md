@@ -28,25 +28,51 @@ See [references/salary.md](../../skill/ultron/references/salary.md) for the comp
 
 ## 2. ATS CV Audit & Word Optimizer (`ultron cv`)
 
-Evaluates `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility and keyword alignment, enforces strict factual integrity on rewrites, and outputs a clean single-column `.docx`. Multi-column LaTeX/PDF layouts frequently lose text order or scramble sections in legacy ATS parsers, whereas single-column OOXML preserves reading order cleanly.
+Extracts text from PDF, DOCX, LaTeX source (`.tex`), Markdown, and plain text for profile drafting. It reads LaTeX as source text and uses best-effort extraction without compiling or expanding included files.
+
+The optimizer evaluates `.docx`, PDF, and LaTeX `.tex` CVs for parser compatibility and keyword alignment, enforces strict factual integrity on rewrites, and outputs a clean single-column `.docx`. Multi-column LaTeX/PDF layouts frequently lose text order or scramble sections in legacy ATS parsers, whereas single-column OOXML preserves reading order cleanly.
 
 - **Ask your agent:** *"Audit my CV against this backend role and rebuild it into a clean ATS-friendly Word document."*
 - **CLI workflow:**
-  1. **Audit** structure, format signals, verified work timeline, and target alignment (`--job`, `--job-file`, `--profile`, or `--run`):
+  1. **Preview the source PDF or DOCX** and have the agent inspect the page images and `detected_layout`. Use `--out-dir`, `--dpi`, or `--max-pages` when needed.
+     ```sh
+     ultron cv preview <cv_path>
+     ```
+  2. **Audit** structure, format signals, verified work timeline, and target alignment (`--job`, `--job-file`, `--profile`, or `--run`):
      ```sh
      ultron cv audit <cv_path> [--profile <slug>] [--job <key_or_url> | --job-file <path>] [--run <run_id>] [--out <audit.md>]
      ```
-  2. Agent rewrites sections truthfully and asks you about any missing keywords before citing them.
-  3. **Verify truthfulness** deterministically against the original CV (+ any explicit `--confirmed` facts file) to catch invented metrics, currency changes, inflated tenure, unverified degrees/certifications, or missing tech tokens:
+  3. Agent rewrites sections truthfully and asks you about any missing keywords before citing them.
+  4. **Verify truthfulness** deterministically against the original CV (+ any explicit `--confirmed` facts file) to catch invented metrics, currency changes, inflated tenure, unverified degrees/certifications, or missing tech tokens:
      ```sh
      ultron cv verify-truth --source <original_cv> --optimized <draft.md_or_json> [--confirmed <facts_file>] [--strict]
      ```
-  4. **Build single-column `.docx`** (refuses to overwrite unless `--force` is given, and refuses to write files if `--strict` verification fails):
+  5. **Build single-column `.docx`** (refuses to overwrite unless `--force` is given, and refuses to write files if `--strict` verification fails):
      ```sh
-     ultron cv build-docx --from <draft.md_or_json> --out <out.docx> --source-cv <original_cv> [--confirmed <facts_file>] [--font Calibri] --strict [--force]
+     ultron cv build-docx --from <draft.md_or_json> --out <out.docx> --source-cv <original_cv> --strict --preview
      ```
 
+For a PDF or DOCX source, add `--match-source-layout` to preserve compatible layout cues.
+Use `--layout <file.json>` for overrides or pass explicit options such as `--page-size a4`,
+`--header-align center`, and `--date-layout right_tab`. The generated CV stays single-column.
+
+### Check pagination and layout
+
+When a local LibreOffice or Microsoft Word renderer is available, ULTRON counts pages in a reference
+PDF and records `page_count_source: "pdf_render"`. Otherwise, the source identifies saved Word
+breaks, Word properties, or an explicit estimate. An estimated count does not reduce the ATS score by itself.
+
+Use the PNG paths returned in `preview.images` to review every generated page. Check the page count,
+short overflow pages, headings stranded at page breaks, source layout cues, clipping, wrapping,
+raw Markdown, and whitespace. Adjust layout first, rebuild with `--preview`, and recheck.
+If you change the draft's text, repeat strict truth verification before building. Limit the loop to three passes.
+
+Renderers and PNG rasterizers run locally. `ultron doctor` reports both capabilities. If images are
+unavailable, the CLI still returns the DOCX and an explanation in `warnings`.
+
 See [references/cv-ats.md](../../skill/ultron/references/cv-ats.md).
+See the design records for [DOCX page counting](../specs/career/37-docx-pdf-page-count.md)
+and the [visual review loop](../specs/career/38-cv-visual-layout-review-loop.md).
 
 ---
 
@@ -81,8 +107,13 @@ Pairs verified CV evidence with a specific job posting (`--job` or `--job-file`)
    ```
 4. **Render `.docx` (and optional `.md`) with `--strict` enforcement:**
    ```sh
-   ultron cover-letter build-docx --from <draft.md_or_json> --out <out.docx> [--out-md <out.md>] [--template classic|modern|executive | --template-file <custom.docx>] [--font <name>] --source-cv <cv_path> [--confirmed <facts_file>] --strict [--force]
+   ultron cover-letter build-docx --from <draft.md_or_json> --out <out.docx> [--out-md <out.md>] [--template classic|modern|executive | --template-file <custom.docx>] [--font <name>] --source-cv <cv_path> [--confirmed <facts_file>] --strict [--force] [--preview] [--page-size letter|a4]
    ```
+
+Choose `--page-size a4` for a bundled letter paired with an A4 CV. Custom templates determine
+their own paper size. Build with `--preview` to check the letter against its local reference PDF,
+then inspect each PNG for a balanced page, clean margins, and readable wrapping. A letter spanning
+more than one page receives a warning.
 
 See [references/cover-letter.md](../../skill/ultron/references/cover-letter.md).
 

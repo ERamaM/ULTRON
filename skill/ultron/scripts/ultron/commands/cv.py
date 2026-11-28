@@ -129,7 +129,7 @@ def register(subparsers) -> None:
     sub = parser.add_subparsers(dest="cv_command", required=True, parser_class=type(parser))
 
     extract = sub.add_parser(
-        "extract", help="extract CV text (PDF, .docx, .txt, .md) to $ULTRON_HOME/cv/<file name>.txt"
+        "extract", help="extract CV text (PDF, .docx, .tex, .txt, .md) to $ULTRON_HOME/cv/<file name>.txt"
     )
     extract.add_argument("path")
     extract.set_defaults(func=_extract)

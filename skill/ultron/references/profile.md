@@ -218,7 +218,7 @@ after the user confirms.
 
 ### From a CV
 
-1. Extract the CV text: `ultron cv extract <path>` (PDF, Word `.docx`, `.txt` or `.md`) writes
+1. Extract the CV text: `ultron cv extract <path>` (PDF, Word `.docx`, LaTeX `.tex`, `.txt` or `.md`) writes
    `<ULTRON_HOME>/cv/<file name>.txt` (for example `cv/cv.pdf.txt`, so `cv.pdf` and `cv.docx` never
    overwrite each other) and prints `{"path", "chars", "pages", "source_cv"}` (never the text; `source_cv`
    is the absolute path of the original CV). Read the file at `path` with your file-reading ability.

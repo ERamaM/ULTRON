@@ -170,10 +170,6 @@ def load_cv_plain_text(path: Path) -> str:
     """Read plain text from a CV file (``.docx``, ``.pdf``, ``.tex``, ``.txt``, ``.md``, or ``.json``)."""
     path = Path(path)
     suffix = path.suffix.lower()
-    if suffix == ".tex":
-        if path.stat().st_size > cv.MAX_CV_BYTES:
-            raise cv.CvExtractionError("CV file is too large", code="too_long")
-        return cv_ats.extract_tex_text(path.read_bytes(), max_chars=cv.MAX_CV_CHARS)
     if suffix == ".json":
         if path.stat().st_size > cv.MAX_CV_BYTES:
             raise cv.CvExtractionError("CV file is too large", code="too_long")

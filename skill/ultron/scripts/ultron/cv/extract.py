@@ -1,4 +1,4 @@
-"""CV text extraction from PDF, Word ``.docx`` or plain-text files (port of MARK III ``cv/text_extractor.py``).
+"""CV text extraction from PDF, Word ``.docx``, LaTeX source, or plain-text files (port of MARK III ``cv/text_extractor.py``).
 
 Word files are read with the standard library (``ultron.cv.docx_reader``). PDF parsing runs in a child interpreter bounded by a hard timeout (``ultron.cv.worker``). Text is
 never silently truncated: over-budget input is rejected with a typed ``CvExtractionError``.
@@ -27,7 +27,8 @@ MAX_CV_BYTES = 2_500_000
 MAX_CV_CHARS = 60_000
 MAX_CV_PAGES = 20
 PDF_TIMEOUT_SECONDS = 20.0
-TEXT_SUFFIXES = {".txt", ".md"}
+TEX_SUFFIX = ".tex"
+TEXT_SUFFIXES = {".txt", ".md", TEX_SUFFIX}
 DOCX_SUFFIX = ".docx"
 
 
@@ -285,6 +286,31 @@ def _clean_text(text: str, max_chars: int) -> str:
     return clean
 
 
+_TEX_COMMENT_RE = re.compile(r"(?<!\\)%[^\n]*")
+_TEX_HREF_RE = re.compile(r"\\href\{([^{}]*)\}\{([^{}]*)\}")
+_TEX_SECTION_RE = re.compile(r"\\(?:sub)*section\*?\{([^{}]*)\}")
+_TEX_CMD_RE = re.compile(r"\\[a-zA-Z@]+\*?(?:\[[^\[\]]*\])?")
+
+
+def extract_tex_text(content: bytes, *, max_chars: int = MAX_CV_CHARS) -> str:
+    """Best-effort linear-time plain-text extraction from an untrusted ``.tex`` CV source."""
+    raw = decode_text_bytes(content)
+    cleaned = _TEX_COMMENT_RE.sub("", raw)
+    cleaned = _TEX_HREF_RE.sub(r"\2 (\1)", cleaned)
+    cleaned = _TEX_SECTION_RE.sub(r"\n\1\n", cleaned)
+    cleaned = cleaned.replace("\\\\", "\n")
+    cleaned = _TEX_CMD_RE.sub(" ", cleaned)
+    cleaned = cleaned.replace("{", " ").replace("}", " ").replace("\\&", "&").replace("\\%", "%")
+    return _clean_text(cleaned, max_chars)
+
+
+def extract_cv_source_text(content: bytes, *, suffix: str, max_chars: int = MAX_CV_CHARS) -> str:
+    """Read a supported unpaginated CV source without opening external files."""
+    if suffix == TEX_SUFFIX:
+        return extract_tex_text(content, max_chars=max_chars)
+    return _clean_text(decode_text_bytes(content), max_chars)
+
+
 @dataclass(frozen=True, slots=True)
 class CvText:
     """Extracted CV plain text paired with its detected page count."""
@@ -300,12 +326,12 @@ def extract_cv(
     timeout: float = PDF_TIMEOUT_SECONDS,
     pdf_runner: PdfRunner | None = None,
 ) -> CvText:
-    """Return the cleaned CV text and its page count (``.txt``/``.md`` count as one page)."""
+    """Return the cleaned CV text and its page count (unpaginated sources count as one page)."""
 
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix not in TEXT_SUFFIXES and suffix not in {".pdf", DOCX_SUFFIX}:
-        raise CvExtractionError("Unsupported CV format. Use PDF, .docx, .txt or .md.", code="unsupported_type")
+        raise CvExtractionError("Unsupported CV format. Use PDF, .docx, .tex, .txt or .md.", code="unsupported_type")
     try:
         if path.stat().st_size > MAX_CV_BYTES:
             raise CvExtractionError("CV file is too large", code="too_long")
@@ -313,7 +339,7 @@ def extract_cv(
     except OSError as exc:
         raise CvExtractionError(f"Cannot read CV file: {exc}", code="unsupported_type") from exc
     if suffix in TEXT_SUFFIXES:
-        return CvText(_clean_text(decode_text_bytes(content), max_chars), 1)
+        return CvText(extract_cv_source_text(content, suffix=suffix, max_chars=max_chars), 1)
     if suffix == DOCX_SUFFIX:
         from ultron.cv.docx_reader import extract_docx_text
 
@@ -340,6 +366,6 @@ def extract_cv_text(
     max_chars: int = MAX_CV_CHARS,
     timeout: float = PDF_TIMEOUT_SECONDS,
 ) -> str:
-    """Return bounded plain text from a CV file (PDF, ``.docx``, ``.txt`` or ``.md``)."""
+    """Return bounded plain text from a CV file (PDF, ``.docx``, ``.tex``, ``.txt`` or ``.md``)."""
 
     return extract_cv(path, max_pages=max_pages, max_chars=max_chars, timeout=timeout).text
